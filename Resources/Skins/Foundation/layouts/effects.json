@@ -1,0 +1,25 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "effects-root", "type": "column", "padding": 12, "gap": 10,
+    "children": [
+      {
+        "id": "effects-header", "type": "row", "height": 40, "gap": 8, "align": "center",
+        "children": [
+          { "id": "effects-title", "type": "component", "component": "effects.title", "grow": 1 },
+          { "id": "effects-close", "type": "component", "component": "effects.close", "width": 112, "height": 36, "focusOrder": 10 }
+        ]
+      },
+      { "id": "effects-filter-label", "type": "component", "component": "effects.filterLabel", "height": 22 },
+      { "id": "effects-filter", "type": "component", "component": "effects.filter", "height": 36, "focusOrder": 20 },
+      {
+        "id": "effects-insert-row", "type": "row", "height": 38, "gap": 8,
+        "children": [
+          { "id": "effects-catalog", "type": "component", "component": "effects.catalog", "grow": 1, "focusOrder": 30 },
+          { "id": "effects-add", "type": "component", "component": "effects.add", "width": 132, "focusOrder": 40 }
+        ]
+      },
+      { "id": "effects-chain", "type": "component", "component": "effects.chain", "grow": 1, "focusOrder": 50 }
+    ]
+  }
+}

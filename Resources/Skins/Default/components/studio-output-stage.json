@@ -1,0 +1,24 @@
+{
+  "apiVersion": 1, "target": "outputStage",
+  "layers": [
+    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.workspaceRadius" }, "fill": { "$ref": "colors.studio.background" }, "stroke": { "color": { "$ref": "colors.studio.border" }, "width": 1 } },
+    { "id": "heading", "type": "text", "frame": { "x": 16, "y": 12, "width": { "$expr": "max(80, bounds.width - 174)" }, "height": 20 }, "text": "OUTPUT MATRIX", "font": { "$ref": "fonts.workspaceData" }, "fontSize": 11.5, "color": { "$ref": "colors.studio.active" }, "align": "left", "maxLines": 1 },
+    { "id": "layout", "type": "text", "frame": { "x": { "$expr": "bounds.width - 142" }, "y": 12, "width": 126, "height": 20 }, "text": { "$context": "output.layout" }, "font": { "$ref": "fonts.workspaceData" }, "fontSize": 11.5, "color": { "$ref": "colors.studio.muted" }, "align": "right", "maxLines": 1 },
+    { "id": "axis-a", "type": "rect", "frame": { "x": 16, "y": { "$expr": "bounds.height * 0.38" }, "width": { "$expr": "bounds.width - 32" }, "height": 1 }, "fill": "#D6976218" },
+    { "id": "axis-b", "type": "rect", "frame": { "x": 16, "y": { "$expr": "bounds.height * 0.66" }, "width": { "$expr": "bounds.width - 32" }, "height": 1 }, "fill": "#D6976218" },
+    { "id": "centre", "type": "ellipse", "frame": { "x": { "$expr": "bounds.width * 0.5 - 22" }, "y": { "$expr": "bounds.height * 0.5 - 22" }, "width": 44, "height": 44 }, "fill": "#D6976212", "stroke": { "color": "#D697624A", "width": 1 } },
+    { "id": "channels", "type": "repeat", "source": "meter.channels", "limit": 10,
+      "template": {
+        "id": "meter", "type": "group", "children": [
+          { "id": "meter-track", "type": "roundedRect", "frame": { "x": { "$expr": "22 + item.index * ((bounds.width - 44) / meter.channelCount) + (((bounds.width - 44) / meter.channelCount) - min(40, max(22, ((bounds.width - 44) / meter.channelCount) - 8))) * 0.5" }, "y": 50, "width": { "$expr": "min(40, max(22, ((bounds.width - 44) / meter.channelCount) - 8))" }, "height": { "$expr": "max(64, bounds.height - 116)" } }, "radius": 7, "fill": { "$ref": "colors.studio.surface" }, "stroke": { "color": { "$ref": "colors.studio.border" }, "width": 1 } },
+          { "id": "meter-value", "type": "roundedRect", "frame": { "x": { "$expr": "26 + item.index * ((bounds.width - 44) / meter.channelCount) + (((bounds.width - 44) / meter.channelCount) - min(40, max(22, ((bounds.width - 44) / meter.channelCount) - 8))) * 0.5" }, "y": { "$expr": "55 + max(54, bounds.height - 126) * (1 - item.peak)" }, "width": { "$expr": "max(14, min(32, max(22, ((bounds.width - 44) / meter.channelCount) - 8) - 8))" }, "height": { "$expr": "max(2, max(54, bounds.height - 126) * item.peak)" } }, "radius": 5, "fill": { "$ref": "colors.studio.active" } },
+          { "id": "meter-label", "type": "text", "frame": { "x": { "$expr": "22 + item.index * ((bounds.width - 44) / meter.channelCount)" }, "y": { "$expr": "bounds.height - 60" }, "width": { "$expr": "(bounds.width - 44) / meter.channelCount" }, "height": 20 }, "text": { "$context": "item.label" }, "font": { "$ref": "fonts.workspaceData" }, "fontSize": 11.5, "color": { "$ref": "colors.studio.text" }, "align": "center", "maxLines": 1 }
+        ]
+      }
+    },
+    { "id": "footer-divider", "type": "rect", "frame": { "x": 16, "y": { "$expr": "bounds.height - 35" }, "width": { "$expr": "bounds.width - 32" }, "height": 1 }, "fill": "#D6976226" },
+    { "id": "source-label", "type": "text", "frame": { "x": 16, "y": { "$expr": "bounds.height - 29" }, "width": 56, "height": 17 }, "text": "SOURCE", "font": { "$ref": "fonts.workspaceData" }, "fontSize": 10.5, "color": { "$ref": "colors.studio.active" }, "align": "left", "maxLines": 1 },
+    { "id": "device", "type": "text", "frame": { "x": 74, "y": { "$expr": "bounds.height - 29" }, "width": { "$expr": "max(80, bounds.width - 210)" }, "height": 17 }, "text": { "$context": "text.secondary" }, "font": { "$ref": "fonts.workspaceData" }, "fontSize": 10.5, "color": { "$ref": "colors.studio.muted" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "matrix-mode", "type": "text", "frame": { "x": { "$expr": "bounds.width - 132" }, "y": { "$expr": "bounds.height - 29" }, "width": 116, "height": 17 }, "text": "TRUE MULTICHANNEL", "font": { "$ref": "fonts.workspaceData" }, "fontSize": 10.5, "color": { "$ref": "colors.studio.muted" }, "align": "right", "maxLines": 1 }
+  ]
+}

@@ -1,0 +1,226 @@
+{
+  "label": {
+    "studio": "components/studio-label.json",
+    "studioBrand": "components/studio-brand-label.json",
+    "studioTitle": "components/studio-title-label.json",
+    "studioData": "components/studio-data-label.json",
+    "studioTable": "components/studio-table-label.json",
+    "listening": "components/listening-label.json",
+    "listeningBrand": "components/listening-brand-label.json",
+    "listeningTitle": "components/listening-title-label.json",
+    "listeningMuted": "components/listening-muted-label.json",
+    "listeningData": "components/listening-data-label.json",
+    "listeningSection": "components/listening-section-label.json",
+    "listeningSkinStatus": "components/listening-skin-status.json",
+    "listeningTable": "components/listening-table-label.json"
+  },
+  "textButton": {
+    "studio": "components/studio-button.json",
+    "studioNeutral": "components/studio-button.json",
+    "studioPrimary": "components/studio-primary-button.json",
+    "studioIconNeutral": {
+      "renderer": "components/studio-icon-button.json",
+      "slots": {
+        "icon.add": "surface.studioIcon", "icon.settings": "surface.studioIcon",
+        "icon.effects": "surface.studioIcon", "icon.close": "surface.studioIcon",
+        "icon.previous": "surface.studioIcon", "icon.play": "surface.studioIcon",
+        "icon.pause": "surface.studioIcon", "icon.next": "surface.studioIcon",
+        "icon.remove": "surface.studioIcon", "icon.moveUp": "surface.studioIcon",
+        "icon.moveDown": "surface.studioIcon", "icon.scan": "surface.studioIcon",
+        "icon.folderSearch": "surface.studioIcon", "icon.import": "surface.studioIcon",
+        "icon.reload": "surface.studioIcon", "icon.preview": "surface.studioIcon"
+      }
+    },
+    "studioIconPrimary": {
+      "renderer": "components/studio-primary-icon-button.json",
+      "slots": {
+        "icon.add": "surface.studioOnPrimaryIcon", "icon.settings": "surface.studioOnPrimaryIcon",
+        "icon.effects": "surface.studioOnPrimaryIcon", "icon.close": "surface.studioOnPrimaryIcon",
+        "icon.previous": "surface.studioOnPrimaryIcon", "icon.play": "surface.studioOnPrimaryIcon",
+        "icon.pause": "surface.studioOnPrimaryIcon", "icon.next": "surface.studioOnPrimaryIcon",
+        "icon.remove": "surface.studioOnPrimaryIcon", "icon.moveUp": "surface.studioOnPrimaryIcon",
+        "icon.moveDown": "surface.studioOnPrimaryIcon", "icon.scan": "surface.studioOnPrimaryIcon",
+        "icon.folderSearch": "surface.studioOnPrimaryIcon", "icon.import": "surface.studioOnPrimaryIcon",
+        "icon.reload": "surface.studioOnPrimaryIcon", "icon.preview": "surface.studioOnPrimaryIcon"
+      }
+    },
+    "listening": "components/listening-button.json",
+    "listeningNeutral": "components/listening-button.json",
+    "listeningPrimary": "components/listening-primary-button.json",
+    "listeningIconNeutral": {
+      "renderer": "components/listening-icon-button.json",
+      "slots": {
+        "icon.add": "surface.listeningIcon", "icon.settings": "surface.listeningIcon",
+        "icon.effects": "surface.listeningIcon", "icon.close": "surface.listeningIcon",
+        "icon.previous": "surface.listeningIcon", "icon.play": "surface.listeningIcon",
+        "icon.pause": "surface.listeningIcon", "icon.next": "surface.listeningIcon",
+        "icon.remove": "surface.listeningIcon", "icon.moveUp": "surface.listeningIcon",
+        "icon.moveDown": "surface.listeningIcon", "icon.scan": "surface.listeningIcon",
+        "icon.folderSearch": "surface.listeningIcon", "icon.import": "surface.listeningIcon",
+        "icon.reload": "surface.listeningIcon", "icon.preview": "surface.listeningIcon"
+      }
+    },
+    "listeningIconPrimary": {
+      "renderer": "components/listening-primary-icon-button.json",
+      "slots": {
+        "icon.add": "surface.listeningOnPrimaryIcon", "icon.settings": "surface.listeningOnPrimaryIcon",
+        "icon.effects": "surface.listeningOnPrimaryIcon", "icon.close": "surface.listeningOnPrimaryIcon",
+        "icon.previous": "surface.listeningOnPrimaryIcon", "icon.play": "surface.listeningOnPrimaryIcon",
+        "icon.pause": "surface.listeningOnPrimaryIcon", "icon.next": "surface.listeningOnPrimaryIcon",
+        "icon.remove": "surface.listeningOnPrimaryIcon", "icon.moveUp": "surface.listeningOnPrimaryIcon",
+        "icon.moveDown": "surface.listeningOnPrimaryIcon", "icon.scan": "surface.listeningOnPrimaryIcon",
+        "icon.folderSearch": "surface.listeningOnPrimaryIcon", "icon.import": "surface.listeningOnPrimaryIcon",
+        "icon.reload": "surface.listeningOnPrimaryIcon", "icon.preview": "surface.listeningOnPrimaryIcon"
+      }
+    },
+    "listeningLeadingNeutral": {
+      "renderer": "components/listening-leading-button.json",
+      "slots": {
+        "icon.add": "surface.listeningIcon", "icon.settings": "surface.listeningIcon",
+        "icon.effects": "surface.listeningIcon", "icon.close": "surface.listeningIcon",
+        "icon.previous": "surface.listeningIcon", "icon.play": "surface.listeningIcon",
+        "icon.pause": "surface.listeningIcon", "icon.next": "surface.listeningIcon",
+        "icon.remove": "surface.listeningIcon", "icon.moveUp": "surface.listeningIcon",
+        "icon.moveDown": "surface.listeningIcon", "icon.scan": "surface.listeningIcon",
+        "icon.folderSearch": "surface.listeningIcon", "icon.import": "surface.listeningIcon",
+        "icon.reload": "surface.listeningIcon", "icon.preview": "surface.listeningIcon"
+      }
+    },
+    "listeningLeadingPrimary": {
+      "renderer": "components/listening-primary-leading-button.json",
+      "slots": {
+        "icon.add": "surface.listeningOnPrimaryIcon", "icon.settings": "surface.listeningOnPrimaryIcon",
+        "icon.effects": "surface.listeningOnPrimaryIcon", "icon.close": "surface.listeningOnPrimaryIcon",
+        "icon.previous": "surface.listeningOnPrimaryIcon", "icon.play": "surface.listeningOnPrimaryIcon",
+        "icon.pause": "surface.listeningOnPrimaryIcon", "icon.next": "surface.listeningOnPrimaryIcon",
+        "icon.remove": "surface.listeningOnPrimaryIcon", "icon.moveUp": "surface.listeningOnPrimaryIcon",
+        "icon.moveDown": "surface.listeningOnPrimaryIcon", "icon.scan": "surface.listeningOnPrimaryIcon",
+        "icon.folderSearch": "surface.listeningOnPrimaryIcon", "icon.import": "surface.listeningOnPrimaryIcon",
+        "icon.reload": "surface.listeningOnPrimaryIcon", "icon.preview": "surface.listeningOnPrimaryIcon"
+      }
+    }
+  },
+  "toggleButton": {
+    "listening": "components/listening-toggle-button.json"
+  },
+  "comboBox": {
+    "listening": "components/listening-combo-box.json"
+  },
+  "textEditor": {
+    "listening": "components/listening-text-editor.json"
+  },
+  "linearSlider": {
+    "studio": "components/studio-linear-slider.json",
+    "listening": "components/listening-linear-slider.json"
+  },
+  "rotarySlider": {
+    "listening": "components/listening-rotary-slider.json"
+  },
+  "progressBar": {
+    "listening": "components/listening-progress-bar.json"
+  },
+  "scrollBar": {
+    "default": "components/listening-scroll-bar.json"
+  },
+  "popupMenu": {
+    "default": "components/listening-popup-menu.json"
+  },
+  "tooltip": {
+    "default": "components/listening-tooltip.json"
+  },
+  "table": {
+    "studio": {
+      "renderer": "components/studio-table.json",
+      "slots": {
+        "header.surface": "surface.studio",
+        "header.text": "label.studioTable",
+        "row.surface": "surface.studio",
+        "cell.title": "label.studioTable",
+        "cell.location": "label.studioTable",
+        "cell.duration": "label.studioTable"
+      }
+    },
+    "listening": {
+      "renderer": "components/listening-table.json",
+      "slots": {
+        "header.surface": "surface.listening",
+        "header.text": "label.listeningTable",
+        "row.surface": "surface.listening",
+        "cell.title": "label.listeningTable",
+        "cell.location": "label.listeningTable",
+        "cell.duration": "label.listeningTable"
+      }
+    }
+  },
+  "surface": {
+    "studio": "components/studio-surface.json",
+    "studioCanvas": "components/studio-canvas.json",
+    "listening": "components/listening-surface.json",
+    "listeningSkinCard": "components/listening-skin-card.json",
+    "listeningReadOnlyRow": "components/listening-read-only-row.json",
+    "listeningCanvas": "components/listening-canvas.json",
+    "studioIcon": "components/studio-icon.json",
+    "studioOnPrimaryIcon": "components/studio-on-primary-icon.json",
+    "listeningIcon": "components/listening-icon.json",
+    "listeningOnPrimaryIcon": "components/listening-on-primary-icon.json"
+  },
+  "artwork": {
+    "listening": {
+      "renderer": "components/listening-artwork.json",
+      "slots": {
+        "frame.background": "surface.listening",
+        "frame.overlay": "surface.listening"
+      }
+    }
+  },
+  "effectChain": {
+    "listening": {
+      "renderer": "components/listening-effect-chain.json",
+      "slots": {
+        "slot.surface": "surface.listening",
+        "slot.name": "label.listening",
+        "slot.bypass": "textButton.listeningNeutral",
+        "slot.editor": "textButton.listeningNeutral",
+        "slot.remove": "textButton.listeningNeutral",
+        "slot.dragIndicator": "surface.listeningReadOnlyRow"
+      }
+    }
+  },
+  "outputStage": {
+    "studio": "components/studio-output-stage.json"
+  },
+  "channelMap": {
+    "listening": {
+      "renderer": "components/listening-channel-map.json",
+      "slots": {
+        "row.surface": "surface.listeningReadOnlyRow",
+        "row.source": "label.listeningData",
+        "row.destination": "label.listeningMuted"
+      }
+    }
+  },
+  "pluginList": {
+    "listening": {
+      "renderer": "components/listening-plugin-list.json",
+      "slots": {
+        "row.surface": "surface.listening",
+        "row.name": "label.listening",
+        "row.manufacturer": "label.listeningMuted",
+        "row.format": "label.listeningMuted",
+        "row.status": "label.listeningMuted"
+      }
+    }
+  },
+  "skinList": {
+    "listening": {
+      "renderer": "components/listening-skin-list.json",
+      "slots": {
+        "row.surface": "surface.listeningSkinCard",
+        "row.name": "label.listening",
+        "row.author": "label.listeningMuted",
+        "row.version": "label.listeningData",
+        "row.status": "label.listeningSkinStatus"
+      }
+    }
+  }
+}

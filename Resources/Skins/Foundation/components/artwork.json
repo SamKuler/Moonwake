@@ -1,0 +1,6 @@
+{
+  "apiVersion": 1, "target": "artwork",
+  "layers": [
+    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.panelRadius" }, "fill": { "$ref": "colors.surfaceRaised" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1 } }
+  ]
+}

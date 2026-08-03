@@ -1,0 +1,75 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "settings-root", "type": "column", "padding": 16, "gap": 12, "style": "surface.listeningCanvas",
+    "children": [
+      {
+        "id": "settings-header", "type": "row", "height": 44, "gap": 10, "align": "center",
+        "children": [
+          { "id": "settings-title", "type": "component", "component": "settings.title", "style": "label.listeningTitle", "grow": 1 },
+          { "id": "settings-close", "type": "component", "component": "settings.close", "style": "textButton.listeningIconNeutral", "width": 44, "height": 36, "focusOrder": 10 }
+        ]
+      },
+      {
+        "id": "settings-content", "type": "row", "gap": 14, "grow": 1,
+        "children": [
+          {
+            "id": "settings-audio", "type": "column", "padding": 14, "gap": 10, "grow": 1, "style": "surface.listening",
+            "children": [
+              { "id": "settings-audio-heading", "type": "component", "component": "settings.audio.heading", "style": "label.listeningSection", "height": 28 },
+              { "id": "settings-device", "type": "component", "component": "settings.audio.device", "style": "comboBox.listening", "height": 36, "focusOrder": 20 },
+              { "id": "settings-rate", "type": "component", "component": "settings.audio.sampleRate", "style": "comboBox.listening", "height": 36, "focusOrder": 30 },
+              { "id": "settings-buffer", "type": "component", "component": "settings.audio.bufferSize", "style": "comboBox.listening", "height": 36, "focusOrder": 40 },
+              { "id": "settings-layout", "type": "component", "component": "settings.audio.channelLayout", "style": "comboBox.listening", "height": 36, "focusOrder": 50 },
+              { "id": "settings-channel-map", "type": "component", "component": "settings.audio.channelMap", "style": "channelMap.listening", "grow": 1 }
+            ]
+          },
+          {
+            "id": "settings-plugins", "type": "column", "padding": 14, "gap": 10, "grow": 1, "style": "surface.listening",
+            "children": [
+              { "id": "settings-formats", "type": "component", "component": "settings.plugins.formats", "style": "label.listeningSection", "height": 28 },
+              { "id": "settings-known-list", "type": "component", "component": "settings.plugins.knownList", "style": "pluginList.listening", "grow": 1, "focusOrder": 70 },
+              {
+                "id": "settings-scan-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-scan-all", "type": "component", "component": "settings.plugins.scanAll", "style": "textButton.listeningLeadingPrimary", "grow": 1, "focusOrder": 80 },
+                  { "id": "settings-scan-folder", "type": "component", "component": "settings.plugins.scanFolder", "style": "textButton.listeningLeadingNeutral", "grow": 1, "focusOrder": 90 }
+                ]
+              },
+              { "id": "settings-cancel", "type": "component", "component": "settings.plugins.cancel", "style": "textButton.listeningNeutral", "height": 36, "focusOrder": 100 },
+              { "id": "settings-progress", "type": "component", "component": "settings.plugins.progress", "style": "progressBar.listening", "height": 8 }
+            ]
+          },
+          {
+            "id": "settings-skins", "type": "column", "padding": 14, "gap": 10, "grow": 1, "style": "surface.listening",
+            "children": [
+              { "id": "settings-skins-heading", "type": "component", "component": "settings.skins.heading", "style": "label.listeningSection", "height": 28 },
+              { "id": "settings-skin-list", "type": "component", "component": "settings.skins.library", "style": "skinList.listening", "height": 136, "focusOrder": 110 },
+              {
+                "id": "settings-skin-source-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-import", "type": "component", "component": "settings.skins.import", "style": "textButton.listeningLeadingNeutral", "grow": 1, "focusOrder": 120 },
+                  { "id": "settings-reload", "type": "component", "component": "settings.skins.reload", "style": "textButton.listeningLeadingNeutral", "grow": 1, "focusOrder": 130 }
+                ]
+              },
+              {
+                "id": "settings-skin-preview-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-preview", "type": "component", "component": "settings.skins.preview", "style": "textButton.listeningLeadingNeutral", "grow": 1, "focusOrder": 140 },
+                  { "id": "settings-remove", "type": "component", "component": "settings.skins.remove", "style": "textButton.listeningLeadingNeutral", "grow": 1, "focusOrder": 150 }
+                ]
+              },
+              {
+                "id": "settings-skin-commit-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-apply", "type": "component", "component": "settings.skins.apply", "style": "textButton.listeningPrimary", "grow": 1, "focusOrder": 160 },
+                  { "id": "settings-cancel-preview", "type": "component", "component": "settings.skins.cancelPreview", "style": "textButton.listeningNeutral", "grow": 1, "focusOrder": 170 }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

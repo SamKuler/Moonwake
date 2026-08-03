@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1, "target": "comboBox",
+  "layers": [
+    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": { "$ref": "colors.listening.control" }, "stroke": { "color": { "$ref": "colors.listening.border" }, "width": 1 } },
+    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 12, "right": 34 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 13, "color": { "$ref": "colors.listening.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "chevron", "type": "text", "frame": { "x": { "$expr": "bounds.width - 28" }, "y": 0, "width": 20, "height": { "$expr": "bounds.height" } }, "text": "⌄", "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 15, "color": { "$ref": "colors.listening.muted" }, "align": "center", "maxLines": 1 },
+    { "id": "focus", "type": "roundedRect", "visible": { "$context": "state.focused" }, "frame": { "anchor": "bounds", "inset": 1.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": "#00000000", "stroke": { "color": { "$ref": "colors.listening.focus" }, "width": 2 } }
+  ],
+  "variants": { "hover": { "body.opacity": 0.9 }, "pressed": { "body.opacity": 0.76 }, "disabled": { "body.opacity": 0.4, "label.opacity": 0.55, "chevron.opacity": 0.55 } }
+}

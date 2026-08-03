@@ -1,0 +1,21 @@
+{
+  "skinApi": 1,
+  "id": "builtin.foundation",
+  "name": "Foundation",
+  "version": "1.0.0",
+  "author": { "name": "Sam Kuler" },
+  "description": "Accessible, complete and immutable fallback skin.",
+  "license": "Proprietary",
+  "minAppVersion": "0.1.0",
+  "capabilities": ["tokens", "renderers", "layouts", "assets", "animations"],
+  "entrypoints": {
+    "tokens": "tokens.json",
+    "components": "components/index.json",
+    "layouts": {
+      "studio": "layouts/studio.json",
+      "listening": "layouts/listening.json",
+      "effects": "layouts/effects.json",
+      "settings": "layouts/settings.json"
+    }
+  }
+}

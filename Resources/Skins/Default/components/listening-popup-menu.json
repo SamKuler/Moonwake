@@ -1,0 +1,12 @@
+{
+  "apiVersion": 1, "target": "popupMenu",
+  "layers": [
+    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": { "$ref": "colors.listening.surface" }, "stroke": { "color": { "$ref": "colors.listening.border" }, "width": 1 } },
+    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 12, "right": 12 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 13, "color": { "$ref": "colors.listening.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" }
+  ],
+  "variants": {
+    "selected": { "body.fill": { "$ref": "colors.listening.active" }, "label.color": { "$ref": "colors.listening.onActive" } },
+    "hover": { "body.fill": { "$ref": "colors.listening.active" }, "label.color": { "$ref": "colors.listening.onActive" } },
+    "disabled": { "label.opacity": 0.45 }
+  }
+}

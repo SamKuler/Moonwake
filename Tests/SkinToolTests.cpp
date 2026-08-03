@@ -1,0 +1,421 @@
+#include "skin/SkinSchemaRegistry.h"
+#include "skin/SkinToolCommands.h"
+
+#include <juce_core/juce_core.h>
+#include <juce_graphics/juce_graphics.h>
+
+namespace
+{
+class TemporaryDirectory
+{
+public:
+    TemporaryDirectory()
+        : directory (juce::File::getCurrentWorkingDirectory().getChildFile ("build")
+                         .getChildFile ("moonwake-skin-tool-test-"
+                                        + juce::Uuid().toString()))
+    {
+        const auto result = directory.createDirectory();
+        jassert (result.wasOk());
+    }
+
+    ~TemporaryDirectory() { directory.deleteRecursively(); }
+
+    juce::File directory;
+};
+
+juce::File fixture()
+{
+    return juce::File (MOONWAKE_SOURCE_DIR)
+        .getChildFile ("Tests/fixtures/skins/third-party-complete");
+}
+
+SkinTool::ExecutionResult run (std::initializer_list<const char*> arguments)
+{
+    juce::StringArray values;
+    for (const auto* argument : arguments) values.add (argument);
+    return SkinTool::run (values);
+}
+
+bool setComponentHeight (juce::var node, const juce::String& componentId,
+                         int height)
+{
+    if (! node.isObject() || node.isArray()) return false;
+    if (node.getProperty ("type", {}).toString() == "component"
+        && node.getProperty ("component", {}).toString() == componentId)
+    {
+        node.getDynamicObject()->setProperty ("height", height);
+        node.getDynamicObject()->setProperty ("minHeight", height);
+        return true;
+    }
+    const auto children = node.getProperty ("children", {});
+    if (const auto* values = children.getArray())
+        for (const auto& child : *values)
+            if (setComponentHeight (child, componentId, height)) return true;
+    const auto child = node.getProperty ("child", {});
+    return setComponentHeight (child, componentId, height);
+}
+
+void offsetFocusOrders (juce::var node, int offset)
+{
+    if (! node.isObject() || node.isArray()) return;
+    const auto focusOrder = static_cast<int> (node.getProperty ("focusOrder", 0));
+    if (focusOrder > 0)
+        node.getDynamicObject()->setProperty ("focusOrder", focusOrder + offset);
+    if (const auto* children = node.getProperty ("children", {}).getArray())
+        for (const auto& child : *children)
+            offsetFocusOrders (child, offset);
+    offsetFocusOrders (node.getProperty ("child", {}), offset);
+}
+
+bool wrapComponentInHiddenParent (juce::var node,
+                                  const juce::String& componentId,
+                                  int hiddenFocusOrder)
+{
+    if (! node.isObject() || node.isArray()) return false;
+    auto childrenValue = node.getProperty ("children", {});
+    if (auto* children = childrenValue.getArray())
+        for (int index = 0; index < children->size(); ++index)
+        {
+            const auto child = children->getReference (index);
+            if (child.getProperty ("type", {}).toString() == "component"
+                && child.getProperty ("component", {}).toString() == componentId)
+            {
+                child.getDynamicObject()->setProperty ("focusOrder",
+                                                       hiddenFocusOrder);
+                juce::Array<juce::var> wrappedChildren;
+                wrappedChildren.add (child);
+                auto wrapper = juce::var (new juce::DynamicObject());
+                auto* object = wrapper.getDynamicObject();
+                object->setProperty ("id", "hidden-focus-parent");
+                object->setProperty ("type", "row");
+                object->setProperty ("visible", false);
+                object->setProperty ("width", 88);
+                object->setProperty ("height", 40);
+                object->setProperty ("children", wrappedChildren);
+                children->set (index, wrapper);
+                return true;
+            }
+            if (wrapComponentInHiddenParent (child, componentId,
+                                             hiddenFocusOrder))
+                return true;
+        }
+    return wrapComponentInHiddenParent (node.getProperty ("child", {}),
+                                        componentId, hiddenFocusOrder);
+}
+
+juce::String guideForLayout (const juce::var& layout)
+{
+    return "# Test guide\n\n"
+           "<!-- skin-doc-test: schema=layout route=listening semantics=complete -->\n"
+           "~~~json\n" + juce::JSON::toString (layout, true) + "\n~~~\n";
+}
+
+class SkinToolTests final : public juce::UnitTest
+{
+public:
+    SkinToolTests() : juce::UnitTest ("SkinTool") {}
+
+    void runTest() override
+    {
+        beginTest ("parser rejects incomplete and unknown commands deterministically");
+        {
+            const auto help = run ({});
+            expectEquals (help.exitCode, 0);
+            expect (help.standardOutput.contains ("validate <path>"));
+            expectEquals (help.standardOutput, SkinTool::helpText());
+
+            const auto unknown = run ({ "unknown" });
+            expectEquals (unknown.exitCode, 2);
+            expect (unknown.standardError.contains ("TOOL001"), unknown.standardError);
+            const auto missing = run ({ "validate" });
+            expectEquals (missing.exitCode, 2);
+            expect (missing.standardError.contains ("TOOL002"), missing.standardError);
+            expectEquals (run ({ "validate", "skin", "--wat" }).exitCode, 2);
+            expectEquals (run ({ "layout", "skin", "--workspace", "mix",
+                                 "--size", "1240x800" }).exitCode, 2);
+            expectEquals (run ({ "layout", "skin", "--workspace", "listening",
+                                 "--size", "12-by-8" }).exitCode, 2);
+            expectEquals (run ({ "snapshot", "skin", "--workspace", "listening",
+                                 "--size", "1240x800" }).exitCode, 2);
+            expectEquals (run ({ "snapshot", "skin", "--workspace", "listening",
+                                 "--size", "1240x800", "--output", "out.png",
+                                 "--state", "glowing" }).exitCode, 2);
+            expectEquals (run ({ "schema" }).exitCode, 2);
+            expectEquals (run ({ "verify-docs", "--guide", "guide.md" }).exitCode, 2);
+
+            const auto warnings = SkinTool::parse (
+                { "validate", fixture().getFullPathName(), "--warnings-as-errors" });
+            expect (warnings.options.has_value());
+            expect (warnings.options && warnings.options->warningsAsErrors);
+
+            const auto schema = SkinTool::parse ({ "schema", "--output-dir", "schemas" });
+            expect (schema.options.has_value());
+            expect (schema.options && schema.options->command == SkinTool::Command::schema);
+
+            const auto docs = SkinTool::parse (
+                { "verify-docs", "--guide", "guide.md", "--example", "example" });
+            expect (docs.options.has_value());
+            expect (docs.options && docs.options->command == SkinTool::Command::verifyDocs);
+        }
+
+        beginTest ("validate and layout use the production compiler and layout engine");
+        {
+            const auto validation = run (
+                { "validate", fixture().getFullPathName().toRawUTF8(),
+                  "--warnings-as-errors" });
+            expectEquals (validation.exitCode, 0, validation.standardError);
+            expect (validation.standardOutput.contains (
+                "com.example.complete-third-party"));
+
+            const auto layout = run (
+                { "layout", fixture().getFullPathName().toRawUTF8(),
+                  "--workspace", "listening", "--size", "1240x800" });
+            expectEquals (layout.exitCode, 0, layout.standardError);
+            expect (layout.standardOutput.contains ("transport.seek "));
+            expect (layout.standardOutput.contains ("library.add "));
+            expect (layout.standardOutput.contains ("transport.volume "));
+
+        }
+
+        beginTest ("pack output is reproducible and protected from accidental overwrite");
+        {
+            TemporaryDirectory temporary;
+            const auto first = temporary.directory.getChildFile ("first.moonwake-skin");
+            const auto second = temporary.directory.getChildFile ("second.moonwake-skin");
+            auto packed = run (
+                { "pack", fixture().getFullPathName().toRawUTF8(), "--output",
+                  first.getFullPathName().toRawUTF8() });
+            expectEquals (packed.exitCode, 0, packed.standardError);
+            packed = run (
+                { "pack", fixture().getFullPathName().toRawUTF8(), "--output",
+                  second.getFullPathName().toRawUTF8() });
+            expectEquals (packed.exitCode, 0, packed.standardError);
+            juce::MemoryBlock firstBytes, secondBytes;
+            expect (first.loadFileAsData (firstBytes));
+            expect (second.loadFileAsData (secondBytes));
+            expect (firstBytes == secondBytes);
+            const auto exists = run ({ "pack", fixture().getFullPathName().toRawUTF8(),
+                                       "--output", first.getFullPathName().toRawUTF8() });
+            expectEquals (exists.exitCode, 1);
+            expect (exists.standardError.contains ("TOOL003"), exists.standardError);
+            expectEquals (run ({ "pack", fixture().getFullPathName().toRawUTF8(),
+                                 "--output", first.getFullPathName().toRawUTF8(),
+                                 "--force" }).exitCode, 0);
+            expectEquals (run ({ "validate", first.getFullPathName().toRawUTF8() }).exitCode, 0);
+
+            const auto copiedInput = temporary.directory.getChildFile ("skin-input");
+            const auto inputAlias = temporary.directory.getChildFile ("skin-alias");
+            expect (fixture().copyDirectoryTo (copiedInput));
+            expect (copiedInput.createSymbolicLink (inputAlias, false));
+            const auto aliasedOutput = inputAlias.getChildFile ("inside.moonwake-skin");
+            const auto unsafe = run (
+                { "pack", copiedInput.getFullPathName().toRawUTF8(), "--output",
+                  aliasedOutput.getFullPathName().toRawUTF8() });
+            expectEquals (unsafe.exitCode, 1);
+            expect (unsafe.standardError.contains ("TOOL007"), unsafe.standardError);
+            expect (! copiedInput.getChildFile ("inside.moonwake-skin").exists());
+
+            const auto wrongInput = run (
+                { "pack", fixture().getChildFile ("manifest.json")
+                              .getFullPathName().toRawUTF8(),
+                  "--output", temporary.directory.getChildFile ("wrong.moonwake-skin")
+                                  .getFullPathName().toRawUTF8() });
+            expectEquals (wrongInput.exitCode, 1);
+            expect (wrongInput.standardError.contains ("TOOL005"),
+                    wrongInput.standardError);
+
+            const auto blocker = temporary.directory.getChildFile ("blocker");
+            expect (blocker.replaceWithText ("not a directory"));
+            const auto writeFailure = run (
+                { "pack", fixture().getFullPathName().toRawUTF8(), "--output",
+                  blocker.getChildFile ("failed.moonwake-skin")
+                      .getFullPathName().toRawUTF8() });
+            expectEquals (writeFailure.exitCode, 1);
+            expect (writeFailure.standardError.contains ("TOOL004"),
+                    writeFailure.standardError);
+        }
+
+        beginTest ("snapshot renders a deterministic-size PNG without an audio backend");
+        {
+            TemporaryDirectory temporary;
+            const auto output = temporary.directory.getChildFile ("listening.png");
+            const auto snapshot = run (
+                { "snapshot", fixture().getFullPathName().toRawUTF8(),
+                  "--workspace", "listening", "--size", "1240x800", "--output",
+                  output.getFullPathName().toRawUTF8() });
+            expectEquals (snapshot.exitCode, 0, snapshot.standardError);
+            const auto image = juce::ImageFileFormat::loadFrom (output);
+            expect (image.isValid());
+            expectEquals (image.getWidth(), 1240);
+            expectEquals (image.getHeight(), 800);
+            const auto exists = run (
+                { "snapshot", fixture().getFullPathName().toRawUTF8(),
+                  "--workspace", "listening", "--size", "1240x800", "--output",
+                  output.getFullPathName().toRawUTF8() });
+            expectEquals (exists.exitCode, 1);
+            expect (exists.standardError.contains ("TOOL003"), exists.standardError);
+
+            const auto focused = temporary.directory.getChildFile ("focused.png");
+            expectEquals (run (
+                { "snapshot", fixture().getFullPathName().toRawUTF8(),
+                  "--workspace", "listening", "--size", "1240x800", "--output",
+                  focused.getFullPathName().toRawUTF8(), "--state", "focused" }).exitCode, 0);
+            expect (juce::ImageFileFormat::loadFrom (focused).isValid());
+            juce::MemoryBlock representativeBytes, focusedBytes;
+            expect (output.loadFileAsData (representativeBytes));
+            expect (focused.loadFileAsData (focusedBytes));
+            expect (representativeBytes != focusedBytes);
+
+            const auto shiftedSkin = temporary.directory.getChildFile ("shifted-skin");
+            expect (fixture().copyDirectoryTo (shiftedSkin));
+            const auto shiftedLayout = shiftedSkin.getChildFile ("layouts/listening.json");
+            juce::var shiftedJson;
+            expect (juce::JSON::parse (shiftedLayout.loadFileAsString(), shiftedJson).wasOk());
+            offsetFocusOrders (shiftedJson.getProperty ("root", {}), 100);
+            expect (shiftedLayout.replaceWithText (juce::JSON::toString (shiftedJson, true)));
+            const auto shiftedOutput = temporary.directory.getChildFile ("shifted.png");
+            const auto shiftedSnapshot = run (
+                { "snapshot", shiftedSkin.getFullPathName().toRawUTF8(),
+                  "--workspace", "listening", "--size", "1240x800", "--output",
+                  shiftedOutput.getFullPathName().toRawUTF8() });
+            expectEquals (shiftedSnapshot.exitCode, 0, shiftedSnapshot.standardError);
+            juce::MemoryBlock shiftedBytes;
+            expect (shiftedOutput.loadFileAsData (shiftedBytes));
+            expect (representativeBytes == shiftedBytes,
+                    "Representative focus must follow the minimum positive focusOrder");
+
+            juce::MemoryBlock hiddenFocusReference;
+            for (const auto hiddenFocusOrder : { 1, 1000 })
+            {
+                const auto hiddenSkin = temporary.directory.getChildFile (
+                    "hidden-skin-" + juce::String (hiddenFocusOrder));
+                expect (fixture().copyDirectoryTo (hiddenSkin));
+                const auto hiddenLayout = hiddenSkin.getChildFile (
+                    "layouts/listening.json");
+                juce::var hiddenJson;
+                expect (juce::JSON::parse (hiddenLayout.loadFileAsString(),
+                                           hiddenJson).wasOk());
+                offsetFocusOrders (hiddenJson.getProperty ("root", {}), 100);
+                expect (wrapComponentInHiddenParent (
+                    hiddenJson.getProperty ("root", {}), "effects.open",
+                    hiddenFocusOrder));
+                expect (hiddenLayout.replaceWithText (
+                    juce::JSON::toString (hiddenJson, true)));
+                const auto hiddenOutput = temporary.directory.getChildFile (
+                    "hidden-" + juce::String (hiddenFocusOrder) + ".png");
+                const auto hiddenSnapshot = run (
+                    { "snapshot", hiddenSkin.getFullPathName().toRawUTF8(),
+                      "--workspace", "listening", "--size", "1240x800",
+                      "--output", hiddenOutput.getFullPathName().toRawUTF8() });
+                expectEquals (hiddenSnapshot.exitCode, 0,
+                              hiddenSnapshot.standardError);
+                juce::MemoryBlock hiddenBytes;
+                expect (hiddenOutput.loadFileAsData (hiddenBytes));
+                if (hiddenFocusReference.isEmpty())
+                    hiddenFocusReference = hiddenBytes;
+                else
+                    expect (hiddenFocusReference == hiddenBytes,
+                            "Invisible parent subtrees must not consume representative focus");
+            }
+        }
+
+        beginTest ("schema writes all five registry documents with overwrite provenance");
+        {
+            TemporaryDirectory temporary;
+            const auto output = temporary.directory.getChildFile ("schemas");
+            auto generated = run ({ "schema", "--output-dir",
+                                    output.getFullPathName().toRawUTF8() });
+            expectEquals (generated.exitCode, 0, generated.standardError);
+            const auto serialised = SkinSchemaRegistry::serialisedSchemas();
+            expectEquals (static_cast<int> (serialised.size()), 5);
+            for (const auto& name : { "manifest", "tokens", "component-index",
+                                      "layout", "render" })
+            {
+                const auto file = output.getChildFile (juce::String (name)
+                                                       + ".schema.json");
+                expect (file.existsAsFile());
+                const auto value = juce::JSON::parse (file);
+                expectEquals (value.getProperty ("x-generatedBy", {}).toString(),
+                              juce::String ("Moonwake SkinSchemaRegistry"));
+                expectEquals (static_cast<int> (value.getProperty ("x-skinApi", 0)), 1);
+            }
+            generated = run ({ "schema", "--output-dir",
+                               output.getFullPathName().toRawUTF8() });
+            expectEquals (generated.exitCode, 0, generated.standardError);
+
+            const auto protectedDirectory = temporary.directory.getChildFile ("protected");
+            expect (protectedDirectory.createDirectory());
+            expect (protectedDirectory.getChildFile ("manifest.schema.json")
+                        .replaceWithText ("{\"owner\":\"third-party\"}"));
+            const auto protectedResult = run (
+                { "schema", "--output-dir",
+                  protectedDirectory.getFullPathName().toRawUTF8() });
+            expectEquals (protectedResult.exitCode, 1);
+            expect (protectedResult.standardError.contains ("TOOL003"),
+                    protectedResult.standardError);
+            expectEquals (run ({ "schema", "--output-dir",
+                                 protectedDirectory.getFullPathName().toRawUTF8(),
+                                 "--force" }).exitCode, 0);
+        }
+
+        beginTest ("verify-docs checks JSON fences, complete semantics and the example");
+        {
+            TemporaryDirectory temporary;
+            juce::var listening;
+            const auto parseResult = juce::JSON::parse (
+                fixture().getChildFile ("layouts/listening.json").loadFileAsString(),
+                listening);
+            expect (parseResult.wasOk());
+            const auto guide = temporary.directory.getChildFile ("guide.md");
+            expect (guide.replaceWithText (guideForLayout (listening)));
+            auto verified = run (
+                { "verify-docs", "--guide", guide.getFullPathName().toRawUTF8(),
+                  "--example", fixture().getFullPathName().toRawUTF8() });
+            expectEquals (verified.exitCode, 0, verified.standardError);
+            expect (verified.standardOutput.contains ("1 annotated"));
+
+            expect (setComponentHeight (listening.getProperty ("root", {}),
+                                        "transport.seek", 24));
+            expect (guide.replaceWithText (guideForLayout (listening)));
+            verified = run (
+                { "verify-docs", "--guide", guide.getFullPathName().toRawUTF8(),
+                  "--example", fixture().getFullPathName().toRawUTF8() });
+            expectEquals (verified.exitCode, 1);
+            expect (verified.standardError.contains ("LAYOUT015"),
+                    verified.standardError);
+
+            expect (guide.replaceWithText ("~~~json\n{ not-json }\n~~~\n"));
+            verified = run (
+                { "verify-docs", "--guide", guide.getFullPathName().toRawUTF8(),
+                  "--example", fixture().getFullPathName().toRawUTF8() });
+            expectEquals (verified.exitCode, 1);
+            expect (verified.standardError.contains ("/line/2"),
+                    verified.standardError);
+            expect (verified.standardError.contains ("TOOL008"),
+                    verified.standardError);
+
+            expect (guide.replaceWithText (
+                "<!-- skin-doc-test: schema=layout route=unknown semantics=complete -->\n"
+                "~~~json\n{}\n~~~\n"));
+            verified = run (
+                { "verify-docs", "--guide", guide.getFullPathName().toRawUTF8(),
+                  "--example", fixture().getFullPathName().toRawUTF8() });
+            expectEquals (verified.exitCode, 1);
+            expect (verified.standardError.contains ("marker is malformed"),
+                    verified.standardError);
+
+            expect (guide.replaceWithText (
+                "<!-- skin-doc-test: schema=layout route=listening semantics=complete -->\n"
+                "\n~~~json\n{}\n~~~\n"));
+            verified = run (
+                { "verify-docs", "--guide", guide.getFullPathName().toRawUTF8(),
+                  "--example", fixture().getFullPathName().toRawUTF8() });
+            expectEquals (verified.exitCode, 1);
+            expect (verified.standardError.contains ("immediately followed"),
+                    verified.standardError);
+        }
+    }
+};
+
+SkinToolTests skinToolTests;
+} // namespace

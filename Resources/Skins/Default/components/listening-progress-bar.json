@@ -1,0 +1,7 @@
+{
+  "apiVersion": 1, "target": "progressBar",
+  "layers": [
+    { "id": "track", "type": "roundedRect", "frame": { "anchor": "bounds" }, "radius": 3, "fill": { "$ref": "colors.listening.track" } },
+    { "id": "value", "type": "roundedRect", "frame": { "x": 0, "y": 0, "width": { "$expr": "bounds.width * value.normalized" }, "height": { "$expr": "bounds.height" } }, "radius": 3, "fill": { "$ref": "colors.listening.active" } }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds" }, "radius": 9, "fill": { "$ref": "colors.listening.control" } },
+    { "id": "active-body", "type": "roundedRect", "visible": { "$context": "skin.active" }, "frame": { "anchor": "bounds" }, "radius": 9, "fill": { "$ref": "colors.listening.active" } },
+    { "id": "label", "type": "text", "visible": { "$expr": "not skin.active" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceData" }, "fontSize": 10.5, "color": { "$ref": "colors.listening.muted" }, "align": "center", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "active-label", "type": "text", "visible": { "$context": "skin.active" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceData" }, "fontSize": 10.5, "color": { "$ref": "colors.listening.onActive" }, "align": "center", "maxLines": 1, "overflow": "ellipsis" }
+  ]
+}

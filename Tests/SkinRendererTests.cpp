@@ -1,0 +1,1858 @@
+#include "skin/SkinAnimationEngine.h"
+#include "skin/SkinAssetCache.h"
+#include "skin/SkinComponentBindings.h"
+#include "skin/SkinRenderer.h"
+#include "ui/AlbumArtworkComponent.h"
+#include "ui/JuceSkinAdapter.h"
+#include "ui/OutputStageComponent.h"
+#include "ui/SkinEffectChainViewport.h"
+#include "ui/SkinTableListBox.h"
+
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_cryptography/juce_cryptography.h>
+
+#include <cmath>
+#include <set>
+
+namespace
+{
+SkinRenderPropertyBinding literalBinding (SkinPrimitive primitive,
+                                          const juce::String& path,
+                                          SkinCompiledRenderValue value)
+{
+    const auto* descriptor = skinRenderPropertyDescriptor (primitive, path);
+    jassert (descriptor != nullptr);
+    return { std::move (value), descriptor->fallback, descriptor, false, {}, {}, 0, {} };
+}
+
+void setCommon (SkinRenderLayer& layer)
+{
+    const auto set = [&] (const juce::String& path, SkinCompiledRenderValue value)
+    {
+        layer.properties[path] = literalBinding (layer.primitive, path, std::move (value));
+    };
+    set ("visible", true);
+    set ("opacity", 1.0);
+    set ("transform.translateX", 0.0);
+    set ("transform.translateY", 0.0);
+    set ("transform.scaleX", 1.0);
+    set ("transform.scaleY", 1.0);
+    set ("transform.rotation", 0.0);
+    set ("transform.pivotX", 100.0);
+    set ("transform.pivotY", 60.0);
+    set ("clip", false);
+    set ("shadow.color", juce::Colours::transparentBlack);
+    set ("shadow.radius", 0.0);
+    set ("shadow.offsetX", 0.0);
+    set ("shadow.offsetY", 0.0);
+}
+
+SkinRenderLayer rectangleLayer (juce::String id, juce::Rectangle<float> frame,
+                                juce::Colour fill, double radius = 0.0)
+{
+    SkinRenderLayer layer;
+    layer.id = std::move (id);
+    layer.primitive = radius > 0.0 ? SkinPrimitive::roundedRectangle
+                                  : SkinPrimitive::rectangle;
+    setCommon (layer);
+    const auto set = [&] (const juce::String& path, SkinCompiledRenderValue value)
+    {
+        layer.properties[path] = literalBinding (layer.primitive, path, std::move (value));
+    };
+    set ("frame.x", static_cast<double> (frame.getX()));
+    set ("frame.y", static_cast<double> (frame.getY()));
+    set ("frame.width", static_cast<double> (frame.getWidth()));
+    set ("frame.height", static_cast<double> (frame.getHeight()));
+    set ("fill", fill);
+    if (radius > 0.0) set ("radius", radius);
+    set ("stroke.color", juce::Colours::transparentBlack);
+    set ("stroke.width", 0.0);
+    set ("stroke.placement", juce::String ("center"));
+    set ("stroke.cap", juce::String ("butt"));
+    return layer;
+}
+
+void setExplicitFrame (SkinRenderLayer& layer, juce::Rectangle<float> frame)
+{
+    for (const auto& [name, value] : std::initializer_list<std::pair<const char*, double>> {
+             { "frame.x", frame.getX() }, { "frame.y", frame.getY() },
+             { "frame.width", frame.getWidth() }, { "frame.height", frame.getHeight() } })
+        layer.properties[name] = literalBinding (layer.primitive, name, value);
+}
+
+SkinRenderProgram simpleProgram (SkinRenderTarget target, SkinRenderLayer layer)
+{
+    SkinRenderProgram program;
+    program.target = target;
+    program.baseLayers.push_back (std::move (layer));
+    const auto& names = skinVariantNamesInMergeOrder();
+    for (size_t i = 0; i < names.size(); ++i) program.variants[i].name = names[i];
+    program.worstCaseOperations = 1;
+    return program;
+}
+
+juce::Image render (const SkinRenderProgram& program, SkinRenderContext context,
+                    SkinRenderer& renderer, SkinRuntimeFaultSink& sink)
+{
+    juce::Image image (juce::Image::ARGB, 200, 120, true);
+    juce::Graphics graphics (image);
+    context.bounds = { 0.0f, 0.0f, 200.0f, 120.0f };
+    context.contentBounds = context.bounds;
+    renderer.draw (graphics, program, context, true, sink);
+    return image;
+}
+
+juce::String pixelHash (const juce::Image& image)
+{
+    juce::MemoryBlock pixels;
+    juce::Image::BitmapData data (image, juce::Image::BitmapData::readOnly);
+    for (int y = 0; y < data.height; ++y)
+        pixels.append (data.getLinePointer (y), static_cast<size_t> (data.lineStride));
+    return juce::SHA256 (pixels).toHexString();
+}
+
+class FaultRecorder final : public SkinRuntimeFaultSink
+{
+public:
+    void reportRenderFault (const SkinDiagnostic& diagnostic,
+                            SkinRenderStatus newStatus) override
+    {
+        diagnostics.push_back (diagnostic);
+        status = newStatus;
+    }
+
+    std::vector<SkinDiagnostic> diagnostics;
+    SkinRenderStatus status = SkinRenderStatus::ok;
+};
+
+std::vector<SkinPackage::EmbeddedFile> minimalPngPackage()
+{
+    juce::Image image (juce::Image::ARGB, 2, 2, true);
+    image.setPixelAt (0, 0, juce::Colours::red);
+    image.setPixelAt (1, 0, juce::Colours::green);
+    image.setPixelAt (0, 1, juce::Colours::blue);
+    image.setPixelAt (1, 1, juce::Colours::white);
+    juce::MemoryOutputStream stream;
+    juce::PNGImageFormat().writeImageToStream (image, stream);
+    return { { "assets/pixels.png", stream.getMemoryBlock() } };
+}
+
+std::vector<SkinPackage::EmbeddedFile> solidPngPackage (juce::Colour colour)
+{
+    juce::Image image (juce::Image::ARGB, 2, 2, true);
+    image.clear (image.getBounds(), colour);
+    juce::MemoryOutputStream stream;
+    juce::PNGImageFormat().writeImageToStream (image, stream);
+    return { { "assets/pixels.png", stream.getMemoryBlock() } };
+}
+
+std::optional<SkinPackage> packageFrom (
+    juce::String id, std::vector<SkinPackage::EmbeddedFile> files,
+    SkinValidationReport& report)
+{
+    return SkinPackage::fromEmbedded (std::move (id), std::move (files), report);
+}
+
+class SkinRendererTests final : public juce::UnitTest
+{
+public:
+    SkinRendererTests() : UnitTest ("SkinRenderer", "skin") {}
+
+    void runTest() override
+    {
+        beginTest ("renders deterministic primitive fixtures with clipping, opacity and stroke placement");
+        {
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            SkinRenderContext context;
+            auto rect = rectangleLayer ("body", { 10.0f, 10.0f, 80.0f, 50.0f },
+                                        juce::Colour (0xff336699), 9.0);
+            rect.properties["opacity"] = literalBinding (
+                rect.primitive, "opacity", 0.75);
+            rect.properties["stroke.color"] = literalBinding (
+                rect.primitive, "stroke.color", juce::Colour (0xffffaa00));
+            rect.properties["stroke.width"] = literalBinding (
+                rect.primitive, "stroke.width", 4.0);
+            rect.properties["stroke.placement"] = literalBinding (
+                rect.primitive, "stroke.placement", juce::String ("inside"));
+            const auto image = render (simpleProgram (SkinRenderTarget::surface, rect),
+                                       context, renderer, sink);
+            expectEquals (pixelHash (image),
+                          juce::String ("1d08f82368912257dfe27d4fe2844d2b559f4497478da98513d42e0f28778c7e"));
+            expect (sink.status == SkinRenderStatus::ok);
+        }
+
+        beginTest ("merges selected hover pressed focused and disabled variants in frozen order");
+        {
+            auto program = simpleProgram (
+                SkinRenderTarget::textButton,
+                rectangleLayer ("body", { 0.0f, 0.0f, 200.0f, 120.0f },
+                                juce::Colours::black));
+            const std::array colours {
+                juce::Colours::red, juce::Colours::green, juce::Colours::blue,
+                juce::Colours::yellow, juce::Colours::magenta, juce::Colours::grey
+            };
+            for (size_t i = 0; i < colours.size(); ++i)
+                program.variants[i].properties["body.fill"] = literalBinding (
+                    SkinPrimitive::rectangle, "fill", colours[i]);
+
+            SkinRenderContext context;
+            context.state = { false, true, true, true, true, true };
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            const auto image = render (program, context, renderer, sink);
+            expect (image.getPixelAt (100, 60) == juce::Colours::grey);
+        }
+
+        beginTest ("renders ellipse line arc path text group and repeat primitives deterministically");
+        {
+            SkinRenderProgram program;
+            program.target = SkinRenderTarget::outputStage;
+
+            auto ellipse = rectangleLayer (
+                "ellipse", { 8.0f, 8.0f, 36.0f, 24.0f }, juce::Colour (0xff4c78a8));
+            ellipse.primitive = SkinPrimitive::ellipse;
+            ellipse.properties.clear();
+            setCommon (ellipse);
+            setExplicitFrame (ellipse, { 8.0f, 8.0f, 36.0f, 24.0f });
+            ellipse.properties["fill"] = literalBinding (
+                ellipse.primitive, "fill", juce::Colour (0xff4c78a8));
+            ellipse.properties["stroke.color"] = literalBinding (
+                ellipse.primitive, "stroke.color", juce::Colours::white);
+            ellipse.properties["stroke.width"] = literalBinding (
+                ellipse.primitive, "stroke.width", 2.0);
+            ellipse.properties["stroke.placement"] = literalBinding (
+                ellipse.primitive, "stroke.placement", juce::String ("outside"));
+            ellipse.properties["stroke.cap"] = literalBinding (
+                ellipse.primitive, "stroke.cap", juce::String ("round"));
+            program.baseLayers.push_back (std::move (ellipse));
+
+            SkinRenderLayer line;
+            line.id = "line";
+            line.primitive = SkinPrimitive::line;
+            setCommon (line);
+            for (const auto& [name, value] : std::initializer_list<std::pair<const char*, double>> {
+                     { "start.x", 54.0 }, { "start.y", 12.0 },
+                     { "end.x", 94.0 }, { "end.y", 30.0 }, { "width", 5.0 } })
+                line.properties[name] = literalBinding (line.primitive, name, value);
+            line.properties["color"] = literalBinding (
+                line.primitive, "color", juce::Colour (0xfff58518));
+            line.properties["cap"] = literalBinding (
+                line.primitive, "cap", juce::String ("round"));
+            program.baseLayers.push_back (std::move (line));
+
+            SkinRenderLayer arc;
+            arc.id = "arc";
+            arc.primitive = SkinPrimitive::arc;
+            setCommon (arc);
+            for (const auto& [name, value] : std::initializer_list<std::pair<const char*, double>> {
+                     { "center.x", 125.0 }, { "center.y", 22.0 },
+                     { "radiusX", 22.0 }, { "radiusY", 14.0 },
+                     { "startAngle", 15.0 }, { "endAngle", 300.0 },
+                     { "stroke.width", 3.0 } })
+                arc.properties[name] = literalBinding (arc.primitive, name, value);
+            arc.properties["stroke.color"] = literalBinding (
+                arc.primitive, "stroke.color", juce::Colour (0xff54a24b));
+            arc.properties["stroke.placement"] = literalBinding (
+                arc.primitive, "stroke.placement", juce::String ("center"));
+            arc.properties["stroke.cap"] = literalBinding (
+                arc.primitive, "stroke.cap", juce::String ("round"));
+            program.baseLayers.push_back (std::move (arc));
+
+            SkinRenderLayer path;
+            path.id = "path";
+            path.primitive = SkinPrimitive::path;
+            setCommon (path);
+            auto compiledPath = std::make_shared<juce::Path>();
+            compiledPath->startNewSubPath (155.0f, 8.0f);
+            compiledPath->lineTo (190.0f, 8.0f);
+            compiledPath->lineTo (174.0f, 34.0f);
+            compiledPath->closeSubPath();
+            auto dataBinding = literalBinding (
+                path.primitive, "data", juce::String ("M155 8L190 8L174 34Z"));
+            dataBinding.compiledPath = compiledPath;
+            path.properties["data"] = dataBinding;
+            path.compiledPath = compiledPath;
+            path.properties["fill"] = literalBinding (
+                path.primitive, "fill", juce::Colour (0xffe45756));
+            path.properties["stroke.color"] = literalBinding (
+                path.primitive, "stroke.color", juce::Colours::transparentBlack);
+            path.properties["stroke.width"] = literalBinding (
+                path.primitive, "stroke.width", 0.0);
+            path.properties["stroke.placement"] = literalBinding (
+                path.primitive, "stroke.placement", juce::String ("center"));
+            path.properties["stroke.cap"] = literalBinding (
+                path.primitive, "stroke.cap", juce::String ("butt"));
+            program.baseLayers.push_back (std::move (path));
+
+            SkinRenderLayer text;
+            text.id = "text";
+            text.primitive = SkinPrimitive::text;
+            setCommon (text);
+            setExplicitFrame (text, { 8.0f, 42.0f, 90.0f, 24.0f });
+            SkinFontValue font;
+            font.families.add (juce::Font::getDefaultSansSerifFontName());
+            font.weight = 600;
+            text.properties["text"] = literalBinding (
+                text.primitive, "text", juce::String ("SKIN API 1"));
+            text.properties["font"] = literalBinding (text.primitive, "font", font);
+            text.properties["fontSize"] = literalBinding (text.primitive, "fontSize", 13.0);
+            text.properties["color"] = literalBinding (
+                text.primitive, "color", juce::Colour (0xffeeeeee));
+            text.properties["align"] = literalBinding (
+                text.primitive, "align", juce::String ("center"));
+            text.properties["maxLines"] = literalBinding (text.primitive, "maxLines", 1.0);
+            text.properties["overflow"] = literalBinding (
+                text.primitive, "overflow", juce::String ("clip"));
+            program.baseLayers.push_back (std::move (text));
+
+            SkinRenderLayer group;
+            group.id = "group";
+            group.primitive = SkinPrimitive::group;
+            setCommon (group);
+            group.properties["opacity"] = literalBinding (group.primitive, "opacity", 0.65);
+            group.properties["clip"] = literalBinding (group.primitive, "clip", true);
+            group.properties["transform.translateX"] = literalBinding (
+                group.primitive, "transform.translateX", 4.0);
+            group.children.push_back (rectangleLayer (
+                "group-child", { 180.0f, 44.0f, 40.0f, 22.0f },
+                juce::Colour (0xffb279a2), 6.0));
+            program.baseLayers.push_back (std::move (group));
+
+            SkinRenderLayer repeat;
+            repeat.id = "repeat";
+            repeat.primitive = SkinPrimitive::repeat;
+            repeat.repeatSource = "meter.channels";
+            repeat.repeatLimit = 3;
+            setCommon (repeat);
+            auto repeated = rectangleLayer (
+                "bar", { 0.0f, 0.0f, 12.0f, 10.0f }, juce::Colour (0xff72b7b2), 2.0);
+            SkinValidationReport expressionReport;
+            SkinTokenStore emptyTokens;
+            const auto itemOffset = SkinExpression::compile (
+                "item.index * 20 + 18",
+                skinRenderContextForTarget (SkinRenderTarget::outputStage, "meter.channels"),
+                emptyTokens, expressionReport, "fixture", "/repeat/transform/translateX");
+            expect (itemOffset.has_value());
+            if (itemOffset)
+            {
+                auto offsetBinding = literalBinding (
+                    repeated.primitive, "transform.translateX", 0.0);
+                offsetBinding.value = *itemOffset;
+                repeated.properties["transform.translateX"] = std::move (offsetBinding);
+            }
+            repeated.properties["transform.translateY"] = literalBinding (
+                repeated.primitive, "transform.translateY", 78.0);
+            repeat.children.push_back (std::move (repeated));
+            program.baseLayers.push_back (std::move (repeat));
+
+            const auto& names = skinVariantNamesInMergeOrder();
+            for (size_t i = 0; i < names.size(); ++i) program.variants[i].name = names[i];
+            program.worstCaseOperations = 10;
+
+            SkinRenderContext context;
+            context.meterLabels.addArray ({ "L", "R", "C" });
+            context.meterPeaks = { 0.2f, 0.5f, 0.8f };
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            const auto image = render (program, context, renderer, sink);
+            expectEquals (pixelHash (image),
+                          juce::String ("62a36eff76f990565ede4b3f3d8ebad3464d33f7571388f96e07fb9f1387254a"));
+        }
+
+        beginTest ("renders cached bitmap and SVG primitives with fit and tint deterministically");
+        {
+            auto files = minimalPngPackage();
+            const juce::String svg =
+                "<svg width=\"2\" height=\"2\" viewBox=\"0 0 2 2\">"
+                "<rect x=\"0\" y=\"0\" width=\"2\" height=\"2\" fill=\"#ffffff\"/>"
+                "</svg>";
+            files.push_back ({ "assets/mark.svg",
+                               juce::MemoryBlock (svg.toRawUTF8(),
+                                                  static_cast<size_t> (svg.getNumBytesAsUTF8())) });
+            SkinValidationReport packageReport;
+            auto package = packageFrom ("render-assets", std::move (files), packageReport);
+            SkinValidationReport cacheReport;
+            auto cache = SkinAssetCache::create (
+                *package, "skin.assets", "1.0.0",
+                { "assets/pixels.png", "assets/mark.svg" }, {}, cacheReport);
+            expect (cache.has_value());
+            if (! cache) return;
+
+            SkinRenderProgram program;
+            program.target = SkinRenderTarget::surface;
+            const auto addAsset = [&] (SkinPrimitive primitive, juce::String id,
+                                       juce::String source, juce::Rectangle<float> frame,
+                                       juce::String fit, juce::Colour tint)
+            {
+                SkinRenderLayer layer;
+                layer.id = std::move (id);
+                layer.primitive = primitive;
+                setCommon (layer);
+                setExplicitFrame (layer, frame);
+                layer.properties["source"] = literalBinding (
+                    primitive, "source", std::move (source));
+                layer.properties["fit"] = literalBinding (
+                    primitive, "fit", std::move (fit));
+                layer.properties["tint"] = literalBinding (primitive, "tint", tint);
+                program.baseLayers.push_back (std::move (layer));
+            };
+            addAsset (SkinPrimitive::image, "bitmap", "assets/pixels.png",
+                      { 10.0f, 10.0f, 80.0f, 100.0f }, "cover",
+                      juce::Colour (0xbfffffff));
+            addAsset (SkinPrimitive::svg, "svg", "assets/mark.svg",
+                      { 110.0f, 20.0f, 70.0f, 70.0f }, "contain",
+                      juce::Colour (0xffeeca52));
+            const auto& names = skinVariantNamesInMergeOrder();
+            for (size_t i = 0; i < names.size(); ++i) program.variants[i].name = names[i];
+            program.worstCaseOperations = 2;
+
+            FaultRecorder sink;
+            SkinRenderer renderer (*cache);
+            const auto image = render (program, {}, renderer, sink);
+            expectEquals (pixelHash (image),
+                          juce::String ("7d80ee9fd35b5af9d87375f331432c268ff6d4d904feb916b5ebf9bbb303603b"));
+            expect (sink.status == SkinRenderStatus::ok);
+        }
+
+        beginTest ("focus layer remains visible when its visible expression is enabled");
+        {
+            auto program = simpleProgram (
+                SkinRenderTarget::textButton,
+                rectangleLayer ("body", { 0.0f, 0.0f, 200.0f, 120.0f },
+                                juce::Colours::darkgrey));
+            auto focus = rectangleLayer ("focus", { 8.0f, 8.0f, 184.0f, 104.0f },
+                                         juce::Colours::transparentBlack, 10.0);
+            focus.properties["stroke.color"] = literalBinding (
+                focus.primitive, "stroke.color", juce::Colours::yellow);
+            focus.properties["stroke.width"] = literalBinding (
+                focus.primitive, "stroke.width", 3.0);
+            program.baseLayers.push_back (std::move (focus));
+            program.variants[4].properties["focus.fill"] = literalBinding (
+                SkinPrimitive::roundedRectangle, "fill", juce::Colour (0x30ffff00));
+            SkinRenderContext context;
+            context.state.focused = true;
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            const auto image = render (program, context, renderer, sink);
+            expect (image.getPixelAt (9, 60).getAlpha() > 0);
+        }
+
+        beginTest ("asset cache validates bitmaps and isolates cache namespaces");
+        {
+            SkinValidationReport packageReport;
+            auto package = packageFrom ("fixture", minimalPngPackage(), packageReport);
+            expect (package.has_value());
+            SkinValidationReport firstReport;
+            SkinValidationReport secondReport;
+            const auto first = SkinAssetCache::create (
+                *package, "skin.alpha", "1.0.0", { "assets/pixels.png" }, {}, firstReport);
+            const auto second = SkinAssetCache::create (
+                *package, "skin.alpha", "2.0.0", { "assets/pixels.png" }, {}, secondReport);
+            expect (first.has_value() && second.has_value());
+            if (first && second)
+            {
+                expect ((*first)->findImage ("assets/pixels.png") != nullptr);
+                expect ((*first)->namespaceKey() != (*second)->namespaceKey());
+                expectEquals ((*first)->statistics().decodedPixels, int64_t (4));
+            }
+        }
+
+        beginTest ("asset cache rejects missing resources, DTD, unsafe SVG and external references");
+        {
+            SkinValidationReport missingPackageReport;
+            auto missingPackage = packageFrom (
+                "missing-fixture", minimalPngPackage(), missingPackageReport);
+            SkinValidationReport missingReport;
+            expect (! SkinAssetCache::create (
+                *missingPackage, "skin.missing", "1.0.0", { "assets/absent.png" }, {},
+                missingReport).has_value());
+            expect (missingReport.hasCode ("ASSET001"));
+
+            SkinValidationReport packageReport;
+            auto package = packageFrom (
+                "svg-fixture",
+                { { "assets/bad.svg", juce::MemoryBlock (
+                    "<!DOCTYPE svg [<!ENTITY x 'boom'>]><svg><script>&x;</script></svg>",
+                    72) } }, packageReport);
+            expect (package.has_value());
+            SkinValidationReport report;
+            const auto cache = SkinAssetCache::create (
+                *package, "skin.bad", "1.0.0", { "assets/bad.svg" }, {}, report);
+            expect (! cache.has_value());
+            expect (report.hasCode ("ASSET006"));
+
+            SkinValidationReport externalPackageReport;
+            const juce::String externalSvg =
+                "<svg><path id=\"p\" d=\"M0 0L1 1\" fill=\"url(https://bad/x)\"/></svg>";
+            auto externalPackage = packageFrom (
+                "external-fixture",
+                { { "assets/external.svg",
+                    juce::MemoryBlock (externalSvg.toRawUTF8(),
+                                       static_cast<size_t> (externalSvg.getNumBytesAsUTF8())) } },
+                externalPackageReport);
+            SkinValidationReport externalReport;
+            const auto external = SkinAssetCache::create (
+                *externalPackage, "skin.bad", "1.0.1", { "assets/external.svg" }, {},
+                externalReport);
+            expect (! external.has_value());
+            expect (externalReport.hasCode ("ASSET009"));
+        }
+
+        beginTest ("asset cache enforces SVG element and attribute allowlists");
+        {
+            const auto cacheForSvg = [&] (const juce::String& id, const juce::String& svg,
+                                          SkinValidationReport& report)
+            {
+                SkinValidationReport packageReport;
+                auto package = packageFrom (
+                    id, { { "assets/test.svg",
+                            juce::MemoryBlock (svg.toRawUTF8(), static_cast<size_t> (
+                                svg.getNumBytesAsUTF8())) } }, packageReport);
+                return SkinAssetCache::create (
+                    *package, id, "1.0.0", { "assets/test.svg" }, {}, report);
+            };
+
+            SkinValidationReport elementReport;
+            expect (! cacheForSvg ("bad-element",
+                "<svg><foreignObject/></svg>", elementReport).has_value());
+            expect (elementReport.hasCode ("ASSET007"));
+            for (const auto* forbidden : { "script", "style", "image" })
+            {
+                SkinValidationReport forbiddenReport;
+                expect (! cacheForSvg (
+                    "bad-" + juce::String (forbidden),
+                    "<svg><" + juce::String (forbidden) + "/></svg>",
+                    forbiddenReport).has_value());
+                expect (forbiddenReport.hasCode ("ASSET007"));
+            }
+
+            SkinValidationReport attributeReport;
+            expect (! cacheForSvg ("bad-attribute",
+                "<svg><rect x=\"0\" y=\"0\" width=\"1\" height=\"1\" onclick=\"x\"/></svg>",
+                attributeReport).has_value());
+            expect (attributeReport.hasCode ("ASSET008"));
+
+            SkinValidationReport geometryReport;
+            expect (! cacheForSvg ("bad-geometry",
+                "<svg><rect d=\"M0 0\"/></svg>", geometryReport).has_value());
+            expect (geometryReport.hasCode ("ASSET008"));
+
+            SkinValidationReport pathGrammarReport;
+            expect (! cacheForSvg ("bad-path-grammar",
+                "<svg><path d=\"M0,\"/></svg>", pathGrammarReport).has_value());
+            expect (pathGrammarReport.hasCode ("ASSET006"));
+
+            beginTest ("asset cache enforces local SVG fragment resolution");
+            SkinValidationReport fragmentReport;
+            expect (! cacheForSvg ("bad-fragment",
+                "<svg><rect x=\"0\" y=\"0\" width=\"1\" height=\"1\" clip-path=\"url(#missing)\"/></svg>",
+                fragmentReport).has_value());
+            expect (fragmentReport.hasCode ("ASSET009"));
+
+            beginTest ("asset cache rejects more than 512 asset files before decoding");
+            std::vector<SkinPackage::EmbeddedFile> tooMany;
+            std::set<juce::String> tooManyReferences;
+            for (int i = 0; i < 513; ++i)
+            {
+                const auto path = "resources/" + juce::String (i) + ".png";
+                tooMany.push_back ({ path, juce::MemoryBlock ("x", 1) });
+                tooManyReferences.insert (path);
+            }
+            SkinValidationReport manyPackageReport;
+            auto manyPackage = packageFrom (
+                "too-many-assets", std::move (tooMany), manyPackageReport);
+            expect (manyPackage.has_value());
+            SkinValidationReport manyReport;
+            const auto manyCache = manyPackage
+                ? SkinAssetCache::create (*manyPackage, "too-many-assets", "1.0.0",
+                                          tooManyReferences, {}, manyReport)
+                : std::nullopt;
+            expect (! manyCache.has_value());
+            expect (manyReport.hasCode ("ASSET004"));
+
+            beginTest ("asset cache rejects oversized bitmap headers before decoding");
+            std::array<uint8_t, 24> oversizedPng {};
+            const std::array<uint8_t, 8> signature { 0x89, 'P', 'N', 'G', 13, 10, 26, 10 };
+            std::copy (signature.begin(), signature.end(), oversizedPng.begin());
+            oversizedPng[16] = 0x00;
+            oversizedPng[17] = 0x00;
+            oversizedPng[18] = 0x10;
+            oversizedPng[19] = 0x01;
+            oversizedPng[23] = 0x01;
+            SkinValidationReport imagePackageReport;
+            auto imagePackage = packageFrom (
+                "oversized-image",
+                { { "assets/huge.png",
+                    juce::MemoryBlock (oversizedPng.data(), oversizedPng.size()) } },
+                imagePackageReport);
+            SkinValidationReport imageReport;
+            expect (! SkinAssetCache::create (
+                *imagePackage, "oversized-image", "1.0.0", { "assets/huge.png" }, {},
+                imageReport).has_value());
+            expect (imageReport.hasCode ("ASSET003"));
+
+            beginTest ("asset cache enforces 32-million-pixel and 128-MiB decoded budgets");
+            juce::Image largeImage (juce::Image::ARGB, 2048, 2048, true);
+            largeImage.clear (largeImage.getBounds(), juce::Colour (0xff17324d));
+            juce::MemoryOutputStream largePngStream;
+            expect (juce::PNGImageFormat().writeImageToStream (largeImage, largePngStream));
+            std::vector<SkinPackage::EmbeddedFile> largeFiles;
+            for (int i = 0; i < 8; ++i)
+                largeFiles.push_back ({ "assets/large-" + juce::String (i) + ".png",
+                                        largePngStream.getMemoryBlock() });
+            SkinValidationReport largePackageReport;
+            auto largePackage = packageFrom (
+                "decoded-budget", std::move (largeFiles), largePackageReport);
+            SkinValidationReport largeReport;
+            const auto largeCache = largePackage
+                ? SkinAssetCache::create (*largePackage, "decoded-budget", "1.0.0",
+                                          {}, {}, largeReport)
+                : std::nullopt;
+            expect (! largeCache.has_value());
+            expect (largeReport.hasCode ("ASSET004"));
+
+            beginTest ("asset cache enforces the 100000-element package SVG DOM budget");
+            juce::String manyGroups;
+            manyGroups.preallocateBytes (40000);
+            for (int i = 0; i < 9090; ++i) manyGroups += "<g/>";
+            const auto denseSvg = "<svg>" + manyGroups + "</svg>";
+            std::vector<SkinPackage::EmbeddedFile> denseSvgFiles;
+            std::set<juce::String> denseSvgReferences;
+            for (int i = 0; i < 11; ++i)
+            {
+                const auto path = "assets/dense-" + juce::String (i) + ".svg";
+                denseSvgFiles.push_back ({ path,
+                    juce::MemoryBlock (denseSvg.toRawUTF8(), static_cast<size_t> (
+                        denseSvg.getNumBytesAsUTF8())) });
+                denseSvgReferences.insert (path);
+            }
+            SkinValidationReport densePackageReport;
+            auto densePackage = packageFrom (
+                "svg-dom-budget", std::move (denseSvgFiles), densePackageReport);
+            SkinValidationReport denseReport;
+            const auto denseCache = densePackage
+                ? SkinAssetCache::create (*densePackage, "svg-dom-budget", "1.0.0",
+                                          denseSvgReferences, {}, denseReport)
+                : std::nullopt;
+            expect (! denseCache.has_value());
+            expect (denseReport.hasCode ("ASSET010"));
+
+            beginTest ("SVG element bombs are rejected by streaming preflight");
+            juce::String elementBomb;
+            elementBomb.preallocateBytes (50000);
+            for (int i = 0; i < 10000; ++i) elementBomb += "<g/>";
+            SkinValidationReport elementBombReport;
+            expect (! cacheForSvg (
+                "element-bomb", "<svg>" + elementBomb + "</svg>",
+                elementBombReport).has_value());
+            expect (elementBombReport.hasCode ("ASSET010"));
+
+            beginTest ("asset cache rejects SVG package path-command budget overflow");
+            juce::String pathData;
+            pathData.preallocateBytes (1300000);
+            for (int i = 0; i < 250001; ++i) pathData += "M0 0";
+            SkinValidationReport pathReport;
+            expect (! cacheForSvg (
+                "path-budget", "<svg><path d=\"" + pathData + "\"/></svg>",
+                pathReport).has_value());
+            expect (pathReport.hasCode ("ASSET010"));
+
+            beginTest ("polyline points consume the shared SVG geometry budget");
+            juce::String pointData;
+            pointData.preallocateBytes (1100000);
+            for (int i = 0; i < 250001; ++i) pointData += "0,0 ";
+            SkinValidationReport pointReport;
+            expect (! cacheForSvg (
+                "points-budget", "<svg><polyline points=\"" + pointData
+                    + "\"/></svg>", pointReport).has_value());
+            expect (pointReport.hasCode ("ASSET010"));
+
+            SkinValidationReport validPointsReport;
+            const auto validPoints = cacheForSvg (
+                "points-valid",
+                "<svg width=\"3\" height=\"3\"><polyline points=\"0,0 1,1 2,2\"/></svg>",
+                validPointsReport);
+            expect (validPoints.has_value(), validPointsReport.toText());
+            if (validPoints)
+                expectEquals ((*validPoints)->statistics().svgPathCommands, 3);
+
+            beginTest ("polygon closure consumes one SVG geometry command");
+            juce::String polygonBoundary;
+            polygonBoundary.preallocateBytes (1000000);
+            for (int i = 0; i < 250000; ++i) polygonBoundary += "0,0 ";
+            SkinValidationReport polygonBoundaryReport;
+            expect (! cacheForSvg (
+                "polygon-boundary", "<svg><polygon points=\"" + polygonBoundary
+                    + "\"/></svg>", polygonBoundaryReport).has_value());
+            expect (polygonBoundaryReport.hasCode ("ASSET010"));
+
+            SkinValidationReport validPolygonReport;
+            const auto validPolygon = cacheForSvg (
+                "polygon-valid",
+                "<svg width=\"3\" height=\"3\"><polygon points=\"0,0 1,1 2,2\"/></svg>",
+                validPolygonReport);
+            expect (validPolygon.has_value(), validPolygonReport.toText());
+            if (validPolygon)
+                expectEquals ((*validPolygon)->statistics().svgPathCommands, 4);
+
+            beginTest ("oversized SVG transform attributes are rejected before parsing");
+            const auto oversizedTransform = juce::String::repeatedString (
+                "translate(0 0) ", 300);
+            SkinValidationReport transformReport;
+            expect (! cacheForSvg (
+                "transform-budget", "<svg><g transform=\"" + oversizedTransform
+                    + "\"/></svg>", transformReport).has_value());
+            expect (transformReport.hasCode ("ASSET010"));
+
+            SkinValidationReport gradientTransformReport;
+            expect (! cacheForSvg (
+                "gradient-transform-budget",
+                "<svg><defs><linearGradient id=\"g\" gradientTransform=\""
+                    + oversizedTransform + "\"/></defs></svg>",
+                gradientTransformReport).has_value());
+            expect (gradientTransformReport.hasCode ("ASSET010"));
+
+            beginTest ("wrong-element geometry names cannot bypass SVG attribute limits");
+            const auto oversizedGeometryName = juce::String::repeatedString ("0", 4097);
+            SkinValidationReport wrongPointsReport;
+            expect (! cacheForSvg (
+                "wrong-points-budget", "<svg><rect points=\""
+                    + oversizedGeometryName + "\"/></svg>",
+                wrongPointsReport).has_value());
+            expect (wrongPointsReport.hasCode ("ASSET010"));
+
+            SkinValidationReport wrongPathReport;
+            expect (! cacheForSvg (
+                "wrong-path-budget", "<svg><g d=\"" + oversizedGeometryName
+                    + "\"/></svg>", wrongPathReport).has_value());
+            expect (wrongPathReport.hasCode ("ASSET010"));
+
+            SkinSvgPathCompileError budgetError = SkinSvgPathCompileError::none;
+            expect (! skinCompileSvgPathData (
+                "M0 0L1 1L2 2", 2, &budgetError).has_value());
+            expect (budgetError == SkinSvgPathCompileError::commandBudgetExceeded);
+            SkinSvgPathCompileError lexemeError = SkinSvgPathCompileError::none;
+            expect (! skinCompileSvgPathData (
+                "M" + juce::String::repeatedString ("1", 65) + " 0",
+                10, &lexemeError).has_value());
+            expect (lexemeError == SkinSvgPathCompileError::invalidGrammar);
+        }
+
+        beginTest ("invalid package font uses declared system-family fallback without cache leakage");
+        {
+            SkinValidationReport packageReport;
+            auto package = packageFrom (
+                "font-fallback",
+                { { "assets/broken.ttf", juce::MemoryBlock ("not-a-font", 10) } },
+                packageReport);
+            SkinFontValue font;
+            font.source = "assets/broken.ttf";
+            font.families.add (juce::Font::getDefaultSansSerifFontName());
+            SkinValidationReport report;
+            const auto cache = SkinAssetCache::create (
+                *package, "font-fallback", "1.0.0", {}, { font }, report);
+            expect (cache.has_value());
+            if (cache)
+                expect (((*cache)->makeFont (font, 14.0f).getHeight()) > 0.0f);
+
+           #if JUCE_MAC
+            beginTest ("package font families remain isolated across live and retained caches");
+            juce::MemoryBlock monacoBytes;
+            const juce::File monacoFile ("/System/Library/Fonts/Monaco.ttf");
+            expect (monacoFile.existsAsFile());
+            expect (monacoFile.loadFileAsData (monacoBytes));
+            SkinValidationReport firstPackageReport;
+            auto firstPackage = packageFrom (
+                "font-owner",
+                { { "assets/owner.ttf", monacoBytes } }, firstPackageReport);
+            SkinFontValue ownedFont;
+            ownedFont.source = "assets/owner.ttf";
+            ownedFont.families.add ("Monaco");
+            SkinValidationReport firstCacheReport;
+            auto firstCache = SkinAssetCache::create (
+                *firstPackage, "font-owner", "1.0.0", {}, { ownedFont },
+                firstCacheReport);
+            expect (firstCache.has_value());
+            if (firstCache)
+            {
+                auto retainedFont = (*firstCache)->makeFont (ownedFont, 14.0f);
+                const auto ownedFamily = retainedFont.getTypefaceName();
+                SkinValidationReport secondPackageReport;
+                auto secondPackage = packageFrom (
+                    "font-neighbour",
+                    { { "assets/broken.ttf", juce::MemoryBlock ("not-a-font", 10) } },
+                    secondPackageReport);
+                SkinFontValue neighbourFont;
+                neighbourFont.source = "assets/broken.ttf";
+                neighbourFont.families.add (ownedFamily);
+                SkinValidationReport secondCacheReport;
+                auto secondCache = SkinAssetCache::create (
+                    *secondPackage, "font-neighbour", "1.0.0", {}, { neighbourFont },
+                    secondCacheReport);
+                expect (secondCache.has_value());
+                if (secondCache)
+                    expect ((*secondCache)->makeFont (
+                                neighbourFont, 14.0f).getTypefaceName() != ownedFamily);
+
+                firstCache.reset();
+                expect (retainedFont.getTypefaceName() == ownedFamily);
+                SkinValidationReport retainedCacheReport;
+                auto retainedNeighbourCache = SkinAssetCache::create (
+                    *secondPackage, "font-neighbour-retained", "1.0.0", {},
+                    { neighbourFont }, retainedCacheReport);
+                expect (retainedNeighbourCache.has_value());
+                if (retainedNeighbourCache)
+                    expect ((*retainedNeighbourCache)->makeFont (
+                                neighbourFont, 14.0f).getTypefaceName() != ownedFamily);
+            }
+           #endif
+        }
+
+        beginTest ("animation easing, retargeting, reduce motion and bounded activity are deterministic");
+        {
+            double now = 0.0;
+            SkinAnimationEngine engine ([&] { return now; });
+            expectWithinAbsoluteError (SkinAnimationEngine::applyEasing (
+                                           SkinAnimationEasing::linear, 0.25),
+                                       0.25, 1.0e-9);
+            expectWithinAbsoluteError (SkinAnimationEngine::applyEasing (
+                                           SkinAnimationEasing::easeInOut, 0.0),
+                                       0.0, 1.0e-9);
+            expectWithinAbsoluteError (SkinAnimationEngine::applyEasing (
+                                           SkinAnimationEasing::easeInOut, 1.0),
+                                       1.0, 1.0e-9);
+
+            SkinRenderProgram program;
+            program.transitions[SkinAnimationTrigger::value] = {
+                100, 0, SkinAnimationEasing::linear, { "meter.opacity" }, {}, true, {}
+            };
+            SkinAnimationInput input;
+            input.normalisedValue = 0.0;
+            SkinAnimationPropertyMap values { { "meter.opacity", 0.0 } };
+            auto displayed = engine.resolve ("meter", program, input, values);
+            expectEquals (std::get<double> (displayed.at ("meter.opacity")), 0.0);
+
+            input.normalisedValue = 1.0;
+            values["meter.opacity"] = 1.0;
+            displayed = engine.resolve ("meter", program, input, values);
+            now = 50.0;
+            displayed = engine.resolve ("meter", program, input, values);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("meter.opacity")),
+                                       0.5, 1.0e-6);
+
+            values["meter.opacity"] = 0.0;
+            input.normalisedValue = 0.2;
+            displayed = engine.resolve ("meter", program, input, values);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("meter.opacity")),
+                                       0.5, 1.0e-6);
+            now = 100.0;
+            displayed = engine.resolve ("meter", program, input, values);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("meter.opacity")),
+                                       0.25, 1.0e-6);
+
+            now = 150.0;
+            displayed = engine.resolve ("meter", program, input, values);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("meter.opacity")),
+                                       0.0, 1.0e-6);
+            expect (! engine.isTimerNeeded());
+
+            engine.setReduceMotionEnabled (true);
+            input.normalisedValue = 0.8;
+            values["meter.opacity"] = 0.8;
+            displayed = engine.resolve ("meter", program, input, values);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("meter.opacity")),
+                                       0.8, 1.0e-6);
+            expect (! engine.isTimerNeeded());
+            engine.cancelAll();
+            expectEquals (static_cast<int> (engine.activeTransitionCount()), 0);
+
+            double cancellationNow = 0.0;
+            SkinAnimationEngine cancellationEngine ([&] { return cancellationNow; });
+            SkinAnimationInput cancellationInput;
+            SkinAnimationPropertyMap cancellationValues { { "meter.opacity", 0.0 } };
+            displayed = cancellationEngine.resolve (
+                "cancel-stale", program, cancellationInput, cancellationValues);
+            cancellationInput.normalisedValue = 1.0;
+            cancellationValues["meter.opacity"] = 1.0;
+            displayed = cancellationEngine.resolve (
+                "cancel-stale", program, cancellationInput, cancellationValues);
+            cancellationNow = 50.0;
+            cancellationValues["meter.opacity"] = 0.25;
+            displayed = cancellationEngine.resolve (
+                "cancel-stale", program, cancellationInput, cancellationValues);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("meter.opacity")),
+                                       0.25, 1.0e-6);
+            expect (! cancellationEngine.isTimerNeeded());
+
+            double optOutNow = 0.0;
+            SkinAnimationEngine optOutEngine ([&] { return optOutNow; });
+            auto optOutProgram = program;
+            optOutProgram.transitions[SkinAnimationTrigger::value].respectReduceMotion = false;
+            SkinAnimationInput optOutInput;
+            SkinAnimationPropertyMap optOutValues { { "meter.opacity", 0.0 } };
+            displayed = optOutEngine.resolve (
+                "reduce-motion-opt-out", optOutProgram, optOutInput, optOutValues);
+            optOutInput.normalisedValue = 1.0;
+            optOutValues["meter.opacity"] = 1.0;
+            displayed = optOutEngine.resolve (
+                "reduce-motion-opt-out", optOutProgram, optOutInput, optOutValues);
+            optOutEngine.setReduceMotionEnabled (true);
+            expect (optOutEngine.isTimerNeeded());
+            optOutNow = 50.0;
+            displayed = optOutEngine.resolve (
+                "reduce-motion-opt-out", optOutProgram, optOutInput, optOutValues);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("meter.opacity")),
+                                       0.5, 1.0e-6);
+        }
+
+        beginTest ("entry animations start from declared values and active channels stop at 128");
+        {
+            double now = 0.0;
+            SkinAnimationEngine engine ([&] { return now; });
+            SkinRenderProgram entryProgram;
+            entryProgram.transitions[SkinAnimationTrigger::workspaceEnter] = {
+                200, 0, SkinAnimationEasing::linear, { "body.opacity" }, {}, true, {}
+            };
+            SkinAnimationInput entryInput;
+            entryInput.entryTrigger = SkinAnimationTrigger::workspaceEnter;
+            entryInput.entryFromValues["body.opacity"] = 0.0;
+            SkinAnimationPropertyMap entryTarget { { "body.opacity", 1.0 } };
+            auto displayed = engine.resolve (
+                "entry", entryProgram, entryInput, entryTarget);
+            expectEquals (std::get<double> (displayed.at ("body.opacity")), 0.0);
+            now = 100.0;
+            entryInput.entryTrigger.reset();
+            displayed = engine.resolve ("entry", entryProgram, entryInput, entryTarget);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("body.opacity")),
+                                       0.5, 1.0e-6);
+            now = 250.0;
+            displayed = engine.resolve ("entry", entryProgram, entryInput, entryTarget);
+            expectEquals (std::get<double> (displayed.at ("body.opacity")), 1.0);
+            entryInput.entryTrigger = SkinAnimationTrigger::workspaceEnter;
+            entryInput.entrySequence = 1;
+            displayed = engine.resolve ("entry", entryProgram, entryInput, entryTarget);
+            expectEquals (std::get<double> (displayed.at ("body.opacity")), 0.0);
+            now = 350.0;
+            displayed = engine.resolve ("entry", entryProgram, entryInput, entryTarget);
+            expectWithinAbsoluteError (std::get<double> (displayed.at ("body.opacity")),
+                                       0.5, 1.0e-6);
+
+            SkinRenderProgram boundedProgram;
+            SkinTransition valueTransition;
+            valueTransition.durationMs = 1000;
+            valueTransition.easing = SkinAnimationEasing::linear;
+            SkinAnimationPropertyMap initial;
+            SkinAnimationPropertyMap targets;
+            for (int i = 0; i < 129; ++i)
+            {
+                const auto property = "layer.value" + juce::String (i);
+                valueTransition.properties.push_back (property);
+                initial[property] = 0.0;
+                targets[property] = 1.0;
+            }
+            boundedProgram.transitions[SkinAnimationTrigger::value] = valueTransition;
+            SkinAnimationInput boundedInput;
+            displayed = engine.resolve ("bounded", boundedProgram, boundedInput, initial);
+            boundedInput.normalisedValue = 1.0;
+            displayed = engine.resolve ("bounded", boundedProgram, boundedInput, targets);
+            expectEquals (static_cast<int> (engine.activeTransitionCount()), 128);
+            // One entry transition is already active; the bounded renderer may occupy only 127.
+            expectEquals (std::get<double> (displayed.at ("layer.value128")), 1.0);
+            engine.cancelAll();
+            expectEquals (static_cast<int> (engine.activeTransitionCount()), 0);
+        }
+
+        beginTest ("discrete resource transitions retain the displayed package cache");
+        {
+            SkinValidationReport cacheReport;
+            const auto firstPackage = packageFrom (
+                "transition-cache-first", solidPngPackage (juce::Colours::red),
+                cacheReport);
+            const auto secondPackage = packageFrom (
+                "transition-cache-second", solidPngPackage (juce::Colours::blue),
+                cacheReport);
+            const auto thirdPackage = packageFrom (
+                "transition-cache-third", solidPngPackage (juce::Colours::green),
+                cacheReport);
+            expect (firstPackage.has_value() && secondPackage.has_value()
+                        && thirdPackage.has_value(),
+                    cacheReport.toText());
+            if (! firstPackage || ! secondPackage || ! thirdPackage) return;
+
+            const auto firstCache = SkinAssetCache::create (
+                *firstPackage, "first", "1.0.0", { "assets/pixels.png" }, {},
+                cacheReport);
+            const auto secondCache = SkinAssetCache::create (
+                *secondPackage, "second", "1.0.0", { "assets/pixels.png" }, {},
+                cacheReport);
+            const auto thirdCache = SkinAssetCache::create (
+                *thirdPackage, "third", "1.0.0", { "assets/pixels.png" }, {},
+                cacheReport);
+            expect (firstCache.has_value() && secondCache.has_value()
+                        && thirdCache.has_value(),
+                    cacheReport.toText());
+            if (! firstCache || ! secondCache || ! thirdCache) return;
+
+            double now = 0.0;
+            SkinAnimationEngine engine ([&] { return now; });
+            SkinRenderProgram program;
+            program.transitions[SkinAnimationTrigger::hover] = {
+                100, 0, SkinAnimationEasing::linear, { "art.source" }, {}, true, {}
+            };
+            program.propertyDescriptors["art.source"] =
+                skinRenderPropertyDescriptor (SkinPrimitive::image, "source");
+
+            SkinAnimationInput input;
+            SkinAnimationPropertyMap values {
+                { "art.source", juce::String ("assets/pixels.png") }
+            };
+            SkinAnimationResourceMap resources { { "art.source", *firstCache } };
+            SkinAnimationResourceMap displayedResources;
+            auto displayed = engine.resolve (
+                "resource", program, input, values, resources, displayedResources);
+            expectEquals (std::get<juce::String> (displayed.at ("art.source")),
+                          juce::String ("assets/pixels.png"));
+            expect (displayedResources.at ("art.source") == *firstCache);
+
+            input.state.hover = true;
+            resources["art.source"] = *secondCache;
+            displayed = engine.resolve (
+                "resource", program, input, values, resources, displayedResources);
+            expect (displayedResources.at ("art.source") == *firstCache);
+            now = 99.0;
+            displayed = engine.resolve (
+                "resource", program, input, values, resources, displayedResources);
+            expect (displayedResources.at ("art.source") == *firstCache);
+            now = 100.0;
+            displayed = engine.resolve (
+                "resource", program, input, values, resources, displayedResources);
+            expect (displayedResources.at ("art.source") == *secondCache);
+
+            double retargetNow = 0.0;
+            SkinAnimationEngine retargetEngine ([&] { return retargetNow; });
+            SkinAnimationInput retargetInput;
+            resources["art.source"] = *firstCache;
+            auto retargetDisplayed = retargetEngine.resolve (
+                "resource-retarget", program, retargetInput, values, resources,
+                displayedResources);
+            retargetInput.state.hover = true;
+            resources["art.source"] = *secondCache;
+            retargetDisplayed = retargetEngine.resolve (
+                "resource-retarget", program, retargetInput, values, resources,
+                displayedResources);
+            retargetNow = 50.0;
+            retargetInput.state.selected = true;
+            resources["art.source"] = *thirdCache;
+            retargetDisplayed = retargetEngine.resolve (
+                "resource-retarget", program, retargetInput, values, resources,
+                displayedResources);
+            expectEquals (std::get<juce::String> (
+                              retargetDisplayed.at ("art.source")),
+                          juce::String ("assets/pixels.png"));
+            expect (displayedResources.at ("art.source") == *thirdCache);
+
+            auto assetLayer = SkinRenderLayer();
+            assetLayer.id = "art";
+            assetLayer.primitive = SkinPrimitive::image;
+            setCommon (assetLayer);
+            setExplicitFrame (assetLayer, { 0.0f, 0.0f, 16.0f, 16.0f });
+            assetLayer.properties["source"] = literalBinding (
+                SkinPrimitive::image, "source", juce::String ("assets/pixels.png"));
+            assetLayer.properties["source"].assets = *firstCache;
+            assetLayer.properties["fit"] = literalBinding (
+                SkinPrimitive::image, "fit", juce::String ("fill"));
+            assetLayer.properties["tint"] = literalBinding (
+                SkinPrimitive::image, "tint", juce::Colours::white);
+
+            auto renderProgram = simpleProgram (
+                SkinRenderTarget::artwork, std::move (assetLayer));
+            auto hoverBinding = literalBinding (
+                SkinPrimitive::image, "source", juce::String ("assets/pixels.png"));
+            hoverBinding.assets = *secondCache;
+            renderProgram.variants[1].properties["art.source"] =
+                std::move (hoverBinding);
+            renderProgram.transitions = program.transitions;
+            renderProgram.propertyDescriptors = program.propertyDescriptors;
+
+            double renderNow = 0.0;
+            SkinAnimationEngine renderEngine ([&] { return renderNow; });
+            SkinRenderer renderer (*firstCache);
+            FaultRecorder sink;
+            SkinRenderContext context;
+            context.bounds = { 0.0f, 0.0f, 16.0f, 16.0f };
+            context.contentBounds = context.bounds;
+            const auto draw = [&]
+            {
+                juce::Image image (juce::Image::ARGB, 16, 16, true);
+                juce::Graphics graphics (image);
+                expect (renderer.draw (graphics, renderProgram, context, true, sink,
+                                       &renderEngine, "resource-render")
+                        == SkinRenderStatus::ok);
+                return image.getPixelAt (8, 8);
+            };
+            expect (draw() == juce::Colours::red);
+            context.state.hover = true;
+            expect (draw() == juce::Colours::red);
+            renderNow = 100.0;
+            expect (draw() == juce::Colours::blue);
+
+            SkinRenderLayer repeat;
+            repeat.id = "repeat";
+            repeat.primitive = SkinPrimitive::repeat;
+            repeat.repeatSource = "meter.channels";
+            repeat.repeatLimit = 1;
+            setCommon (repeat);
+            repeat.children.push_back (renderProgram.baseLayers.front());
+            auto repeatProgram = simpleProgram (
+                SkinRenderTarget::outputStage, std::move (repeat));
+            repeatProgram.variants[1].properties["art.source"] =
+                renderProgram.variants[1].properties.at ("art.source");
+            repeatProgram.transitions = renderProgram.transitions;
+            repeatProgram.propertyDescriptors = renderProgram.propertyDescriptors;
+
+            double repeatNow = 0.0;
+            SkinAnimationEngine repeatEngine ([&] { return repeatNow; });
+            SkinRenderer repeatRenderer (*firstCache);
+            SkinRenderContext repeatContext;
+            repeatContext.bounds = { 0.0f, 0.0f, 16.0f, 16.0f };
+            repeatContext.contentBounds = repeatContext.bounds;
+            repeatContext.meterLabels.add ("L");
+            const auto drawRepeat = [&]
+            {
+                juce::Image image (juce::Image::ARGB, 16, 16, true);
+                juce::Graphics graphics (image);
+                expect (repeatRenderer.draw (
+                            graphics, repeatProgram, repeatContext, true, sink,
+                            &repeatEngine, "resource-repeat")
+                        == SkinRenderStatus::ok);
+                return image.getPixelAt (8, 8);
+            };
+            expect (drawRepeat() == juce::Colours::red);
+            repeatContext.state.hover = true;
+            expect (drawRepeat() == juce::Colours::red);
+            repeatNow = 100.0;
+            expect (drawRepeat() == juce::Colours::blue);
+        }
+
+        beginTest ("colour animation uses premultiplied linear sRGB and strings switch atomically");
+        {
+            const auto midpoint = SkinAnimationEngine::interpolateValue (
+                juce::Colour (0x00ff0000), juce::Colour (0xff0000ff), 0.5);
+            expect (std::holds_alternative<juce::Colour> (midpoint));
+            const auto colour = std::get<juce::Colour> (midpoint);
+            expectWithinAbsoluteError (static_cast<double> (colour.getFloatAlpha()), 0.5, 0.01);
+            expect (colour.getBlue() > colour.getRed());
+            expectEquals (std::get<juce::String> (SkinAnimationEngine::interpolateValue (
+                              juce::String ("old"), juce::String ("new"), 0.99)),
+                          juce::String ("old"));
+            expectEquals (std::get<juce::String> (SkinAnimationEngine::interpolateValue (
+                              juce::String ("old"), juce::String ("new"), 1.0)),
+                          juce::String ("new"));
+        }
+
+        beginTest ("renderer reports recoverable and fatal faults without throwing from paint");
+        {
+            auto imageLayer = rectangleLayer (
+                "missing", { 0.0f, 0.0f, 20.0f, 20.0f }, juce::Colours::white);
+            imageLayer.primitive = SkinPrimitive::image;
+            imageLayer.properties.clear();
+            setCommon (imageLayer);
+            for (const auto& [name, value] : std::initializer_list<std::pair<const char*, SkinCompiledRenderValue>> {
+                     { "frame.x", 0.0 }, { "frame.y", 0.0 }, { "frame.width", 20.0 },
+                     { "frame.height", 20.0 }, { "source", juce::String ("assets/missing.png") },
+                     { "fit", juce::String ("contain") }, { "tint", juce::Colours::white } })
+                imageLayer.properties[name] = literalBinding (imageLayer.primitive, name, value);
+            imageLayer.properties["opacity"] = literalBinding (
+                imageLayer.primitive, "opacity", 0.5);
+            const auto program = simpleProgram (SkinRenderTarget::surface, imageLayer);
+            juce::Image image (juce::Image::ARGB, 20, 20, true);
+            juce::Graphics graphics (image);
+            SkinRenderContext context;
+            context.bounds = image.getBounds().toFloat();
+            context.contentBounds = context.bounds;
+            FaultRecorder optionalSink;
+            FaultRecorder requiredSink;
+            SkinRenderer renderer;
+            expect (renderer.draw (graphics, program, context, false, optionalSink)
+                    == SkinRenderStatus::recoverableFault);
+            expect (optionalSink.diagnostics.front().code == "RUNTIME001");
+            expect (renderer.draw (graphics, program, context, true, requiredSink)
+                    == SkinRenderStatus::fatalFault);
+            expect (requiredSink.diagnostics.front().code == "RUNTIME002");
+
+            auto validProgram = simpleProgram (
+                SkinRenderTarget::surface,
+                rectangleLayer ("valid", { 0.0f, 0.0f, 20.0f, 20.0f },
+                                juce::Colours::red));
+            FaultRecorder validSink;
+            expect (renderer.draw (graphics, validProgram, context, true, validSink)
+                    == SkinRenderStatus::ok);
+            expect (image.getPixelAt (10, 10) == juce::Colours::red);
+
+            auto extreme = rectangleLayer (
+                "extreme", { 0.0f, 0.0f, 10.0f, 10.0f }, juce::Colours::white);
+            extreme.properties["frame.x"] = literalBinding (
+                extreme.primitive, "frame.x", 1.0e308);
+            auto extremeProgram = simpleProgram (SkinRenderTarget::surface, extreme);
+            FaultRecorder extremeSink;
+            expect (renderer.draw (graphics, extremeProgram, context, true, extremeSink)
+                    == SkinRenderStatus::fatalFault);
+            expect (extremeSink.diagnostics.front().message.containsIgnoreCase ("range"));
+        }
+
+        beginTest ("renderer contains shadow layer and offscreen pixel budget violations");
+        {
+            SkinRenderProgram tooManyShadows;
+            tooManyShadows.target = SkinRenderTarget::surface;
+            for (int i = 0; i < 9; ++i)
+            {
+                auto layer = rectangleLayer (
+                    "shadow-" + juce::String (i),
+                    { static_cast<float> (i * 3), static_cast<float> (i * 2), 20.0f, 20.0f },
+                    juce::Colours::white);
+                layer.properties["shadow.color"] = literalBinding (
+                    layer.primitive, "shadow.color", juce::Colour (0x80000000));
+                layer.properties["shadow.radius"] = literalBinding (
+                    layer.primitive, "shadow.radius", 2.0);
+                tooManyShadows.baseLayers.push_back (std::move (layer));
+            }
+            const auto& names = skinVariantNamesInMergeOrder();
+            for (size_t i = 0; i < names.size(); ++i)
+                tooManyShadows.variants[i].name = names[i];
+            juce::Image image (juce::Image::ARGB, 200, 120, true);
+            juce::Graphics graphics (image);
+            SkinRenderContext context;
+            context.bounds = image.getBounds().toFloat();
+            context.contentBounds = context.bounds;
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            expect (renderer.draw (graphics, tooManyShadows, context, true, sink)
+                    == SkinRenderStatus::fatalFault);
+            expect (sink.diagnostics.back().pointer.contains ("shadow"));
+
+            auto huge = rectangleLayer (
+                "huge", { 0.0f, 0.0f, 5000.0f, 5000.0f }, juce::Colours::white);
+            huge.properties["shadow.color"] = literalBinding (
+                huge.primitive, "shadow.color", juce::Colour (0x80000000));
+            huge.properties["shadow.radius"] = literalBinding (
+                huge.primitive, "shadow.radius", 20.0);
+            auto hugeProgram = simpleProgram (SkinRenderTarget::surface, huge);
+            FaultRecorder hugeSink;
+            expect (renderer.draw (graphics, hugeProgram, context, true, hugeSink)
+                    == SkinRenderStatus::fatalFault);
+            expect (hugeSink.diagnostics.back().message.containsIgnoreCase ("pixel"));
+        }
+
+        beginTest ("JUCE adapter propagates semantic label and table alignment");
+        {
+            auto alignmentLayer = rectangleLayer (
+                "alignment-probe", { 0.0f, 0.0f, 200.0f, 120.0f },
+                juce::Colours::white);
+            for (const auto* property : {
+                     "frame.x", "frame.y", "frame.width", "frame.height" })
+                alignmentLayer.properties.erase (property);
+            alignmentLayer.properties["frame.anchor"] = literalBinding (
+                SkinPrimitive::rectangle, "frame.anchor", juce::String ("bounds"));
+
+            SkinValidationReport expressionReport;
+            SkinTokenStore noTokens;
+            const auto rightAligned = SkinExpression::compile (
+                "text.align == 'right'",
+                skinRenderContextForTarget (SkinRenderTarget::label),
+                noTokens, expressionReport, "adapter-alignment", "/visible");
+            expect (rightAligned.has_value(), expressionReport.toText());
+            if (rightAligned)
+            {
+                auto visible = literalBinding (
+                    SkinPrimitive::rectangle, "visible", false);
+                visible.value = *rightAligned;
+                alignmentLayer.properties["visible"] = std::move (visible);
+            }
+
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> entries;
+            entries[SkinRenderTarget::label].renderer = simpleProgram (
+                SkinRenderTarget::label, std::move (alignmentLayer));
+            entries[SkinRenderTarget::surface].renderer = simpleProgram (
+                SkinRenderTarget::surface,
+                rectangleLayer ("transparent", { 0.0f, 0.0f, 200.0f, 120.0f },
+                                juce::Colours::transparentBlack));
+            entries[SkinRenderTarget::table].renderer = simpleProgram (
+                SkinRenderTarget::table,
+                rectangleLayer ("table", { 0.0f, 0.0f, 200.0f, 120.0f },
+                                juce::Colours::transparentBlack));
+            entries[SkinRenderTarget::table].slotStyles = {
+                { "header.text", "label.table" },
+                { "cell.title", "label.table" },
+                { "cell.location", "label.table" },
+                { "cell.duration", "label.table" }
+            };
+
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target,
+                     const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding {
+                        &entries.at (target), nullptr, &sink, true
+                    };
+                }, renderer);
+            juce::Image image (juce::Image::ARGB, 200, 120, true);
+            juce::Graphics graphics (image);
+
+            SkinComponentBindings bindings;
+            SkinValidationReport bindingReport;
+            juce::Label queueCount;
+            queueCount.setBounds (0, 0, 100, 20);
+            queueCount.setText ("8 tracks", juce::dontSendNotification);
+            queueCount.setJustificationType (juce::Justification::centredLeft);
+            expect (bindings.bind ("queue.count", queueCount, bindingReport),
+                    bindingReport.toText());
+            adapter.drawLabel (graphics, queueCount);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0,
+                    "bound queue.count must use catalog right alignment");
+
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            juce::Label unbound;
+            unbound.setBounds (0, 0, 100, 20);
+            unbound.setText ("Fallback", juce::dontSendNotification);
+            unbound.setJustificationType (juce::Justification::centredRight);
+            adapter.drawLabel (graphics, unbound);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0,
+                    "unbound labels must preserve JUCE justification");
+
+            juce::ListBox list;
+            const JuceSkinAdapter::ListBoxRowGeometry rowGeometry {
+                { 0.0f, 0.0f, 20.0f, 20.0f },
+                { 30.0f, 0.0f, 20.0f, 20.0f },
+                { 60.0f, 0.0f, 10.0f, 20.0f }
+            };
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            adapter.drawListBoxRow (
+                graphics, list, 0, 100, 20, false, "Track", "Folder", "3:12",
+                rowGeometry);
+            expect (image.getPixelAt (10, 10).isTransparent());
+            expect (image.getPixelAt (40, 10).isTransparent());
+            expect (image.getPixelAt (65, 10).getAlpha() > 0,
+                    "duration cells must be right aligned");
+
+            SkinTableListBox table;
+            table.setBounds (0, 0, 200, 120);
+            table.getHeader().addColumn ("Title", 1, 80);
+            table.getHeader().addColumn ("Location", 2, 70);
+            table.getHeader().addColumn ("Duration", 3, 50);
+            auto& header = table.getHeader();
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            adapter.drawTableHeaderColumn (
+                graphics, header, "Title", 1, 80, 20, false, false, 0);
+            expect (image.getPixelAt (10, 10).isTransparent());
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            adapter.drawTableHeaderColumn (
+                graphics, header, "Duration", 3, 50, 20, false, false, 0);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0,
+                    "duration header must be right aligned");
+        }
+
+        beginTest ("JUCE adapter routes native and ancillary controls to frozen targets");
+        {
+            std::vector<SkinRenderTarget> requested;
+            std::vector<std::pair<SkinRenderTarget, juce::String>> requestedStyles;
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> entries;
+            for (const auto target : { SkinRenderTarget::textButton,
+                                       SkinRenderTarget::toggleButton,
+                                       SkinRenderTarget::comboBox,
+                                       SkinRenderTarget::textEditor,
+                                       SkinRenderTarget::linearSlider,
+                                       SkinRenderTarget::rotarySlider,
+                                       SkinRenderTarget::progressBar,
+                                       SkinRenderTarget::scrollBar,
+                                       SkinRenderTarget::popupMenu,
+                                       SkinRenderTarget::tooltip,
+                                       SkinRenderTarget::table,
+                                       SkinRenderTarget::surface,
+                                       SkinRenderTarget::label,
+                                       SkinRenderTarget::artwork,
+                                       SkinRenderTarget::effectChain,
+                                       SkinRenderTarget::outputStage })
+                entries[target].renderer = simpleProgram (
+                    target, rectangleLayer ("body", { 0.0f, 0.0f, 200.0f, 120.0f },
+                                            juce::Colours::white));
+            SkinValidationReport contextExpressionReport;
+            SkinTokenStore noTokens;
+            const auto setVisibilityExpression = [&] (
+                SkinRenderTarget target, const juce::String& expression)
+            {
+                const auto compiled = SkinExpression::compile (
+                    expression, skinRenderContextForTarget (target), noTokens,
+                    contextExpressionReport, "adapter", "/visible");
+                expect (compiled.has_value(), contextExpressionReport.toText());
+                if (! compiled) return;
+                auto visible = literalBinding (
+                    SkinPrimitive::rectangle, "visible", false);
+                visible.value = *compiled;
+                entries[target].renderer.baseLayers.front().properties["visible"] =
+                    std::move (visible);
+            };
+            setVisibilityExpression (
+                SkinRenderTarget::scrollBar,
+                "scroll.part == 'bar' and scroll.thumbStart == 20 and scroll.thumbSize == 30");
+            setVisibilityExpression (
+                SkinRenderTarget::popupMenu,
+                "menu.part == 'item' and menu.itemIndex == 0 and state.hover and not state.selected");
+            setVisibilityExpression (SkinRenderTarget::label, "state.hover");
+            auto& labelLayer = entries[SkinRenderTarget::label].renderer.baseLayers.front();
+            for (const auto* property : { "frame.x", "frame.y", "frame.width", "frame.height" })
+                labelLayer.properties.erase (property);
+            labelLayer.properties["frame.anchor"] = literalBinding (
+                SkinPrimitive::rectangle, "frame.anchor", juce::String ("bounds"));
+            entries[SkinRenderTarget::surface].renderer.baseLayers.front()
+                .properties["fill"] = literalBinding (
+                    SkinPrimitive::rectangle, "fill", juce::Colours::transparentBlack);
+            entries[SkinRenderTarget::table].slotStyles = {
+                { "header.surface", "surface.header" },
+                { "header.text", "label.header" },
+                { "row.surface", "surface.row" },
+                { "cell.title", "label.title" },
+                { "cell.location", "label.location" },
+                { "cell.duration", "label.duration" }
+            };
+            entries[SkinRenderTarget::effectChain].slotStyles = {
+                { "slot.surface", "surface.slot" },
+                { "slot.name", "label.slot" },
+                { "slot.bypass", "textButton.bypass" },
+                { "slot.editor", "textButton.editor" },
+                { "slot.remove", "textButton.remove" },
+                { "slot.dragIndicator", "surface.drag" }
+            };
+            setVisibilityExpression (
+                SkinRenderTarget::effectChain, "chain.slotCount == 3");
+            auto& buttonProgram = entries[SkinRenderTarget::textButton].renderer;
+            SkinValidationReport scaleExpressionReport;
+            const auto retinaVisible = SkinExpression::compile (
+                "scaleFactor == 2 and icon.name == 'play'",
+                skinRenderContextForTarget (SkinRenderTarget::textButton),
+                noTokens, scaleExpressionReport, "adapter", "/scaleFactor");
+            expect (retinaVisible.has_value());
+            if (retinaVisible)
+            {
+                auto visible = literalBinding (
+                    SkinPrimitive::rectangle, "visible", false);
+                visible.value = *retinaVisible;
+                buttonProgram.baseLayers.front().properties["visible"] = std::move (visible);
+            }
+            buttonProgram.variants[1].properties["body.opacity"] = literalBinding (
+                SkinPrimitive::rectangle, "opacity", 0.5);
+            buttonProgram.transitions[SkinAnimationTrigger::hover] = {
+                100, 0, SkinAnimationEasing::linear, { "body.opacity" }, {}, true, {}
+            };
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            SkinAnimationEngine animations ([] { return 0.0; });
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
+                {
+                    requested.push_back (target);
+                    requestedStyles.emplace_back (target, style);
+                    return JuceSkinAdapter::RuntimeBinding {
+                        &entries.at (target), &animations, &sink, true
+                    };
+                }, renderer);
+
+            juce::Image image (juce::Image::ARGB, 200, 120, true);
+            juce::Graphics graphics (image);
+            class RetinaTextButton final : public juce::TextButton
+            {
+            public:
+                using juce::TextButton::TextButton;
+                float getDesktopScaleFactor() const override { return 2.0f; }
+            };
+            RetinaTextButton textButton ("Play");
+            textButton.getProperties().set (JuceSkinAdapter::scaleFactorProperty, 2.0);
+            textButton.getProperties().set (SkinComponentBindings::iconNameProperty, "play");
+            adapter.drawButtonBackground (graphics, textButton, {}, false, false);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+            adapter.drawButtonBackground (graphics, textButton, {}, true, false);
+            juce::ToggleButton toggle ("Repeat");
+            adapter.drawToggleButton (graphics, toggle, false, false);
+            juce::ComboBox combo;
+            adapter.drawComboBox (graphics, 100, 30, false, 70, 0, 30, 30, combo);
+            juce::TextEditor editor;
+            adapter.fillTextEditorBackground (graphics, 100, 30, editor);
+            juce::Slider slider;
+            adapter.drawLinearSlider (graphics, 0, 0, 100, 20, 50, 0, 100,
+                                      juce::Slider::LinearHorizontal, slider);
+            adapter.drawRotarySlider (graphics, 0, 0, 40, 40, 0.5f, 0.0f, 6.0f, slider);
+            double progressValue = 0.5;
+            juce::ProgressBar progress (progressValue);
+            adapter.drawProgressBar (graphics, progress, 100, 20, 0.5, "50%");
+            juce::ScrollBar scroll (true);
+            scroll.getProperties().set (JuceSkinAdapter::styleProperty, "scrollBar.loud");
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            adapter.drawScrollbar (graphics, scroll, 0, 0, 12, 100, true,
+                                   20, 30, false, false);
+            expect (image.getPixelAt (6, 50).getAlpha() > 0);
+            adapter.drawScrollbarButton (graphics, scroll, 12, 12, 0, true, false, false);
+            adapter.drawPopupMenuBackground (graphics, 100, 80);
+            juce::PopupMenu::Item popupItem;
+            popupItem.itemID = 73;
+            popupItem.text = "Item";
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            adapter.drawPopupMenuItemWithOptions (
+                graphics, { 0, 0, 100, 20 }, true, popupItem, {});
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+            adapter.drawPopupMenuItem (graphics, { 0, 20, 100, 4 }, true, true, false,
+                                       false, false, {}, {}, nullptr, nullptr);
+            adapter.drawPopupMenuSectionHeader (graphics, { 0, 24, 100, 20 }, "Section");
+            adapter.drawPopupMenuUpDownArrow (graphics, 100, 12, true);
+            adapter.drawPopupMenuColumnSeparatorWithOptions (
+                graphics, { 50, 0, 1, 80 }, {});
+            adapter.drawTooltip (graphics, "Tip", 100, 20);
+            SkinTableListBox table;
+            table.setBounds (0, 0, 200, 120);
+            table.setLookAndFeel (&adapter);
+            table.getProperties().set (JuceSkinAdapter::styleProperty,
+                                       "table.custom");
+            table.getHeader().addColumn ("Title", 1, 100);
+            table.getHeader().addColumn ("Location", 2, 100);
+            auto& header = table.getHeader();
+            expect (header.isStretchToFitActive());
+            table.setSize (201, 120);
+            expect (header.getTotalWidth() <= table.getWidth(),
+                    "skinnable table columns must fit without a horizontal scrollbar");
+            adapter.drawTableHeaderBackground (graphics, header);
+            adapter.drawTableHeaderColumn (
+                graphics, header, "Title", 1, 100, 20, false, false, 0);
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            table.paint (graphics);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0,
+                    "empty table body must use its bound table renderer");
+            expect (std::find (requestedStyles.begin(), requestedStyles.end(),
+                               std::pair { SkinRenderTarget::table,
+                                           juce::String ("table.custom") })
+                    != requestedStyles.end(),
+                    "table header and body must inherit the owner style");
+            juce::ListBox list;
+            adapter.configureListBox (list);
+            adapter.drawListBoxBackground (graphics, list, 12, 3);
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            const JuceSkinAdapter::ListBoxRowGeometry rowGeometry {
+                { 0.0f, 0.0f, 20.0f, 20.0f },
+                { 30.0f, 0.0f, 20.0f, 20.0f },
+                { 60.0f, 0.0f, 10.0f, 20.0f }
+            };
+            adapter.drawListBoxRow (
+                graphics, list, 2, 100, 20, true, "Track", "Folder", "3:12",
+                rowGeometry, true, false);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+            expect (image.getPixelAt (40, 10).getAlpha() > 0);
+            expect (image.getPixelAt (65, 10).getAlpha() > 0);
+            expect (image.getPixelAt (25, 10).isTransparent());
+            expect (image.getPixelAt (55, 10).isTransparent());
+            expect (list.findColour (juce::ListBox::backgroundColourId).isTransparent());
+            expect (adapter.isAnimationDriveActive());
+
+            juce::Component customComponent;
+            customComponent.setBounds (0, 0, 200, 120);
+            SkinRenderContext customContext;
+            customContext.primaryText = "Track";
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            expect (adapter.drawCustomComponent (
+                graphics, customComponent, SkinRenderTarget::artwork,
+                customContext, "artwork"));
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            customContext.meterPeaks[0] = 0.75f;
+            expect (adapter.drawCustomComponent (
+                graphics, customComponent, SkinRenderTarget::outputStage,
+                customContext, "output"));
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+
+            SkinEffectChainViewport effectChain;
+            effectChain.setBounds (0, 0, 200, 120);
+            effectChain.setSlotCount (3);
+            effectChain.setLookAndFeel (&adapter);
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            effectChain.paint (graphics);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+            SkinRenderContext slotContext;
+            slotContext.bounds = { 0.0f, 0.0f, 40.0f, 20.0f };
+            slotContext.contentBounds = slotContext.bounds;
+            const auto expectSlot = [&] (juce::StringRef slot,
+                                         SkinRenderTarget target,
+                                         const juce::String& style)
+            {
+                expect (adapter.drawCustomSlot (
+                    graphics, effectChain, SkinRenderTarget::effectChain,
+                    slot, target, slotContext,
+                    "slot:0:" + juce::String (slot)));
+                expect (std::find (requestedStyles.begin(), requestedStyles.end(),
+                                   std::pair { target, style })
+                        != requestedStyles.end(), juce::String (slot));
+            };
+            expectSlot ("slot.surface", SkinRenderTarget::surface,
+                        "surface.slot");
+            expectSlot ("slot.name", SkinRenderTarget::label, "label.slot");
+            expectSlot ("slot.bypass", SkinRenderTarget::textButton,
+                        "textButton.bypass");
+            expectSlot ("slot.editor", SkinRenderTarget::textButton,
+                        "textButton.editor");
+            expectSlot ("slot.remove", SkinRenderTarget::textButton,
+                        "textButton.remove");
+            expectSlot ("slot.dragIndicator", SkinRenderTarget::surface,
+                        "surface.drag");
+
+            for (const auto target : { SkinRenderTarget::textButton,
+                                       SkinRenderTarget::toggleButton,
+                                       SkinRenderTarget::comboBox,
+                                       SkinRenderTarget::textEditor,
+                                       SkinRenderTarget::linearSlider,
+                                       SkinRenderTarget::rotarySlider,
+                                       SkinRenderTarget::progressBar,
+                                       SkinRenderTarget::scrollBar,
+                                       SkinRenderTarget::popupMenu,
+                                       SkinRenderTarget::tooltip,
+                                       SkinRenderTarget::table,
+                                       SkinRenderTarget::artwork,
+                                       SkinRenderTarget::effectChain,
+                                       SkinRenderTarget::outputStage })
+                expect (std::find (requested.begin(), requested.end(), target)
+                        != requested.end());
+            for (const auto target : { SkinRenderTarget::scrollBar,
+                                       SkinRenderTarget::popupMenu,
+                                       SkinRenderTarget::tooltip })
+                for (const auto& [requestedTarget, style] : requestedStyles)
+                    if (requestedTarget == target) expectEquals (style, juce::String ("default"));
+            for (const auto& [target, style] : requestedStyles)
+            {
+                if (target == SkinRenderTarget::surface)
+                    expect (style == "surface.header" || style == "surface.row"
+                            || style == "surface.slot" || style == "surface.drag");
+                if (target == SkinRenderTarget::label)
+                    expect (style == "label.header" || style == "label.title"
+                            || style == "label.location" || style == "label.duration"
+                            || style == "label.slot");
+            }
+            for (const auto& expected : {
+                     std::pair { SkinRenderTarget::surface, juce::String ("surface.header") },
+                     std::pair { SkinRenderTarget::surface, juce::String ("surface.row") },
+                     std::pair { SkinRenderTarget::label, juce::String ("label.header") },
+                     std::pair { SkinRenderTarget::label, juce::String ("label.title") },
+                     std::pair { SkinRenderTarget::label, juce::String ("label.location") },
+                     std::pair { SkinRenderTarget::label, juce::String ("label.duration") } })
+                expect (std::find (requestedStyles.begin(), requestedStyles.end(), expected)
+                        != requestedStyles.end());
+
+            table.setLookAndFeel (nullptr);
+            effectChain.setLookAndFeel (nullptr);
+        }
+
+        beginTest ("native editable text inherits colour and font from its skin renderer");
+        {
+            SkinRenderStyleEntry entry;
+            entry.renderer.target = SkinRenderTarget::textEditor;
+            SkinRenderLayer label;
+            label.id = "label";
+            label.primitive = SkinPrimitive::text;
+            SkinFontValue fontValue;
+            fontValue.families.add ("sans-serif");
+            fontValue.weight = 500;
+            const auto expectedColour = juce::Colour (0xff28323c);
+            label.properties["color"] = literalBinding (
+                SkinPrimitive::text, "color", expectedColour);
+            label.properties["font"] = literalBinding (
+                SkinPrimitive::text, "font", fontValue);
+            label.properties["fontSize"] = literalBinding (
+                SkinPrimitive::text, "fontSize", 14.0);
+            entry.renderer.baseLayers.push_back (std::move (label));
+
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target,
+                     const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding {
+                        target == SkinRenderTarget::textEditor ? &entry : nullptr,
+                        nullptr, nullptr, false
+                    };
+                }, renderer);
+
+            juce::TextEditor editor;
+            editor.setTextToShowWhenEmpty ("Search", juce::Colours::white);
+            adapter.configureTextEditor (editor);
+            expect (editor.findColour (juce::TextEditor::textColourId)
+                    == expectedColour);
+            expectWithinAbsoluteError (
+                static_cast<double> (editor.getFont().getHeight()), 14.0, 0.01);
+
+            juce::ComboBox combo;
+            juce::Label comboLabel;
+            adapter.positionComboBoxText (combo, comboLabel);
+            expect (combo.findColour (juce::ComboBox::textColourId).isTransparent());
+            expect (comboLabel.findColour (
+                        juce::Label::textColourId).isTransparent());
+            expectWithinAbsoluteError (
+                static_cast<double> (comboLabel.getAlpha()), 0.0, 0.001);
+        }
+
+        beginTest ("composite slot renderers consume owner-specific contexts");
+        {
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> entries;
+            entries[SkinRenderTarget::pluginList].renderer = simpleProgram (
+                SkinRenderTarget::pluginList,
+                rectangleLayer ("owner", { 0.0f, 0.0f, 80.0f, 24.0f },
+                                juce::Colours::transparentBlack));
+            entries[SkinRenderTarget::pluginList].slotStyles = {
+                { "row.surface", "surface.pluginRow" }
+            };
+            entries[SkinRenderTarget::surface].renderer = simpleProgram (
+                SkinRenderTarget::surface,
+                rectangleLayer ("row", { 0.0f, 0.0f, 80.0f, 24.0f },
+                                juce::Colours::white));
+
+            SkinValidationReport report;
+            SkinTokenStore tokens;
+            const auto visible = SkinExpression::compile (
+                "plugin.name == 'Compressor'",
+                skinRenderContextForCompositeSlot (
+                    SkinRenderTarget::pluginList, "row.surface",
+                    SkinRenderTarget::surface),
+                tokens, report, "slot-context", "/visible");
+            expect (visible.has_value(), report.toText());
+            if (visible)
+            {
+                auto binding = literalBinding (
+                    SkinPrimitive::rectangle, "visible", false);
+                binding.value = *visible;
+                entries[SkinRenderTarget::surface].renderer.baseLayers.front()
+                    .properties["visible"] = std::move (binding);
+            }
+
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target,
+                     const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding {
+                        &entries.at (target), nullptr, &sink, true
+                    };
+                }, renderer);
+            juce::Component owner;
+            owner.setBounds (0, 0, 80, 24);
+            juce::Image image (juce::Image::ARGB, 80, 24, true);
+            juce::Graphics graphics (image);
+            const auto drawNamedPlugin = [&] (const juce::String& name)
+            {
+                image.clear (image.getBounds(), juce::Colours::transparentBlack);
+                SkinRenderContext context;
+                context.bounds = image.getBounds().toFloat();
+                context.contentBounds = context.bounds;
+                context.extraLookup = [name] (std::string_view path)
+                    -> std::optional<SkinExpressionValue>
+                {
+                    if (path == "plugin.name") return SkinExpressionValue (name);
+                    return std::nullopt;
+                };
+                expect (adapter.drawCustomSlot (
+                    graphics, owner, SkinRenderTarget::pluginList,
+                    "row.surface", SkinRenderTarget::surface,
+                    std::move (context), "plugin:0"));
+            };
+            drawNamedPlugin ("Limiter");
+            expect (image.getPixelAt (10, 10).isTransparent());
+            drawNamedPlugin ("Compressor");
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+            expect (! report.hasErrors(), report.toText());
+        }
+
+
+        beginTest ("custom artwork and output components populate their frozen context");
+        {
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> entries;
+            SkinValidationReport report;
+            SkinTokenStore tokens;
+            const auto makeConditionalProgram = [&] (
+                SkinRenderTarget target, const juce::String& expression)
+            {
+                auto program = simpleProgram (
+                    target, rectangleLayer ("body", { 0.0f, 0.0f, 200.0f, 120.0f },
+                                            juce::Colours::white));
+                auto& layer = program.baseLayers.front();
+                for (const auto* property : {
+                         "frame.x", "frame.y", "frame.width", "frame.height" })
+                    layer.properties.erase (property);
+                layer.properties["frame.anchor"] = literalBinding (
+                    SkinPrimitive::rectangle, "frame.anchor",
+                    juce::String ("bounds"));
+                const auto compiled = SkinExpression::compile (
+                    expression, skinRenderContextForTarget (target), tokens,
+                    report, "component-context", "/visible");
+                expect (compiled.has_value(), report.toText());
+                if (compiled)
+                {
+                    auto visible = literalBinding (
+                        SkinPrimitive::rectangle, "visible", false);
+                    visible.value = *compiled;
+                    layer.properties["visible"] = std::move (visible);
+                }
+                return program;
+            };
+
+            entries[SkinRenderTarget::artwork].renderer = makeConditionalProgram (
+                SkinRenderTarget::artwork,
+                "artwork.hasImage and artwork.aspectRatio == 1");
+            const auto channels = toAudioChannelSet (OutputLayout::fiveOneTwo)
+                                      .getChannelTypes();
+            const auto lfeIndex = channels.indexOf (juce::AudioChannelSet::LFE);
+            entries[SkinRenderTarget::outputStage].renderer =
+                makeConditionalProgram (
+                    SkinRenderTarget::outputStage,
+                    "output.layout == '5.1.2' and meter.channelCount == 8 and "
+                    "meter.channels[" + juce::String (lfeIndex) + "].isLfe");
+
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target,
+                     const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding {
+                        &entries.at (target), nullptr, &sink, true
+                    };
+                }, renderer);
+
+            juce::Image image (juce::Image::ARGB, 200, 120, true);
+            AlbumArtworkComponent artwork;
+            artwork.setBounds (0, 0, 200, 120);
+            artwork.setLookAndFeel (&adapter);
+            artwork.setTrack ("track-id", "Track");
+            {
+                juce::Graphics graphics (image);
+                artwork.paint (graphics);
+            }
+            expect (image.getPixelAt (10, 10).getAlpha() > 0,
+                    "artwork.hasImage and aspectRatio were not populated");
+
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            OutputStageComponent output;
+            output.setBounds (0, 0, 200, 120);
+            output.setLookAndFeel (&adapter);
+            std::array<float, 10> peaks {};
+            output.setState (OutputLayout::fiveOneTwo, WorkspaceMode::studio,
+                             true, "Track", "Device", 8, peaks);
+            {
+                juce::Graphics graphics (image);
+                output.paint (graphics);
+            }
+            expect (image.getPixelAt (10, 10).getAlpha() > 0,
+                    "output layout, channel count or LFE flags were not populated");
+            expect (! report.hasErrors(), report.toText());
+            artwork.setLookAndFeel (nullptr);
+            output.setLookAndFeel (nullptr);
+        }
+    }
+};
+
+SkinRendererTests skinRendererTests;
+} // namespace

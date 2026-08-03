@@ -1,0 +1,25 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "effects-root", "type": "column", "padding": 16, "gap": 12, "style": "surface.listeningCanvas",
+    "children": [
+      {
+        "id": "effects-header", "type": "row", "height": 44, "gap": 10, "align": "center",
+        "children": [
+          { "id": "effects-title", "type": "component", "component": "effects.title", "style": "label.listeningTitle", "grow": 1 },
+          { "id": "effects-close", "type": "component", "component": "effects.close", "style": "textButton.listeningIconNeutral", "width": 44, "height": 36, "focusOrder": 10 }
+        ]
+      },
+      { "id": "effects-filter-label", "type": "component", "component": "effects.filterLabel", "style": "label.listeningSection", "height": 24 },
+      { "id": "effects-filter", "type": "component", "component": "effects.filter", "style": "textEditor.listening", "height": 38, "focusOrder": 20 },
+      {
+        "id": "effects-insert-row", "type": "row", "height": 38, "gap": 8,
+        "children": [
+          { "id": "effects-catalog", "type": "component", "component": "effects.catalog", "style": "comboBox.listening", "grow": 1, "focusOrder": 30 },
+          { "id": "effects-add", "type": "component", "component": "effects.add", "style": "textButton.listeningIconPrimary", "width": 44, "focusOrder": 40 }
+        ]
+      },
+      { "id": "effects-chain", "type": "component", "component": "effects.chain", "style": "effectChain.listening", "grow": 1, "focusOrder": 50 }
+    ]
+  }
+}

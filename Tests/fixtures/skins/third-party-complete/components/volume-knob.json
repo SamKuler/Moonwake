@@ -1,0 +1,105 @@
+{
+  "apiVersion": 1,
+  "target": "rotarySlider",
+  "layers": [
+    {
+      "id": "dial",
+      "type": "ellipse",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 6
+      },
+      "fill": {
+        "$ref": "gradients.example.knob"
+      },
+      "stroke": {
+        "color": "#4A4843",
+        "width": 1
+      }
+    },
+    {
+      "id": "arc",
+      "type": "arc",
+      "center": {
+        "x": {
+          "$expr": "bounds.width * 0.5"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.5"
+        }
+      },
+      "radiusX": {
+        "$expr": "min(bounds.width, bounds.height) * 0.42"
+      },
+      "radiusY": {
+        "$expr": "min(bounds.width, bounds.height) * 0.42"
+      },
+      "startAngle": 135,
+      "endAngle": {
+        "$expr": "135 + value.normalized * 270"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.example.controlActive"
+        },
+        "width": 2,
+        "cap": "round"
+      }
+    },
+    {
+      "id": "indicator",
+      "type": "line",
+      "start": {
+        "x": {
+          "$expr": "bounds.width * 0.5"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.5"
+        }
+      },
+      "end": {
+        "x": {
+          "$expr": "bounds.width * 0.5 + min(bounds.width, bounds.height) * 0.27"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.5"
+        }
+      },
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "width": 2,
+      "cap": "round",
+      "transform": {
+        "rotation": {
+          "$expr": "135 + value.normalized * 270"
+        },
+        "pivotX": {
+          "$expr": "bounds.width * 0.5"
+        },
+        "pivotY": {
+          "$expr": "bounds.height * 0.5"
+        }
+      }
+    },
+    {
+      "id": "focus",
+      "type": "ellipse",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 2
+      },
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.example.focus"
+        },
+        "width": 2,
+        "placement": "inside"
+      }
+    }
+  ]
+}

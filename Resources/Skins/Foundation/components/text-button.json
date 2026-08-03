@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1, "target": "textButton",
+  "layers": [
+    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.control" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1, "placement": "inside" } },
+    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds" }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.body" }, "fontSize": 13, "color": { "$ref": "colors.text" }, "align": "center", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "focus", "type": "roundedRect", "visible": { "$context": "state.focused" }, "frame": { "anchor": "bounds", "inset": 1.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.transparent" }, "stroke": { "color": { "$ref": "colors.focus" }, "width": 2, "placement": "inside" } }
+  ],
+  "variants": { "hover": { "body.opacity": 0.9 }, "pressed": { "body.opacity": 0.75, "label.transform.translateY": 1 }, "selected": { "body.fill": { "$ref": "colors.controlActive" } }, "disabled": { "body.opacity": 0.4, "label.opacity": 0.55 } },
+  "transitions": { "hover": { "durationMs": { "$ref": "durations.fast" }, "easing": "easeOut", "properties": ["body.opacity"] } }
+}

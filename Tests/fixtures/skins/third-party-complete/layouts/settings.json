@@ -1,0 +1,168 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "settings-root",
+    "type": "column",
+    "padding": 12,
+    "gap": 10,
+    "children": [
+      {
+        "id": "settings-header",
+        "type": "row",
+        "height": 42,
+        "padding": 6,
+        "gap": 8,
+        "style": "surface.card",
+        "children": [
+          {
+            "id": "settings-title",
+            "type": "component",
+            "component": "settings.title",
+            "grow": 1
+          },
+          {
+            "id": "settings-close",
+            "type": "component",
+            "component": "settings.close",
+            "style": "textButton.neutral",
+            "width": 84,
+            "focusOrder": 10
+          }
+        ]
+      },
+      {
+        "id": "settings-grid",
+        "type": "grid",
+        "columns": ["1fr", "1fr", "1fr"],
+        "rows": ["1fr"],
+        "columnGap": 10,
+        "rowGap": 0,
+        "grow": 1,
+        "children": [
+          {
+            "id": "audio-card",
+            "type": "column",
+            "column": 1,
+            "row": 1,
+            "padding": 12,
+            "gap": 10,
+            "style": "surface.card",
+            "children": [
+              {
+                "id": "audio-device",
+                "type": "component",
+                "component": "settings.audio.device",
+                "height": 34,
+                "focusOrder": 20
+              },
+              {
+                "id": "audio-rate",
+                "type": "component",
+                "component": "settings.audio.sampleRate",
+                "height": 34,
+                "focusOrder": 30
+              },
+              {
+                "id": "audio-buffer",
+                "type": "component",
+                "component": "settings.audio.bufferSize",
+                "height": 34,
+                "focusOrder": 40
+              },
+              {
+                "id": "audio-layout",
+                "type": "component",
+                "component": "settings.audio.channelLayout",
+                "height": 34,
+                "focusOrder": 50
+              }
+            ]
+          },
+          {
+            "id": "plugins-card",
+            "type": "column",
+            "column": 2,
+            "row": 1,
+            "padding": 12,
+            "gap": 10,
+            "style": "surface.card",
+            "children": [
+              {
+                "id": "plugins-scan-all",
+                "type": "component",
+                "component": "settings.plugins.scanAll",
+                "style": "textButton.primary",
+                "height": 34,
+                "focusOrder": 60
+              },
+              {
+                "id": "plugins-scan-folder",
+                "type": "component",
+                "component": "settings.plugins.scanFolder",
+                "style": "textButton.neutral",
+                "height": 34,
+                "focusOrder": 70
+              },
+              {
+                "id": "plugins-cancel",
+                "type": "component",
+                "component": "settings.plugins.cancel",
+                "style": "textButton.neutral",
+                "height": 34,
+                "focusOrder": 80
+              },
+              {
+                "id": "plugins-progress",
+                "type": "component",
+                "component": "settings.plugins.progress",
+                "height": 8
+              }
+            ]
+          },
+          {
+            "id": "skins-card",
+            "type": "column",
+            "column": 3,
+            "row": 1,
+            "padding": 12,
+            "gap": 10,
+            "style": "surface.card",
+            "children": [
+              {
+                "id": "skins-library",
+                "type": "component",
+                "component": "settings.skins.library",
+                "grow": 1,
+                "focusOrder": 90
+              },
+              {
+                "id": "skins-import",
+                "type": "component",
+                "component": "settings.skins.import",
+                "style": "textButton.primary",
+                "height": 34,
+                "focusOrder": 100
+              },
+              {
+                "id": "skins-apply",
+                "type": "component",
+                "component": "settings.skins.apply",
+                "style": "textButton.primary",
+                "height": 34,
+                "focusOrder": 110
+              },
+              {
+                "id": "skins-cancel-preview",
+                "type": "component",
+                "component": "settings.skins.cancelPreview",
+                "style": "textButton.neutral",
+                "height": 34,
+                "focusOrder": 120
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

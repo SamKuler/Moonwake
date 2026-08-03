@@ -1,0 +1,4 @@
+{
+  "apiVersion": 1, "target": "label",
+  "layers": [{ "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 2, "right": 2 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 12.5, "color": { "$ref": "colors.listening.muted" }, "align": { "$context": "text.align" }, "maxLines": 1, "overflow": "ellipsis" }]
+}

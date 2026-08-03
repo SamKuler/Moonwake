@@ -1,0 +1,73 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "settings-root", "type": "column", "padding": 12, "gap": 10,
+    "children": [
+      {
+        "id": "settings-header", "type": "row", "height": 40, "gap": 8, "align": "center",
+        "children": [
+          { "id": "settings-title", "type": "component", "component": "settings.title", "grow": 1 },
+          { "id": "settings-close", "type": "component", "component": "settings.close", "width": 96, "height": 36, "focusOrder": 10 }
+        ]
+      },
+      {
+        "id": "settings-content", "type": "row", "gap": 12, "grow": 1,
+        "children": [
+          {
+            "id": "settings-audio", "type": "column", "padding": 10, "gap": 8, "grow": 1, "style": "surface.default",
+            "children": [
+              { "id": "settings-device", "type": "component", "component": "settings.audio.device", "height": 36, "focusOrder": 20 },
+              { "id": "settings-rate", "type": "component", "component": "settings.audio.sampleRate", "height": 36, "focusOrder": 30 },
+              { "id": "settings-buffer", "type": "component", "component": "settings.audio.bufferSize", "height": 36, "focusOrder": 40 },
+              { "id": "settings-layout", "type": "component", "component": "settings.audio.channelLayout", "height": 36, "focusOrder": 50 },
+              { "id": "settings-channel-map", "type": "component", "component": "settings.audio.channelMap", "grow": 1 }
+            ]
+          },
+          {
+            "id": "settings-plugins", "type": "column", "padding": 10, "gap": 8, "grow": 1, "style": "surface.default",
+            "children": [
+              { "id": "settings-formats", "type": "component", "component": "settings.plugins.formats", "height": 32 },
+              { "id": "settings-known-list", "type": "component", "component": "settings.plugins.knownList", "grow": 1, "focusOrder": 70 },
+              {
+                "id": "settings-scan-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-scan-all", "type": "component", "component": "settings.plugins.scanAll", "grow": 1, "focusOrder": 80 },
+                  { "id": "settings-scan-folder", "type": "component", "component": "settings.plugins.scanFolder", "grow": 1, "focusOrder": 90 }
+                ]
+              },
+              { "id": "settings-cancel", "type": "component", "component": "settings.plugins.cancel", "height": 36, "focusOrder": 100 },
+              { "id": "settings-progress", "type": "component", "component": "settings.plugins.progress", "height": 8 }
+            ]
+          },
+          {
+            "id": "settings-skins", "type": "column", "padding": 10, "gap": 8, "grow": 1, "style": "surface.default",
+            "children": [
+              { "id": "settings-skin-list", "type": "component", "component": "settings.skins.library", "height": 136, "focusOrder": 110 },
+              {
+                "id": "settings-skin-source-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-import", "type": "component", "component": "settings.skins.import", "grow": 1, "focusOrder": 120 },
+                  { "id": "settings-reload", "type": "component", "component": "settings.skins.reload", "grow": 1, "focusOrder": 130 }
+                ]
+              },
+              {
+                "id": "settings-skin-preview-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-preview", "type": "component", "component": "settings.skins.preview", "grow": 1, "focusOrder": 140 },
+                  { "id": "settings-remove", "type": "component", "component": "settings.skins.remove", "grow": 1, "focusOrder": 150 }
+                ]
+              },
+              {
+                "id": "settings-skin-commit-actions", "type": "row", "height": 36, "gap": 8,
+                "children": [
+                  { "id": "settings-apply", "type": "component", "component": "settings.skins.apply", "grow": 1, "focusOrder": 160 },
+                  { "id": "settings-cancel-preview", "type": "component", "component": "settings.skins.cancelPreview", "grow": 1, "focusOrder": 170 }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "textButton": {
+    "primary": "components/button-primary.json",
+    "neutral": "components/button-neutral.json"
+  },
+  "surface": {
+    "card": "components/surface-card.json"
+  },
+  "linearSlider": {
+    "seek": "components/seek-slider.json"
+  },
+  "rotarySlider": {
+    "default": "components/volume-knob.json"
+  }
+}

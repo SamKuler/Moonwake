@@ -1,0 +1,85 @@
+{
+  "label": { "default": "components/label.json" },
+  "textButton": { "default": "components/text-button.json" },
+  "toggleButton": { "default": "components/toggle-button.json" },
+  "comboBox": { "default": "components/combo-box.json" },
+  "textEditor": { "default": "components/text-editor.json" },
+  "linearSlider": { "default": "components/linear-slider.json" },
+  "rotarySlider": { "default": "components/rotary-slider.json" },
+  "progressBar": { "default": "components/progress-bar.json" },
+  "scrollBar": { "default": "components/scroll-bar.json" },
+  "popupMenu": { "default": "components/popup-menu.json" },
+  "tooltip": { "default": "components/tooltip.json" },
+  "table": {
+    "default": {
+      "renderer": "components/table.json",
+      "slots": {
+        "header.surface": "surface.default",
+        "header.text": "label.default",
+        "row.surface": "surface.default",
+        "cell.title": "label.default",
+        "cell.location": "label.default",
+        "cell.duration": "label.default"
+      }
+    }
+  },
+  "surface": { "default": "components/surface.json" },
+  "artwork": {
+    "default": {
+      "renderer": "components/artwork.json",
+      "slots": {
+        "frame.background": "surface.default",
+        "frame.overlay": "surface.default"
+      }
+    },
+    "assetProbe": "components/artwork-asset-probe.json"
+  },
+  "effectChain": {
+    "default": {
+      "renderer": "components/effect-chain.json",
+      "slots": {
+        "slot.surface": "surface.default",
+        "slot.name": "label.default",
+        "slot.bypass": "textButton.default",
+        "slot.editor": "textButton.default",
+        "slot.remove": "textButton.default",
+        "slot.dragIndicator": "surface.default"
+      }
+    }
+  },
+  "outputStage": { "default": "components/output-stage.json" },
+  "channelMap": {
+    "default": {
+      "renderer": "components/channel-map.json",
+      "slots": {
+        "row.surface": "surface.default",
+        "row.source": "label.default",
+        "row.destination": "label.default"
+      }
+    }
+  },
+  "pluginList": {
+    "default": {
+      "renderer": "components/plugin-list.json",
+      "slots": {
+        "row.surface": "surface.default",
+        "row.name": "label.default",
+        "row.manufacturer": "label.default",
+        "row.format": "label.default",
+        "row.status": "label.default"
+      }
+    }
+  },
+  "skinList": {
+    "default": {
+      "renderer": "components/skin-list.json",
+      "slots": {
+        "row.surface": "surface.default",
+        "row.name": "label.default",
+        "row.author": "label.default",
+        "row.version": "label.default",
+        "row.status": "label.default"
+      }
+    }
+  }
+}

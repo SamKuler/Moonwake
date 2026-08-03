@@ -1,0 +1,235 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "listening-root",
+    "type": "column",
+    "padding": 8,
+    "gap": 8,
+    "children": [
+      {
+        "id": "listening-header",
+        "type": "row",
+        "height": 52,
+        "padding": 8,
+        "gap": 8,
+        "align": "center",
+        "style": "surface.card",
+        "children": [
+          {
+            "id": "listening-brand",
+            "type": "component",
+            "component": "app.brand.title",
+            "grow": 1
+          },
+          {
+            "id": "listening-studio-mode",
+            "type": "component",
+            "component": "workspace.studio",
+            "style": "textButton.neutral",
+            "width": 112,
+            "focusOrder": 10
+          },
+          {
+            "id": "listening-listening-mode",
+            "type": "component",
+            "component": "workspace.listening",
+            "style": "textButton.primary",
+            "width": 112,
+            "focusOrder": 20
+          },
+          {
+            "id": "listening-settings",
+            "type": "component",
+            "component": "settings.open",
+            "style": "textButton.neutral",
+            "width": 88,
+            "focusOrder": 30
+          }
+        ]
+      },
+      {
+        "id": "listening-content",
+        "type": "row",
+        "gap": 10,
+        "grow": 1,
+        "children": [
+          {
+            "id": "listening-artwork-card",
+            "type": "column",
+            "width": "36%",
+            "padding": 16,
+            "gap": 8,
+            "style": "surface.card",
+            "children": [
+              {
+                "id": "listening-artwork",
+                "type": "component",
+                "component": "artwork.cover",
+                "grow": 1
+              },
+              {
+                "id": "listening-artwork-meta",
+                "type": "component",
+                "component": "artwork.metadata",
+                "height": 24
+              }
+            ]
+          },
+          {
+            "id": "listening-right",
+            "type": "column",
+            "gap": 10,
+            "grow": 1,
+            "children": [
+              {
+                "id": "listening-now-card",
+                "type": "column",
+                "height": 142,
+                "padding": 14,
+                "gap": 6,
+                "style": "surface.card",
+                "children": [
+                  {
+                    "id": "listening-now-title",
+                    "type": "component",
+                    "component": "nowPlaying.title",
+                    "height": 38
+                  },
+                  {
+                    "id": "listening-now-meta",
+                    "type": "component",
+                    "component": "nowPlaying.metadata",
+                    "height": 20
+                  },
+                  {
+                    "id": "listening-seek",
+                    "type": "component",
+                    "component": "transport.seek",
+                    "style": "linearSlider.seek",
+                    "height": 28,
+                    "minHeight": 28,
+                    "focusOrder": 90
+                  },
+                  {
+                    "id": "listening-time",
+                    "type": "component",
+                    "component": "transport.time",
+                    "height": 18
+                  }
+                ]
+              },
+              {
+                "id": "listening-queue-card",
+                "type": "column",
+                "padding": 12,
+                "gap": 8,
+                "grow": 1,
+                "style": "surface.card",
+                "children": [
+                  {
+                    "id": "listening-queue-header",
+                    "type": "row",
+                    "height": 34,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "listening-queue-title",
+                        "type": "component",
+                        "component": "queue.title",
+                        "grow": 1
+                      },
+                      {
+                        "id": "listening-add",
+                        "type": "component",
+                        "component": "library.add",
+                        "style": "textButton.primary",
+                        "width": 104,
+                        "focusOrder": 40
+                      }
+                    ]
+                  },
+                  {
+                    "id": "listening-queue",
+                    "type": "component",
+                    "component": "queue.table",
+                    "grow": 1,
+                    "focusOrder": 50
+                  }
+                ]
+              },
+              {
+                "id": "listening-transport-card",
+                "type": "row",
+                "height": 104,
+                "padding": 12,
+                "gap": 8,
+                "align": "center",
+                "style": "surface.card",
+                "children": [
+                  {
+                    "id": "listening-previous",
+                    "type": "component",
+                    "component": "transport.previous",
+                    "style": "textButton.neutral",
+                    "width": 64,
+                    "height": 44,
+                    "focusOrder": 60
+                  },
+                  {
+                    "id": "listening-play",
+                    "type": "component",
+                    "component": "transport.playPause",
+                    "style": "textButton.primary",
+                    "width": 72,
+                    "height": 48,
+                    "focusOrder": 70
+                  },
+                  {
+                    "id": "listening-next",
+                    "type": "component",
+                    "component": "transport.next",
+                    "style": "textButton.neutral",
+                    "width": 64,
+                    "height": 44,
+                    "focusOrder": 80
+                  },
+                  {
+                    "id": "listening-effects",
+                    "type": "component",
+                    "component": "effects.open",
+                    "style": "textButton.neutral",
+                    "width": 92,
+                    "height": 36,
+                    "focusOrder": 100
+                  },
+                  {
+                    "id": "listening-spacer",
+                    "type": "visual",
+                    "style": "surface.default",
+                    "grow": 1
+                  },
+                  {
+                    "id": "listening-volume",
+                    "type": "component",
+                    "component": "transport.volume",
+                    "style": "rotarySlider.default",
+                    "presentation": "rotary",
+                    "width": 84,
+                    "height": 84,
+                    "focusOrder": 110
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "listening-status",
+        "type": "component",
+        "component": "app.status",
+        "height": 28
+      }
+    ]
+  }
+}

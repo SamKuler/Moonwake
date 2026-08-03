@@ -1,0 +1,22 @@
+{
+  "skinApi": 1,
+  "id": "builtin.default",
+  "name": "Studio / Listening",
+  "version": "1.0.0",
+  "author": { "name": "Sam Kuler" },
+  "description": "Dark Studio A and bright Listening B in one switchable skin.",
+  "license": "Proprietary",
+  "minAppVersion": "0.1.0",
+  "extends": "builtin.foundation",
+  "capabilities": ["tokens", "renderers", "layouts", "animations"],
+  "entrypoints": {
+    "tokens": "tokens.json",
+    "components": "components/index.json",
+    "layouts": {
+      "studio": "layouts/studio.json",
+      "listening": "layouts/listening.json",
+      "effects": "layouts/effects.json",
+      "settings": "layouts/settings.json"
+    }
+  }
+}

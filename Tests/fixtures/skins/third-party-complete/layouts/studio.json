@@ -1,0 +1,198 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "studio-root",
+    "type": "column",
+    "padding": 8,
+    "gap": 8,
+    "children": [
+      {
+        "id": "studio-header",
+        "type": "row",
+        "height": 52,
+        "padding": {
+          "top": 6,
+          "right": 12,
+          "bottom": 6,
+          "left": 12
+        },
+        "gap": 8,
+        "align": "center",
+        "style": "surface.card",
+        "children": [
+          {
+            "id": "studio-brand",
+            "type": "component",
+            "component": "app.brand.title",
+            "grow": 1
+          },
+          {
+            "id": "studio-mode",
+            "type": "component",
+            "component": "workspace.studio",
+            "style": "textButton.primary",
+            "width": 112,
+            "focusOrder": 10
+          },
+          {
+            "id": "listening-mode",
+            "type": "component",
+            "component": "workspace.listening",
+            "style": "textButton.neutral",
+            "width": 112,
+            "focusOrder": 20
+          },
+          {
+            "id": "open-settings",
+            "type": "component",
+            "component": "settings.open",
+            "style": "textButton.neutral",
+            "width": 88,
+            "focusOrder": 30
+          }
+        ]
+      },
+      {
+        "id": "studio-content",
+        "type": "row",
+        "gap": 8,
+        "grow": 1,
+        "children": [
+          {
+            "id": "studio-queue-card",
+            "type": "column",
+            "width": "42%",
+            "padding": 12,
+            "gap": 8,
+            "style": "surface.card",
+            "children": [
+              {
+                "id": "studio-queue-header",
+                "type": "row",
+                "height": 34,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "studio-queue-title",
+                    "type": "component",
+                    "component": "queue.title",
+                    "grow": 1
+                  },
+                  {
+                    "id": "studio-add",
+                    "type": "component",
+                    "component": "library.add",
+                    "style": "textButton.primary",
+                    "width": 104,
+                    "focusOrder": 40
+                  }
+                ]
+              },
+              {
+                "id": "studio-queue",
+                "type": "component",
+                "component": "queue.table",
+                "grow": 1,
+                "focusOrder": 50
+              }
+            ]
+          },
+          {
+            "id": "studio-output",
+            "type": "component",
+            "component": "output.stage",
+            "width": "24%"
+          },
+          {
+            "id": "studio-right-card",
+            "type": "column",
+            "padding": 12,
+            "gap": 8,
+            "grow": 1,
+            "style": "surface.card",
+            "children": [
+              {
+                "id": "studio-now-title",
+                "type": "component",
+                "component": "nowPlaying.title",
+                "height": 34
+              },
+              {
+                "id": "studio-now-meta",
+                "type": "component",
+                "component": "nowPlaying.metadata",
+                "height": 22
+              },
+              {
+                "id": "studio-seek",
+                "type": "component",
+                "component": "transport.seek",
+                "style": "linearSlider.seek",
+                "height": 28,
+                "focusOrder": 90
+              },
+              {
+                "id": "studio-time",
+                "type": "component",
+                "component": "transport.time",
+                "height": 20
+              },
+              {
+                "id": "studio-controls",
+                "type": "row",
+                "height": 44,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "studio-previous",
+                    "type": "component",
+                    "component": "transport.previous",
+                    "style": "textButton.neutral",
+                    "focusOrder": 60
+                  },
+                  {
+                    "id": "studio-play",
+                    "type": "component",
+                    "component": "transport.playPause",
+                    "style": "textButton.primary",
+                    "focusOrder": 70
+                  },
+                  {
+                    "id": "studio-next",
+                    "type": "component",
+                    "component": "transport.next",
+                    "style": "textButton.neutral",
+                    "focusOrder": 80
+                  }
+                ]
+              },
+              {
+                "id": "studio-volume",
+                "type": "component",
+                "component": "transport.volume",
+                "presentation": "linearHorizontal",
+                "height": 32,
+                "focusOrder": 100
+              },
+              {
+                "id": "studio-effects",
+                "type": "component",
+                "component": "effects.open",
+                "style": "textButton.neutral",
+                "width": 112,
+                "height": 34,
+                "focusOrder": 110
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "studio-status",
+        "type": "component",
+        "component": "app.status",
+        "height": 28
+      }
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "effects-root",
+    "type": "column",
+    "padding": 12,
+    "gap": 10,
+    "style": "surface.card",
+    "children": [
+      {
+        "id": "effects-header",
+        "type": "row",
+        "height": 40,
+        "gap": 8,
+        "children": [
+          {
+            "id": "effects-title",
+            "type": "component",
+            "component": "effects.title",
+            "grow": 1
+          },
+          {
+            "id": "effects-close",
+            "type": "component",
+            "component": "effects.close",
+            "style": "textButton.neutral",
+            "width": 84,
+            "focusOrder": 10
+          }
+        ]
+      },
+      {
+        "id": "effects-insert",
+        "type": "row",
+        "height": 36,
+        "gap": 8,
+        "children": [
+          {
+            "id": "effects-filter",
+            "type": "component",
+            "component": "effects.filter",
+            "width": "34%",
+            "focusOrder": 20
+          },
+          {
+            "id": "effects-catalog",
+            "type": "component",
+            "component": "effects.catalog",
+            "grow": 1,
+            "focusOrder": 30
+          },
+          {
+            "id": "effects-add",
+            "type": "component",
+            "component": "effects.add",
+            "style": "textButton.primary",
+            "width": 96,
+            "focusOrder": 40
+          }
+        ]
+      },
+      {
+        "id": "effects-chain",
+        "type": "component",
+        "component": "effects.chain",
+        "grow": 1,
+        "focusOrder": 50
+      }
+    ]
+  }
+}

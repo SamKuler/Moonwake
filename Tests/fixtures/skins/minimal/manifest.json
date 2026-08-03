@@ -1,0 +1,19 @@
+{
+  "skinApi": 1,
+  "id": "com.example.minimal",
+  "name": "Minimal",
+  "version": "1.0.0",
+  "author": { "name": "Example" },
+  "minAppVersion": "0.1.0",
+  "entrypoints": {
+    "tokens": "tokens.json",
+    "components": "components/index.json",
+    "layouts": {
+      "studio": "layouts/studio.json",
+      "listening": "layouts/listening.json",
+      "effects": "layouts/effects.json",
+      "settings": "layouts/settings.json"
+    }
+  },
+  "capabilities": ["tokens", "renderers", "layouts", "assets", "animations"]
+}
