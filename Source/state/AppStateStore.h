@@ -12,6 +12,7 @@ struct PlayerAppState
     PlaylistModel playlist;
     EffectChainState effectChain;
     double volume = 0.8;
+    double playbackPositionSeconds = 0.0;
     OutputLayout outputLayout = OutputLayout::stereo;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     juce::String activeSkinId = "builtin.default";

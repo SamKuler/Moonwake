@@ -2,6 +2,7 @@
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
+#include "app/NowPlayingCoordinator.h"
 #include "app/PlaybackEndDetector.h"
 #include "app/PlayerController.h"
 #include "app/AutoSaveScheduler.h"
@@ -19,6 +20,9 @@
 #include "ui/settings/AudioSettingsPanel.h"
 #include "ui/settings/PluginSettingsPanel.h"
 #include "ui/settings/SkinLibraryPanel.h"
+
+#include <atomic>
+#include <memory>
 
 class MainComponent final : public juce::Component,
                             private juce::TableListBoxModel,
@@ -57,6 +61,7 @@ private:
     void refreshPlugins();
     void refreshEffects();
     void updateTransportState();
+    void handleRemoteTransportCommand (const RemoteTransportCommand&);
     void openPluginEditor (int effectIndex);
     void removeEffect (int effectIndex);
     void moveEffectFromDrag (int fromIndex, int yInRackContent);
@@ -74,6 +79,8 @@ private:
     [[nodiscard]] juce::File getPluginListFile() const;
 
     PlayerController controller;
+    NowPlayingCoordinator nowPlayingCoordinator;
+    std::shared_ptr<std::atomic_bool> remoteCommandLifetime;
     PlaybackEndDetector playbackEndDetector;
     AutoSaveScheduler autoSaveScheduler;
     StateSaveService stateSaveService;

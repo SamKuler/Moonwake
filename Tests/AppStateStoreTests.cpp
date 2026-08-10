@@ -44,6 +44,7 @@ public:
             state.playlist.setShuffleEnabled (true);
             state.playlist.setRepeatMode (RepeatMode::all);
             state.volume = 0.65;
+            state.playbackPositionSeconds = 37.25;
             state.outputLayout = OutputLayout::fiveOneTwo;
             state.workspaceMode = WorkspaceMode::studio;
             state.activeSkinId = "com.example.skin";
@@ -60,7 +61,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 6);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 7);
             expectEquals (restored.playlist.size(), 2);
             expectEquals (restored.playlist.getSelectedIndex(), 1);
             expectEquals (restored.playlist.getTrack (0)->file.getFullPathName(),
@@ -86,6 +87,8 @@ public:
             expect (restored.playlist.isShuffleEnabled());
             expect (restored.playlist.getRepeatMode() == RepeatMode::all);
             expectWithinAbsoluteError (restored.volume, 0.65, 0.0001);
+            expectWithinAbsoluteError (restored.playbackPositionSeconds,
+                                       37.25, 0.0001);
             expect (restored.outputLayout == OutputLayout::fiveOneTwo);
             expect (restored.workspaceMode == WorkspaceMode::studio);
             expectEquals (restored.activeSkinId, juce::String ("com.example.skin"));
@@ -132,6 +135,31 @@ public:
             expectEquals (restored.activeSkinId, juce::String ("builtin.default"));
             expect (restored.activeSkinVersion.isEmpty());
             expect (restored.developerSkinDirectory.isEmpty());
+            expectWithinAbsoluteError (restored.playbackPositionSeconds,
+                                       0.0, 0.0001);
+        }
+
+        beginTest ("loads schema 6 trees without a playback checkpoint");
+        {
+            juce::ValueTree root ("MoonwakeState");
+            root.setProperty ("schemaVersion", 6, nullptr);
+            root.appendChild (juce::ValueTree ("Playlist"), nullptr);
+
+            const auto restored = AppStateStore::fromValueTree (root);
+            expectWithinAbsoluteError (restored.playbackPositionSeconds,
+                                       0.0, 0.0001);
+        }
+
+        beginTest ("sanitizes invalid playback checkpoints");
+        {
+            juce::ValueTree root ("MoonwakeState");
+            root.setProperty ("schemaVersion", 7, nullptr);
+            root.setProperty ("playbackPositionSeconds", -12.0, nullptr);
+            root.appendChild (juce::ValueTree ("Playlist"), nullptr);
+
+            const auto restored = AppStateStore::fromValueTree (root);
+            expectWithinAbsoluteError (restored.playbackPositionSeconds,
+                                       0.0, 0.0001);
         }
 
         beginTest ("rejects state written by a newer schema");

@@ -47,6 +47,15 @@ PlaybackAction PlaybackCoordinator::moveToTrack (const juce::String& selectedTra
     return loadTrack (selectedTrackId, shouldPlay);
 }
 
+PlaybackAction PlaybackCoordinator::preparePausedTrack (
+    const juce::String& trackId)
+{
+    if (trackId.isEmpty())
+        return {};
+
+    return loadTrack (trackId, false);
+}
+
 PlaybackAction PlaybackCoordinator::previous (const juce::String& previousTrackId,
                                                 double currentPositionSeconds)
 {

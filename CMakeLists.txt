@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.2.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.3.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
     set(MOONWAKE_MAC_SOURCES Source/audio/MacEmbeddedArtworkReader.mm)
+    set(MOONWAKE_MAC_APP_SOURCES Source/app/MacNowPlayingBridge.mm)
+    set_source_files_properties(Source/app/MacNowPlayingBridge.mm
+        PROPERTIES COMPILE_FLAGS "-fobjc-arc"
+    )
 endif()
 
 enable_testing()
@@ -119,9 +123,11 @@ set(MOONWAKE_SOURCES
     ${MOONWAKE_MAC_SOURCES}
     Source/app/ProductPaths.cpp
     Source/app/PlaybackCoordinator.cpp
+    Source/app/PlaybackCheckpoint.cpp
     Source/app/PlayerController.cpp
     Source/app/PlaybackEndDetector.cpp
     Source/app/AutoSaveScheduler.cpp
+    Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
     Source/audio/ChannelRouter.cpp
     Source/audio/ChannelMappedAudioSource.cpp
@@ -193,6 +199,7 @@ target_sources(Moonwake
     PRIVATE
         Source/Main.cpp
         ${MOONWAKE_SOURCES}
+        ${MOONWAKE_MAC_APP_SOURCES}
 )
 
 target_include_directories(Moonwake
@@ -229,8 +236,10 @@ if (APPLE)
     target_compile_options(Moonwake PRIVATE -Wno-deprecated -Wno-deprecated-declarations)
     target_link_libraries(Moonwake PRIVATE
         "-framework AudioToolbox"
+        "-framework AppKit"
         "-framework AVFoundation"
         "-framework CoreAudioKit"
+        "-framework MediaPlayer"
     )
     option(MOONWAKE_ADHOC_SIGN_LOCAL_BUILDS
         "Ad-hoc sign local Moonwake bundles after embedding the scanner helper" ON)
@@ -265,6 +274,7 @@ add_executable(MoonwakeTests
         ${MOONWAKE_MAC_SOURCES}
         Source/app/ProductPaths.cpp
         Source/app/PlaybackCoordinator.cpp
+        Source/app/PlaybackCheckpoint.cpp
         Source/app/PlayerController.cpp
         Source/audio/AudioEngine.cpp
         Source/audio/TrackMetadataReader.cpp
@@ -282,6 +292,7 @@ add_executable(MoonwakeTests
         Source/plugins/PluginScanProcess.cpp
         Source/app/PlaybackEndDetector.cpp
         Source/app/AutoSaveScheduler.cpp
+        Source/app/NowPlayingCoordinator.cpp
         Source/audio/OutputLayout.cpp
         Source/state/AppStateStore.cpp
         Source/state/StateSaveService.cpp
@@ -334,6 +345,7 @@ add_executable(MoonwakeTests
         Tests/EffectRackLayoutTests.cpp
         Tests/PlaybackEndDetectorTests.cpp
         Tests/PlaybackCoordinatorTests.cpp
+        Tests/PlaybackCheckpointTests.cpp
         Tests/PlayerComponentCatalogTests.cpp
         Tests/OutputLayoutTests.cpp
         Tests/PlaylistModelTests.cpp
@@ -364,6 +376,7 @@ add_executable(MoonwakeTests
         Tests/ArtworkStoreTests.cpp
         Tests/LibraryFilterTests.cpp
         Tests/LibraryImportServiceTests.cpp
+        Tests/NowPlayingCoordinatorTests.cpp
 )
 
 target_include_directories(MoonwakeTests

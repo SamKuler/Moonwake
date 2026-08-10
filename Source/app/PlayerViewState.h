@@ -28,6 +28,7 @@ struct PlayerViewState
     int selectedTrackBitDepth = 0;
     int selectedTrackChannelCount = 0;
     double selectedTrackSampleRate = 0.0;
+    double selectedTrackDurationSeconds = 0.0;
     bool selectedTrackAvailable = false;
 
     TransportIntent transportIntent = TransportIntent::stopped;

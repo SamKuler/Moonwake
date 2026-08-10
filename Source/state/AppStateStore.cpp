@@ -2,6 +2,8 @@
 
 #include "app/ProductIdentity.h"
 
+#include <cmath>
+
 namespace
 {
 const juce::Identifier appStateType { MoonwakeIdentity::stateRootType };
@@ -11,7 +13,8 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 6;
+constexpr int currentSchemaVersion = 7;
+const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
 const juce::Identifier titleProperty { "title" };
@@ -69,6 +72,13 @@ RepeatMode repeatModeFromString (const juce::String& value)
 
     return RepeatMode::off;
 }
+
+double finiteNonNegative (double value)
+{
+    return std::isfinite (value)
+               ? juce::jmax (0.0, value)
+               : 0.0;
+}
 } // namespace
 
 juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
@@ -76,6 +86,8 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
     juce::ValueTree root (appStateType);
     root.setProperty (schemaVersionProperty, currentSchemaVersion, nullptr);
     root.setProperty (volumeProperty, state.volume, nullptr);
+    root.setProperty (playbackPositionProperty,
+                      finiteNonNegative (state.playbackPositionSeconds), nullptr);
     root.setProperty (outputLayoutProperty, toString (state.outputLayout), nullptr);
     root.setProperty (workspaceModeProperty, toString (state.workspaceMode), nullptr);
     root.setProperty (activeSkinIdProperty, state.activeSkinId, nullptr);
@@ -143,6 +155,9 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
         return state;
 
     state.volume = static_cast<double> (tree.getProperty (volumeProperty, state.volume));
+    state.playbackPositionSeconds = finiteNonNegative (static_cast<double> (
+        tree.getProperty (playbackPositionProperty,
+                          state.playbackPositionSeconds)));
     state.outputLayout = outputLayoutFromString (tree.getProperty (outputLayoutProperty, "stereo").toString());
     state.workspaceMode = workspaceModeFromString (
         tree.getProperty (workspaceModeProperty, "listening").toString());

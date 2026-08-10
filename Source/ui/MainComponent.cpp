@@ -290,7 +290,9 @@ private:
 };
 
 MainComponent::MainComponent()
-    : libraryImportService (ProductPaths::artworkCacheRoot()),
+    : nowPlayingCoordinator (createSystemNowPlayingBridge()),
+      remoteCommandLifetime (std::make_shared<std::atomic_bool> (true)),
+      libraryImportService (ProductPaths::artworkCacheRoot()),
       skinAdapter ([this] (const juce::Component& component,
                            SkinRenderTarget target,
                            const juce::String& style)
@@ -696,6 +698,7 @@ MainComponent::MainComponent()
     shuffleButton.onClick = [this]
     {
         controller.setShuffleEnabled (shuffleButton.getToggleState());
+        updateTransportState();
     };
     repeatModeBox.onChange = [this]
     {
@@ -705,6 +708,7 @@ MainComponent::MainComponent()
             case 3: controller.setRepeatMode (RepeatMode::one); break;
             default: controller.setRepeatMode (RepeatMode::off); break;
         }
+        updateTransportState();
     };
     outputLayoutBox.onChange = [this]
     {
@@ -731,6 +735,18 @@ MainComponent::MainComponent()
         controller.seekToRatio (seekSlider.getValue());
         updateTransportState();
     };
+
+    const auto remoteLifetime = remoteCommandLifetime;
+    nowPlayingCoordinator.setCommandHandler (
+        [this, remoteLifetime] (const RemoteTransportCommand& command)
+        {
+            juce::MessageManager::callAsync (
+                [this, remoteLifetime, command]
+                {
+                    if (remoteLifetime->load (std::memory_order_acquire))
+                        handleRemoteTransportCommand (command);
+                });
+        });
 
     refreshPlugins();
     audioSettingsPanel.refresh();
@@ -772,8 +788,13 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    stopTimer();
+    remoteCommandLifetime->store (false, std::memory_order_release);
+    nowPlayingCoordinator.setCommandHandler ({});
+    nowPlayingCoordinator.clear();
     libraryImportService.cancel();
     static_cast<void> (stateSaveService.waitForPendingWrite());
+    controller.checkpointPlaybackPosition();
     skinManager.removeListener (this);
     skinLayoutHost.clear();
     updateSkinPersistenceStateFromManager();
@@ -1015,6 +1036,7 @@ void MainComponent::timerCallback()
         statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
     }
 
+    controller.checkpointPlaybackPosition();
     if (pluginSettingsPanel.refreshScanState())
         refreshPlugins();
 
@@ -1463,6 +1485,8 @@ void MainComponent::refreshEffects()
 void MainComponent::updateTransportState()
 {
     const auto state = controller.getViewState();
+    nowPlayingCoordinator.update (
+        state, juce::Time::getMillisecondCounterHiRes() / 1000.0);
 
     if (! seekSlider.isMouseButtonDown())
         seekSlider.setValue (state.seekRatio, juce::dontSendNotification);
@@ -1566,6 +1590,41 @@ void MainComponent::updateTransportState()
     playPauseButton.setEnabled (state.selectedIndex >= 0 && state.selectedTrackAvailable);
     previousButton.setEnabled (state.selectedIndex >= 0);
     nextButton.setEnabled (state.selectedIndex >= 0);
+}
+
+void MainComponent::handleRemoteTransportCommand (
+    const RemoteTransportCommand& command)
+{
+    const auto before = controller.getViewState();
+    switch (command.type)
+    {
+        case RemoteTransportCommandType::play:
+            if (! before.isPlaying)
+                controller.playOrPause();
+            break;
+        case RemoteTransportCommandType::pause:
+            if (before.isPlaying)
+                controller.playOrPause();
+            break;
+        case RemoteTransportCommandType::togglePlayPause:
+            controller.playOrPause();
+            break;
+        case RemoteTransportCommandType::next:
+            controller.nextTrack();
+            refreshPlaylist();
+            break;
+        case RemoteTransportCommandType::previous:
+            controller.previousTrack();
+            refreshPlaylist();
+            break;
+        case RemoteTransportCommandType::seekToSeconds:
+            controller.seekToSeconds (command.positionSeconds);
+            break;
+    }
+
+    statusLabel.setText (controller.getLastStatusMessage(),
+                         juce::dontSendNotification);
+    updateTransportState();
 }
 
 void MainComponent::openPluginEditor (int effectIndex)

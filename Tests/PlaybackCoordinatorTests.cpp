@@ -82,6 +82,20 @@ public:
             expect (coordinator.getLoadedTrackId().isEmpty());
         }
 
+        beginTest ("restored tracks are always prepared paused");
+        {
+            PlaybackCoordinator coordinator;
+            static_cast<void> (coordinator.togglePlay ("old-track"));
+            expect (coordinator.getIntent() == TransportIntent::playing);
+
+            const auto action = coordinator.preparePausedTrack ("saved-track");
+            expect (action.type == PlaybackActionType::load);
+            expectEquals (action.trackId, juce::String ("saved-track"));
+            expect (coordinator.getIntent() == TransportIntent::paused);
+            expectEquals (coordinator.getLoadedTrackId(),
+                          juce::String ("saved-track"));
+        }
+
         beginTest ("invalid selections and failed loads leave a safe stopped state");
         {
             PlaybackCoordinator coordinator;

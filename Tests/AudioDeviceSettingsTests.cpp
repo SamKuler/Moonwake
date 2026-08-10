@@ -355,6 +355,102 @@ public:
             expectEquals (view.audioBufferSize, 64);
         }
 
+        beginTest ("PlayerController restores a saved position without autoplay");
+        {
+            const auto directory = juce::File::getCurrentWorkingDirectory()
+                                       .getChildFile ("build")
+                                       .getChildFile ("playback-restore-")
+                                       .getSiblingFile ("playback-restore-"
+                                                       + juce::Uuid().toString());
+            expect (directory.createDirectory());
+            const auto audioFile = directory.getChildFile ("resume.wav");
+            juce::WavAudioFormat wav;
+            auto output = std::unique_ptr<juce::OutputStream> (
+                audioFile.createOutputStream());
+            auto writer = wav.createWriterFor (
+                output, juce::AudioFormatWriterOptions{}
+                            .withSampleRate (8000.0)
+                            .withNumChannels (2)
+                            .withBitsPerSample (16));
+            expect (writer != nullptr);
+            if (writer != nullptr)
+            {
+                juce::AudioBuffer<float> samples (2, 24000);
+                samples.clear();
+                expect (writer->writeFromAudioSampleBuffer (
+                    samples, 0, samples.getNumSamples()));
+                writer.reset();
+            }
+
+            PlayerAppState saved;
+            TrackItem track { audioFile, "Resume", 3.0 };
+            track.id = "resume-track";
+            saved.playlist.addTrack (std::move (track));
+            saved.playlist.selectTrack (0);
+            saved.playbackPositionSeconds = 1.25;
+            const auto stateFile = directory.getChildFile ("state.xml");
+            juce::String stateError;
+            expect (AppStateStore::writeAtomically (
+                saved, stateFile, stateError), stateError);
+
+            PlayerController controller (
+                std::make_unique<FakeAudioDeviceBackend>());
+            expect (controller.loadState (
+                stateFile, directory.getChildFile ("plugins.xml")));
+            const auto view = controller.getViewState();
+            expectEquals (view.selectedTrackId,
+                          juce::String ("resume-track"));
+            expect (! view.isPlaying);
+            expect (view.transportIntent == TransportIntent::paused);
+            expectWithinAbsoluteError (view.positionSeconds, 1.25, 0.02);
+
+            PlayerAppState captured;
+            stateError.clear();
+            expect (controller.captureStateSnapshot (captured, stateError),
+                    stateError);
+            expectWithinAbsoluteError (captured.playbackPositionSeconds,
+                                       1.25, 0.02);
+            expect (directory.deleteRecursively());
+        }
+
+        beginTest ("unavailable restored tracks retain their saved position");
+        {
+            const auto directory = juce::File::getCurrentWorkingDirectory()
+                                       .getChildFile ("build")
+                                       .getNonexistentChildFile (
+                                           "unavailable-playback-restore-",
+                                           juce::String());
+            expect (directory.createDirectory());
+
+            PlayerAppState saved;
+            TrackItem track {
+                directory.getChildFile ("missing.wav"), "Missing", 120.0
+            };
+            track.id = "missing-track";
+            track.available = true;
+            saved.playlist.addTrack (std::move (track));
+            saved.playlist.selectTrack (0);
+            saved.playbackPositionSeconds = 47.25;
+            const auto stateFile = directory.getChildFile ("state.xml");
+            juce::String stateError;
+            expect (AppStateStore::writeAtomically (
+                saved, stateFile, stateError), stateError);
+
+            PlayerController controller (
+                std::make_unique<FakeAudioDeviceBackend>());
+            expect (controller.loadState (
+                stateFile, directory.getChildFile ("plugins.xml")));
+            expect (! controller.getViewState().selectedTrackAvailable);
+
+            PlayerAppState captured;
+            stateError.clear();
+            expect (controller.captureStateSnapshot (captured, stateError),
+                    stateError);
+            expectWithinAbsoluteError (captured.playbackPositionSeconds,
+                                       47.25, 0.001);
+            expect (directory.deleteRecursively());
+        }
+
         beginTest ("real ten-channel callback stays allocation-free and independent of skin churn");
         {
             auto backend = std::make_unique<FakeAudioDeviceBackend>();

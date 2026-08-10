@@ -32,6 +32,7 @@ public:
     [[nodiscard]] PlaybackAction togglePlay (const juce::String& selectedTrackId);
     [[nodiscard]] PlaybackAction selectionChanged (const juce::String& selectedTrackId);
     [[nodiscard]] PlaybackAction moveToTrack (const juce::String& selectedTrackId, bool forcePlay);
+    [[nodiscard]] PlaybackAction preparePausedTrack (const juce::String& trackId);
     [[nodiscard]] PlaybackAction previous (const juce::String& previousTrackId, double currentPositionSeconds);
     [[nodiscard]] PlaybackAction playbackFinished (const juce::String& nextTrackId);
 

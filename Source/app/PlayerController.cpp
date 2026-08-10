@@ -2,6 +2,33 @@
 
 #include "app/ProductPaths.h"
 
+#include <cmath>
+
+namespace
+{
+thread_local const PlayerController* synchronousPluginStateCaptureOwner =
+    nullptr;
+
+class ScopedSynchronousPluginStateCapture final
+{
+public:
+    explicit ScopedSynchronousPluginStateCapture (
+        const PlayerController* owner)
+        : previousOwner (synchronousPluginStateCaptureOwner)
+    {
+        synchronousPluginStateCaptureOwner = owner;
+    }
+
+    ~ScopedSynchronousPluginStateCapture()
+    {
+        synchronousPluginStateCaptureOwner = previousOwner;
+    }
+
+private:
+    const PlayerController* previousOwner = nullptr;
+};
+} // namespace
+
 PlayerController::PlayerController()
     : artworkStore (ProductPaths::artworkCacheRoot())
 {
@@ -125,6 +152,8 @@ bool PlayerController::selectTrack (int index)
     const auto action = playbackCoordinator.selectionChanged (requestedTrack->id);
     if (! execute (action))
         return false;
+    playbackCheckpoint.reset (requestedTrack->id,
+                              audioEngine.getCurrentPositionSeconds());
 
     if (action.type != PlaybackActionType::none)
         lastStatusMessage = (playbackCoordinator.getIntent() == TransportIntent::playing ? "Playing " : "Loaded ")
@@ -144,6 +173,9 @@ bool PlayerController::playOrPause()
     const auto action = playbackCoordinator.togglePlay (getSelectedTrackId());
     if (! execute (action))
         return false;
+    playbackCheckpoint.reset (getSelectedTrackId(),
+                              audioEngine.getCurrentPositionSeconds());
+    ++stateRevision;
 
     lastStatusMessage = playbackCoordinator.getIntent() == TransportIntent::playing
                             ? "Playing " + playlist.getSelectedTrack()->title
@@ -163,6 +195,8 @@ bool PlayerController::nextTrack()
     const auto action = playbackCoordinator.moveToTrack (getSelectedTrackId(), false);
     if (! execute (action))
         return false;
+    playbackCheckpoint.reset (getSelectedTrackId(),
+                              audioEngine.getCurrentPositionSeconds());
 
     lastStatusMessage = playbackCoordinator.getIntent() == TransportIntent::playing
                             ? "Playing " + playlist.getSelectedTrack()->title
@@ -191,6 +225,11 @@ bool PlayerController::previousTrack()
     if (! execute (action))
         return false;
 
+    if (action.type == PlaybackActionType::seekToStart)
+        ++stateRevision;
+    playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(),
+                              audioEngine.getCurrentPositionSeconds());
+
     if (action.type == PlaybackActionType::none)
     {
         lastStatusMessage = "No previous track.";
@@ -213,6 +252,10 @@ bool PlayerController::handlePlaybackFinished()
 
     if (! execute (action))
         return false;
+    if (! hasNextTrack)
+        ++stateRevision;
+    playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(),
+                              audioEngine.getCurrentPositionSeconds());
 
     lastStatusMessage = hasNextTrack ? "Playing " + playlist.getSelectedTrack()->title : "End of queue.";
     return hasNextTrack;
@@ -236,6 +279,7 @@ bool PlayerController::removeTrack (int index)
     {
         audioEngine.unload();
         playbackCoordinator.loadFailed();
+        playbackCheckpoint.reset ({}, 0.0);
     }
 
     lastStatusMessage = "Removed " + removedTitle + ".";
@@ -256,6 +300,7 @@ void PlayerController::clearPlaylist()
 {
     audioEngine.unload();
     playbackCoordinator.loadFailed();
+    playbackCheckpoint.reset ({}, 0.0);
     for (const auto& track : playlist.getTracks())
         static_cast<void> (artworkStore.remove (track.artworkCacheKey));
     playlist.clear();
@@ -265,9 +310,31 @@ void PlayerController::clearPlaylist()
 
 void PlayerController::seekToRatio (double ratio)
 {
+    seekToSeconds (juce::jlimit (0.0, 1.0, ratio)
+                   * audioEngine.getLengthInSeconds());
+}
+
+void PlayerController::seekToSeconds (double seconds)
+{
     const auto length = audioEngine.getLengthInSeconds();
-    if (length > 0.0)
-        audioEngine.seekToSeconds (juce::jlimit (0.0, 1.0, ratio) * length);
+    if (! std::isfinite (seconds) || length <= 0.0)
+        return;
+
+    const auto position = juce::jlimit (0.0, length, seconds);
+    if (std::abs (position - audioEngine.getCurrentPositionSeconds()) < 0.01)
+        return;
+
+    audioEngine.seekToSeconds (position);
+    playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(), position);
+    ++stateRevision;
+}
+
+void PlayerController::checkpointPlaybackPosition()
+{
+    if (playbackCheckpoint.observe (
+            playbackCoordinator.getLoadedTrackId(),
+            audioEngine.getCurrentPositionSeconds(), audioEngine.isPlaying()))
+        ++stateRevision;
 }
 
 void PlayerController::setShuffleEnabled (bool shouldShuffle)
@@ -428,6 +495,7 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
 
             ++effectChainRevision;
             ++stateRevision;
+            pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
             lastStatusMessage = "Inserted " + description.name + ".";
             completion (true, lastStatusMessage);
         });
@@ -661,6 +729,7 @@ PlayerViewState PlayerController::getViewState() const
         state.selectedTrackBitDepth = track->bitDepth;
         state.selectedTrackChannelCount = track->channelCount;
         state.selectedTrackSampleRate = track->sampleRate;
+        state.selectedTrackDurationSeconds = track->durationSeconds;
         state.selectedTrackFormat = track->formatName;
         state.selectedTrackArtworkPath = artworkStore.resolve (
             track->artworkCacheKey).getFullPathName();
@@ -769,6 +838,9 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     state.playlist = playlist;
     state.effectChain = effectChain;
 
+    const auto pluginRevision = pluginStateRevision.load (
+        std::memory_order_acquire);
+    if (pluginRevision != capturedPluginStateRevision)
     {
         if (! audioEngine.beginEffectStateCapture())
         {
@@ -794,12 +866,21 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
                 if (savedSlot != nullptr && plugin != nullptr)
                 {
                     savedSlot->serializedState.reset();
+                    const ScopedSynchronousPluginStateCapture
+                        suppressSynchronousNotification (this);
                     const juce::ScopedLock callbackLock (
                         plugin->getCallbackLock());
                     plugin->getStateInformation (
                         savedSlot->serializedState);
                 }
+
+                if (savedSlot != nullptr)
+                    if (auto* cachedSlot = effectChain.getSlotById (slot.id))
+                        cachedSlot->serializedState =
+                            savedSlot->serializedState;
             }
+
+            capturedPluginStateRevision = pluginRevision;
         }
         catch (...)
         {
@@ -815,6 +896,20 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     state.activeSkinVersion = skinPersistenceState.activeSkinVersion;
     state.developerSkinDirectory =
         skinPersistenceState.developerDirectory.getFullPathName();
+    const auto selectedTrackId = getSelectedTrackId();
+    if (playbackCoordinator.getLoadedTrackId() == selectedTrackId)
+    {
+        const auto position = juce::jlimit (
+            0.0, juce::jmax (0.0, audioEngine.getLengthInSeconds()),
+            audioEngine.getCurrentPositionSeconds());
+        state.playbackPositionSeconds = position;
+        playbackCheckpoint.reset (selectedTrackId, position);
+    }
+    else if (const auto checkpoint =
+                 playbackCheckpoint.positionForTrack (selectedTrackId))
+    {
+        state.playbackPositionSeconds = *checkpoint;
+    }
     return true;
 }
 
@@ -908,10 +1003,32 @@ bool PlayerController::restoreStateSnapshot (const PlayerAppState& state)
         }
     }
 
+    audioEngine.unload();
+    playbackCoordinator.loadFailed();
+    playbackCheckpoint.reset ({}, 0.0);
     playlist = std::move (restoredPlaylist);
 
     setVolume (state.volume);
     setOutputLayout (state.outputLayout);
+    if (const auto* selectedTrack = playlist.getSelectedTrack();
+        selectedTrack != nullptr)
+        playbackCheckpoint.reset (selectedTrack->id,
+                                  state.playbackPositionSeconds);
+
+    if (const auto* selectedTrack = playlist.getSelectedTrack();
+        selectedTrack != nullptr && selectedTrack->available)
+    {
+        const auto action = playbackCoordinator.preparePausedTrack (
+            selectedTrack->id);
+        if (execute (action))
+        {
+            const auto position = juce::jlimit (
+                0.0, juce::jmax (0.0, audioEngine.getLengthInSeconds()),
+                state.playbackPositionSeconds);
+            audioEngine.seekToSeconds (position);
+            playbackCheckpoint.reset (selectedTrack->id, position);
+        }
+    }
     workspaceMode = state.workspaceMode;
     setSkinPersistenceState ({ state.activeSkinId, state.activeSkinVersion,
                                juce::File (state.developerSkinDirectory) });
@@ -995,14 +1112,16 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
 void PlayerController::audioProcessorParameterChanged (
     juce::AudioProcessor*, int, float)
 {
-    pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
+    if (synchronousPluginStateCaptureOwner != this)
+        pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
 }
 
 void PlayerController::audioProcessorChanged (
     juce::AudioProcessor*,
     const juce::AudioProcessorListener::ChangeDetails&)
 {
-    pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
+    if (synchronousPluginStateCaptureOwner != this)
+        pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
 }
 
 std::vector<int> PlayerController::getAvailableEffectSlotIds() const

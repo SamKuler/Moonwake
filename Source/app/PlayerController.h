@@ -2,6 +2,7 @@
 
 #include "audio/AudioEngine.h"
 #include "audio/TrackMetadataReader.h"
+#include "app/PlaybackCheckpoint.h"
 #include "app/PlaybackCoordinator.h"
 #include "app/PlayerViewState.h"
 #include "playlist/PlaylistModel.h"
@@ -42,6 +43,8 @@ public:
     bool moveTrack (int fromIndex, int toIndex);
     void clearPlaylist();
     void seekToRatio (double ratio);
+    void seekToSeconds (double seconds);
+    void checkpointPlaybackPosition();
     void setShuffleEnabled (bool shouldShuffle);
     void setRepeatMode (RepeatMode mode);
     void setVolume (double volume);
@@ -90,6 +93,7 @@ private:
     TrackMetadataReader metadataReader;
     ArtworkStore artworkStore;
     PlaybackCoordinator playbackCoordinator;
+    PlaybackCheckpoint playbackCheckpoint;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     SkinPersistenceState skinPersistenceState;
     juce::String lastStatusMessage;
@@ -97,6 +101,7 @@ private:
     uint64_t effectChainRevision = 0;
     uint64_t stateRevision = 0;
     std::atomic<uint64_t> pluginStateRevision { 0 };
+    uint64_t capturedPluginStateRevision = 0;
     bool restoringEffects = false;
 
     bool execute (const PlaybackAction& action);
