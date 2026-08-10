@@ -5,10 +5,13 @@
 class AlbumArtworkComponent final : public juce::Component
 {
 public:
-    void setTrack (juce::String stableIdToUse, juce::String titleToUse);
+    void setTrack (juce::String stableIdToUse, juce::String titleToUse,
+                   const juce::File& artworkFile = {});
     void paint (juce::Graphics&) override;
 
 private:
     juce::String stableId;
     juce::String title;
+    juce::String artworkPath;
+    juce::Image artwork;
 };

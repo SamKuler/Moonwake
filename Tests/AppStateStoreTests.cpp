@@ -20,8 +20,18 @@ public:
             PlayerAppState state;
             TrackItem first { juce::File ("/music/first.wav"), "First", 12.5 };
             first.id = "first-id";
+            first.artist = "Artist";
+            first.album = "Album";
+            first.albumArtist = "Album Artist";
+            first.genre = "Ambient";
+            first.year = 2026;
+            first.trackNumber = 3;
+            first.discNumber = 2;
             first.sampleRate = 48000.0;
             first.channelCount = 2;
+            first.bitDepth = 24;
+            first.formatName = "WAV";
+            first.artworkCacheKey = "first-id";
             state.playlist.addTrack (std::move (first));
 
             TrackItem second { juce::File ("/music/second.wav"), "Second", 18.0 };
@@ -50,15 +60,27 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 5);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 6);
             expectEquals (restored.playlist.size(), 2);
             expectEquals (restored.playlist.getSelectedIndex(), 1);
             expectEquals (restored.playlist.getTrack (0)->file.getFullPathName(),
                           juce::String ("/music/first.wav"));
             expectEquals (restored.playlist.getTrack (1)->title, juce::String ("Second"));
             expectEquals (restored.playlist.getTrack (0)->id, juce::String ("first-id"));
+            expectEquals (restored.playlist.getTrack (0)->artist, juce::String ("Artist"));
+            expectEquals (restored.playlist.getTrack (0)->album, juce::String ("Album"));
+            expectEquals (restored.playlist.getTrack (0)->albumArtist,
+                          juce::String ("Album Artist"));
+            expectEquals (restored.playlist.getTrack (0)->genre, juce::String ("Ambient"));
+            expectEquals (restored.playlist.getTrack (0)->year, 2026);
+            expectEquals (restored.playlist.getTrack (0)->trackNumber, 3);
+            expectEquals (restored.playlist.getTrack (0)->discNumber, 2);
             expectWithinAbsoluteError (restored.playlist.getTrack (0)->sampleRate, 48000.0, 0.001);
             expectEquals (restored.playlist.getTrack (0)->channelCount, 2);
+            expectEquals (restored.playlist.getTrack (0)->bitDepth, 24);
+            expectEquals (restored.playlist.getTrack (0)->formatName, juce::String ("WAV"));
+            expectEquals (restored.playlist.getTrack (0)->artworkCacheKey,
+                          juce::String ("first-id"));
             expectEquals (restored.playlist.getTrack (1)->id, juce::String ("second-id"));
             expect (! restored.playlist.getTrack (1)->available);
             expect (restored.playlist.isShuffleEnabled());
@@ -83,9 +105,10 @@ public:
             expectEquals (restored.effectChain.getSlot (1)->errorMessage, juce::String ("Not installed"));
         }
 
-        beginTest ("loads legacy trees without IDs or stream metadata");
+        beginTest ("loads schema 5 trees without IDs or stream metadata");
         {
             juce::ValueTree root ("MoonwakeState");
+            root.setProperty ("schemaVersion", 5, nullptr);
             juce::ValueTree playlist ("Playlist");
             playlist.setProperty ("selectedIndex", 0, nullptr);
             juce::ValueTree track ("Track");
@@ -101,10 +124,34 @@ public:
             expect (restored.playlist.getTrack (0)->id.isNotEmpty());
             expectWithinAbsoluteError (restored.playlist.getTrack (0)->sampleRate, 0.0, 0.001);
             expectEquals (restored.playlist.getTrack (0)->channelCount, 0);
+            expect (restored.playlist.getTrack (0)->artist.isEmpty());
+            expectEquals (restored.playlist.getTrack (0)->year, 0);
+            expectEquals (restored.playlist.getTrack (0)->bitDepth, 0);
+            expect (restored.playlist.getTrack (0)->artworkCacheKey.isEmpty());
             expect (restored.workspaceMode == WorkspaceMode::listening);
             expectEquals (restored.activeSkinId, juce::String ("builtin.default"));
             expect (restored.activeSkinVersion.isEmpty());
             expect (restored.developerSkinDirectory.isEmpty());
+        }
+
+        beginTest ("rejects state written by a newer schema");
+        {
+            const auto directory = juce::File::getCurrentWorkingDirectory()
+                                       .getChildFile ("build")
+                                       .getChildFile ("state-tests");
+            expect (directory.createDirectory());
+            const auto stateFile = directory.getChildFile (
+                "future-schema.xml");
+            expect (stateFile.replaceWithText (
+                "<MoonwakeState schemaVersion=\"999\"><Playlist/>"
+                "<EffectChain/></MoonwakeState>"));
+
+            PlayerAppState restored;
+            juce::String error;
+            expect (! AppStateStore::readFromFile (
+                stateFile, restored, error));
+            expect (error.containsIgnoreCase ("newer"), error);
+            expect (stateFile.deleteFile());
         }
 
         beginTest ("writes and reads state atomically");

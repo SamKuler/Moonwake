@@ -1,13 +1,64 @@
 #include "PlaylistModel.h"
 
+#include "TrackFileIdentity.h"
+
 #include <algorithm>
+#include <utility>
+
+PlaylistModel::PlaylistModel()
+    : PlaylistModel (trackFileIdentity)
+{
+}
+
+PlaylistModel::PlaylistModel (FileIdentityResolver resolver)
+    : resolveFileIdentity (std::move (resolver))
+{
+    if (! resolveFileIdentity)
+        resolveFileIdentity = trackFileIdentity;
+}
 
 void PlaylistModel::addTrack (TrackItem track)
 {
     if (track.id.isEmpty())
         track.id = juce::Uuid().toString();
 
-    tracks.push_back (std::move (track));
+    const auto identity = resolveFileIdentity (track.file);
+    const auto path = track.file.getFullPathName();
+    trackFileIdentities.push_back (identity);
+    try
+    {
+        trackFilePaths.push_back (path);
+    }
+    catch (...)
+    {
+        trackFileIdentities.pop_back();
+        throw;
+    }
+
+    try
+    {
+        tracks.push_back (std::move (track));
+    }
+    catch (...)
+    {
+        trackFilePaths.pop_back();
+        trackFileIdentities.pop_back();
+        throw;
+    }
+
+    try
+    {
+        addFileIdentity (identity);
+        addFilePath (path);
+    }
+    catch (...)
+    {
+        removeFileIdentity (identity);
+        tracks.pop_back();
+        trackFilePaths.pop_back();
+        trackFileIdentities.pop_back();
+        throw;
+    }
 
     if (selectedIndex < 0)
         selectedIndex = 0;
@@ -26,8 +77,16 @@ bool PlaylistModel::moveTrack (int fromIndex, int toIndex)
 
     const auto selectedId = getSelectedTrack() != nullptr ? getSelectedTrack()->id : juce::String{};
     auto track = std::move (tracks[static_cast<size_t> (fromIndex)]);
+    auto identity = std::move (trackFileIdentities[static_cast<size_t> (fromIndex)]);
+    auto path = std::move (trackFilePaths[static_cast<size_t> (fromIndex)]);
     tracks.erase (tracks.begin() + fromIndex);
+    trackFileIdentities.erase (trackFileIdentities.begin() + fromIndex);
+    trackFilePaths.erase (trackFilePaths.begin() + fromIndex);
     tracks.insert (tracks.begin() + toIndex, std::move (track));
+    trackFileIdentities.insert (trackFileIdentities.begin() + toIndex,
+                                std::move (identity));
+    trackFilePaths.insert (trackFilePaths.begin() + toIndex,
+                           std::move (path));
 
     if (selectedId.isNotEmpty())
         selectedIndex = indexOfId (selectedId);
@@ -38,6 +97,10 @@ bool PlaylistModel::moveTrack (int fromIndex, int toIndex)
 void PlaylistModel::clear()
 {
     tracks.clear();
+    trackFileIdentities.clear();
+    trackFilePaths.clear();
+    fileIdentityCounts.clear();
+    filePathCounts.clear();
     selectedIndex = -1;
     shuffleRemainingIds.clear();
 }
@@ -47,7 +110,11 @@ bool PlaylistModel::removeTrack (int index)
     if (! isValidIndex (index))
         return false;
 
+    removeFileIdentity (trackFileIdentities[static_cast<size_t> (index)]);
+    removeFilePath (trackFilePaths[static_cast<size_t> (index)]);
     tracks.erase (tracks.begin() + index);
+    trackFileIdentities.erase (trackFileIdentities.begin() + index);
+    trackFilePaths.erase (trackFilePaths.begin() + index);
 
     if (tracks.empty())
     {
@@ -198,15 +265,49 @@ int PlaylistModel::indexOfId (const juce::String& trackId) const
 
 bool PlaylistModel::containsFile (const juce::File& file) const
 {
-    return std::any_of (tracks.begin(), tracks.end(), [&file] (const auto& track)
-    {
-        return track.file == file;
-    });
+    const auto identity = resolveFileIdentity (file).toStdString();
+    const auto path = file.getFullPathName().toStdString();
+    return fileIdentityCounts.find (identity) != fileIdentityCounts.end()
+        || filePathCounts.find (path) != filePathCounts.end();
 }
 
 bool PlaylistModel::isValidIndex (int index) const
 {
     return index >= 0 && index < static_cast<int> (tracks.size());
+}
+
+void PlaylistModel::addFileIdentity (const juce::String& identity)
+{
+    ++fileIdentityCounts[identity.toStdString()];
+}
+
+void PlaylistModel::removeFileIdentity (const juce::String& identity)
+{
+    const auto position = fileIdentityCounts.find (identity.toStdString());
+    if (position == fileIdentityCounts.end())
+        return;
+
+    if (position->second <= 1)
+        fileIdentityCounts.erase (position);
+    else
+        --position->second;
+}
+
+void PlaylistModel::addFilePath (const juce::String& path)
+{
+    ++filePathCounts[path.toStdString()];
+}
+
+void PlaylistModel::removeFilePath (const juce::String& path)
+{
+    const auto position = filePathCounts.find (path.toStdString());
+    if (position == filePathCounts.end())
+        return;
+
+    if (position->second <= 1)
+        filePathCounts.erase (position);
+    else
+        --position->second;
 }
 
 int PlaylistModel::chooseShuffledIndex()

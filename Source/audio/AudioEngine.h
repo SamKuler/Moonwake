@@ -74,11 +74,14 @@ public:
                           std::unique_ptr<juce::AudioPluginInstance> plugin,
                           juce::String& errorMessage);
     bool removeEffectPlugin (int slotId);
+    bool clearEffectPlugins();
     bool moveEffectPlugin (int fromIndex, int toIndex);
     bool setEffectPluginOrder (const std::vector<int>& orderedSlotIds);
     bool setEffectBypassed (int slotId, bool shouldBypass);
     [[nodiscard]] int getEffectPluginCount() const;
     [[nodiscard]] juce::AudioPluginInstance* getEffectPlugin (int slotId) const;
+    bool beginEffectStateCapture (int timeoutMilliseconds = 1000);
+    void endEffectStateCapture() noexcept;
 
     [[nodiscard]] bool isPlaying() const;
     [[nodiscard]] double getCurrentPositionSeconds() const;
@@ -107,12 +110,15 @@ private:
                         std::unique_ptr<juce::AudioPluginInstance> plugin,
                         juce::String& errorMessage);
         bool removePlugin (int slotId);
+        bool clearPlugins();
         bool movePlugin (int fromIndex, int toIndex);
         bool setPluginOrder (const std::vector<int>& orderedSlotIds);
         bool setBypassed (int slotId, bool shouldBypass);
         bool setChannelLayout (const juce::AudioChannelSet& layout, juce::String& errorMessage);
         [[nodiscard]] int getPluginCount() const;
         [[nodiscard]] juce::AudioPluginInstance* getPlugin (int slotId) const;
+        bool beginStateCapture (int timeoutMilliseconds);
+        void endStateCapture() noexcept;
 
     private:
         juce::AudioTransportSource& transport;

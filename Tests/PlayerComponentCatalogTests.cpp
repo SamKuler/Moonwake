@@ -14,7 +14,7 @@ juce::StringArray exactIds()
     return {
         "app.brand.eyebrow", "app.brand.title", "app.deviceStatus", "app.status",
         "workspace.studio", "workspace.listening", "settings.open",
-        "library.add", "queue.title", "queue.count", "queue.table", "queue.empty",
+        "library.add", "library.search", "queue.title", "queue.count", "queue.table", "queue.empty",
         "queue.remove", "queue.clear", "queue.moveUp", "queue.moveDown",
         "artwork.cover", "artwork.metadata", "nowPlaying.eyebrow", "nowPlaying.title",
         "nowPlaying.metadata", "transport.previous", "transport.playPause",
@@ -106,6 +106,10 @@ public:
             expectEquals (static_cast<int> (unique.size()), expected.size());
             expect (PlayerComponentCatalog::find ("unknown.component") == nullptr);
             expect (PlayerComponentCatalog::find ("effects.close") != nullptr);
+            const auto* search = PlayerComponentCatalog::find ("library.search");
+            expect (search != nullptr && search->kind == SkinComponentKind::textEditor
+                    && search->defaultRendererTarget == "textEditor"
+                    && search->interactive && search->requiredIn.empty());
         }
 
         beginTest ("freezes required sets for Studio, Listening, Effects and Settings");

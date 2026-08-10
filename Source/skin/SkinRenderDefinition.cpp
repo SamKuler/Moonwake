@@ -450,6 +450,8 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
                     { "row.available", Type::boolean },
                     { "row.title", Type::string },
                     { "row.location", Type::string },
+                    { "row.artist", Type::string },
+                    { "row.album", Type::string },
                     { "row.duration", Type::string }
                 });
             if (slotName.startsWith ("cell."))

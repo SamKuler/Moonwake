@@ -26,7 +26,11 @@
                   { "id": "studio-add", "type": "component", "component": "library.add", "style": "textButton.studioIconPrimary", "width": 44, "height": 36, "focusOrder": 40 }
                 ]
               },
-              { "id": "studio-queue", "type": "component", "component": "queue.table", "style": "table.studio", "grow": 1, "focusOrder": 50 }
+              { "id": "studio-library-search", "type": "component", "component": "library.search", "style": "textEditor.studio", "height": 34, "focusOrder": 45 },
+              { "id": "studio-queue-stack", "type": "stack", "grow": 1, "children": [
+                { "id": "studio-queue", "type": "component", "component": "queue.table", "style": "table.studio", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 }, "focusOrder": 50 },
+                { "id": "studio-queue-empty", "type": "component", "component": "queue.empty", "style": "label.studioData", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 } }
+              ] }
             ]
           },
           {

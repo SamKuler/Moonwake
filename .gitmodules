@@ -1,0 +1,4 @@
+[submodule "ThirdParty/JUCE"]
+	path = ThirdParty/JUCE
+	url = https://github.com/juce-framework/JUCE.git
+	shallow = true

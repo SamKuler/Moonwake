@@ -751,7 +751,8 @@ public:
 
             for (const auto* styleName : {
                      "label.studioData", "label.studioTable",
-                     "label.listeningData", "label.listeningTable" })
+                     "label.studioTableMetadata", "label.listeningData",
+                     "label.listeningTable", "label.listeningTableMetadata" })
             {
                 const auto found = defaultSkin->renderers.find (styleName);
                 expect (found != defaultSkin->renderers.end(), styleName);
@@ -765,10 +766,25 @@ public:
                      std::pair { "table.studio", "label.studioTable" },
                      std::pair { "table.listening", "label.listeningTable" } })
                 for (const auto* slot : { "header.text", "cell.title",
-                                          "cell.location", "cell.duration" })
+                                          "cell.duration" })
                     expectEquals (defaultSkin->renderers.at (tableName)
                                       .slotStyles.at (slot),
                                   juce::String (labelName));
+            expectEquals (defaultSkin->renderers.at ("table.studio")
+                              .slotStyles.at ("cell.location"),
+                          juce::String ("label.studioTableMetadata"));
+            expectEquals (defaultSkin->renderers.at ("table.listening")
+                              .slotStyles.at ("cell.location"),
+                          juce::String ("label.listeningTableMetadata"));
+            for (const auto* styleName : { "label.studioTableMetadata",
+                                           "label.listeningTableMetadata" })
+            {
+                const auto& paths = defaultSkin->renderers.at (styleName)
+                                        .renderer.contextPaths;
+                expect (paths.contains ("row.artist"), styleName);
+                expect (paths.contains ("row.album"), styleName);
+                expect (paths.contains ("text.primary"), styleName);
+            }
 
             for (const auto* styleName : { "label.studioTable",
                                            "label.listeningTable" })
@@ -927,9 +943,11 @@ public:
             expect (defaultSkin->renderers.contains ("label.listeningSkinStatus"));
 
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
-            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.1.0"));
+            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.2.0"));
+            expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.1.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.2.0"));
+            expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
         beginTest ("built-in routes keep library actions out of Settings and in queue headers");

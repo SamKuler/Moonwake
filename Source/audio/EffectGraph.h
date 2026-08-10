@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <atomic>
 #include <vector>
 
 class EffectGraph
@@ -14,11 +15,14 @@ public:
                         const juce::AudioChannelSet& channelLayout);
     void releaseResources();
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi);
+    bool beginStateCapture (int timeoutMilliseconds = 1000);
+    void endStateCapture() noexcept;
 
     bool addProcessor (int slotId,
                        std::unique_ptr<juce::AudioProcessor> processor,
                        juce::String& errorMessage);
     bool removeProcessor (int slotId);
+    bool clearProcessors();
     bool moveProcessor (int fromIndex, int toIndex);
     bool setProcessorOrder (const std::vector<int>& orderedSlotIds);
     bool setBypassed (int slotId, bool shouldBypass);
@@ -51,4 +55,6 @@ private:
     int currentBlockSize = 512;
     juce::AudioChannelSet currentChannelLayout = juce::AudioChannelSet::stereo();
     bool prepared = false;
+    std::atomic_bool stateCaptureRequested { false };
+    std::atomic<int> activeProcessCallbacks { 0 };
 };

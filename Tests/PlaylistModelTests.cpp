@@ -228,6 +228,83 @@ public:
             expect (! playlist.containsFile (juce::File ("/music/other.wav")));
         }
 
+        beginTest ("file identity index deduplicates aliases and is cleaned on remove and clear");
+        {
+           #if ! JUCE_WINDOWS
+            const auto temporaryDirectory = juce::File::getCurrentWorkingDirectory()
+                .getNonexistentChildFile ("moonwake-playlist-identity", {}, true);
+            const auto directoryResult = temporaryDirectory.createDirectory();
+            expect (directoryResult.wasOk(),
+                    temporaryDirectory.getFullPathName() + ": "
+                        + directoryResult.getErrorMessage());
+            const auto original = temporaryDirectory.getChildFile ("original.wav");
+            const auto alias = temporaryDirectory.getChildFile ("alias.wav");
+            expect (original.replaceWithText ("audio fixture"),
+                    original.getFullPathName());
+            expect (original.createSymbolicLink (alias, true));
+
+            PlaylistModel playlist;
+            playlist.addTrack ({ original, "Original", 1.0 });
+            expect (playlist.containsFile (alias));
+
+            playlist.addTrack ({ alias, "Alias", 1.0 });
+            expect (playlist.removeTrack (0));
+            expect (playlist.containsFile (original));
+            expect (playlist.removeTrack (0));
+            expect (! playlist.containsFile (original));
+
+            playlist.addTrack ({ original, "Restored", 1.0 });
+            auto restored = playlist;
+            expect (restored.containsFile (alias));
+            restored.clear();
+            expect (! restored.containsFile (original));
+
+            expect (temporaryDirectory.deleteRecursively());
+           #endif
+        }
+
+        beginTest ("same path remains indexed when the file identity changes");
+        {
+            juce::String currentIdentity = "posix:1:1";
+            PlaylistModel playlist ([&currentIdentity] (const juce::File&)
+            {
+                return currentIdentity;
+            });
+
+            const juce::File path ("/music/replaceable.wav");
+            playlist.addTrack ({ path, "Original", 1.0 });
+            currentIdentity = "posix:1:2";
+            expect (playlist.containsFile (path));
+
+            playlist.addTrack ({ path, "Replacement", 1.0 });
+            expect (playlist.removeTrack (0));
+            expect (playlist.containsFile (path));
+            expect (playlist.removeTrack (0));
+            expect (! playlist.containsFile (path));
+        }
+
+        beginTest ("file identity work stays linear for a large queue");
+        {
+            int identityResolutionCount = 0;
+            PlaylistModel playlist ([&identityResolutionCount] (const juce::File& file)
+            {
+                ++identityResolutionCount;
+                return "test:" + file.getFullPathName();
+            });
+
+            constexpr int trackCount = 512;
+            for (int index = 0; index < trackCount; ++index)
+                playlist.addTrack ({ juce::File ("/music").getChildFile (
+                                         "track-" + juce::String (index) + ".wav"),
+                                     "Track", 1.0 });
+            expectEquals (identityResolutionCount, trackCount);
+
+            for (int index = 0; index < trackCount; ++index)
+                expect (playlist.containsFile (juce::File ("/music").getChildFile (
+                    "track-" + juce::String (index) + ".wav")));
+            expectEquals (identityResolutionCount, trackCount * 2);
+        }
+
         beginTest ("clear resets queue and selection");
         {
             PlaylistModel playlist;

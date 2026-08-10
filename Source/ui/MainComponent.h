@@ -4,6 +4,10 @@
 
 #include "app/PlaybackEndDetector.h"
 #include "app/PlayerController.h"
+#include "app/AutoSaveScheduler.h"
+#include "library/LibraryFilter.h"
+#include "library/LibraryImportService.h"
+#include "state/StateSaveService.h"
 #include "AlbumArtworkComponent.h"
 #include "OutputStageComponent.h"
 #include "SkinFallbackDiagnostic.h"
@@ -19,6 +23,7 @@
 class MainComponent final : public juce::Component,
                             private juce::TableListBoxModel,
                             private juce::Timer,
+                            private juce::FileDragAndDropTarget,
                             private SkinManager::Listener
 {
 public:
@@ -27,6 +32,7 @@ public:
 
     void resized() override;
     bool keyPressed (const juce::KeyPress& key) override;
+    void importFilesAndFolders (const juce::Array<juce::File>&);
 private:
     class EffectSlotRow;
     class PluginEditorWindow;
@@ -37,12 +43,17 @@ private:
     void paintRowBackground (juce::Graphics& g, int rowNumber, int width, int height, bool rowIsSelected) override;
     void paintCell (juce::Graphics& g, int rowNumber, int columnId, int width, int height, bool rowIsSelected) override;
     void selectedRowsChanged (int lastRowSelected) override;
+    bool isInterestedInFileDrag (const juce::StringArray&) override;
+    void filesDropped (const juce::StringArray&, int, int) override;
 
     void chooseFiles();
+    void startLibraryImport (juce::Array<juce::File>);
+    void setLibraryImportRunning (bool);
     void choosePluginDirectory();
     void chooseSkinArchive();
     void chooseDeveloperSkinDirectory();
     void refreshPlaylist();
+    void updateEmptyQueueState();
     void refreshPlugins();
     void refreshEffects();
     void updateTransportState();
@@ -55,12 +66,19 @@ private:
     void applyWorkspaceVisuals();
     void closeDrawers();
     void updateSkinPersistenceStateFromManager();
+    void handleAutoSaveCompletion (uint64_t revision,
+                                   bool saved,
+                                   const juce::String& errorMessage);
     [[nodiscard]] juce::File getStateDirectory() const;
     [[nodiscard]] juce::File getStateFile() const;
     [[nodiscard]] juce::File getPluginListFile() const;
 
     PlayerController controller;
     PlaybackEndDetector playbackEndDetector;
+    AutoSaveScheduler autoSaveScheduler;
+    StateSaveService stateSaveService;
+    LibraryFilter libraryFilter;
+    LibraryImportService libraryImportService;
     SkinManager skinManager;
     SkinComponentBindings skinBindings;
     SkinRenderer skinRenderer;
@@ -73,8 +91,11 @@ private:
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<std::unique_ptr<PluginEditorWindow>> pluginEditorWindows;
     std::vector<std::unique_ptr<EffectSlotRow>> effectRows;
+    juce::Array<juce::File> queuedLibraryImportInputs;
+    bool autoSaveFailureVisible = false;
 
     juce::TextButton addFilesButton { "Add Files" };
+    juce::TextEditor librarySearchEditor;
     juce::TextButton studioModeButton { "Studio A" };
     juce::TextButton listeningModeButton { "Listening B" };
     juce::TextButton settingsButton { "Settings" };
@@ -130,6 +151,7 @@ private:
 
     uint64_t lastEffectChainRevision = 0;
     bool pluginInsertionInProgress = false;
+    bool refreshingPlaylist = false;
 
     static constexpr int effectRowHeight = 44;
     static constexpr int effectRowGap = 8;

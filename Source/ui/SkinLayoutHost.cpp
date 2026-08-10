@@ -165,6 +165,8 @@ struct SkinLayoutHost::OriginalComponentState
     juce::var style;
     bool hadScaleFactor = false;
     juce::var scaleFactor;
+    bool hadPresentation = false;
+    juce::var presentation;
     std::optional<juce::Slider::SliderStyle> sliderStyle;
 };
 
@@ -494,6 +496,10 @@ void SkinLayoutHost::captureOriginalStates()
         state.hadScaleFactor = properties.contains (JuceSkinAdapter::scaleFactorProperty);
         if (state.hadScaleFactor)
             state.scaleFactor = properties[JuceSkinAdapter::scaleFactorProperty];
+        state.hadPresentation = properties.contains (
+            JuceSkinAdapter::presentationProperty);
+        if (state.hadPresentation)
+            state.presentation = properties[JuceSkinAdapter::presentationProperty];
         if (auto* slider = dynamic_cast<juce::Slider*> (component))
             state.sliderStyle = slider->getSliderStyle();
         originalStates.emplace (component, std::move (state));
@@ -539,6 +545,11 @@ void SkinLayoutHost::restoreOriginalStates()
                             state->scaleFactor);
         else
             properties.remove (JuceSkinAdapter::scaleFactorProperty);
+        if (state->hadPresentation)
+            properties.set (JuceSkinAdapter::presentationProperty,
+                            state->presentation);
+        else
+            properties.remove (JuceSkinAdapter::presentationProperty);
         if (state->sliderStyle)
             if (auto* slider = dynamic_cast<juce::Slider*> (component))
                 slider->setSliderStyle (*state->sliderStyle);
@@ -597,6 +608,11 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
                 properties.remove (JuceSkinAdapter::styleProperty);
             properties.set (JuceSkinAdapter::scaleFactorProperty,
                             placement.scaleFactor);
+            if (placement.presentation.isNotEmpty())
+                properties.set (JuceSkinAdapter::presentationProperty,
+                                placement.presentation);
+            else
+                properties.remove (JuceSkinAdapter::presentationProperty);
             if (auto* slider = dynamic_cast<juce::Slider*> (placement.component))
             {
                 if (placement.presentation == "rotary")

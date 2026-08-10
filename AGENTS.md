@@ -12,7 +12,9 @@
 
 ## 目录职责
 
+- `Source/app/`：应用状态协调、播放意图、自动保存调度与产品路径；不得承载实时音频处理。
 - `Source/audio/`：实时音频、声道路由、设备与效果处理图。
+- `Source/library/`：曲库搜索投影、文件与文件夹发现、后台元数据导入及封面缓存；不得直接控制播放传输。
 - `Source/plugins/`：VST3/AU 发现、扫描、缓存与效果链状态。
 - `Source/skin/`：Skin API 的解析、验证、编译、渲染、安装与工具实现。
 - `Source/ui/`：JUCE 组件、布局宿主和 Settings 面板。
@@ -25,6 +27,7 @@
 使用独立构建目录，不要在源码目录生成 CMake 产物：
 
 ```sh
+git submodule update --init --recursive
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j 8
 ctest --test-dir build --output-on-failure
@@ -52,6 +55,7 @@ codesign --verify --deep --strict --verbose=2 \
 ## C++ 与实时音频规则
 
 - 使用项目设定的 C++20 和 JUCE 8.0.12；依赖版本必须固定。
+- JUCE 由 `ThirdParty/JUCE` submodule 提供；不要恢复配置期 `FetchContent` 下载，也不要修改或提交 submodule 内部文件。
 - 音频回调中禁止文件系统访问、动态分配、阻塞锁、进程启动、插件扫描和 UI 调用。
 - 对声道数、总线布局和插件 layout support 做显式验证；修改音频链时至少覆盖 2、6、8、10 声道。
 - 状态文件与插件缓存采用可恢复、原子式写入；错误必须能到达 UI，而不是静默吞掉。

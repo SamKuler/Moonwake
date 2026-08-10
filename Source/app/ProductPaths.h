@@ -6,4 +6,5 @@ namespace ProductPaths
 {
 [[nodiscard]] juce::File applicationDataRoot();
 [[nodiscard]] juce::File installedSkinsRoot();
+[[nodiscard]] juce::File artworkCacheRoot();
 }

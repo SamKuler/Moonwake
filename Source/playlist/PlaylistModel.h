@@ -4,6 +4,9 @@
 
 #include "TrackItem.h"
 
+#include <functional>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 enum class RepeatMode
@@ -16,6 +19,11 @@ enum class RepeatMode
 class PlaylistModel
 {
 public:
+    using FileIdentityResolver = std::function<juce::String (const juce::File&)>;
+
+    PlaylistModel();
+    explicit PlaylistModel (FileIdentityResolver);
+
     void addTrack (TrackItem track);
     bool removeTrack (int index);
     bool moveTrack (int fromIndex, int toIndex);
@@ -38,7 +46,12 @@ public:
     [[nodiscard]] bool containsFile (const juce::File& file) const;
 
 private:
+    FileIdentityResolver resolveFileIdentity;
     std::vector<TrackItem> tracks;
+    std::vector<juce::String> trackFileIdentities;
+    std::vector<juce::String> trackFilePaths;
+    std::unordered_map<std::string, size_t> fileIdentityCounts;
+    std::unordered_map<std::string, size_t> filePathCounts;
     int selectedIndex = -1;
     RepeatMode repeatMode = RepeatMode::off;
     bool shuffleEnabled = false;
@@ -46,6 +59,10 @@ private:
     std::vector<juce::String> shuffleRemainingIds;
 
     [[nodiscard]] bool isValidIndex (int index) const;
+    void addFileIdentity (const juce::String&);
+    void removeFileIdentity (const juce::String&);
+    void addFilePath (const juce::String&);
+    void removeFilePath (const juce::String&);
     [[nodiscard]] int chooseShuffledIndex();
     void rebuildShuffleCycle();
     void clampSelectionAfterRemoval();

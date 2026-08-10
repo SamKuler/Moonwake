@@ -183,7 +183,8 @@ public:
             const juce::StringArray ids {
                 "app.brand.title", "app.status", "workspace.studio",
                 "workspace.listening", "settings.open", "library.add",
-                "queue.title", "queue.count", "queue.table",
+                "library.search", "queue.title", "queue.count", "queue.table",
+                "queue.empty",
                 "artwork.cover", "artwork.metadata", "nowPlaying.title",
                 "nowPlaying.metadata",
                 "transport.previous", "transport.playPause", "transport.next",

@@ -1,0 +1,11 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    { "id": "fallback", "type": "text", "visible": { "$expr": "row.artist == '' and row.album == ''" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 12.5, "color": { "$ref": "colors.studio.muted" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "artist-only", "type": "text", "visible": { "$expr": "row.artist != '' and row.album == ''" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "row.artist" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 12.5, "color": { "$ref": "colors.studio.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "album-only", "type": "text", "visible": { "$expr": "row.artist == '' and row.album != ''" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "row.album" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 12.5, "color": { "$ref": "colors.studio.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "artist", "type": "text", "visible": { "$expr": "row.artist != '' and row.album != ''" }, "frame": { "x": 8, "y": 0, "width": { "$expr": "max(0, bounds.width - 16)" }, "height": { "$expr": "bounds.height * 0.52" } }, "text": { "$context": "row.artist" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 11.5, "color": { "$ref": "colors.studio.text" }, "align": "bottomLeft", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "album", "type": "text", "visible": { "$expr": "row.artist != '' and row.album != ''" }, "frame": { "x": 8, "y": { "$expr": "bounds.height * 0.48" }, "width": { "$expr": "max(0, bounds.width - 16)" }, "height": { "$expr": "bounds.height * 0.52" } }, "text": { "$context": "row.album" }, "font": { "$ref": "fonts.workspaceData" }, "fontSize": 10.5, "color": { "$ref": "colors.studio.muted" }, "align": "topLeft", "maxLines": 1, "overflow": "ellipsis" }
+  ]
+}

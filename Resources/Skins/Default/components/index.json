@@ -5,6 +5,7 @@
     "studioTitle": "components/studio-title-label.json",
     "studioData": "components/studio-data-label.json",
     "studioTable": "components/studio-table-label.json",
+    "studioTableMetadata": "components/studio-table-metadata-label.json",
     "listening": "components/listening-label.json",
     "listeningBrand": "components/listening-brand-label.json",
     "listeningTitle": "components/listening-title-label.json",
@@ -12,7 +13,8 @@
     "listeningData": "components/listening-data-label.json",
     "listeningSection": "components/listening-section-label.json",
     "listeningSkinStatus": "components/listening-skin-status.json",
-    "listeningTable": "components/listening-table-label.json"
+    "listeningTable": "components/listening-table-label.json",
+    "listeningTableMetadata": "components/listening-table-metadata-label.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -107,6 +109,7 @@
     "listening": "components/listening-combo-box.json"
   },
   "textEditor": {
+    "studio": "components/studio-text-editor.json",
     "listening": "components/listening-text-editor.json"
   },
   "linearSlider": {
@@ -136,7 +139,7 @@
         "header.text": "label.studioTable",
         "row.surface": "surface.studio",
         "cell.title": "label.studioTable",
-        "cell.location": "label.studioTable",
+        "cell.location": "label.studioTableMetadata",
         "cell.duration": "label.studioTable"
       }
     },
@@ -147,7 +150,7 @@
         "header.text": "label.listeningTable",
         "row.surface": "surface.listening",
         "cell.title": "label.listeningTable",
-        "cell.location": "label.listeningTable",
+        "cell.location": "label.listeningTableMetadata",
         "cell.duration": "label.listeningTable"
       }
     }
@@ -162,14 +165,15 @@
     "studioIcon": "components/studio-icon.json",
     "studioOnPrimaryIcon": "components/studio-on-primary-icon.json",
     "listeningIcon": "components/listening-icon.json",
-    "listeningOnPrimaryIcon": "components/listening-on-primary-icon.json"
+    "listeningOnPrimaryIcon": "components/listening-on-primary-icon.json",
+    "artworkOverlay": "components/artwork-overlay.json"
   },
   "artwork": {
     "listening": {
       "renderer": "components/listening-artwork.json",
       "slots": {
         "frame.background": "surface.listening",
-        "frame.overlay": "surface.listening"
+        "frame.overlay": "surface.artworkOverlay"
       }
     }
   },

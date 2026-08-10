@@ -2,11 +2,15 @@
 
 Moonwake 是一款面向 macOS 的多声道音乐播放器与效果器宿主。它提供两套可切换的工作区：Studio A 用于路由、效果链和输出监看，Listening B 用于日常聆听；应用默认进入 Listening B。
 
-当前版本为 `0.1.0`，处于开发阶段。
+当前版本为 `0.2.0`，处于开发阶段。
 
 ## 功能
 
-- 播放本地音乐，管理播放队列、曲目信息和持久化状态。
+- 播放本地音乐，并从音频标签读取作品名、艺术家、专辑、年份、曲序、格式、位深和声道信息。
+- 以文件选择或拖放方式后台导入音频文件和文件夹；文件夹会递归发现支持的音乐，重复项目会安全跳过。
+- 在 Works 队列中按作品名、艺术家、专辑、格式或声道数即时搜索，并保留当前播放选择。
+- 读取嵌入式或同目录封面并保存为受限尺寸的本地缓存；队列、播放偏好和工作区变更会自动原子保存。
+- macOS 单实例运行；再次打开 Moonwake 或向其传入音乐文件时会唤回现有窗口。
 - Studio A / Listening B 两套完整布局在同一窗口内切换，切换时保持窗口外边界和播放状态，并共享统一的皮肤组件规范。
 - 在独立扫描进程中发现 VST3 与 Audio Unit 插件，并将其作为插入效果器加载。
 - 原生支持 Stereo、5.1、5.1.2 和 7.1.2；路由使用真实声道布局，插件声明支持相应总线布局时按该声道数处理，不兼容插件会被拒绝。
@@ -19,11 +23,12 @@ Moonwake 是一款面向 macOS 的多声道音乐播放器与效果器宿主。�
 - Xcode Command Line Tools
 - CMake 3.22 或更高版本
 - 支持 C++20 的 Apple Clang
-- 首次配置时可访问 GitHub，以获取固定版本 JUCE 8.0.12
+- 已初始化固定到 JUCE 8.0.12 的 `ThirdParty/JUCE` submodule
 
 ## 构建、运行与测试
 
 ```sh
+git submodule update --init --recursive
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j 8
 open build/Moonwake_artefacts/Debug/Moonwake.app
@@ -68,10 +73,11 @@ Moonwake 会在当前用户目录写入以下数据：
 ~/Library/Application Support/Moonwake/
 ├── state.xml       # 队列及原始音乐路径、工作区、音量、输出布局、效果链、皮肤选择与开发皮肤目录
 ├── plugins.xml     # 已扫描插件缓存
+├── Artwork/        # 从音乐标签或同目录图片生成的受限尺寸封面缓存
 └── Skins/          # 已安装的外部皮肤及内部校验元数据
 ```
 
-应用包本身不会把播放的音乐复制到该目录。需要彻底清理开发运行数据时，先退出所有 Moonwake 实例，再删除上面的 `Moonwake` 目录；这会同时清空保存状态、插件缓存与已安装皮肤。
+应用包本身不会把播放的音乐复制到该目录。需要彻底清理开发运行数据时，先退出 Moonwake，再删除上面的 `Moonwake` 目录；这会同时清空保存状态、封面缓存、插件缓存与已安装皮肤。
 
 构建产物位于仓库的 `build/` 或 `build-*` 目录，均已被 `.gitignore` 排除。
 
@@ -83,6 +89,7 @@ Source/            应用、音频、插件、皮肤和 UI 源码
 Tests/             单元、集成与视觉隔离测试
 Tools/             MoonwakeSkinTool 入口
 docs/skin-api/     第三方 Skin API 公开文档、Schema 与示例
+ThirdParty/JUCE/   固定版本的 JUCE submodule（源码本体不进入 Moonwake 历史）
 ```
 
 ## 许可

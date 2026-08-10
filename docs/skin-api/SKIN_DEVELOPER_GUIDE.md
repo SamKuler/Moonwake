@@ -4,7 +4,7 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.1.0、内置皮肤 1.0.0
+- 版本基线：应用 0.2.0、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
@@ -1105,7 +1105,8 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 
 | ID | 类型 | 必需位置 | 行为或数据 |
 |---|---|---|---|
-| library.add | textButton | Studio、Listening 必需 | 打开本地音频文件选择器 |
+| library.add | textButton | Studio、Listening 必需 | 空闲时打开本地音频文件或文件夹选择器；导入期间变为可见的取消操作，图标上下文从 add 切换为 close |
+| library.search | textEditor | 可选 | 按作品名、艺术家、专辑、格式或声道数筛选队列；应用 0.2.0 新增 |
 | queue.title | label | 可选 | 队列标题 |
 | queue.count | label | 可选 | 曲目数量 |
 | queue.table | table | Studio、Listening 必需 | 展示与选择播放队列 |
@@ -1122,10 +1123,14 @@ queue.table 的公开行上下文：
 - row.available：布尔。
 - row.title：字符串。
 - row.location：字符串。
+- row.artist：字符串；没有艺术家元数据时为空。
+- row.album：字符串；没有专辑元数据时为空。
 - row.duration：字符串。
 - column.id：title、location 或 duration。
 
-`queue.table` 不向皮肤暴露文件对象；皮肤只能读取应用提供的 `row.location` 字符串，当前内容为原始绝对路径。字符串内容及是否脱敏由应用决定，皮肤只决定是否以及如何绘制。
+`queue.table` 不向皮肤暴露文件对象；`row.location` 保持 Skin API 1 的原始绝对路径语义。`cell.location` 的 `text.primary` 与 `row.location` 始终是同一个绝对路径，`column.id` 仍为 `location`。应用另行提供向后兼容的 `row.artist` 与 `row.album`；Default 内置皮肤的专用 location label renderer 会显式读取这两个字段，二者都为空时回退到 `text.primary`。第三方皮肤可以选择元数据字段，但不能把 `row.location` 或 `text.primary` 重新解释为艺术家/专辑。字符串内容及是否脱敏由应用决定，皮肤只决定是否以及如何绘制。
+
+`library.search` 仅改变 `queue.table` 的可见投影，不改变播放队列顺序或当前播放项目。使用该可选 Component ID 的第三方皮肤必须将 `minAppVersion` 设为 `0.2.0` 或更高；未放置它的既有 Skin API 1 皮肤继续有效。
 
 ### 10.4 当前播放与封面
 
@@ -1137,7 +1142,26 @@ queue.table 的公开行上下文：
 | nowPlaying.title | label | 可选 | 当前曲目标题 |
 | nowPlaying.metadata | label | 可选 | 当前曲目来源或状态 |
 
-artwork renderer 可装饰 frame、background 和 overlay，但实际封面内容由组件提供，皮肤不能替换当前曲目的业务数据。
+artwork renderer 可装饰 frame、background 和 overlay，但实际封面内容由组件提供，皮肤不能替换当前曲目的业务数据。`presentation: "contain"` 保留完整图片，`presentation: "cover"` 填满目标矩形并允许裁切。绘制顺序固定为 frame.background、artwork renderer、实际图片、frame.overlay；overlay 只负责图片之上的描边或装饰，不会反向裁切已经绘制的图片。
+
+若要声明实际图片的目标矩形和圆角裁切，artwork renderer 可提供一个顶层 `roundedRect` layer，ID 固定为 `image-clip`：
+
+```json
+{
+  "id": "image-clip",
+  "type": "roundedRect",
+  "frame": { "anchor": "bounds", "inset": 8 },
+  "radius": { "$ref": "metrics.panelRadius" },
+  "fill": "#00000000",
+  "clip": true
+}
+```
+
+- `frame` 是实际封面图片的目标矩形；contain/cover 在该矩形内计算。
+- `radius` 是图片的 corner radius；`clip: true` 才会把同一个 roundedRect 路径应用到实际图片。
+- `frame` 与 `radius` 可使用该 artwork renderer 原本允许的 token、bounds 表达式和 artwork 上下文；编译器继续按标准 roundedRect Schema 校验类型、引用和表达式。
+- 该层仍属于 artwork renderer，因此 `fill` 通常应为透明色。overlay 仍只用于图片之后的视觉装饰。
+- 既有 Skin API 1 皮肤若没有 `image-clip`，继续使用完整组件 bounds 且不额外裁切；这保证外部 JSON 皮肤向后兼容。Foundation 与 Default 都声明该层，确保 fallback 和内置皮肤的圆角意图一致。
 
 ### 10.5 播放控制
 
@@ -1820,7 +1844,7 @@ Suggestion: add one visible component node with component "library.add".
 - 四个布局入口均可通过验证。
 - Studio 与 Listening 包含全部 required component。
 - Settings 没有 library.add。
-- Add Music 在主队列中清晰可见。
+- Add Music 在主队列中清晰可见；若采用 library.search，搜索框与队列宽度和焦点顺序一致。
 - 1040 × 700 下无裁切、重叠或零尺寸控件。
 - 所有交互组件有唯一 focusOrder。
 - focused、selected、disabled 状态可辨认。

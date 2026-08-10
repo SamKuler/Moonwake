@@ -1,13 +1,17 @@
 #include "PlayerController.h"
 
+#include "app/ProductPaths.h"
+
 PlayerController::PlayerController()
+    : artworkStore (ProductPaths::artworkCacheRoot())
 {
     const auto error = audioEngine.initialise();
     lastStatusMessage = error.isEmpty() ? "Ready" : "Audio device error: " + error;
 }
 
 PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend)
-    : audioEngine (std::move (backend))
+    : audioEngine (std::move (backend)),
+      artworkStore (ProductPaths::artworkCacheRoot())
 {
     const auto error = audioEngine.initialise();
     lastStatusMessage = error.isEmpty() ? "Ready" : "Audio device error: " + error;
@@ -16,12 +20,14 @@ PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend
 PlayerController::~PlayerController()
 {
     lifetimeFlag->store (false);
+    audioEngine.shutdown();
+    static_cast<void> (audioEngine.clearEffectPlugins());
     static_cast<void> (pluginManager.cancelAndWaitForScan());
 }
 
 juce::String PlayerController::addFiles (const juce::Array<juce::File>& files)
 {
-    int addedCount = 0;
+    std::vector<TrackMetadataResult> prepared;
     juce::StringArray skippedFiles;
 
     for (const auto& file : files)
@@ -39,16 +45,61 @@ juce::String PlayerController::addFiles (const juce::Array<juce::File>& files)
             continue;
         }
 
-        playlist.addTrack (std::move (metadata.track));
+        prepared.push_back (std::move (metadata));
+    }
+
+    auto message = addPreparedTracks (std::move (prepared));
+
+    if (! skippedFiles.isEmpty())
+        message += " Skipped: " + skippedFiles.joinIntoString (", ");
+    lastStatusMessage = message;
+    return lastStatusMessage;
+}
+
+juce::String PlayerController::addPreparedTracks (
+    std::vector<TrackMetadataResult> preparedTracks)
+{
+    int addedCount = 0;
+    juce::StringArray skippedFiles;
+    juce::StringArray artworkWarnings;
+    for (auto& prepared : preparedTracks)
+    {
+        auto& track = prepared.track;
+        if (! prepared.ok || ! track.available)
+        {
+            static_cast<void> (artworkStore.remove (track.artworkCacheKey));
+            skippedFiles.add (track.file.getFileName() + " ("
+                              + (prepared.error.isNotEmpty()
+                                     ? prepared.error : "unreadable") + ")");
+            continue;
+        }
+        if (playlist.containsFile (track.file))
+        {
+            static_cast<void> (artworkStore.remove (track.artworkCacheKey));
+            skippedFiles.add (track.file.getFileName() + " (already in queue)");
+            continue;
+        }
+        if (prepared.artworkData.getSize() > 0)
+        {
+            juce::String artworkError;
+            track.artworkCacheKey = artworkStore.store (
+                track.id, prepared.artworkData, artworkError);
+            if (track.artworkCacheKey.isEmpty() && artworkError.isNotEmpty())
+                artworkWarnings.add (track.file.getFileName() + " (" + artworkError + ")");
+        }
+        playlist.addTrack (std::move (track));
         ++addedCount;
     }
 
     lastStatusMessage = "Added " + juce::String (addedCount)
         + (addedCount == 1 ? " track." : " tracks.");
-
     if (! skippedFiles.isEmpty())
         lastStatusMessage += " Skipped: " + skippedFiles.joinIntoString (", ");
-
+    if (! artworkWarnings.isEmpty())
+        lastStatusMessage += " Artwork warnings: "
+                           + artworkWarnings.joinIntoString (", ");
+    if (addedCount > 0)
+        ++stateRevision;
     return lastStatusMessage;
 }
 
@@ -69,6 +120,7 @@ bool PlayerController::selectTrack (int index)
 
     if (! playlist.selectTrack (index))
         return false;
+    ++stateRevision;
 
     const auto action = playbackCoordinator.selectionChanged (requestedTrack->id);
     if (! execute (action))
@@ -106,6 +158,7 @@ bool PlayerController::nextTrack()
         lastStatusMessage = "No next track.";
         return false;
     }
+    ++stateRevision;
 
     const auto action = playbackCoordinator.moveToTrack (getSelectedTrackId(), false);
     if (! execute (action))
@@ -130,7 +183,10 @@ bool PlayerController::previousTrack()
     const auto action = playbackCoordinator.previous (previousTrackId, audioEngine.getCurrentPositionSeconds());
 
     if (action.trackId.isNotEmpty() && action.trackId != getSelectedTrackId())
+    {
         playlist.selectTrack (playlist.indexOfId (action.trackId));
+        ++stateRevision;
+    }
 
     if (! execute (action))
         return false;
@@ -151,6 +207,8 @@ bool PlayerController::previousTrack()
 bool PlayerController::handlePlaybackFinished()
 {
     const auto hasNextTrack = playlist.advanceToNextTrack();
+    if (hasNextTrack)
+        ++stateRevision;
     const auto action = playbackCoordinator.playbackFinished (hasNextTrack ? getSelectedTrackId() : juce::String{});
 
     if (! execute (action))
@@ -168,8 +226,11 @@ bool PlayerController::removeTrack (int index)
 
     const auto removedLoadedTrack = track->id == playbackCoordinator.getLoadedTrackId();
     const auto removedTitle = track->title;
+    const auto removedArtworkKey = track->artworkCacheKey;
     if (! playlist.removeTrack (index))
         return false;
+    static_cast<void> (artworkStore.remove (removedArtworkKey));
+    ++stateRevision;
 
     if (removedLoadedTrack)
     {
@@ -186,6 +247,7 @@ bool PlayerController::moveTrack (int fromIndex, int toIndex)
     if (! playlist.moveTrack (fromIndex, toIndex))
         return false;
 
+    ++stateRevision;
     lastStatusMessage = "Queue reordered.";
     return true;
 }
@@ -194,7 +256,10 @@ void PlayerController::clearPlaylist()
 {
     audioEngine.unload();
     playbackCoordinator.loadFailed();
+    for (const auto& track : playlist.getTracks())
+        static_cast<void> (artworkStore.remove (track.artworkCacheKey));
     playlist.clear();
+    ++stateRevision;
     lastStatusMessage = "Queue cleared.";
 }
 
@@ -207,17 +272,26 @@ void PlayerController::seekToRatio (double ratio)
 
 void PlayerController::setShuffleEnabled (bool shouldShuffle)
 {
+    if (playlist.isShuffleEnabled() == shouldShuffle)
+        return;
     playlist.setShuffleEnabled (shouldShuffle);
+    ++stateRevision;
 }
 
 void PlayerController::setRepeatMode (RepeatMode mode)
 {
+    if (playlist.getRepeatMode() == mode)
+        return;
     playlist.setRepeatMode (mode);
+    ++stateRevision;
 }
 
 void PlayerController::setVolume (double volume)
 {
+    if (juce::approximatelyEqual (audioEngine.getGain(), volume))
+        return;
     audioEngine.setGain (volume);
+    ++stateRevision;
 }
 
 void PlayerController::setSkinPersistenceState (SkinPersistenceState state)
@@ -225,7 +299,12 @@ void PlayerController::setSkinPersistenceState (SkinPersistenceState state)
     if (state.activeSkinId.isEmpty())
         state.activeSkinId = "builtin.default";
 
+    if (skinPersistenceState.activeSkinId == state.activeSkinId
+        && skinPersistenceState.activeSkinVersion == state.activeSkinVersion
+        && skinPersistenceState.developerDirectory == state.developerDirectory)
+        return;
     skinPersistenceState = std::move (state);
+    ++stateRevision;
 }
 
 juce::String PlayerController::setOutputLayout (OutputLayout layout)
@@ -234,6 +313,8 @@ juce::String PlayerController::setOutputLayout (OutputLayout layout)
     lastStatusMessage = error.isNotEmpty()
                             ? error
                             : "Output layout set to " + toString (audioEngine.getOutputLayout()) + ".";
+    if (error.isEmpty())
+        ++stateRevision;
     return error;
 }
 
@@ -270,7 +351,10 @@ juce::String PlayerController::setAudioBufferSize (int bufferSize)
 
 void PlayerController::setWorkspaceMode (WorkspaceMode mode)
 {
+    if (workspaceMode == mode)
+        return;
     workspaceMode = mode;
+    ++stateRevision;
 }
 
 int PlayerController::scanPluginsInDirectory (const juce::File& directory)
@@ -334,6 +418,7 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
                                                      description.createIdentifierString(),
                                                      description.pluginFormatName);
             juce::String graphError;
+            plugin->addListener (this);
             if (! audioEngine.addEffectPlugin (slotId, std::move (plugin), graphError))
             {
                 effectChain.removeSlot (slotId);
@@ -342,6 +427,7 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
             }
 
             ++effectChainRevision;
+            ++stateRevision;
             lastStatusMessage = "Inserted " + description.name + ".";
             completion (true, lastStatusMessage);
         });
@@ -354,13 +440,30 @@ bool PlayerController::removeEffectAtIndex (int effectIndex)
         return false;
 
     const auto slotId = slot->id;
-    if (slot->available && ! audioEngine.removeEffectPlugin (slotId))
-        return false;
+    if (slot->available)
+    {
+        if (! audioEngine.beginEffectStateCapture())
+        {
+            lastStatusMessage =
+                "Timed out while preparing the effect for removal.";
+            return false;
+        }
+
+        struct CaptureScope
+        {
+            AudioEngine& engine;
+            ~CaptureScope() { engine.endEffectStateCapture(); }
+        } captureScope { audioEngine };
+
+        if (! audioEngine.removeEffectPlugin (slotId))
+            return false;
+    }
 
     if (! effectChain.removeSlot (slotId))
         return false;
 
     ++effectChainRevision;
+    ++stateRevision;
     return true;
 }
 
@@ -379,6 +482,7 @@ bool PlayerController::moveEffect (int fromIndex, int toIndex)
     }
 
     ++effectChainRevision;
+    ++stateRevision;
     return true;
 }
 
@@ -395,6 +499,7 @@ bool PlayerController::setEffectBypassedAtIndex (int effectIndex, bool shouldByp
         return false;
 
     ++effectChainRevision;
+    ++stateRevision;
     return true;
 }
 
@@ -407,7 +512,11 @@ bool PlayerController::saveState (const juce::File& stateFile, const juce::File&
     }
 
     juce::String stateError;
-    const auto stateSaved = AppStateStore::writeAtomically (createStateSnapshot(), stateFile, stateError);
+    PlayerAppState snapshot;
+    const auto stateCaptured = captureStateSnapshot (snapshot, stateError);
+    const auto stateSaved = stateCaptured
+                         && AppStateStore::writeAtomically (
+                                snapshot, stateFile, stateError);
     juce::String pluginError;
     const auto pluginCacheSaved = pluginManager.writeKnownPluginCacheAtomically (pluginListFile, pluginError);
 
@@ -448,8 +557,7 @@ bool PlayerController::loadState (const juce::File& stateFile, const juce::File&
         return false;
     }
 
-    restoreStateSnapshot (restoredState);
-    return true;
+    return restoreStateSnapshot (restoredState);
 }
 
 const PlaylistModel& PlayerController::getPlaylist() const
@@ -543,6 +651,19 @@ PlayerViewState PlayerController::getViewState() const
     {
         state.selectedTrackId = track->id;
         state.selectedTrackTitle = track->title;
+        state.selectedTrackArtist = track->artist;
+        state.selectedTrackAlbum = track->album;
+        state.selectedTrackAlbumArtist = track->albumArtist;
+        state.selectedTrackGenre = track->genre;
+        state.selectedTrackYear = track->year;
+        state.selectedTrackNumber = track->trackNumber;
+        state.selectedTrackDiscNumber = track->discNumber;
+        state.selectedTrackBitDepth = track->bitDepth;
+        state.selectedTrackChannelCount = track->channelCount;
+        state.selectedTrackSampleRate = track->sampleRate;
+        state.selectedTrackFormat = track->formatName;
+        state.selectedTrackArtworkPath = artworkStore.resolve (
+            track->artworkCacheKey).getFullPathName();
         state.selectedTrackPath = track->file.getFullPathName();
         state.selectedTrackAvailable = track->available;
     }
@@ -571,6 +692,12 @@ PlayerViewState PlayerController::getViewState() const
 SkinPersistenceState PlayerController::getSkinPersistenceState() const
 {
     return skinPersistenceState;
+}
+
+uint64_t PlayerController::getStateRevision() const noexcept
+{
+    return stateRevision
+         + pluginStateRevision.load (std::memory_order_relaxed);
 }
 
 bool PlayerController::execute (const PlaybackAction& action)
@@ -634,21 +761,50 @@ juce::String PlayerController::getSelectedTrackId() const
     return {};
 }
 
-PlayerAppState PlayerController::createStateSnapshot() const
+bool PlayerController::captureStateSnapshot (PlayerAppState& state,
+                                             juce::String& errorMessage)
 {
-    PlayerAppState state;
+    errorMessage.clear();
+    state = {};
     state.playlist = playlist;
     state.effectChain = effectChain;
 
-    for (const auto& slot : effectChain.getSlots())
     {
-        auto* savedSlot = state.effectChain.getSlotById (slot.id);
-        auto* plugin = audioEngine.getEffectPlugin (slot.id);
-        if (savedSlot != nullptr && plugin != nullptr)
+        if (! audioEngine.beginEffectStateCapture())
         {
-            savedSlot->serializedState.reset();
-            const juce::ScopedLock callbackLock (plugin->getCallbackLock());
-            plugin->getStateInformation (savedSlot->serializedState);
+            errorMessage = "Timed out while preparing plug-ins for state capture.";
+            return false;
+        }
+
+        struct CaptureScope
+        {
+            AudioEngine& engine;
+            ~CaptureScope()
+            {
+                engine.endEffectStateCapture();
+            }
+        } captureScope { audioEngine };
+
+        try
+        {
+            for (const auto& slot : effectChain.getSlots())
+            {
+                auto* savedSlot = state.effectChain.getSlotById (slot.id);
+                auto* plugin = audioEngine.getEffectPlugin (slot.id);
+                if (savedSlot != nullptr && plugin != nullptr)
+                {
+                    savedSlot->serializedState.reset();
+                    const juce::ScopedLock callbackLock (
+                        plugin->getCallbackLock());
+                    plugin->getStateInformation (
+                        savedSlot->serializedState);
+                }
+            }
+        }
+        catch (...)
+        {
+            errorMessage = "A plug-in failed while serializing its state.";
+            return false;
         }
     }
 
@@ -659,29 +815,63 @@ PlayerAppState PlayerController::createStateSnapshot() const
     state.activeSkinVersion = skinPersistenceState.activeSkinVersion;
     state.developerSkinDirectory =
         skinPersistenceState.developerDirectory.getFullPathName();
-    return state;
+    return true;
 }
 
-void PlayerController::restoreStateSnapshot (const PlayerAppState& state)
+bool PlayerController::restoreStateSnapshot (const PlayerAppState& state)
 {
     const auto selectedTrackId = state.playlist.getSelectedTrack() != nullptr
                                      ? state.playlist.getSelectedTrack()->id
                                      : juce::String{};
 
-    playlist = {};
-    playlist.setShuffleEnabled (state.playlist.isShuffleEnabled());
-    playlist.setRepeatMode (state.playlist.getRepeatMode());
+    PlaylistModel restoredPlaylist;
+    restoredPlaylist.setShuffleEnabled (state.playlist.isShuffleEnabled());
+    restoredPlaylist.setRepeatMode (state.playlist.getRepeatMode());
 
     for (const auto& savedTrack : state.playlist.getTracks())
     {
         auto restoredTrack = savedTrack;
-        const auto metadata = metadataReader.read (savedTrack.file);
+        const auto needsArtworkCache = restoredTrack.artworkCacheKey.isEmpty()
+                                       || ! artworkStore.isValid (
+                                              restoredTrack.artworkCacheKey);
+        if (needsArtworkCache && restoredTrack.artworkCacheKey.isNotEmpty())
+            static_cast<void> (artworkStore.remove (
+                restoredTrack.artworkCacheKey));
+        const auto metadata = metadataReader.read (savedTrack.file,
+                                                   needsArtworkCache);
 
         if (metadata.ok)
         {
             restoredTrack.durationSeconds = metadata.track.durationSeconds;
             restoredTrack.sampleRate = metadata.track.sampleRate;
             restoredTrack.channelCount = metadata.track.channelCount;
+            restoredTrack.bitDepth = metadata.track.bitDepth;
+            restoredTrack.formatName = metadata.track.formatName;
+            const auto updateText = [] (juce::String& destination,
+                                        const juce::String& refreshed)
+            {
+                if (refreshed.isNotEmpty()) destination = refreshed;
+            };
+            updateText (restoredTrack.title, metadata.track.title);
+            updateText (restoredTrack.artist, metadata.track.artist);
+            updateText (restoredTrack.album, metadata.track.album);
+            updateText (restoredTrack.albumArtist, metadata.track.albumArtist);
+            updateText (restoredTrack.genre, metadata.track.genre);
+            if (metadata.track.year > 0) restoredTrack.year = metadata.track.year;
+            if (metadata.track.trackNumber > 0)
+                restoredTrack.trackNumber = metadata.track.trackNumber;
+            if (metadata.track.discNumber > 0)
+                restoredTrack.discNumber = metadata.track.discNumber;
+            if (needsArtworkCache && metadata.artworkData.getSize() > 0)
+            {
+                juce::String artworkError;
+                const auto refreshedKey = artworkStore.store (
+                    restoredTrack.id, metadata.artworkData, artworkError);
+                if (refreshedKey.isNotEmpty())
+                    restoredTrack.artworkCacheKey = refreshedKey;
+            }
+            else if (needsArtworkCache)
+                restoredTrack.artworkCacheKey.clear();
             restoredTrack.available = true;
         }
         else
@@ -689,15 +879,36 @@ void PlayerController::restoreStateSnapshot (const PlayerAppState& state)
             restoredTrack.available = false;
         }
 
-        playlist.addTrack (std::move (restoredTrack));
+        restoredPlaylist.addTrack (std::move (restoredTrack));
     }
 
     if (selectedTrackId.isNotEmpty())
-        playlist.selectTrack (playlist.indexOfId (selectedTrackId));
+        restoredPlaylist.selectTrack (restoredPlaylist.indexOfId (selectedTrackId));
 
-    for (const auto& existingSlot : effectChain.getSlots())
-        if (existingSlot.available)
-            static_cast<void> (audioEngine.removeEffectPlugin (existingSlot.id));
+    if (audioEngine.getEffectPluginCount() > 0)
+    {
+        if (! audioEngine.beginEffectStateCapture())
+        {
+            lastStatusMessage =
+                "Timed out while preparing the existing effect chain for restore.";
+            return false;
+        }
+
+        struct CaptureScope
+        {
+            AudioEngine& engine;
+            ~CaptureScope() { engine.endEffectStateCapture(); }
+        } captureScope { audioEngine };
+
+        if (! audioEngine.clearEffectPlugins())
+        {
+            lastStatusMessage =
+                "Could not clear the existing effect chain during restore.";
+            return false;
+        }
+    }
+
+    playlist = std::move (restoredPlaylist);
 
     setVolume (state.volume);
     setOutputLayout (state.outputLayout);
@@ -714,6 +925,8 @@ void PlayerController::restoreStateSnapshot (const PlayerAppState& state)
     restoringEffects = ! slots->empty();
     if (restoringEffects)
         restoreNextEffect (std::move (slots), 0);
+    ++stateRevision;
+    return true;
 }
 
 void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlotState>> slots, size_t index)
@@ -761,6 +974,7 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
                     plugin->setStateInformation (savedSlot.serializedState.getData(),
                                                  static_cast<int> (savedSlot.serializedState.getSize()));
 
+                plugin->addListener (this);
                 if (audioEngine.addEffectPlugin (savedSlot.id, std::move (plugin), error))
                 {
                     static_cast<void> (audioEngine.setEffectBypassed (savedSlot.id, savedSlot.bypassed));
@@ -776,6 +990,19 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
             ++effectChainRevision;
             restoreNextEffect (std::move (restoreSlots), index + 1);
         });
+}
+
+void PlayerController::audioProcessorParameterChanged (
+    juce::AudioProcessor*, int, float)
+{
+    pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
+}
+
+void PlayerController::audioProcessorChanged (
+    juce::AudioProcessor*,
+    const juce::AudioProcessorListener::ChangeDetails&)
+{
+    pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
 }
 
 std::vector<int> PlayerController::getAvailableEffectSlotIds() const

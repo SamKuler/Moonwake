@@ -8,6 +8,7 @@
 #include "plugins/EffectChainState.h"
 #include "plugins/PluginManager.h"
 #include "state/AppStateStore.h"
+#include "library/ArtworkStore.h"
 
 #include <atomic>
 #include <functional>
@@ -21,16 +22,17 @@ struct SkinPersistenceState
     juce::File developerDirectory;
 };
 
-class PlayerController
+class PlayerController : private juce::AudioProcessorListener
 {
 public:
     using PluginInsertionCallback = std::function<void (bool, const juce::String&)>;
 
     PlayerController();
     explicit PlayerController (std::unique_ptr<IAudioDeviceBackend>);
-    ~PlayerController();
+    ~PlayerController() override;
 
     juce::String addFiles (const juce::Array<juce::File>& files);
+    juce::String addPreparedTracks (std::vector<TrackMetadataResult> tracks);
     bool selectTrack (int index);
     bool playOrPause();
     bool nextTrack();
@@ -57,6 +59,8 @@ public:
     bool removeEffectAtIndex (int effectIndex);
     bool moveEffect (int fromIndex, int toIndex);
     bool setEffectBypassedAtIndex (int effectIndex, bool shouldBypass);
+    [[nodiscard]] bool captureStateSnapshot (PlayerAppState&,
+                                             juce::String& errorMessage);
     bool saveState (const juce::File& stateFile, const juce::File& pluginListFile);
     bool loadState (const juce::File& stateFile, const juce::File& pluginListFile);
 
@@ -76,6 +80,7 @@ public:
     [[nodiscard]] bool isPlaying() const;
     [[nodiscard]] PlayerViewState getViewState() const;
     [[nodiscard]] SkinPersistenceState getSkinPersistenceState() const;
+    [[nodiscard]] uint64_t getStateRevision() const noexcept;
 
 private:
     PlaylistModel playlist;
@@ -83,19 +88,25 @@ private:
     AudioEngine audioEngine;
     PluginManager pluginManager;
     TrackMetadataReader metadataReader;
+    ArtworkStore artworkStore;
     PlaybackCoordinator playbackCoordinator;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     SkinPersistenceState skinPersistenceState;
     juce::String lastStatusMessage;
     std::shared_ptr<std::atomic_bool> lifetimeFlag { std::make_shared<std::atomic_bool> (true) };
     uint64_t effectChainRevision = 0;
+    uint64_t stateRevision = 0;
+    std::atomic<uint64_t> pluginStateRevision { 0 };
     bool restoringEffects = false;
 
     bool execute (const PlaybackAction& action);
     bool loadTrackById (const juce::String& trackId, bool shouldPlay);
     [[nodiscard]] juce::String getSelectedTrackId() const;
-    [[nodiscard]] PlayerAppState createStateSnapshot() const;
-    void restoreStateSnapshot (const PlayerAppState& state);
+    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override;
+    void audioProcessorChanged (
+        juce::AudioProcessor*,
+        const juce::AudioProcessorListener::ChangeDetails&) override;
+    [[nodiscard]] bool restoreStateSnapshot (const PlayerAppState& state);
     void restoreNextEffect (std::shared_ptr<std::vector<EffectSlotState>> slots, size_t index);
     [[nodiscard]] std::vector<int> getAvailableEffectSlotIds() const;
 };

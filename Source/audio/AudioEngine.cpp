@@ -458,6 +458,11 @@ bool AudioEngine::removeEffectPlugin (int slotId)
     return effectProcessingSource.removePlugin (slotId);
 }
 
+bool AudioEngine::clearEffectPlugins()
+{
+    return effectProcessingSource.clearPlugins();
+}
+
 bool AudioEngine::moveEffectPlugin (int fromIndex, int toIndex)
 {
     return effectProcessingSource.movePlugin (fromIndex, toIndex);
@@ -481,6 +486,16 @@ int AudioEngine::getEffectPluginCount() const
 juce::AudioPluginInstance* AudioEngine::getEffectPlugin (int slotId) const
 {
     return effectProcessingSource.getPlugin (slotId);
+}
+
+bool AudioEngine::beginEffectStateCapture (int timeoutMilliseconds)
+{
+    return effectProcessingSource.beginStateCapture (timeoutMilliseconds);
+}
+
+void AudioEngine::endEffectStateCapture() noexcept
+{
+    effectProcessingSource.endStateCapture();
 }
 
 AudioEngine::EffectProcessingSource::EffectProcessingSource (
@@ -560,6 +575,11 @@ bool AudioEngine::EffectProcessingSource::removePlugin (int slotId)
     return effectGraph.removeProcessor (slotId);
 }
 
+bool AudioEngine::EffectProcessingSource::clearPlugins()
+{
+    return effectGraph.clearProcessors();
+}
+
 bool AudioEngine::EffectProcessingSource::movePlugin (int fromIndex, int toIndex)
 {
     return effectGraph.moveProcessor (fromIndex, toIndex);
@@ -593,4 +613,15 @@ int AudioEngine::EffectProcessingSource::getPluginCount() const
 juce::AudioPluginInstance* AudioEngine::EffectProcessingSource::getPlugin (int slotId) const
 {
     return dynamic_cast<juce::AudioPluginInstance*> (effectGraph.getProcessor (slotId));
+}
+
+bool AudioEngine::EffectProcessingSource::beginStateCapture (
+    int timeoutMilliseconds)
+{
+    return effectGraph.beginStateCapture (timeoutMilliseconds);
+}
+
+void AudioEngine::EffectProcessingSource::endStateCapture() noexcept
+{
+    effectGraph.endStateCapture();
 }

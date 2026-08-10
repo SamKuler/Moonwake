@@ -23,13 +23,16 @@
       }
     }
   },
-  "surface": { "default": "components/surface.json" },
+  "surface": {
+    "default": "components/surface.json",
+    "artworkOverlay": "components/artwork-overlay.json"
+  },
   "artwork": {
     "default": {
       "renderer": "components/artwork.json",
       "slots": {
         "frame.background": "surface.default",
-        "frame.overlay": "surface.default"
+        "frame.overlay": "surface.artworkOverlay"
       }
     },
     "assetProbe": "components/artwork-asset-probe.json"

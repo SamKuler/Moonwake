@@ -229,8 +229,8 @@ bool copyRegularFileNoFollow (const juce::File& source, const juce::File& destin
     destination.getParentDirectory().createDirectory();
 
 #if JUCE_MAC || JUCE_LINUX
-    const auto sourcePath = source.getFullPathName().toRawUTF8();
-    const auto descriptor = ::open (sourcePath, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    const auto sourcePath = source.getFullPathName();
+    const auto descriptor = ::open (sourcePath.toRawUTF8(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (descriptor < 0)
         return false;
 

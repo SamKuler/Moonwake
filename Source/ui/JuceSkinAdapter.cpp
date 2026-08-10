@@ -10,6 +10,7 @@
 
 const juce::Identifier JuceSkinAdapter::styleProperty { "skinStyle" };
 const juce::Identifier JuceSkinAdapter::scaleFactorProperty { "skinScaleFactor" };
+const juce::Identifier JuceSkinAdapter::presentationProperty { "skinPresentation" };
 
 namespace
 {
@@ -114,6 +115,96 @@ std::optional<Value> literalProperty (
     if (const auto* value = std::get_if<Value> (compiled))
         return *value;
     return std::nullopt;
+}
+
+SkinExpressionContext expressionContextFor (const SkinRenderContext& context)
+{
+    return { [&context] (std::string_view path)
+        -> std::optional<SkinExpressionValue>
+    {
+        const auto number = [] (double value) -> std::optional<SkinExpressionValue>
+        { return SkinExpressionValue (value); };
+        const auto boolean = [] (bool value) -> std::optional<SkinExpressionValue>
+        { return SkinExpressionValue (value); };
+        const auto string = [] (juce::String value) -> std::optional<SkinExpressionValue>
+        { return SkinExpressionValue (std::move (value)); };
+
+        if (path == "bounds.x") return number (context.bounds.getX());
+        if (path == "bounds.y") return number (context.bounds.getY());
+        if (path == "bounds.width") return number (context.bounds.getWidth());
+        if (path == "bounds.height") return number (context.bounds.getHeight());
+        if (path == "contentBounds.x") return number (context.contentBounds.getX());
+        if (path == "contentBounds.y") return number (context.contentBounds.getY());
+        if (path == "contentBounds.width") return number (context.contentBounds.getWidth());
+        if (path == "contentBounds.height") return number (context.contentBounds.getHeight());
+        if (path == "scaleFactor") return number (context.scaleFactor);
+        if (path == "state.enabled") return boolean (context.state.enabled);
+        if (path == "state.hover") return boolean (context.state.hover);
+        if (path == "state.pressed") return boolean (context.state.pressed);
+        if (path == "state.focused") return boolean (context.state.focused);
+        if (path == "state.selected") return boolean (context.state.selected);
+        if (path == "state.dragging") return boolean (context.state.dragging);
+        if (path == "value.normalized") return number (context.normalisedValue);
+        if (path == "value.minimum") return number (context.minimum);
+        if (path == "value.maximum") return number (context.maximum);
+        if (path == "value.display") return string (context.displayValue);
+        if (path == "text.primary") return string (context.primaryText);
+        if (path == "text.secondary") return string (context.secondaryText);
+        if (path == "text.align") return string (context.textAlignment);
+        if (path == "icon.name") return string (context.iconName);
+        if (path == "icon.path") return string (context.iconPathData);
+        if (path == "table.rowCount") return number (context.tableRowCount);
+        if (path == "table.columnCount") return number (context.tableColumnCount);
+        return context.extraLookup ? context.extraLookup (path) : std::nullopt;
+    } };
+}
+
+template <typename Value>
+std::optional<Value> resolvedProperty (
+    const SkinRenderLayer& layer, juce::StringRef propertyName,
+    const SkinExpressionContext& expressionContext,
+    juce::Rectangle<float> frame)
+{
+    const auto found = layer.properties.find (juce::String (propertyName));
+    if (found == layer.properties.end())
+        return std::nullopt;
+    const auto value = found->second.resolve (expressionContext, frame);
+    if (const auto* typed = std::get_if<Value> (&value))
+        return *typed;
+    return std::nullopt;
+}
+
+juce::Rectangle<float> resolvedFrameFor (
+    const SkinRenderLayer& layer, const SkinRenderContext& context,
+    const SkinExpressionContext& expressionContext)
+{
+    const auto number = [&] (juce::StringRef property, double fallback)
+    {
+        return static_cast<float> (resolvedProperty<double> (
+            layer, property, expressionContext, context.bounds).value_or (fallback));
+    };
+
+    if (layer.properties.contains ("frame.anchor"))
+    {
+        const auto anchor = resolvedProperty<juce::String> (
+            layer, "frame.anchor", expressionContext, context.bounds)
+                                .value_or ("bounds");
+        auto frame = anchor == "contentBounds" ? context.contentBounds : context.bounds;
+        const auto top = number ("frame.inset.top", 0.0);
+        const auto right = number ("frame.inset.right", 0.0);
+        const auto bottom = number ("frame.inset.bottom", 0.0);
+        const auto left = number ("frame.inset.left", 0.0);
+        frame.setBounds (frame.getX() + left, frame.getY() + top,
+                         juce::jmax (0.0f, frame.getWidth() - left - right),
+                         juce::jmax (0.0f, frame.getHeight() - top - bottom));
+        return frame;
+    }
+
+    if (layer.properties.contains ("frame.x"))
+        return { number ("frame.x", 0.0), number ("frame.y", 0.0),
+                 juce::jmax (0.0f, number ("frame.width", 0.0)),
+                 juce::jmax (0.0f, number ("frame.height", 0.0)) };
+    return context.bounds;
 }
 } // namespace
 
@@ -737,7 +828,7 @@ void JuceSkinAdapter::drawListBoxRow (
     int width, int height, bool selected, const juce::String& primaryText,
     const juce::String& locationText, const juce::String& durationText,
     const ListBoxRowGeometry& geometry, bool hovered, bool pressed,
-    bool available)
+    bool available, const juce::String& artist, const juce::String& album)
 {
     SkinRenderContext context;
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
@@ -746,7 +837,8 @@ void JuceSkinAdapter::drawListBoxRow (
     context.primaryText = primaryText;
     context.secondaryText = locationText;
     context.extraLookup = [rowNumber, selected, available,
-                           primaryText, locationText, durationText]
+                           primaryText, locationText, artist, album,
+                           durationText]
                           (std::string_view path)
         -> std::optional<SkinExpressionValue>
     {
@@ -756,6 +848,8 @@ void JuceSkinAdapter::drawListBoxRow (
         if (path == "row.available") return SkinExpressionValue (available);
         if (path == "row.title") return SkinExpressionValue (primaryText);
         if (path == "row.location") return SkinExpressionValue (locationText);
+        if (path == "row.artist") return SkinExpressionValue (artist);
+        if (path == "row.album") return SkinExpressionValue (album);
         if (path == "row.duration") return SkinExpressionValue (durationText);
         return std::nullopt;
     };
@@ -821,4 +915,54 @@ void JuceSkinAdapter::drawListBoxRow (
         SkinRenderTarget::label, std::move (durationContext), rowKey + ":duration");
     if (! surfaceDrawn && ! titleDrawn && ! locationDrawn && ! durationDrawn)
         drawBinding (graphics, list, SkinRenderTarget::table, std::move (context));
+}
+
+std::optional<JuceSkinAdapter::ArtworkImageStyle>
+JuceSkinAdapter::artworkImageStyleFor (
+    const juce::Component& component, SkinRenderContext context) const
+{
+    RuntimeBinding binding;
+    try
+    {
+        binding = bindingFor (component, SkinRenderTarget::artwork);
+    }
+    catch (...)
+    {
+        return std::nullopt;
+    }
+    if (binding.styleEntry == nullptr)
+        return std::nullopt;
+
+    const auto found = std::find_if (
+        binding.styleEntry->renderer.baseLayers.begin(),
+        binding.styleEntry->renderer.baseLayers.end(),
+        [] (const SkinRenderLayer& layer) { return layer.id == "image-clip"; });
+    if (found == binding.styleEntry->renderer.baseLayers.end()
+        || found->primitive != SkinPrimitive::roundedRectangle)
+        return std::nullopt;
+
+    if (context.bounds.isEmpty())
+        context.bounds = component.getLocalBounds().toFloat();
+    if (context.contentBounds.isEmpty())
+        context.contentBounds = context.bounds;
+    context.scaleFactor = juce::jmax (0.01f, renderingScaleFactorFor (component));
+    const auto expressionContext = expressionContextFor (context);
+    auto bounds = resolvedFrameFor (*found, context, expressionContext);
+    if (! std::isfinite (bounds.getX()) || ! std::isfinite (bounds.getY())
+        || ! std::isfinite (bounds.getWidth()) || ! std::isfinite (bounds.getHeight())
+        || bounds.isEmpty())
+        return std::nullopt;
+
+    auto radius = static_cast<float> (resolvedProperty<double> (
+        *found, "radius", expressionContext, bounds).value_or (0.0));
+    if (! std::isfinite (radius))
+        return std::nullopt;
+    radius = juce::jlimit (0.0f,
+                           juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f,
+                           radius);
+    return ArtworkImageStyle {
+        bounds, radius,
+        resolvedProperty<bool> (*found, "clip", expressionContext, bounds)
+            .value_or (false)
+    };
 }

@@ -18,7 +18,7 @@
           {
             "id": "listening-art", "type": "column", "width": "38%", "padding": 14, "gap": 8, "style": "surface.listening",
             "children": [
-              { "id": "listening-cover", "type": "component", "component": "artwork.cover", "style": "artwork.listening", "grow": 1 },
+              { "id": "listening-cover", "type": "component", "component": "artwork.cover", "presentation": "contain", "style": "artwork.listening", "grow": 1 },
               { "id": "listening-meta", "type": "component", "component": "artwork.metadata", "style": "label.listeningMuted", "height": 24 }
             ]
           },
@@ -38,7 +38,11 @@
                       { "id": "listening-add", "type": "component", "component": "library.add", "style": "textButton.listeningIconPrimary", "width": 44, "height": 36, "focusOrder": 40 }
                     ]
                   },
-                  { "id": "listening-queue", "type": "component", "component": "queue.table", "style": "table.listening", "grow": 1, "focusOrder": 50 }
+                  { "id": "listening-library-search", "type": "component", "component": "library.search", "style": "textEditor.listening", "height": 34, "focusOrder": 45 },
+                  { "id": "listening-queue-stack", "type": "stack", "grow": 1, "children": [
+                    { "id": "listening-queue", "type": "component", "component": "queue.table", "style": "table.listening", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 }, "focusOrder": 50 },
+                    { "id": "listening-queue-empty", "type": "component", "component": "queue.empty", "style": "label.listeningMuted", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 } }
+                  ] }
                 ]
               },
               { "id": "listening-seek", "type": "component", "component": "transport.seek", "presentation": "linearHorizontal", "style": "linearSlider.listening", "height": 30, "focusOrder": 90 },

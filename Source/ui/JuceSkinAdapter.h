@@ -28,6 +28,7 @@ public:
 
     static const juce::Identifier styleProperty;
     static const juce::Identifier scaleFactorProperty;
+    static const juce::Identifier presentationProperty;
     [[nodiscard]] bool isAnimationDriveActive() const noexcept
     {
         return isTimerRunning();
@@ -97,6 +98,13 @@ public:
         juce::Rectangle<float> duration;
     };
 
+    struct ArtworkImageStyle
+    {
+        juce::Rectangle<float> bounds;
+        float cornerRadius = 0.0f;
+        bool clip = false;
+    };
+
     bool drawListBoxBackground (juce::Graphics&, juce::ListBox&,
                                 int rowCount = 0, int columnCount = 3);
     void drawListBoxRow (juce::Graphics&, juce::ListBox&, int rowNumber,
@@ -106,7 +114,12 @@ public:
                          const juce::String& durationText = {},
                          const ListBoxRowGeometry& geometry = {},
                          bool hovered = false, bool pressed = false,
-                         bool available = true);
+                         bool available = true,
+                         const juce::String& artist = {},
+                         const juce::String& album = {});
+
+    [[nodiscard]] std::optional<ArtworkImageStyle> artworkImageStyleFor (
+        const juce::Component&, SkinRenderContext) const;
 
     bool drawCustomComponent (juce::Graphics&, const juce::Component&,
                               SkinRenderTarget, SkinRenderContext,

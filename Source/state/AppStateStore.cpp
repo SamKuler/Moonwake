@@ -11,12 +11,23 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
+constexpr int currentSchemaVersion = 6;
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
 const juce::Identifier titleProperty { "title" };
+const juce::Identifier artistProperty { "artist" };
+const juce::Identifier albumProperty { "album" };
+const juce::Identifier albumArtistProperty { "albumArtist" };
+const juce::Identifier genreProperty { "genre" };
+const juce::Identifier yearProperty { "year" };
+const juce::Identifier trackNumberProperty { "trackNumber" };
+const juce::Identifier discNumberProperty { "discNumber" };
 const juce::Identifier durationProperty { "duration" };
 const juce::Identifier sampleRateProperty { "sampleRate" };
 const juce::Identifier channelCountProperty { "channelCount" };
+const juce::Identifier bitDepthProperty { "bitDepth" };
+const juce::Identifier formatNameProperty { "formatName" };
+const juce::Identifier artworkCacheKeyProperty { "artworkCacheKey" };
 const juce::Identifier availableProperty { "available" };
 const juce::Identifier selectedIndexProperty { "selectedIndex" };
 const juce::Identifier selectedTrackIdProperty { "selectedTrackId" };
@@ -63,7 +74,7 @@ RepeatMode repeatModeFromString (const juce::String& value)
 juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
 {
     juce::ValueTree root (appStateType);
-    root.setProperty (schemaVersionProperty, 5, nullptr);
+    root.setProperty (schemaVersionProperty, currentSchemaVersion, nullptr);
     root.setProperty (volumeProperty, state.volume, nullptr);
     root.setProperty (outputLayoutProperty, toString (state.outputLayout), nullptr);
     root.setProperty (workspaceModeProperty, toString (state.workspaceMode), nullptr);
@@ -86,9 +97,19 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
         trackTree.setProperty (pathProperty, track.file.getFullPathName(), nullptr);
         trackTree.setProperty (idProperty, track.id, nullptr);
         trackTree.setProperty (titleProperty, track.title, nullptr);
+        trackTree.setProperty (artistProperty, track.artist, nullptr);
+        trackTree.setProperty (albumProperty, track.album, nullptr);
+        trackTree.setProperty (albumArtistProperty, track.albumArtist, nullptr);
+        trackTree.setProperty (genreProperty, track.genre, nullptr);
+        trackTree.setProperty (yearProperty, track.year, nullptr);
+        trackTree.setProperty (trackNumberProperty, track.trackNumber, nullptr);
+        trackTree.setProperty (discNumberProperty, track.discNumber, nullptr);
         trackTree.setProperty (durationProperty, track.durationSeconds, nullptr);
         trackTree.setProperty (sampleRateProperty, track.sampleRate, nullptr);
         trackTree.setProperty (channelCountProperty, track.channelCount, nullptr);
+        trackTree.setProperty (bitDepthProperty, track.bitDepth, nullptr);
+        trackTree.setProperty (formatNameProperty, track.formatName, nullptr);
+        trackTree.setProperty (artworkCacheKeyProperty, track.artworkCacheKey, nullptr);
         trackTree.setProperty (availableProperty, track.available, nullptr);
         playlistTree.appendChild (trackTree, nullptr);
     }
@@ -151,8 +172,23 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
             const auto restoredId = trackTree.getProperty (idProperty).toString();
             if (restoredId.isNotEmpty())
                 track.id = restoredId;
+            track.artist = trackTree.getProperty (artistProperty).toString();
+            track.album = trackTree.getProperty (albumProperty).toString();
+            track.albumArtist = trackTree.getProperty (albumArtistProperty).toString();
+            track.genre = trackTree.getProperty (genreProperty).toString();
+            track.year = juce::jmax (0, static_cast<int> (
+                trackTree.getProperty (yearProperty, 0)));
+            track.trackNumber = juce::jmax (0, static_cast<int> (
+                trackTree.getProperty (trackNumberProperty, 0)));
+            track.discNumber = juce::jmax (0, static_cast<int> (
+                trackTree.getProperty (discNumberProperty, 0)));
             track.sampleRate = static_cast<double> (trackTree.getProperty (sampleRateProperty, 0.0));
             track.channelCount = static_cast<int> (trackTree.getProperty (channelCountProperty, 0));
+            track.bitDepth = juce::jmax (0, static_cast<int> (
+                trackTree.getProperty (bitDepthProperty, 0)));
+            track.formatName = trackTree.getProperty (formatNameProperty).toString();
+            track.artworkCacheKey = trackTree.getProperty (
+                artworkCacheKeyProperty).toString();
             track.available = static_cast<bool> (trackTree.getProperty (availableProperty, true));
             state.playlist.addTrack (std::move (track));
         }
@@ -261,6 +297,14 @@ bool AppStateStore::readFromFile (const juce::File& sourceFile,
     if (! tree.hasType (appStateType))
     {
         errorMessage = "Player state file has an unsupported root element.";
+        return false;
+    }
+
+    const auto schemaVersion = static_cast<int> (
+        tree.getProperty (schemaVersionProperty, 1));
+    if (schemaVersion > currentSchemaVersion)
+    {
+        errorMessage = "Player state file was created by a newer version of Moonwake.";
         return false;
     }
 

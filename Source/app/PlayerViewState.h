@@ -15,7 +15,19 @@ struct PlayerViewState
     int playlistSize = 0;
     juce::String selectedTrackId;
     juce::String selectedTrackTitle;
+    juce::String selectedTrackArtist;
+    juce::String selectedTrackAlbum;
+    juce::String selectedTrackAlbumArtist;
+    juce::String selectedTrackGenre;
+    juce::String selectedTrackFormat;
+    juce::String selectedTrackArtworkPath;
     juce::String selectedTrackPath;
+    int selectedTrackYear = 0;
+    int selectedTrackNumber = 0;
+    int selectedTrackDiscNumber = 0;
+    int selectedTrackBitDepth = 0;
+    int selectedTrackChannelCount = 0;
+    double selectedTrackSampleRate = 0.0;
     bool selectedTrackAvailable = false;
 
     TransportIntent transportIntent = TransportIntent::stopped;

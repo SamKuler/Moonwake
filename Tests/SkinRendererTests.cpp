@@ -470,11 +470,14 @@ public:
             expect (missingReport.hasCode ("ASSET001"));
 
             SkinValidationReport packageReport;
+            constexpr char unsafeSvg[] =
+                "<!DOCTYPE svg [<!ENTITY x 'boom'>]>"
+                "<svg><script>&x;</script></svg>";
             auto package = packageFrom (
                 "svg-fixture",
-                { { "assets/bad.svg", juce::MemoryBlock (
-                    "<!DOCTYPE svg [<!ENTITY x 'boom'>]><svg><script>&x;</script></svg>",
-                    72) } }, packageReport);
+                { { "assets/bad.svg",
+                    juce::MemoryBlock (unsafeSvg, sizeof (unsafeSvg) - 1) } },
+                packageReport);
             expect (package.has_value());
             SkinValidationReport report;
             const auto cache = SkinAssetCache::create (
@@ -1766,6 +1769,89 @@ public:
             expect (! report.hasErrors(), report.toText());
         }
 
+        beginTest ("table row slots preserve the frozen library metadata contract");
+        {
+            const auto context = skinRenderContextForCompositeSlot (
+                SkinRenderTarget::table, "row.surface",
+                SkinRenderTarget::surface);
+            expect (context.contains ("row.location"));
+            expect (context.contains ("row.artist"));
+            expect (context.contains ("row.album"));
+
+            SkinValidationReport report;
+            SkinTokenStore tokens;
+            auto locationLayer = rectangleLayer (
+                "location-contract", { 0.0f, 0.0f, 80.0f, 24.0f },
+                juce::Colours::white);
+            for (const auto* property : {
+                     "frame.x", "frame.y", "frame.width", "frame.height" })
+                locationLayer.properties.erase (property);
+            locationLayer.properties["frame.anchor"] = literalBinding (
+                SkinPrimitive::rectangle, "frame.anchor", juce::String ("bounds"));
+            const auto visible = SkinExpression::compile (
+                "column.id == 'location' and "
+                "text.primary == '/Music/Album/Track.flac' and "
+                "row.location == text.primary and "
+                "row.artist == 'Artist' and row.album == 'Album'",
+                skinRenderContextForCompositeSlot (
+                    SkinRenderTarget::table, "cell.location",
+                    SkinRenderTarget::label),
+                tokens, report, "table-location-contract", "/visible");
+            expect (visible.has_value(), report.toText());
+            if (visible)
+            {
+                auto binding = literalBinding (
+                    SkinPrimitive::rectangle, "visible", false);
+                binding.value = *visible;
+                locationLayer.properties["visible"] = std::move (binding);
+            }
+
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> entries;
+            entries[SkinRenderTarget::label].renderer = simpleProgram (
+                SkinRenderTarget::label, std::move (locationLayer));
+            entries[SkinRenderTarget::surface].renderer = simpleProgram (
+                SkinRenderTarget::surface,
+                rectangleLayer ("transparent", { 0.0f, 0.0f, 80.0f, 24.0f },
+                                juce::Colours::transparentBlack));
+            entries[SkinRenderTarget::table].renderer = simpleProgram (
+                SkinRenderTarget::table,
+                rectangleLayer ("table", { 0.0f, 0.0f, 80.0f, 24.0f },
+                                juce::Colours::transparentBlack));
+            entries[SkinRenderTarget::table].slotStyles = {
+                { "row.surface", "surface.default" },
+                { "cell.title", "label.default" },
+                { "cell.location", "label.default" },
+                { "cell.duration", "label.default" }
+            };
+
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target,
+                     const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding {
+                        &entries.at (target), nullptr, &sink, true
+                    };
+                }, renderer);
+            juce::ListBox list;
+            juce::Image image (juce::Image::ARGB, 80, 24, true);
+            juce::Graphics graphics (image);
+            const JuceSkinAdapter::ListBoxRowGeometry geometry {
+                { 0.0f, 0.0f, 24.0f, 24.0f },
+                { 24.0f, 0.0f, 40.0f, 24.0f },
+                { 64.0f, 0.0f, 16.0f, 24.0f }
+            };
+            adapter.drawListBoxRow (
+                graphics, list, 0, 80, 24, false, "Track",
+                "/Music/Album/Track.flac", "3:12", geometry,
+                false, false, true, "Artist", "Album");
+            expect (image.getPixelAt (40, 12).getAlpha() > 0,
+                    "cell.location must receive the absolute path in text.primary "
+                    "while row.artist and row.album remain additive context");
+            expect (! report.hasErrors(), report.toText());
+        }
+
 
         beginTest ("custom artwork and output components populate their frozen context");
         {
@@ -1823,10 +1909,20 @@ public:
                 }, renderer);
 
             juce::Image image (juce::Image::ARGB, 200, 120, true);
+            const auto artworkFile = juce::File::getSpecialLocation (
+                juce::File::currentExecutableFile).getParentDirectory()
+                    .getNonexistentChildFile (
+                    "moonwake-artwork-context", ".png", true);
+            juce::Image squareArtwork (juce::Image::ARGB, 32, 32, true);
+            juce::MemoryOutputStream artworkBytes;
+            juce::PNGImageFormat png;
+            expect (png.writeImageToStream (squareArtwork, artworkBytes));
+            expect (artworkFile.replaceWithData (
+                artworkBytes.getData(), artworkBytes.getDataSize()));
             AlbumArtworkComponent artwork;
             artwork.setBounds (0, 0, 200, 120);
             artwork.setLookAndFeel (&adapter);
-            artwork.setTrack ("track-id", "Track");
+            artwork.setTrack ("track-id", "Track", artworkFile);
             {
                 juce::Graphics graphics (image);
                 artwork.paint (graphics);
@@ -1850,6 +1946,69 @@ public:
             expect (! report.hasErrors(), report.toText());
             artwork.setLookAndFeel (nullptr);
             output.setLookAndFeel (nullptr);
+            expect (artworkFile.deleteFile());
+        }
+
+        beginTest ("artwork image clip rounds the actual image pixels");
+        {
+            auto imageClip = rectangleLayer (
+                "image-clip", { 0.0f, 0.0f, 40.0f, 40.0f },
+                juce::Colours::transparentBlack, 10.0);
+            imageClip.properties["clip"] = literalBinding (
+                SkinPrimitive::roundedRectangle, "clip", true);
+
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> entries;
+            entries[SkinRenderTarget::artwork].renderer = simpleProgram (
+                SkinRenderTarget::artwork, std::move (imageClip));
+            entries[SkinRenderTarget::surface].renderer = simpleProgram (
+                SkinRenderTarget::surface,
+                rectangleLayer ("transparent", { 0.0f, 0.0f, 40.0f, 40.0f },
+                                juce::Colours::transparentBlack));
+            entries[SkinRenderTarget::artwork].slotStyles = {
+                { "frame.background", "surface.default" },
+                { "frame.overlay", "surface.default" }
+            };
+
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target,
+                     const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding {
+                        &entries.at (target), nullptr, &sink, true
+                    };
+                }, renderer);
+
+            const auto artworkFile = juce::File::getSpecialLocation (
+                juce::File::currentExecutableFile).getParentDirectory()
+                    .getNonexistentChildFile (
+                    "moonwake-artwork-pixel-clip", ".png", true);
+            juce::Image opaqueArtwork (juce::Image::ARGB, 32, 32, true);
+            opaqueArtwork.clear (opaqueArtwork.getBounds(), juce::Colours::red);
+            juce::MemoryOutputStream artworkBytes;
+            juce::PNGImageFormat png;
+            expect (png.writeImageToStream (opaqueArtwork, artworkBytes));
+            expect (artworkFile.replaceWithData (
+                artworkBytes.getData(), artworkBytes.getDataSize()));
+
+            AlbumArtworkComponent artwork;
+            artwork.setBounds (0, 0, 40, 40);
+            artwork.setLookAndFeel (&adapter);
+            artwork.setTrack ("track-id", "Track", artworkFile);
+            juce::Image image (juce::Image::ARGB, 40, 40, true);
+            {
+                juce::Graphics graphics (image);
+                artwork.paint (graphics);
+            }
+            expect (image.getPixelAt (20, 20).getAlpha() > 0,
+                    "the opaque artwork centre must be painted");
+            expect (image.getPixelAt (20, 1).getAlpha() > 0,
+                    "the rounded clip must retain pixels away from the corners");
+            expect (image.getPixelAt (0, 0).isTransparent(),
+                    "the actual artwork corner must be clipped to transparency");
+            artwork.setLookAndFeel (nullptr);
+            expect (artworkFile.deleteFile());
         }
     }
 };

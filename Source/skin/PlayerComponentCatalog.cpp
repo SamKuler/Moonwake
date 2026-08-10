@@ -106,6 +106,13 @@ std::set<SkinLayoutEntry> workspaces()
     return { SkinLayoutEntry::studio, SkinLayoutEntry::listening };
 }
 
+SkinComponentDescriptor makeImportDescriptor()
+{
+    auto result = makeIconDescriptor ("library.add", "add", workspaces());
+    result.slots.push_back ({ "icon.close", "surface" });
+    return result;
+}
+
 const std::map<juce::String, juce::String>& iconPathData()
 {
     static const std::map<juce::String, juce::String> paths {
@@ -143,7 +150,8 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("workspace.listening", Kind::textButton, workspaces()),
         makeIconDescriptor ("settings.open", "settings", workspaces()),
 
-        makeIconDescriptor ("library.add", "add", workspaces()),
+        makeImportDescriptor(),
+        makeDescriptor ("library.search", Kind::textEditor),
         makeLabelDescriptor ("queue.title"),
         makeLabelDescriptor ("queue.count", "right"),
         makeDescriptor ("queue.table", Kind::table, workspaces(), {}, {}, {
@@ -157,7 +165,9 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeIconDescriptor ("queue.moveUp", "moveUp"),
         makeIconDescriptor ("queue.moveDown", "moveDown"),
 
-        makeDescriptor ("artwork.cover", Kind::artwork, {}, {}, {}, {
+        makeDescriptor ("artwork.cover", Kind::artwork, {},
+                        { "contain", "cover" },
+                        { { "contain", "artwork" }, { "cover", "artwork" } }, {
             Slot { "frame.background", "surface" }, Slot { "frame.overlay", "surface" }
         }),
         makeLabelDescriptor ("artwork.metadata", "center"),

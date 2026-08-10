@@ -18,7 +18,7 @@
           {
             "id": "listening-art", "type": "column", "width": "38%", "padding": 14, "gap": 8, "style": "surface.default",
             "children": [
-              { "id": "listening-cover", "type": "component", "component": "artwork.cover", "grow": 1 },
+              { "id": "listening-cover", "type": "component", "component": "artwork.cover", "presentation": "contain", "grow": 1 },
               { "id": "listening-meta", "type": "component", "component": "artwork.metadata", "height": 24 }
             ]
           },
@@ -38,7 +38,11 @@
                       { "id": "listening-add", "type": "component", "component": "library.add", "width": 108, "height": 36, "focusOrder": 40 }
                     ]
                   },
-                  { "id": "listening-queue", "type": "component", "component": "queue.table", "grow": 1, "focusOrder": 50 }
+                  { "id": "listening-library-search", "type": "component", "component": "library.search", "height": 34, "focusOrder": 45 },
+                  { "id": "listening-queue-stack", "type": "stack", "grow": 1, "children": [
+                    { "id": "listening-queue", "type": "component", "component": "queue.table", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 }, "focusOrder": 50 },
+                    { "id": "listening-queue-empty", "type": "component", "component": "queue.empty", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 } }
+                  ] }
                 ]
               },
               { "id": "listening-seek", "type": "component", "component": "transport.seek", "presentation": "linearHorizontal", "height": 30, "focusOrder": 90 },

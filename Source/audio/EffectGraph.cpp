@@ -58,7 +58,51 @@ void EffectGraph::releaseResources()
 
 void EffectGraph::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
+    if (stateCaptureRequested.load (std::memory_order_acquire))
+        return;
+
+    activeProcessCallbacks.fetch_add (1, std::memory_order_acq_rel);
+    if (stateCaptureRequested.load (std::memory_order_acquire))
+    {
+        activeProcessCallbacks.fetch_sub (1, std::memory_order_release);
+        return;
+    }
+
+    struct ActiveCallbackScope
+    {
+        std::atomic<int>& count;
+        ~ActiveCallbackScope()
+        {
+            count.fetch_sub (1, std::memory_order_release);
+        }
+    } active { activeProcessCallbacks };
     graph.processBlock (buffer, midi);
+}
+
+bool EffectGraph::beginStateCapture (int timeoutMilliseconds)
+{
+    bool expected = false;
+    if (! stateCaptureRequested.compare_exchange_strong (
+            expected, true, std::memory_order_acq_rel))
+        return false;
+
+    const auto startedAt = juce::Time::getMillisecondCounterHiRes();
+    while (activeProcessCallbacks.load (std::memory_order_acquire) != 0)
+    {
+        if (juce::Time::getMillisecondCounterHiRes() - startedAt
+            >= juce::jmax (1, timeoutMilliseconds))
+        {
+            stateCaptureRequested.store (false, std::memory_order_release);
+            return false;
+        }
+        juce::Thread::sleep (1);
+    }
+    return true;
+}
+
+void EffectGraph::endStateCapture() noexcept
+{
+    stateCaptureRequested.store (false, std::memory_order_release);
 }
 
 bool EffectGraph::addProcessor (int slotId,
@@ -102,10 +146,42 @@ bool EffectGraph::removeProcessor (int slotId)
     if (position == slots.end())
         return false;
 
-    const auto nodeId = position->node->nodeID;
+    const auto index = std::distance (slots.begin(), position);
+    auto removedSlot = *position;
     slots.erase (position);
-    graph.removeNode (nodeId, juce::AudioProcessorGraph::UpdateKind::none);
-    return rebuildConnections();
+    if (! rebuildConnections())
+    {
+        slots.insert (slots.begin() + index,
+                      std::move (removedSlot));
+        static_cast<void> (rebuildConnections());
+        return false;
+    }
+
+    graph.removeNode (removedSlot.node->nodeID,
+                      juce::AudioProcessorGraph::UpdateKind::none);
+    graph.rebuild();
+    return true;
+}
+
+bool EffectGraph::clearProcessors()
+{
+    if (slots.empty())
+        return true;
+
+    auto removedSlots = slots;
+    slots.clear();
+    if (! rebuildConnections())
+    {
+        slots = std::move (removedSlots);
+        static_cast<void> (rebuildConnections());
+        return false;
+    }
+
+    for (const auto& removed : removedSlots)
+        graph.removeNode (removed.node->nodeID,
+                          juce::AudioProcessorGraph::UpdateKind::none);
+    graph.rebuild();
+    return true;
 }
 
 bool EffectGraph::moveProcessor (int fromIndex, int toIndex)
@@ -117,10 +193,16 @@ bool EffectGraph::moveProcessor (int fromIndex, int toIndex)
     if (fromIndex == toIndex)
         return true;
 
+    auto previousSlots = slots;
     auto slot = slots[static_cast<size_t> (fromIndex)];
     slots.erase (slots.begin() + fromIndex);
     slots.insert (slots.begin() + toIndex, std::move (slot));
-    return rebuildConnections();
+    if (rebuildConnections())
+        return true;
+
+    slots = std::move (previousSlots);
+    static_cast<void> (rebuildConnections());
+    return false;
 }
 
 bool EffectGraph::setProcessorOrder (const std::vector<int>& orderedSlotIds)
@@ -143,8 +225,14 @@ bool EffectGraph::setProcessorOrder (const std::vector<int>& orderedSlotIds)
         reordered.push_back (*position);
     }
 
+    auto previousSlots = slots;
     slots = std::move (reordered);
-    return rebuildConnections();
+    if (rebuildConnections())
+        return true;
+
+    slots = std::move (previousSlots);
+    static_cast<void> (rebuildConnections());
+    return false;
 }
 
 bool EffectGraph::setBypassed (int slotId, bool shouldBypass)

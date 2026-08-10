@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.1.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.2.0 LANGUAGES C CXX)
+
+if (APPLE)
+    enable_language(OBJCXX)
+    set(MOONWAKE_MAC_SOURCES Source/audio/MacEmbeddedArtworkReader.mm)
+endif()
 
 enable_testing()
 
@@ -8,15 +13,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-include(FetchContent)
-
-FetchContent_Declare(
-    JUCE
-    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG 8.0.12
-)
-
-FetchContent_MakeAvailable(JUCE)
+set(MOONWAKE_JUCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/JUCE")
+if (NOT EXISTS "${MOONWAKE_JUCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "JUCE submodule is missing. Run: git submodule update --init --recursive")
+endif()
+add_subdirectory("${MOONWAKE_JUCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE")
 
 file(GLOB_RECURSE MOONWAKE_SKIN_RESOURCE_FILES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Skins/*"
@@ -114,21 +116,29 @@ target_link_libraries(MoonwakeHostingFixture
 )
 
 set(MOONWAKE_SOURCES
+    ${MOONWAKE_MAC_SOURCES}
     Source/app/ProductPaths.cpp
     Source/app/PlaybackCoordinator.cpp
     Source/app/PlayerController.cpp
     Source/app/PlaybackEndDetector.cpp
+    Source/app/AutoSaveScheduler.cpp
     Source/audio/AudioEngine.cpp
     Source/audio/ChannelRouter.cpp
     Source/audio/ChannelMappedAudioSource.cpp
     Source/audio/EffectGraph.cpp
     Source/audio/OutputLayout.cpp
     Source/audio/TrackMetadataReader.cpp
+    Source/library/ArtworkExtractor.cpp
+    Source/library/ArtworkStore.cpp
+    Source/library/LibraryFilter.cpp
+    Source/library/LibraryImportService.cpp
+    Source/playlist/TrackFileIdentity.cpp
     Source/playlist/PlaylistModel.cpp
     Source/plugins/EffectChainState.cpp
     Source/plugins/PluginManager.cpp
     Source/plugins/PluginScanProcess.cpp
     Source/state/AppStateStore.cpp
+    Source/state/StateSaveService.cpp
     Source/skin/SkinCompatibilityChecker.cpp
     Source/skin/SkinBuiltInPackages.cpp
     Source/skin/SkinCompiler.cpp
@@ -176,6 +186,7 @@ juce_add_gui_app(Moonwake
     PRODUCT_NAME "Moonwake"
     VERSION "${PROJECT_VERSION}"
     BUILD_VERSION "${PROJECT_VERSION}"
+    DOCUMENT_EXTENSIONS wav aiff aif mp3 flac m4a aac alac caf ogg
 )
 
 target_sources(Moonwake
@@ -195,6 +206,7 @@ target_compile_definitions(Moonwake
         JUCE_USE_CURL=0
         JUCE_PLUGINHOST_AU=1
         JUCE_PLUGINHOST_VST3=1
+        JUCE_USE_MP3AUDIOFORMAT=1
 )
 
 target_link_libraries(Moonwake
@@ -215,10 +227,20 @@ add_dependencies(Moonwake MoonwakePluginScanner)
 
 if (APPLE)
     target_compile_options(Moonwake PRIVATE -Wno-deprecated -Wno-deprecated-declarations)
-    target_link_libraries(Moonwake PRIVATE "-framework CoreAudioKit")
+    target_link_libraries(Moonwake PRIVATE
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework CoreAudioKit"
+    )
     option(MOONWAKE_ADHOC_SIGN_LOCAL_BUILDS
         "Ad-hoc sign local Moonwake bundles after embedding the scanner helper" ON)
     add_custom_command(TARGET Moonwake POST_BUILD
+        COMMAND /usr/libexec/PlistBuddy -c
+            "Set :CFBundleDocumentTypes:0:CFBundleTypeRole Viewer"
+            "$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Info.plist"
+        COMMAND /usr/libexec/PlistBuddy -c
+            "Set :CFBundleDocumentTypes:0:LSHandlerRank Alternate"
+            "$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Info.plist"
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Helpers"
         COMMAND ${CMAKE_COMMAND} -E rm -rf
@@ -240,21 +262,29 @@ if (APPLE)
 endif()
 
 add_executable(MoonwakeTests
+        ${MOONWAKE_MAC_SOURCES}
         Source/app/ProductPaths.cpp
         Source/app/PlaybackCoordinator.cpp
         Source/app/PlayerController.cpp
         Source/audio/AudioEngine.cpp
         Source/audio/TrackMetadataReader.cpp
+        Source/library/ArtworkExtractor.cpp
+        Source/library/ArtworkStore.cpp
+        Source/library/LibraryFilter.cpp
+        Source/library/LibraryImportService.cpp
         Source/audio/ChannelRouter.cpp
         Source/audio/ChannelMappedAudioSource.cpp
         Source/audio/EffectGraph.cpp
+        Source/playlist/TrackFileIdentity.cpp
         Source/playlist/PlaylistModel.cpp
         Source/plugins/EffectChainState.cpp
         Source/plugins/PluginManager.cpp
         Source/plugins/PluginScanProcess.cpp
         Source/app/PlaybackEndDetector.cpp
+        Source/app/AutoSaveScheduler.cpp
         Source/audio/OutputLayout.cpp
         Source/state/AppStateStore.cpp
+        Source/state/StateSaveService.cpp
         Source/skin/SkinCompatibilityChecker.cpp
         Source/skin/SkinBuiltInPackages.cpp
         Source/skin/SkinCompiler.cpp
@@ -328,6 +358,12 @@ add_executable(MoonwakeTests
         Tests/SkinTokenStoreTests.cpp
         Tests/SkinToolTests.cpp
         Tests/TrackMetadataReaderTests.cpp
+        Tests/ArtworkExtractorTests.cpp
+        Tests/AutoSaveSchedulerTests.cpp
+        Tests/StateSaveServiceTests.cpp
+        Tests/ArtworkStoreTests.cpp
+        Tests/LibraryFilterTests.cpp
+        Tests/LibraryImportServiceTests.cpp
 )
 
 target_include_directories(MoonwakeTests
@@ -341,6 +377,7 @@ target_compile_definitions(MoonwakeTests
         JUCE_USE_CURL=0
         JUCE_PLUGINHOST_AU=1
         JUCE_PLUGINHOST_VST3=1
+        JUCE_MODAL_LOOPS_PERMITTED=1
         MOONWAKE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         JUCE_ENABLE_ALLOCATION_HOOKS=1
         MOONWAKE_PLUGIN_SCANNER_PATH="$<TARGET_FILE:MoonwakePluginScanner>"
@@ -349,7 +386,10 @@ target_compile_definitions(MoonwakeTests
 get_target_property(MOONWAKE_TEST_VST3_PATH
     MoonwakeHostingFixture_VST3 JUCE_PLUGIN_ARTEFACT_FILE)
 target_compile_definitions(MoonwakeTests
-    PRIVATE MOONWAKE_TEST_VST3_PATH="${MOONWAKE_TEST_VST3_PATH}")
+    PRIVATE
+        JUCE_USE_MP3AUDIOFORMAT=1
+        MOONWAKE_TEST_VST3_PATH="${MOONWAKE_TEST_VST3_PATH}"
+)
 
 add_dependencies(MoonwakeTests
     MoonwakePluginScanner
@@ -373,7 +413,15 @@ target_link_libraries(MoonwakeTests
 )
 
 if (APPLE)
-    target_link_libraries(MoonwakeTests PRIVATE "-framework CoreAudioKit")
+    target_compile_options(MoonwakeTests PRIVATE
+        -Wno-deprecated
+        -Wno-deprecated-declarations
+    )
+    target_link_libraries(MoonwakeTests PRIVATE
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework CoreAudioKit"
+    )
 endif()
 
 add_test(NAME MoonwakeTests COMMAND MoonwakeTests)
@@ -384,6 +432,12 @@ if (APPLE AND MOONWAKE_ADHOC_SIGN_LOCAL_BUILDS)
     add_test(NAME MoonwakeBundleSignature
         COMMAND /usr/bin/codesign --verify --deep --strict --verbose=2
             "$<TARGET_BUNDLE_DIR:Moonwake>")
+endif()
+if (APPLE)
+    add_test(NAME MoonwakeDocumentRole
+        COMMAND ${CMAKE_COMMAND}
+            -DINFO_PLIST=$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Info.plist
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/Tests/VerifyBundleDocumentRole.cmake)
 endif()
 
 add_executable(MoonwakeSkinTool

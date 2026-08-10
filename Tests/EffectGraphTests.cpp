@@ -103,6 +103,48 @@ public:
             expect (graph.getProcessor (10) == nullptr);
         }
 
+        beginTest ("clears the complete effect chain in one graph update");
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, juce::AudioChannelSet::stereo());
+            juce::String error;
+            expect (graph.addProcessor (1, std::make_unique<TestEffect> (2.0f), error), error);
+            expect (graph.addProcessor (2, std::make_unique<TestEffect> (3.0f), error), error);
+            expect (graph.clearProcessors());
+            expectEquals (graph.size(), 0);
+            expect (graph.clearProcessors());
+
+            juce::AudioBuffer<float> buffer (2, 64);
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                    buffer.setSample (channel, sample, 1.0f);
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 1.0f, 0.0001f);
+        }
+
+        beginTest ("state capture bypasses effects without blocking the audio path");
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, juce::AudioChannelSet::stereo());
+            juce::String error;
+            expect (graph.addProcessor (
+                1, std::make_unique<TestEffect> (2.0f), error), error);
+            expect (graph.beginStateCapture());
+
+            juce::AudioBuffer<float> buffer (2, 64);
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                    buffer.setSample (channel, sample, 1.0f);
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 1.0f, 0.0001f);
+
+            graph.endStateCapture();
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 2.0f, 0.0001f);
+        }
+
         beginTest ("rejects a stereo-only effect in an active 5.1 graph");
         {
             EffectGraph graph;

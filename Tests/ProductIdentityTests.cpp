@@ -28,7 +28,7 @@ public:
             expectEquals (juce::String (MoonwakeIdentity::scannerBundleId),
                           juce::String ("com.samkuler.moonwake.scanner"));
             expectEquals (juce::String (MoonwakeIdentity::version),
-                          juce::String ("0.1.0"));
+                          juce::String ("0.2.0"));
             expectEquals (juce::String (MoonwakeIdentity::skinApiName),
                           juce::String ("Moonwake Skin API"));
             expectEquals (MoonwakeIdentity::skinApiVersion, 1);
@@ -62,6 +62,9 @@ public:
             expect (ProductPaths::installedSkinsRoot().getParentDirectory() == root);
             expectEquals (ProductPaths::installedSkinsRoot().getFileName(),
                           juce::String ("Skins"));
+            expect (ProductPaths::artworkCacheRoot().getParentDirectory() == root);
+            expectEquals (ProductPaths::artworkCacheRoot().getFileName(),
+                          juce::String ("Artwork"));
         }
     }
 };

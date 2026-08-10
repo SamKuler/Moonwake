@@ -21,4 +21,9 @@ juce::File installedSkinsRoot()
 {
     return applicationDataRoot().getChildFile ("Skins");
 }
+
+juce::File artworkCacheRoot()
+{
+    return applicationDataRoot().getChildFile ("Artwork");
+}
 }

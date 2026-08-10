@@ -202,6 +202,42 @@ public:
             }
         }
 
+#if JUCE_MAC || JUCE_LINUX
+        beginTest ("directory capture copies long non-ASCII external paths");
+        {
+            TemporaryDirectory temporary;
+            auto externalRoot = temporary.directory;
+            const auto longSegment = juce::String::fromUTF8 ("外部皮肤路径-")
+                                     + juce::String::repeatedString ("long-segment-", 5);
+            for (int i = 0; i < 6; ++i)
+                externalRoot = externalRoot.getChildFile (longSegment + juce::String (i));
+
+            const auto source = externalRoot.getChildFile (
+                juce::String::fromUTF8 ("待安装皮肤"));
+            const auto snapshots = temporary.directory.getChildFile ("snapshots");
+            expect (source.createDirectory().wasOk());
+            expect (snapshots.createDirectory().wasOk());
+            expect (source.getFullPathName().getNumBytesAsUTF8() > 500);
+
+            const auto contents = juce::String::fromUTF8 ("复制自非 ASCII 外部路径");
+            const auto sourceFile = writeTextFile (
+                source, juce::String::fromUTF8 ("assets/图标.txt"), contents);
+            expect (sourceFile.existsAsFile());
+
+            SkinValidationReport report;
+            auto package = SkinPackage::captureSnapshot (source, snapshots, report);
+            expect (package.has_value(), report.toText());
+            if (package)
+            {
+                expect (package->contains (juce::String::fromUTF8 ("assets/图标.txt")));
+                expectEquals (package->readText (
+                                  juce::String::fromUTF8 ("assets/图标.txt"), report),
+                              contents);
+                expect (package->verifySnapshotDigest (report), report.toText());
+            }
+        }
+#endif
+
         beginTest ("directory capture rejects links and special aliases");
 #if JUCE_MAC || JUCE_LINUX
         {

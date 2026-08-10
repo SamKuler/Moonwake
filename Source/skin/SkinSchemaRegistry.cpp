@@ -463,7 +463,8 @@ juce::var layoutSchema()
     componentAdditions.getDynamicObject()->setProperty ("focusOrder",
                                                          boundedNumber ("integer", 1, 100000));
     componentAdditions.getDynamicObject()->setProperty (
-        "presentation", enumSchema ({ "linearHorizontal", "rotary" }));
+        "presentation", enumSchema (
+            { "linearHorizontal", "rotary", "contain", "cover" }));
     auto component = nodeSchema ("component", componentAdditions, { "component" });
 
     auto visualAdditions = object();
