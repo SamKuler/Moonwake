@@ -538,6 +538,20 @@ juce::Colour renderCentre (const SkinRenderStyleEntry& style, bool selected = fa
     return image.getPixelAt (16, 16);
 }
 
+juce::Colour renderCentreWithContext (const SkinRenderStyleEntry& style,
+                                      SkinRenderContext context)
+{
+    juce::Image image (juce::Image::ARGB, 160, 36, true);
+    juce::Graphics graphics (image);
+    context.bounds = image.getBounds().toFloat();
+    context.contentBounds = context.bounds;
+    context.state.enabled = true;
+    SkinRenderer renderer (style.assets);
+    SilentFaultSink sink;
+    renderer.draw (graphics, style.renderer, context, true, sink);
+    return image.getPixelAt (80, 18);
+}
+
 template <typename Callback>
 void visitLayoutComponents (const SkinLayoutNode& node,
                             const juce::String& parentId,
@@ -726,10 +740,12 @@ public:
                 "fonts.title");
             expect (foundationBody != nullptr && foundationBody->weight == 400
                     && foundationBody->families
-                        == juce::StringArray ({ "sans-serif" }));
+                        == juce::StringArray ({ "Helvetica Neue", "Arial",
+                                                "sans-serif" }));
             expect (foundationTitle != nullptr && foundationTitle->weight == 600
                     && foundationTitle->families
-                        == juce::StringArray ({ "sans-serif" }));
+                        == juce::StringArray ({ "Avenir Next", "Helvetica Neue",
+                                                "sans-serif" }));
 
             const auto* body = defaultSkin->tokens.find<SkinFontValue> (
                 "fonts.workspaceBody");
@@ -740,14 +756,18 @@ public:
             const auto* data = defaultSkin->tokens.find<SkinFontValue> (
                 "fonts.workspaceData");
             expect (body != nullptr && body->weight == 400
-                    && body->families == juce::StringArray ({ "sans-serif" }));
-            expect (medium != nullptr && medium->weight == 500
-                    && medium->families == juce::StringArray ({ "sans-serif" }));
+                    && body->families == juce::StringArray ({
+                        "Avenir Next", "Helvetica Neue", "sans-serif" }));
+            expect (medium != nullptr && medium->weight == 600
+                    && medium->families == juce::StringArray ({
+                        "Avenir Next", "Helvetica Neue", "sans-serif" }));
             expect (title != nullptr && title->weight == 600
-                    && title->families == juce::StringArray ({ "sans-serif" }));
+                    && title->families == juce::StringArray ({
+                        "Avenir Next", "Helvetica Neue", "sans-serif" }));
             expect (data != nullptr && data->weight == 500
-                    && ! data->families.isEmpty() && data->families[0] == "monospace"
-                    && std::abs (data->tracking - 0.02f) < 0.0001f);
+                    && data->families == juce::StringArray ({
+                        "SF Mono", "Menlo", "monospace" })
+                    && std::abs (data->tracking - 0.015f) < 0.0001f);
 
             for (const auto* styleName : {
                      "label.studioData", "label.studioTable",
@@ -1082,6 +1102,25 @@ public:
                     defaultSkin->renderers.at (style), layer, property);
                 expect (colour && token (tokenPath) && *colour == *token (tokenPath),
                         style);
+            }
+
+            for (const auto* skin : { foundation.get(), defaultSkin.get() })
+            {
+                const auto& popup = skin->renderers.at ("popupMenu.default");
+                SkinRenderContext background;
+                background.menuPart = "background";
+                expect (! renderCentreWithContext (popup, background).isTransparent(),
+                        "A popup must draw one outer surface.");
+
+                SkinRenderContext normalItem;
+                normalItem.menuPart = "item";
+                normalItem.menuItemIndex = 0;
+                expect (renderCentreWithContext (popup, normalItem).isTransparent(),
+                        "A normal popup item must not redraw the outer card.");
+
+                normalItem.state.hover = true;
+                expect (! renderCentreWithContext (popup, normalItem).isTransparent(),
+                        "A hovered popup item must draw a single highlight.");
             }
         }
 

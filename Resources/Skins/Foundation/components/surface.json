@@ -1,6 +1,6 @@
 {
   "apiVersion": 1, "target": "surface",
-  "layers": [{ "id": "surface", "type": "roundedRect", "frame": { "anchor": "bounds" }, "radius": { "$ref": "metrics.panelRadius" }, "fill": { "$ref": "colors.surface" } }],
+  "layers": [{ "id": "surface", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.panelRadius" }, "fill": { "$ref": "colors.surface" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1, "placement": "inside" } }],
   "variants": {
     "selected": { "surface.fill": { "$ref": "colors.controlActive" } },
     "hover": { "surface.opacity": 0.9 }

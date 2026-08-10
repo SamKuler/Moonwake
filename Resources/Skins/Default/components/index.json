@@ -135,9 +135,9 @@
     "studio": {
       "renderer": "components/studio-table.json",
       "slots": {
-        "header.surface": "surface.studio",
+        "header.surface": "surface.studioListRow",
         "header.text": "label.studioTable",
-        "row.surface": "surface.studio",
+        "row.surface": "surface.studioListRow",
         "cell.title": "label.studioTable",
         "cell.location": "label.studioTableMetadata",
         "cell.duration": "label.studioTable"
@@ -146,9 +146,9 @@
     "listening": {
       "renderer": "components/listening-table.json",
       "slots": {
-        "header.surface": "surface.listening",
+        "header.surface": "surface.listeningListRow",
         "header.text": "label.listeningTable",
-        "row.surface": "surface.listening",
+        "row.surface": "surface.listeningListRow",
         "cell.title": "label.listeningTable",
         "cell.location": "label.listeningTableMetadata",
         "cell.duration": "label.listeningTable"
@@ -158,7 +158,9 @@
   "surface": {
     "studio": "components/studio-surface.json",
     "studioCanvas": "components/studio-canvas.json",
+    "studioListRow": "components/studio-list-row.json",
     "listening": "components/listening-surface.json",
+    "listeningListRow": "components/listening-list-row.json",
     "listeningSkinCard": "components/listening-skin-card.json",
     "listeningReadOnlyRow": "components/listening-read-only-row.json",
     "listeningCanvas": "components/listening-canvas.json",
@@ -207,7 +209,7 @@
     "listening": {
       "renderer": "components/listening-plugin-list.json",
       "slots": {
-        "row.surface": "surface.listening",
+        "row.surface": "surface.listeningListRow",
         "row.name": "label.listening",
         "row.manufacturer": "label.listeningMuted",
         "row.format": "label.listeningMuted",

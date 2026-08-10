@@ -167,7 +167,7 @@ private:
         if (! juce::isPositiveAndBelow (rowNumber,
                                         static_cast<int> (selections.size())))
             return;
-        auto row = juce::Rectangle<int> (0, 0, width, height).reduced (3, 4);
+        auto row = juce::Rectangle<int> (0, 0, width, height).reduced (1, 0);
         const auto& description = selections[static_cast<size_t> (rowNumber)];
         const auto& selection = description.selection;
         const auto builtIn = description.builtIn;
@@ -196,10 +196,11 @@ private:
                 "row.surface", SkinRenderTarget::surface,
                 rowContext, rowKey));
 
-        auto content = row.reduced (12, 0);
-        auto statusBounds = content.removeFromRight (78).reduced (0, 10);
-        content.removeFromRight (10);
-        auto versionBounds = content.removeFromRight (58);
+        auto content = row.reduced (14, 0);
+        auto statusBounds = content.removeFromRight (76).reduced (0, 11);
+        content.removeFromRight (8);
+        auto versionBounds = content.removeFromRight (52);
+        content.removeFromRight (8);
         auto nameBounds = content.removeFromTop (28);
         auto authorBounds = content;
         drawTextSlot (graphics, nameBounds, "row.name", displayName (description),
@@ -327,7 +328,7 @@ private:
     SkinSelection activeSelection;
     bool previewActive = false;
     int firstVisibleRow = 0;
-    static constexpr int rowHeight = 68;
+    static constexpr int rowHeight = 56;
     std::function<void()> selectionChanged;
 };
 

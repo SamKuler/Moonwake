@@ -24,6 +24,20 @@ if (NOT EXISTS "${MOONWAKE_JUCE_DIR}/CMakeLists.txt")
 endif()
 add_subdirectory("${MOONWAKE_JUCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE")
 
+if (APPLE)
+    # Keep JUCE's recommended warnings enabled for Moonwake sources while
+    # silencing warnings that originate inside the vendored JUCE modules.
+    set_property(SOURCE
+        "${MOONWAKE_JUCE_DIR}/modules/juce_audio_processors_headless/juce_audio_processors_headless.mm"
+        APPEND PROPERTY COMPILE_OPTIONS -Wno-deprecated-declarations)
+    set_property(SOURCE
+        "${MOONWAKE_JUCE_DIR}/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.mm"
+        APPEND PROPERTY COMPILE_OPTIONS -Wno-deprecated-declarations)
+    set_property(SOURCE
+        "${MOONWAKE_JUCE_DIR}/modules/juce_events/juce_events.mm"
+        APPEND PROPERTY COMPILE_OPTIONS -Wno-implicit-int-float-conversion)
+endif()
+
 file(GLOB_RECURSE MOONWAKE_SKIN_RESOURCE_FILES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Skins/*"
 )
@@ -85,7 +99,6 @@ target_link_libraries(MoonwakePluginScanner
 )
 
 if (APPLE)
-    target_compile_options(MoonwakePluginScanner PRIVATE -Wno-deprecated -Wno-deprecated-declarations)
     target_link_libraries(MoonwakePluginScanner PRIVATE "-framework CoreAudioKit")
 endif()
 
@@ -233,7 +246,6 @@ target_link_libraries(Moonwake
 add_dependencies(Moonwake MoonwakePluginScanner)
 
 if (APPLE)
-    target_compile_options(Moonwake PRIVATE -Wno-deprecated -Wno-deprecated-declarations)
     target_link_libraries(Moonwake PRIVATE
         "-framework AudioToolbox"
         "-framework AppKit"
@@ -426,10 +438,6 @@ target_link_libraries(MoonwakeTests
 )
 
 if (APPLE)
-    target_compile_options(MoonwakeTests PRIVATE
-        -Wno-deprecated
-        -Wno-deprecated-declarations
-    )
     target_link_libraries(MoonwakeTests PRIVATE
         "-framework AudioToolbox"
         "-framework AVFoundation"
@@ -499,7 +507,3 @@ target_link_libraries(MoonwakeSkinTool
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
 )
-
-if (APPLE)
-    target_compile_options(MoonwakeSkinTool PRIVATE -Wno-deprecated -Wno-deprecated-declarations)
-endif()

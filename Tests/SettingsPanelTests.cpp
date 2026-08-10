@@ -457,7 +457,7 @@ public:
             expectEquals (panel.libraryScrollPosition(), 1);
             if (auto* list = dynamic_cast<juce::ListBox*> (
                     &panel.libraryControl()))
-                expectEquals (list->getViewport()->getViewPositionY(), 68);
+                expectEquals (list->getViewport()->getViewPositionY(), 56);
             else
                 expect (false, "Skin library control must remain a native ListBox.");
             panel.libraryControl().mouseWheelMove (
@@ -536,28 +536,41 @@ public:
             expect (host.apply (SkinLayoutEntry::settings, root.getLocalBounds(),
                                 1.0f, report),
                     report.toText());
-            expect (audio.deviceControl().isVisible());
-            expect (audio.headingControl().isVisible());
-            expectEquals (audio.headingControl().getBounds().getY(),
-                          plugins.formatsControl().getBounds().getY());
-            expectEquals (audio.headingControl().getBounds().getY(),
-                          skins.headingControl().getBounds().getY());
-            expect (audio.deviceControl().getBounds().getWidth() > 250);
-            expect (plugins.knownListControl().isVisible());
-            expect (plugins.knownListControl().getBounds().getHeight() > 300);
-            expect (skins.libraryControl().isVisible());
+            expect (audio.deviceControl().isVisible(), "Audio device control must be visible.");
+            expect (audio.headingControl().isVisible(), "Audio heading must be visible.");
+            const auto audioHeadingBounds = root.getLocalArea (
+                &audio.headingControl(), audio.headingControl().getLocalBounds());
+            const auto pluginHeadingBounds = root.getLocalArea (
+                &plugins.formatsControl(), plugins.formatsControl().getLocalBounds());
+            const auto skinHeadingBounds = root.getLocalArea (
+                &skins.headingControl(), skins.headingControl().getLocalBounds());
+            expectEquals (audioHeadingBounds.getY(), pluginHeadingBounds.getY());
+            expect (skinHeadingBounds.getY() > pluginHeadingBounds.getY(),
+                    "Skins must be stacked below plug-ins; plugin y="
+                        + juce::String (pluginHeadingBounds.getY())
+                        + ", skins y="
+                        + juce::String (skinHeadingBounds.getY()));
+            expectEquals (pluginHeadingBounds.getX(), skinHeadingBounds.getX());
+            expect (audio.deviceControl().getBounds().getWidth() > 340,
+                    "Audio column must retain a usable width.");
+            expect (plugins.knownListControl().isVisible(),
+                    "Plug-in list must be visible.");
+            expect (plugins.knownListControl().getBounds().getHeight() > 180,
+                    "Plug-in list must retain useful vertical space.");
+            expect (skins.libraryControl().isVisible(),
+                    "Skin library must be visible.");
             auto* skinList = dynamic_cast<juce::ListBox*> (&skins.libraryControl());
             expect (skinList != nullptr);
             if (skinList != nullptr)
             {
-                expectEquals (skinList->getRowHeight(), 68);
+                expectEquals (skinList->getRowHeight(), 56);
                 expect (skinList->getHeaderComponent() == nullptr);
             }
             const auto importBounds = root.getLocalArea (
                 &skins.importControl(), skins.importControl().getLocalBounds());
             const auto libraryBounds = root.getLocalArea (
                 &skins.libraryControl(), skins.libraryControl().getLocalBounds());
-            expectEquals (libraryBounds.getHeight(), 136);
+            expectEquals (libraryBounds.getHeight(), 112);
             expect (importBounds.getY() > libraryBounds.getY());
             expect (importBounds.getY() - libraryBounds.getBottom() <= 12);
             const auto applyBounds = root.getLocalArea (
@@ -567,6 +580,22 @@ public:
                 skins.cancelPreviewControl().getLocalBounds());
             expectEquals (applyBounds.getY(), cancelBounds.getY());
             expectEquals (applyBounds.getHeight(), cancelBounds.getHeight());
+
+            root.setSize (1040, 700);
+            expect (host.apply (SkinLayoutEntry::settings, root.getLocalBounds(),
+                                1.0f, report),
+                    report.toText());
+            const auto compactAudio = root.getLocalArea (
+                &audio.deviceControl(), audio.deviceControl().getLocalBounds());
+            const auto compactPlugins = root.getLocalArea (
+                &plugins.knownListControl(), plugins.knownListControl().getLocalBounds());
+            const auto compactSkins = root.getLocalArea (
+                &skins.libraryControl(), skins.libraryControl().getLocalBounds());
+            expect (compactAudio.getWidth() >= 330);
+            expect (compactPlugins.getX() > compactAudio.getX());
+            expect (compactSkins.getX() == compactPlugins.getX());
+            expect (compactSkins.getY() > compactPlugins.getY());
+            expect (! compactPlugins.intersects (compactSkins));
             host.clear();
             static_cast<void> (rootDirectory.deleteRecursively());
         }

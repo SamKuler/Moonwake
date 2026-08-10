@@ -1,12 +1,19 @@
 {
   "apiVersion": 1, "target": "popupMenu",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": { "$ref": "colors.listening.surface" }, "stroke": { "color": { "$ref": "colors.listening.border" }, "width": 1 } },
-    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 12, "right": 12 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 13, "color": { "$ref": "colors.listening.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" }
+    { "id": "body", "type": "roundedRect", "visible": { "$expr": "menu.part == 'background'" }, "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": { "$ref": "colors.listening.surface" }, "stroke": { "color": { "$ref": "colors.listening.border" }, "width": 1, "placement": "inside" } },
+    { "id": "highlight", "type": "roundedRect", "visible": { "$expr": "menu.part == 'item' and (state.hover or state.selected)" }, "frame": { "anchor": "bounds", "inset": { "top": 2, "right": 6, "bottom": 2, "left": 6 } }, "radius": 6, "fill": "#B85C3820" },
+    { "id": "separator", "type": "rect", "visible": { "$expr": "menu.part == 'separator'" }, "frame": { "x": 12, "y": { "$expr": "bounds.height * 0.5" }, "width": { "$expr": "max(0, bounds.width - 24)" }, "height": 1 }, "fill": { "$ref": "colors.listening.border" } },
+    { "id": "label", "type": "text", "visible": { "$expr": "menu.part == 'item'" }, "frame": { "anchor": "contentBounds", "inset": { "left": 14, "right": 30 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 13, "color": { "$ref": "colors.listening.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "section", "type": "text", "visible": { "$expr": "menu.part == 'sectionHeader'" }, "frame": { "anchor": "contentBounds", "inset": { "left": 14, "right": 14 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceData" }, "fontSize": 10.5, "color": { "$ref": "colors.listening.muted" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
+    { "id": "check", "type": "text", "visible": { "$expr": "menu.part == 'item' and icon.name == 'checked'" }, "frame": { "x": { "$expr": "bounds.width - 27" }, "y": 0, "width": 17, "height": { "$expr": "bounds.height" } }, "text": "✓", "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 13, "color": { "$ref": "colors.listening.active" }, "align": "center", "maxLines": 1 },
+    { "id": "submenu", "type": "text", "visible": { "$expr": "menu.part == 'item' and icon.name == 'submenu'" }, "frame": { "x": { "$expr": "bounds.width - 27" }, "y": 0, "width": 17, "height": { "$expr": "bounds.height" } }, "text": "›", "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 17, "color": { "$ref": "colors.listening.muted" }, "align": "center", "maxLines": 1 },
+    { "id": "scroll-up", "type": "text", "visible": { "$expr": "menu.part == 'item' and icon.name == 'scrollUp'" }, "frame": { "anchor": "bounds" }, "text": "▲", "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 9, "color": { "$ref": "colors.listening.muted" }, "align": "center", "maxLines": 1 },
+    { "id": "scroll-down", "type": "text", "visible": { "$expr": "menu.part == 'item' and icon.name == 'scrollDown'" }, "frame": { "anchor": "bounds" }, "text": "▼", "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 9, "color": { "$ref": "colors.listening.muted" }, "align": "center", "maxLines": 1 }
   ],
   "variants": {
-    "selected": { "body.fill": { "$ref": "colors.listening.active" }, "label.color": { "$ref": "colors.listening.onActive" } },
-    "hover": { "body.fill": { "$ref": "colors.listening.active" }, "label.color": { "$ref": "colors.listening.onActive" } },
+    "selected": { "highlight.fill": "#B85C3828" },
+    "hover": { "highlight.fill": "#B85C3820" },
     "disabled": { "label.opacity": 0.45 }
   }
 }

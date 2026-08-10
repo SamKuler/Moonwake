@@ -16,7 +16,7 @@
         "id": "listening-content", "type": "row", "padding": 12, "gap": 12, "grow": 1,
         "children": [
           {
-            "id": "listening-art", "type": "column", "width": "38%", "padding": 14, "gap": 8, "style": "surface.listening",
+            "id": "listening-art", "type": "column", "width": "34%", "padding": 14, "gap": 8, "style": "surface.listening",
             "children": [
               { "id": "listening-cover", "type": "component", "component": "artwork.cover", "presentation": "contain", "style": "artwork.listening", "grow": 1 },
               { "id": "listening-meta", "type": "component", "component": "artwork.metadata", "style": "label.listeningMuted", "height": 24 }
@@ -45,17 +45,22 @@
                   ] }
                 ]
               },
-              { "id": "listening-seek", "type": "component", "component": "transport.seek", "presentation": "linearHorizontal", "style": "linearSlider.listening", "height": 30, "focusOrder": 90 },
-              { "id": "listening-time", "type": "component", "component": "transport.time", "style": "label.listeningData", "height": 20 },
               {
-                "id": "listening-controls", "type": "row", "height": 88, "gap": 8, "align": "center",
+                "id": "listening-transport", "type": "column", "height": 108, "padding": { "top": 8, "right": 12, "bottom": 8, "left": 12 }, "gap": 4, "style": "surface.listening",
                 "children": [
-                  { "id": "listening-previous", "type": "component", "component": "transport.previous", "style": "textButton.listeningIconNeutral", "width": 48, "height": 44, "focusOrder": 60 },
-                  { "id": "listening-play", "type": "component", "component": "transport.playPause", "style": "textButton.listeningIconPrimary", "width": 56, "height": 48, "focusOrder": 70 },
-                  { "id": "listening-next", "type": "component", "component": "transport.next", "style": "textButton.listeningIconNeutral", "width": 48, "height": 44, "focusOrder": 80 },
-                  { "id": "listening-effects", "type": "component", "component": "effects.open", "style": "textButton.listeningIconNeutral", "width": 48, "height": 40, "focusOrder": 110 },
-                  { "id": "listening-spacer", "type": "visual", "style": "surface.listeningCanvas", "grow": 1 },
-                  { "id": "listening-volume", "type": "component", "component": "transport.volume", "presentation": "rotary", "style": "rotarySlider.listening", "width": 88, "height": 88, "focusOrder": 100 }
+                  { "id": "listening-seek", "type": "component", "component": "transport.seek", "presentation": "linearHorizontal", "style": "linearSlider.listening", "height": 28, "focusOrder": 90 },
+                  {
+                    "id": "listening-controls", "type": "row", "height": 60, "gap": 8, "align": "center",
+                    "children": [
+                      { "id": "listening-previous", "type": "component", "component": "transport.previous", "style": "textButton.listeningIconNeutral", "width": 44, "height": 40, "focusOrder": 60 },
+                      { "id": "listening-play", "type": "component", "component": "transport.playPause", "style": "textButton.listeningIconPrimary", "width": 52, "height": 44, "focusOrder": 70 },
+                      { "id": "listening-next", "type": "component", "component": "transport.next", "style": "textButton.listeningIconNeutral", "width": 44, "height": 40, "focusOrder": 80 },
+                      { "id": "listening-effects", "type": "component", "component": "effects.open", "style": "textButton.listeningIconNeutral", "width": 44, "height": 40, "focusOrder": 110 },
+                      { "id": "listening-spacer", "type": "visual", "style": "surface.listeningCanvas", "grow": 1 },
+                      { "id": "listening-time", "type": "component", "component": "transport.time", "style": "label.listeningData", "width": 116, "height": 24 },
+                      { "id": "listening-volume", "type": "component", "component": "transport.volume", "presentation": "rotary", "style": "rotarySlider.listening", "width": 60, "height": 60, "focusOrder": 100 }
+                    ]
+                  }
                 ]
               }
             ]

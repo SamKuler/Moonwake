@@ -1,0 +1,4 @@
+{
+  "apiVersion": 1, "target": "surface",
+  "layers": [{ "id": "canvas", "type": "rect", "frame": { "anchor": "bounds" }, "fill": { "$ref": "colors.background" } }]
+}

@@ -221,10 +221,10 @@ AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,
     bufferSizeBox.setTitle ("Audio buffer size");
     channelLayoutBox.setTitle ("Multichannel output layout");
 
-    channelLayoutBox.addItem ("CHANNEL LAYOUT  /  Stereo / 2 channels", 1);
-    channelLayoutBox.addItem ("CHANNEL LAYOUT  /  5.1 / 6 channels", 2);
-    channelLayoutBox.addItem ("CHANNEL LAYOUT  /  5.1.2 / 8 channels", 3);
-    channelLayoutBox.addItem ("CHANNEL LAYOUT  /  7.1.2 / 10 channels", 4);
+    channelLayoutBox.addItem ("Stereo / 2 channels", 1);
+    channelLayoutBox.addItem ("5.1 Surround / 6 channels", 2);
+    channelLayoutBox.addItem ("5.1.2 Atmos / 8 channels", 3);
+    channelLayoutBox.addItem ("7.1.2 Atmos / 10 channels", 4);
 
     deviceBox.onChange = [this] { applyDeviceSelection(); };
     sampleRateBox.onChange = [this] { applySampleRateSelection(); };
@@ -278,15 +278,14 @@ void AudioSettingsPanel::refresh()
     availableDevices = settings.devices;
     deviceBox.clear (juce::dontSendNotification);
     for (int index = 0; index < availableDevices.size(); ++index)
-        deviceBox.addItem ("OUTPUT DEVICE  /  " + availableDevices[index], index + 1);
+        deviceBox.addItem (availableDevices[index], index + 1);
     const auto deviceIndex = availableDevices.indexOf (settings.currentDevice);
     deviceBox.setSelectedItemIndex (deviceIndex, juce::dontSendNotification);
 
     availableSampleRates = settings.sampleRates;
     sampleRateBox.clear (juce::dontSendNotification);
     for (int index = 0; index < availableSampleRates.size(); ++index)
-        sampleRateBox.addItem ("SAMPLE RATE  /  " + sampleRateLabel (availableSampleRates[index]),
-                               index + 1);
+        sampleRateBox.addItem (sampleRateLabel (availableSampleRates[index]), index + 1);
     sampleRateBox.setSelectedItemIndex (
         availableSampleRates.indexOf (settings.currentSampleRate),
         juce::dontSendNotification);
@@ -294,8 +293,7 @@ void AudioSettingsPanel::refresh()
     availableBufferSizes = settings.bufferSizes;
     bufferSizeBox.clear (juce::dontSendNotification);
     for (int index = 0; index < availableBufferSizes.size(); ++index)
-        bufferSizeBox.addItem ("BUFFER SIZE  /  " + juce::String (availableBufferSizes[index])
-                                   + " samples",
+        bufferSizeBox.addItem (juce::String (availableBufferSizes[index]) + " samples",
                                index + 1);
     bufferSizeBox.setSelectedItemIndex (
         availableBufferSizes.indexOf (settings.currentBufferSize),
