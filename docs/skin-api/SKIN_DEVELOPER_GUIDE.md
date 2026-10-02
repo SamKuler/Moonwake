@@ -1374,7 +1374,7 @@ outputStage 提供：
 | settings.audio.sampleRate | comboBox | 是 | 选择设备采样率 |
 | settings.audio.bufferSize | comboBox | 是 | 选择缓冲区 |
 | settings.audio.channelLayout | comboBox | 是 | 选择受支持的扬声器布局，受实际设备输出能力约束 |
-| settings.audio.channelMap | channelMap | 否 | 只读查看逻辑声道到 CoreAudio 输出端口的顺序映射；端口不可在皮肤内重排 |
+| settings.audio.channelMap | channelMap | 否 | 只读查看逻辑声道到当前设备实际启用端口的映射；优先使用设备端口名，缺失时显示物理编号 Output N；端口不可在皮肤内重排 |
 | settings.plugins.formats | label | 否 | VST3 与 AU 支持摘要 |
 | settings.plugins.knownList | pluginList | 否 | 已发现插件 |
 | settings.plugins.scanAll | textButton | 是 | 扫描标准 VST3/AU 位置 |

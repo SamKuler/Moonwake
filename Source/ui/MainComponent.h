@@ -144,6 +144,8 @@ private:
     juce::ToggleButton shuffleButton { "Shuffle" };
     juce::ComboBox repeatModeBox;
     juce::ComboBox outputLayoutBox;
+    std::optional<RepeatMode> lastSyncedRepeatMode;
+    std::optional<OutputLayout> lastSyncedOutputLayout;
     juce::Label titleLabel;
     juce::Label appEyebrowLabel;
     juce::Label nowPlayingEyebrowLabel;

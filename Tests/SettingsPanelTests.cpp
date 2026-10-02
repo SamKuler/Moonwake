@@ -54,6 +54,9 @@ public:
         state.bufferSize = setup.bufferSize;
         state.bufferSizes = found->second.buffers;
         state.availableOutputChannels = found->second.outputs;
+        state.activeOutputChannels = setup.outputChannels;
+        for (int channel = 0; channel < found->second.outputs; ++channel)
+            state.outputChannelNames.add ("Line Output " + juce::String (channel + 1));
         return state;
     }
     juce::AudioDeviceManager::AudioDeviceSetup getAudioDeviceSetup() const override
@@ -533,6 +536,30 @@ public:
                     "Unrelated status messages do not overwrite the startup diagnostic.");
         }
 
+        beginTest ("channel routing presents the active device ports in callback order");
+        {
+            auto backend = std::make_unique<PanelAudioBackend>();
+            auto* fake = backend.get();
+            PlayerController controller (std::move (backend));
+            expect (controller.selectOutputDevice ("Aggregate 10ch").isEmpty());
+            fake->setup.outputChannels.clear();
+            fake->setup.outputChannels.setBit (2);
+            fake->setup.outputChannels.setBit (7);
+            AudioSettingsPanel panel (controller, &foundationSkin.adapter);
+            panel.refresh();
+            auto* list = dynamic_cast<juce::ListBox*> (&panel.channelMapControl());
+            expect (list != nullptr);
+            if (list)
+            {
+                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to Line Output 3, connected"));
+                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to Line Output 8, connected"));
+                fake->setup.outputChannels.clear();
+                panel.refresh();
+                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to Unavailable, unavailable"));
+                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to Unavailable, unavailable"));
+            }
+        }
+
         beginTest ("Audio controls mirror capabilities and roll back rejected changes");
         {
             auto backend = std::make_unique<PanelAudioBackend>();
@@ -552,6 +579,8 @@ public:
             expectEquals (panel.sampleRateControl().getNumItems(), 2);
             expectEquals (panel.bufferSizeControl().getNumItems(), 2);
             expectEquals (panel.displayedChannelCount(), 2);
+            expect (panel.channelLayoutControl().isItemEnabled (static_cast<int> (OutputLayout::stereo) + 1));
+            expect (! panel.channelLayoutControl().isItemEnabled (static_cast<int> (OutputLayout::fiveOne) + 1));
 
             panel.deviceControl().setSelectedItemIndex (1, juce::sendNotificationSync);
             expect (panel.deviceControl().getText().contains ("Aggregate 10ch"));
@@ -559,6 +588,8 @@ public:
                     "A successful user device change is informational.");
             expectEquals (panel.sampleRateControl().getNumItems(), 2);
             expectEquals (panel.bufferSizeControl().getNumItems(), 3);
+            expect (panel.channelLayoutControl().isItemEnabled (static_cast<int> (OutputLayout::sevenOneTwo) + 1));
+            expect (! panel.channelLayoutControl().isItemEnabled (static_cast<int> (OutputLayout::nineOneSix) + 1));
 
             panel.channelLayoutControl().setSelectedId (4, juce::sendNotificationSync);
             expectEquals (panel.displayedChannelCount(), 10);

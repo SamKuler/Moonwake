@@ -772,7 +772,12 @@ MainComponent::MainComponent()
     {
         const auto error = controller.setOutputLayout (static_cast<OutputLayout> (outputLayoutBox.getSelectedId() - 1));
 
-        if (error.isNotEmpty()) showStatus (error, true);
+        if (error.isNotEmpty())
+        {
+            showStatus (error, true);
+            outputLayoutBox.setSelectedId (static_cast<int> (controller.getViewState().outputLayout) + 1,
+                                           juce::dontSendNotification);
+        }
         audioSettingsPanel.refresh();
         refreshEffectScopes();
         refreshEffects();
@@ -1767,14 +1772,28 @@ void MainComponent::updateTransportState()
     volumeSlider.setValue (state.volume, juce::dontSendNotification);
     shuffleButton.setToggleState (state.shuffleEnabled, juce::dontSendNotification);
 
-    switch (state.repeatMode)
+    // Polling must not overwrite a choice before ComboBox delivers its asynchronous notification.
+    if (lastSyncedRepeatMode != state.repeatMode)
     {
-        case RepeatMode::all: repeatModeBox.setSelectedId (2, juce::dontSendNotification); break;
-        case RepeatMode::one: repeatModeBox.setSelectedId (3, juce::dontSendNotification); break;
-        case RepeatMode::off: repeatModeBox.setSelectedId (1, juce::dontSendNotification); break;
+        switch (state.repeatMode)
+        {
+            case RepeatMode::all: repeatModeBox.setSelectedId (2, juce::dontSendNotification); break;
+            case RepeatMode::one: repeatModeBox.setSelectedId (3, juce::dontSendNotification); break;
+            case RepeatMode::off: repeatModeBox.setSelectedId (1, juce::dontSendNotification); break;
+        }
+        lastSyncedRepeatMode = state.repeatMode;
     }
 
-    outputLayoutBox.setSelectedId (static_cast<int> (state.outputLayout) + 1, juce::dontSendNotification);
+    if (lastSyncedOutputLayout != state.outputLayout)
+    {
+        outputLayoutBox.setSelectedId (static_cast<int> (state.outputLayout) + 1, juce::dontSendNotification);
+        lastSyncedOutputLayout = state.outputLayout;
+    }
+    for (const auto& layout : outputLayouts())
+        outputLayoutBox.setItemEnabled (static_cast<int> (layout.layout) + 1,
+                                        layout.channels.size() <= state.availableOutputChannels);
+    outputLayoutBox.setTooltip ("Speaker layout; this device provides "
+        + juce::String (state.availableOutputChannels) + " output channels.");
 
     if (state.selectedIndex >= 0)
     {

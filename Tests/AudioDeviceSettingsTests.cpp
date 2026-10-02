@@ -93,6 +93,7 @@ public:
         juce::Array<double> rates;
         juce::Array<int> buffers;
         int outputs = 0;
+        juce::StringArray outputChannelNames {};
     };
 
     FakeAudioDeviceBackend()
@@ -126,13 +127,15 @@ public:
         AudioDeviceBackendState state;
         const auto found = devices.find (setup.outputDeviceName);
         if (found == devices.end()) return state;
-        state.open = true;
+        state.open = ioDevice.isOpen();
         state.name = setup.outputDeviceName;
         state.sampleRate = setup.sampleRate;
         state.sampleRates = found->second.rates;
         state.bufferSize = setup.bufferSize;
         state.bufferSizes = found->second.buffers;
         state.availableOutputChannels = found->second.outputs;
+        state.outputChannelNames = found->second.outputChannelNames;
+        state.activeOutputChannels = ioDevice.getActiveOutputChannels();
         return state;
     }
 
@@ -202,7 +205,7 @@ public:
     std::vector<juce::AudioDeviceManager::AudioDeviceSetup> requestedSetups;
     juce::String initialiseError;
     juce::String nextSetupError;
-    FakeAudioIODevice ioDevice;
+    mutable FakeAudioIODevice ioDevice;
     std::atomic<juce::AudioIODeviceCallback*> attachedCallback { nullptr };
     bool narrowOutputMaskOnSuccess = false;
     bool keepPreviousDeviceNameOnSuccess = false;
@@ -220,6 +223,51 @@ public:
 
     void runTest() override
     {
+        beginTest ("output labels follow actual active physical ports in callback order");
+        {
+            auto backend = std::make_unique<FakeAudioDeviceBackend>();
+            auto* fake = backend.get();
+            fake->devices.at ("Aggregate 10ch").outputChannelNames = {
+                "Monitor L", "Monitor R", "Headphones L", "Headphones R",
+                "ADAT 1", "ADAT 2", "ADAT 3", "ADAT 4", "S/PDIF L", "S/PDIF R" };
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            expect (engine.selectOutputDevice ("Aggregate 10ch").isEmpty());
+            juce::BigInteger actualOutputs;
+            actualOutputs.setBit (2);
+            actualOutputs.setBit (7);
+            fake->ioDevice.configure (48000.0, 256, actualOutputs);
+            const auto view = engine.getDeviceSettings();
+            expectEquals (view.availableOutputChannels, 10);
+            expectEquals (static_cast<int> (view.activeOutputChannels.size()), 2);
+            if (view.activeOutputChannels.size() == 2)
+            {
+                expectEquals (view.activeOutputChannels[0].deviceChannelIndex, 2);
+                expectEquals (view.activeOutputChannels[0].name, juce::String ("Headphones L"));
+                expectEquals (view.activeOutputChannels[1].deviceChannelIndex, 7);
+                expectEquals (view.activeOutputChannels[1].name, juce::String ("ADAT 4"));
+            }
+            expect (fake->setup.outputChannels != actualOutputs,
+                    "The device's active mask must take precedence over the requested setup.");
+
+            fake->devices.at ("Aggregate 10ch").outputChannelNames = { "Monitor L", "Monitor R", "  " };
+            const auto unnamed = engine.getDeviceSettings();
+            expectEquals (static_cast<int> (unnamed.activeOutputChannels.size()), 2);
+            if (unnamed.activeOutputChannels.size() == 2)
+            {
+                expectEquals (unnamed.activeOutputChannels[0].name, juce::String ("Output 3"));
+                expectEquals (unnamed.activeOutputChannels[1].name, juce::String ("Output 8"));
+            }
+
+            fake->ioDevice.close();
+            const auto disconnected = engine.getDeviceSettings();
+            expectEquals (fake->getCurrentDeviceState().availableOutputChannels, 10);
+            expectEquals (disconnected.availableOutputChannels, 0);
+            expectEquals (engine.getAvailableOutputChannelCount(), 0);
+            expect (disconnected.activeOutputChannels.empty(),
+                    "A closed device must not report its retained channel mask as connected outputs.");
+        }
+
         beginTest ("query exposes current CoreAudio capabilities without the backend");
         {
             auto backend = std::make_unique<FakeAudioDeviceBackend>();

@@ -12,6 +12,13 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <vector>
+
+struct AudioDeviceOutputChannel
+{
+    int deviceChannelIndex = -1; // Zero-based index in the device's physical output list.
+    juce::String name;
+};
 
 struct AudioDeviceSettingsView
 {
@@ -22,6 +29,8 @@ struct AudioDeviceSettingsView
     int currentBufferSize = 0;
     juce::Array<int> bufferSizes;
     int availableOutputChannels = 0;
+    // Ordered exactly like the packed output buffers supplied to the audio callback.
+    std::vector<AudioDeviceOutputChannel> activeOutputChannels;
 };
 
 struct AudioDeviceBackendState
@@ -33,6 +42,8 @@ struct AudioDeviceBackendState
     int bufferSize = 0;
     juce::Array<int> bufferSizes;
     int availableOutputChannels = 0;
+    juce::StringArray outputChannelNames {};
+    juce::BigInteger activeOutputChannels {};
 };
 
 class IAudioDeviceBackend

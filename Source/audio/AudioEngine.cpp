@@ -30,13 +30,15 @@ public:
         AudioDeviceBackendState result;
         if (auto* device = manager.getCurrentAudioDevice())
         {
-            result.open = true;
+            result.open = device->isOpen();
             result.name = device->getName();
             result.sampleRate = device->getCurrentSampleRate();
             result.sampleRates = device->getAvailableSampleRates();
             result.bufferSize = device->getCurrentBufferSizeSamples();
             result.bufferSizes = device->getAvailableBufferSizes();
-            result.availableOutputChannels = device->getOutputChannelNames().size();
+            result.outputChannelNames = device->getOutputChannelNames();
+            result.availableOutputChannels = result.outputChannelNames.size();
+            result.activeOutputChannels = device->getActiveOutputChannels();
         }
         return result;
     }
@@ -366,7 +368,16 @@ AudioDeviceSettingsView AudioEngine::getDeviceSettings() const
     view.sampleRates = state.sampleRates;
     view.currentBufferSize = state.bufferSize;
     view.bufferSizes = state.bufferSizes;
-    view.availableOutputChannels = state.availableOutputChannels;
+    view.availableOutputChannels = state.open ? state.availableOutputChannels : 0;
+    if (state.open)
+        for (auto channel = state.activeOutputChannels.findNextSetBit (0); channel >= 0;
+             channel = state.activeOutputChannels.findNextSetBit (channel + 1))
+        {
+            auto name = channel < state.outputChannelNames.size()
+                            ? state.outputChannelNames[channel].trim() : juce::String {};
+            if (name.isEmpty()) name = "Output " + juce::String (channel + 1);
+            view.activeOutputChannels.push_back ({ channel, std::move (name) });
+        }
     return view;
 }
 
@@ -502,8 +513,9 @@ OutputLayout AudioEngine::getOutputLayout() const
 
 int AudioEngine::getAvailableOutputChannelCount() const
 {
-    return deviceBackend
-        ? deviceBackend->getCurrentDeviceState().availableOutputChannels : 0;
+    if (! deviceBackend) return 0;
+    const auto state = deviceBackend->getCurrentDeviceState();
+    return state.open ? state.availableOutputChannels : 0;
 }
 
 juce::String AudioEngine::getCurrentAudioDeviceName() const

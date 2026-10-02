@@ -52,10 +52,10 @@ public:
 
     ~ChannelMapView() override { setModel (nullptr); }
 
-    void setState (OutputLayout layoutToUse, int availableOutputs)
+    void setState (OutputLayout layoutToUse, const std::vector<AudioDeviceOutputChannel>& activeOutputs)
     {
         names = channelNames (layoutToUse);
-        availableChannelCount = juce::jmax (0, availableOutputs);
+        outputs = activeOutputs;
         resized();
         updateContent();
         if (auto* handler = getAccessibilityHandler())
@@ -117,7 +117,7 @@ private:
         void paint (juce::Graphics& graphics) override
         {
             if (const auto layout = owner.rowLayout (owner.getViewport()->getMaximumVisibleWidth()))
-                owner.drawTextSlot (graphics, *layout, "header.label", "Output channels", "heading");
+                owner.drawTextSlot (graphics, *layout, "header.label", "Output routing", "heading");
         }
 
         std::unique_ptr<juce::AccessibilityHandler>
@@ -136,9 +136,9 @@ private:
     {
         if (! juce::isPositiveAndBelow (row, names.size()))
             return {};
-        const auto connected = row < availableChannelCount;
+        const auto connected = static_cast<size_t> (row) < outputs.size();
         return names[row] + " to "
-             + (connected ? "CoreAudio Out " + juce::String (row + 1)
+             + (connected ? outputs[static_cast<size_t> (row)].name
                           : juce::String ("Unavailable"))
              + (connected ? ", connected" : ", unavailable");
     }
@@ -153,10 +153,10 @@ private:
         SkinRenderContext rowContext;
         rowContext.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
         rowContext.contentBounds = rowContext.bounds;
-        const auto connected = rowNumber < availableChannelCount;
+        const auto connected = static_cast<size_t> (rowNumber) < outputs.size();
         const auto sourceLabel = names[rowNumber];
         const auto deviceLabel = connected
-                                   ? "CoreAudio Out " + juce::String (rowNumber + 1)
+                                   ? outputs[static_cast<size_t> (rowNumber)].name
                                    : juce::String ("Unavailable");
         rowContext.state.enabled = connected;
         rowContext.extraLookup = [rowNumber, sourceLabel,
@@ -215,7 +215,7 @@ private:
 
     JuceSkinAdapter* adapter = nullptr;
     juce::StringArray names;
-    int availableChannelCount = 0;
+    std::vector<AudioDeviceOutputChannel> outputs;
 };
 
 AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,
@@ -316,7 +316,12 @@ void AudioSettingsPanel::refresh()
         juce::dontSendNotification);
 
     channelLayoutBox.setSelectedId (static_cast<int> (viewState.outputLayout) + 1, juce::dontSendNotification);
-    channelMap->setState (viewState.outputLayout, settings.availableOutputChannels);
+    for (const auto& layout : outputLayouts())
+        channelLayoutBox.setItemEnabled (static_cast<int> (layout.layout) + 1,
+                                         layout.channels.size() <= settings.availableOutputChannels);
+    channelLayoutBox.setTooltip ("Speaker layout; this device provides "
+        + juce::String (settings.availableOutputChannels) + " output channels.");
+    channelMap->setState (viewState.outputLayout, settings.activeOutputChannels);
 }
 
 void AudioSettingsPanel::applyDeviceSelection()
