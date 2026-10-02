@@ -3,10 +3,55 @@
   "target": "label",
   "layers": [
     {
+      "id": "brand-moon",
+      "type": "path",
+      "data": "M21.25 2.383 A14 14 0 1 0 21.25 29.617 A14 14 0 0 1 21.25 2.383 Z",
+      "fill": {
+        "$ref": "colors.studio.active"
+      },
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "translateX": 0,
+        "translateY": {
+          "$expr": "(bounds.height - 36) * 0.5"
+        }
+      }
+    },
+    {
+      "id": "brand-wake",
+      "type": "path",
+      "data": "M2 34 C8 31 14 37 20 34 C26 31 30 33 34 34",
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.text"
+        },
+        "width": 1.4,
+        "cap": "round"
+      },
+      "opacity": 0.82,
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "translateX": 0,
+        "translateY": {
+          "$expr": "(bounds.height - 36) * 0.5"
+        }
+      }
+    },
+    {
       "id": "label",
       "type": "text",
       "frame": {
-        "anchor": "contentBounds"
+        "x": 48,
+        "y": 0,
+        "width": {
+          "$expr": "max(0,bounds.width - 48)"
+        },
+        "height": {
+          "$expr": "bounds.height"
+        }
       },
       "text": {
         "$context": "text.primary"
@@ -15,7 +60,7 @@
         "$ref": "fonts.workspaceMedium"
       },
       "fontSize": {
-        "$ref": "metrics.textBody"
+        "$ref": "metrics.textBrand"
       },
       "color": {
         "$ref": "colors.studio.text"

@@ -154,7 +154,8 @@ public:
                 std::shared_ptr<const SkinAssetCache> assetsIn,
                 SkinAnimationEngine* animationsIn, juce::String animationKeyIn)
         : graphics (graphicsIn), program (programIn), context (contextIn),
-          assets (std::move (assetsIn)), animations (animationsIn),
+          assets (std::move (assetsIn)),
+          animations (programIn.transitions.empty() ? nullptr : animationsIn),
           animationKey (std::move (animationKeyIn))
     {
         const std::array activeVariants {
@@ -180,6 +181,13 @@ public:
             || ! std::isfinite (context.normalisedValue)
             || ! std::isfinite (context.minimum) || ! std::isfinite (context.maximum))
             throw RenderFailure ({}, "Render context contains non-finite geometry or values.");
+
+        if (program.transitions.empty())
+        {
+            for (const auto& layer : program.baseLayers)
+                drawLayer (layer, std::nullopt, false);
+            return;
+        }
 
         for (const auto& layer : program.baseLayers)
             collectValues (layer, std::nullopt, false);
@@ -294,21 +302,24 @@ private:
                 if (path == "item.isLfe") return boolean (item->isLfe);
             }
 
-            for (int channel = 0; channel < maximumOutputChannels; ++channel)
+            if (path.starts_with ("meter.channels["))
             {
-                const auto prefix = "meter.channels[" + std::to_string (channel) + "].";
-                if (! path.starts_with (prefix)) continue;
-                const auto field = path.substr (prefix.size());
-                if (field == "index") return number (channel);
-                if (field == "label")
-                    return string (channel < context.meterLabels.size()
-                                       ? context.meterLabels[channel] : juce::String());
-                const auto index = static_cast<size_t> (channel);
-                if (field == "peak") return number (context.meterPeaks[index]);
-                if (field == "peakDb") return number (meterPeakDecibels (context.meterPeaks[index]));
-                if (field == "rmsDb") return number (meterPeakDecibels (context.meterRms[index]));
-                if (field == "truePeakDb") return number (meterPeakDecibels (context.meterTruePeaks[index]));
-                if (field == "isLfe") return boolean (context.meterIsLfe[index]);
+                for (int channel = 0; channel < maximumOutputChannels; ++channel)
+                {
+                    const auto prefix = "meter.channels[" + std::to_string (channel) + "].";
+                    if (! path.starts_with (prefix)) continue;
+                    const auto field = path.substr (prefix.size());
+                    if (field == "index") return number (channel);
+                    if (field == "label")
+                        return string (channel < context.meterLabels.size()
+                                           ? context.meterLabels[channel] : juce::String());
+                    const auto index = static_cast<size_t> (channel);
+                    if (field == "peak") return number (context.meterPeaks[index]);
+                    if (field == "peakDb") return number (meterPeakDecibels (context.meterPeaks[index]));
+                    if (field == "rmsDb") return number (meterPeakDecibels (context.meterRms[index]));
+                    if (field == "truePeakDb") return number (meterPeakDecibels (context.meterTruePeaks[index]));
+                    if (field == "isLfe") return boolean (context.meterIsLfe[index]);
+                }
             }
 
             return context.extraLookup ? context.extraLookup (path) : std::nullopt;
@@ -892,9 +903,9 @@ private:
     void drawLayer (const SkinRenderLayer& layer, std::optional<RepeatItem> item,
                     bool insideRepeat)
     {
-        const auto frame = resolveFrame (layer, item, insideRepeat || (! item));
-        if (! valueOr<bool> (property (layer, "visible", frame, item, insideRepeat), true))
+        if (! valueOr<bool> (property (layer, "visible", context.bounds, item, insideRepeat), true))
             return;
+        const auto frame = resolveFrame (layer, item, insideRepeat || (! item));
         const auto opacity = juce::jlimit (0.0f, 1.0f, numberValue (
             property (layer, "opacity", frame, item, insideRepeat), 1.0f));
         if (opacity <= 0.0f) return;

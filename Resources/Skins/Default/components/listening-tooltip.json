@@ -43,5 +43,10 @@
       "maxLines": 3,
       "overflow": "ellipsis"
     }
-  ]
+  ],
+  "controlStyle": {
+    "maxWidth": 400,
+    "offsetX": 18,
+    "offsetY": 8
+  }
 }

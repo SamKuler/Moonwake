@@ -4,5 +4,9 @@
     { "id": "track", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 2 }, "radius": 4, "fill": { "$ref": "colors.surface" } },
     { "id": "thumb", "type": "roundedRect", "frame": { "anchor": "contentBounds", "inset": 3 }, "radius": 4, "fill": { "$ref": "colors.textMuted" } }
   ],
-  "variants": { "hover": { "thumb.fill": { "$ref": "colors.text" } }, "pressed": { "thumb.fill": { "$ref": "colors.controlActive" } }, "disabled": { "thumb.opacity": 0.35 } }
+  "variants": { "hover": { "thumb.fill": { "$ref": "colors.text" } }, "pressed": { "thumb.fill": { "$ref": "colors.controlActive" } }, "disabled": { "thumb.opacity": 0.35 } },
+  "controlStyle": {
+    "thickness": 8,
+    "minThumbLength": 16
+  }
 }

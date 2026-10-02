@@ -4,6 +4,8 @@
 #include "ui/settings/SettingsSkinContext.h"
 #include "ui/SkinLayoutHost.h"
 #include "plugins/PluginManager.h"
+#include "skin/SkinBuiltInPackages.h"
+#include "skin/SkinCompiler.h"
 
 #include <juce_core/juce_core.h>
 
@@ -185,6 +187,39 @@ juce::Rectangle<int> colourBounds (const juce::Image& image, juce::Colour colour
     return result;
 }
 
+struct PanelSkin
+{
+    PanelSkin() : adapter ([this] (const juce::Component&, SkinRenderTarget target,
+                                   const juce::String& style)
+    {
+        return JuceSkinAdapter::RuntimeBinding { compiled ? compiled->resolveStyle (target, style) : nullptr };
+    }, renderer)
+    {
+        const auto package = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::foundation, report);
+        if (package) compiled = SkinCompiler::compile (*package, {}, report);
+    }
+
+    SkinValidationReport report;
+    std::shared_ptr<const CompiledSkin> compiled;
+    SkinRenderer renderer;
+    JuceSkinAdapter adapter;
+};
+
+SkinRenderPropertyBinding rowMetric (juce::StringRef name, double value)
+{
+    const auto& descriptor = skinRowLayoutMetricDescriptor (name);
+    return { SkinCompiledRenderValue { value }, descriptor.fallback,
+             &descriptor, false, {}, {}, 0, {} };
+}
+
+SkinRenderPropertyBinding rowFrameNumber (juce::StringRef field, double value)
+{
+    const auto* descriptor = skinRenderPropertyDescriptor (
+        SkinPrimitive::rectangle, "frame." + juce::String (field));
+    return { SkinCompiledRenderValue { value }, descriptor->fallback,
+             descriptor, false, {}, {}, 0, {} };
+}
+
 class SettingsPanelTests final : public juce::UnitTest
 {
 public:
@@ -222,8 +257,11 @@ public:
             expect (row->getCurrentState().isSelected() == firstRowSelected);
         };
 
-        beginTest ("settings text slots keep insets, column gaps and separated metadata lines");
+        PanelSkin foundationSkin;
+        beginTest ("settings text slots keep skin-defined insets, column gaps and separated metadata lines");
         {
+            expect (foundationSkin.compiled != nullptr, foundationSkin.report.toText());
+            if (! foundationSkin.compiled) return;
             std::map<juce::String, SkinRenderStyleEntry> slots {
                 { "name", geometrySlot (juce::Colours::red) },
                 { "detail", geometrySlot (juce::Colours::green) },
@@ -235,8 +273,9 @@ public:
                                        SkinRenderTarget::pluginList, SkinRenderTarget::skinList })
             {
                 auto& entry = owners[target];
-                entry.renderer.target = target;
+                entry = *foundationSkin.compiled->resolveStyle (target, {});
                 entry.slotStyles = {
+                    { "header.label", "name" }, { "empty.message", "status" },
                     { "row.source", "name" }, { "row.destination", "data" },
                     { "row.name", "name" }, { "row.manufacturer", "detail" },
                     { "row.format", "data" }, { "row.author", "detail" },
@@ -264,6 +303,10 @@ public:
             description.manufacturerName = "Example Audio";
             description.pluginFormatName = "AudioUnit";
             description.fileOrIdentifier = "test:concert-hall";
+            plugins.addType (description);
+            description.name = "Stereo Delay";
+            description.fileOrIdentifier = "test:stereo-delay";
+            description.uniqueId = 2;
             plugins.addType (description);
             StateRestoreResult restored;
             restored.pluginCache = plugins.createXml();
@@ -348,6 +391,79 @@ public:
             expectEquals (effects.scanFolderControl().getButtonText(), juce::String ("Add folder"));
             expectEquals (skins.importControl().getButtonText(), juce::String ("Import skin"));
             expectEquals (skins.applyControl().getButtonText(), juce::String ("Apply"));
+
+            beginTest ("skin row profiles control native row hit testing, scroll offsets and equal-bounds reflow");
+            const std::array targets { SkinRenderTarget::channelMap, SkinRenderTarget::pluginList, SkinRenderTarget::skinList };
+            const std::array<juce::Component*, 3> lists {
+                &audio.channelMapControl(), &effects.knownListControl(), &skins.libraryControl() };
+            for (size_t index = 0; index < lists.size(); ++index)
+            {
+                auto& profile = *owners[targets[index]].renderer.rowLayout;
+                profile.breakpoints.clear();
+                profile.base.rowHeight = rowMetric ("rowHeight", 64.0);
+                profile.base.rowGap = rowMetric ("rowGap", 8.0);
+                profile.base.headerHeight = rowMetric ("headerHeight", index == 2 ? 0.0 : 26.0);
+                const auto nameSlot = index == 0 ? "row.source" : "row.name";
+                profile.base.slots[nameSlot].x = rowFrameNumber ("x", 27.0);
+                if (index != 2)
+                    profile.base.slots["header.label"].x = rowFrameNumber ("x", 23.0);
+                auto* list = dynamic_cast<juce::ListBox*> (lists[index]);
+                const auto headerHeight = index == 2 ? 0 : 26;
+                list->setBounds (0, 0, 520, headerHeight + 72);
+                expectEquals (list->getRowHeight(), 72);
+                expectEquals (list->getRowPosition (1, true).getY(), headerHeight + 72);
+                expectEquals (list->getRowContainingPosition (20, headerHeight + 5), 0);
+                list->getViewport()->setViewPosition (0, 72);
+                expectEquals (list->getViewport()->getViewPositionY(), 72);
+                expectEquals (list->getRowContainingPosition (20, headerHeight + 5), 1);
+                expectEquals (colourBounds (paintRow (*list, 520), juce::Colours::red).getX(), 27);
+                if (const auto* header = list->getHeaderComponent())
+                    expectEquals (header->getHeight(), 26);
+
+                profile.base.rowHeight = rowMetric ("rowHeight", 80.0);
+                list->resized();
+                expectEquals (list->getRowHeight(), 88,
+                              "Reapplying a skin at unchanged component bounds updates row geometry.");
+                expectEquals (list->getRowPosition (1, false).getY()
+                                  - list->getRowPosition (0, false).getY(), 88);
+
+                profile.base.rowHeight = rowMetric ("rowHeight", 20.0);
+                profile.base.rowGap = rowMetric ("rowGap", 0.0);
+                const auto probeWidth = 410 + list->getViewport()->getScrollBarThickness() / 2;
+                list->setSize (probeWidth, headerHeight + 72);
+                expect (! list->getVerticalScrollBar().isVisible(),
+                        "The compact skin starts without a scrollbar.");
+                profile.base.rowHeight = rowMetric ("rowHeight", 64.0);
+                profile.base.rowGap = rowMetric ("rowGap", 8.0);
+                SkinRowLayoutDefinition::Breakpoint wide;
+                wide.minWidth = 410.0f;
+                wide.values.rowHeight = rowMetric ("rowHeight", 80.0);
+                profile.breakpoints.push_back (std::move (wide));
+                list->resized();
+                expect (list->getViewport()->getMaximumVisibleWidth() < 410,
+                        "viewport=" + juce::String (list->getViewport()->getMaximumVisibleWidth())
+                            + ", scrollbar=" + juce::String (list->getViewport()->getScrollBarThickness())
+                            + ", visible=" + juce::String (list->getVerticalScrollBar().isVisible() ? 1 : 0));
+                expectEquals (list->getRowHeight(), 72,
+                              "Width breakpoints use the same available row width as row painting.");
+            }
+
+            effects.knownListControl().setSize (420, 46);
+            if (auto* list = dynamic_cast<juce::ListBox*> (&effects.knownListControl()))
+            {
+                expectEquals (list->getViewport()->getMaximumVisibleHeight(), 20,
+                              "A skin row taller than the available viewport must not hide the entire list.");
+                expect (list->getRowContainingPosition (20, 31) >= 0);
+            }
+
+            beginTest ("empty plugin text uses the profile frame in component coordinates");
+            PlayerController emptyController (std::make_unique<PanelAudioBackend>());
+            PluginSettingsPanel emptyPlugins (emptyController, &adapter);
+            emptyPlugins.knownListControl().setBounds (0, 0, 520, 180);
+            const auto emptyImage = emptyPlugins.knownListControl().createComponentSnapshot (
+                emptyPlugins.knownListControl().getLocalBounds());
+            const auto empty = colourBounds (emptyImage, juce::Colours::yellow);
+            expect (empty == juce::Rectangle<int> (10, 36, 500, 134), empty.toString());
             static_cast<void> (root.deleteRecursively());
         }
 
@@ -422,7 +538,7 @@ public:
             auto backend = std::make_unique<PanelAudioBackend>();
             auto* fake = backend.get();
             PlayerController controller (std::move (backend));
-            AudioSettingsPanel panel (controller);
+            AudioSettingsPanel panel (controller, &foundationSkin.adapter);
             std::vector<std::pair<juce::String, bool>> notices;
             panel.setStatusCallback ([&] (const juce::String& message, bool isError)
             {
@@ -447,14 +563,38 @@ public:
             panel.channelLayoutControl().setSelectedId (4, juce::sendNotificationSync);
             expectEquals (panel.displayedChannelCount(), 10);
             panel.channelMapControl().setBounds (0, 0, 420, 460);
-            bool mapAcceptsClicks = true;
-            bool mapChildrenAcceptClicks = true;
-            panel.channelMapControl().getInterceptsMouseClicks (
-                mapAcceptsClicks, mapChildrenAcceptClicks);
             expect (! panel.channelMapControl().getWantsKeyboardFocus());
-            expect (! mapAcceptsClicks && ! mapChildrenAcceptClicks,
-                    "Output map must not expose click or focus affordances.");
             expectAccessibleList (panel.channelMapControl(), 10, "L", false);
+
+            auto* map = dynamic_cast<juce::ListBox*> (&panel.channelMapControl());
+            expect (map != nullptr);
+            if (map != nullptr)
+            {
+                map->setSize (420, 180);
+                auto* viewport = map->getViewport();
+                auto& scrollbar = viewport->getVerticalScrollBar();
+                expect (scrollbar.isVisible(), "Compact channel maps need scrolling.");
+                expect (map->getComponentAt (viewport->getBounds().getCentre()) == map,
+                        "Read-only rows pass pointer events to the scrolling list.");
+                const auto scrollbarPoint = map->getLocalArea (
+                    &scrollbar, scrollbar.getLocalBounds()).getCentre();
+                expect (map->getComponentAt (scrollbarPoint) == &scrollbar,
+                        "The channel map scrollbar remains reachable.");
+                map->mouseWheelMove (wheelEventFor (*map),
+                                     { 0.0f, -5.0f, false, false, false });
+                const auto scrollDeadline = juce::Time::getMillisecondCounterHiRes() + 1000.0;
+                while (viewport->getViewPositionY() == 0
+                       && juce::Time::getMillisecondCounterHiRes() < scrollDeadline)
+                    juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+                expect (viewport->getViewPositionY() > 0);
+                expectEquals (viewport->getViewArea().getBottom(),
+                              viewport->getViewedComponent()->getHeight(),
+                              "Scrolling reaches the final output channel.");
+                map->mouseDown (wheelEventFor (*map));
+                map->mouseUp (wheelEventFor (*map));
+                expectEquals (map->getSelectedRow(), -1,
+                              "Output channel information stays read-only.");
+            }
 
             panel.sampleRateControl().setSelectedItemIndex (1, juce::sendNotificationSync);
             expectWithinAbsoluteError (controller.getAudioDeviceSettings().currentSampleRate,
@@ -520,7 +660,7 @@ public:
         beginTest ("Plug-in controls expose formats and mutually exclusive scan actions");
         {
             PlayerController controller (std::make_unique<PanelAudioBackend>());
-            PluginSettingsPanel panel (controller);
+            PluginSettingsPanel panel (controller, &foundationSkin.adapter);
             panel.refreshInventory();
             panel.refreshScanState();
             expect (panel.formatsControl().getText().containsIgnoreCase ("VST3"));
@@ -552,7 +692,7 @@ public:
             PlayerController controller (std::make_unique<PanelAudioBackend>());
             static_cast<void> (controller.loadState (root.getChildFile ("missing-state.xml"),
                                                      cache));
-            PluginSettingsPanel panel (controller);
+            PluginSettingsPanel panel (controller, &foundationSkin.adapter);
             panel.knownListControl().setBounds (0, 0, 320, 150);
             panel.refreshInventory();
             expectEquals (panel.knownPluginCount(), 20);
@@ -639,7 +779,7 @@ public:
                 expectEquals (imported->author, juce::String ("Tests"));
                 expect (! imported->builtIn);
             }
-            SkinLibraryPanel panel (manager);
+            SkinLibraryPanel panel (manager, &foundationSkin.adapter);
             std::vector<std::pair<juce::String, bool>> notices;
             panel.setStatusCallback ([&] (const juce::String& message, bool isError)
             {
@@ -732,9 +872,9 @@ public:
             expect (manager.initialise (rootDirectory.getChildFile ("installed"), report),
                     report.toText());
             PlayerController controller (std::make_unique<PanelAudioBackend>());
-            AudioSettingsPanel audio (controller);
-            PluginSettingsPanel plugins (controller);
-            SkinLibraryPanel skins (manager);
+            AudioSettingsPanel audio (controller, &foundationSkin.adapter);
+            PluginSettingsPanel plugins (controller, &foundationSkin.adapter);
+            SkinLibraryPanel skins (manager, &foundationSkin.adapter);
             juce::Component root;
             juce::Label title;
             juce::TextButton close { "Close" };

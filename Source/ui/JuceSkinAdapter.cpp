@@ -1,4 +1,5 @@
 #include "JuceSkinAdapter.h"
+#include "SkinTableListBox.h"
 
 #include "skin/SkinAssetCache.h"
 #include "skin/SkinFontResolver.h"
@@ -73,19 +74,6 @@ juce::String alignmentNameFor (juce::Justification justification)
         case juce::Justification::bottomRight: return "bottomRight";
         default: return "left";
     }
-}
-
-juce::Rectangle<float> iconBoundsFor (const juce::Button& button,
-                                      const juce::String& presentation)
-{
-    const auto bounds = button.getLocalBounds().toFloat();
-    const auto requested = bounds.getHeight() >= 46.0f ? 20.0f : 18.0f;
-    const auto size = juce::jmax (12.0f, juce::jmin (
-        requested, juce::jmin (bounds.getWidth(), bounds.getHeight()) - 12.0f));
-    const auto y = bounds.getCentreY() - size * 0.5f;
-    if (presentation == "leading")
-        return { bounds.getX() + 10.0f, y, size, size };
-    return { bounds.getCentreX() - size * 0.5f, y, size, size };
 }
 
 juce::Justification justificationForAlignment (const juce::String& name)
@@ -438,16 +426,14 @@ void JuceSkinAdapter::drawButtonBackground (
         return;
 
     SkinRenderContext iconContext;
-    iconContext.bounds = iconBoundsFor (
-        button, button.getProperties()
-                    .getWithDefault (
-                        SkinComponentBindings::iconPresentationProperty, "only")
-                    .toString());
-    iconContext.contentBounds = iconContext.bounds;
     iconContext.state = state;
     iconContext.iconName = iconName;
     iconContext.iconPathData = iconPath;
     iconContext.iconPath = PlayerComponentCatalog::fallbackIconPath (iconName);
+    const auto controlStyle = controlStyleFor (button, SkinRenderTarget::textButton, iconContext);
+    if (! controlStyle || ! controlStyle->iconBounds) return;
+    iconContext.bounds = *controlStyle->iconBounds;
+    iconContext.contentBounds = iconContext.bounds;
     static_cast<void> (drawSlotBinding (
         graphics, button, SkinRenderTarget::textButton, slot,
         SkinRenderTarget::surface, std::move (iconContext), slot));
@@ -477,7 +463,15 @@ void JuceSkinAdapter::drawComboBox (
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
     context.contentBounds = context.bounds;
     context.state = stateFor (box, box.isMouseOver (true), down);
+    // The popup owns focus feedback while its rounded corners expose the trigger.
+    context.state.focused = context.state.focused && ! box.isPopupActive();
     context.primaryText = box.getText().isNotEmpty() ? box.getText() : box.getTextWhenNothingSelected();
+    context.extraLookup = [open = box.isPopupActive(), selected = box.getSelectedId() > 0] (std::string_view path) -> std::optional<SkinExpressionValue>
+    {
+        if (path == "combo.popupOpen") return SkinExpressionValue (open);
+        if (path == "combo.hasSelection") return SkinExpressionValue (selected);
+        return std::nullopt;
+    };
     drawBinding (graphics, box, SkinRenderTarget::comboBox, std::move (context));
 }
 
@@ -549,15 +543,16 @@ void JuceSkinAdapter::configureTextEditor (juce::TextEditor& editor) const
     SkinRenderContext context;
     context.state = stateFor (editor, editor.isMouseOver (true), false);
     context.primaryText = editor.getText();
-    const auto style = textStyleFor (editor, SkinRenderTarget::textEditor, std::move (context));
+    const auto style = textStyleFor (editor, SkinRenderTarget::textEditor, context);
     if (! style) return;
     if (editor.findColour (juce::TextEditor::textColourId) != style->colour)
         editor.applyColourToAllText (style->colour, true);
-    for (const auto& [id, colour] : {
-             std::pair<int, juce::Colour> { juce::TextEditor::highlightColourId, style->colour.withMultipliedAlpha (0.18f) },
-             { juce::TextEditor::highlightedTextColourId, style->colour },
-             { juce::CaretComponent::caretColourId, style->colour } })
-        if (editor.findColour (id) != colour) editor.setColour (id, colour);
+    if (const auto controls = controlStyleFor (editor, SkinRenderTarget::textEditor, context))
+        for (const auto& [id, colour] : {
+                 std::pair<int, std::optional<juce::Colour>> { juce::TextEditor::highlightColourId, controls->selectionColour },
+                 { juce::TextEditor::highlightedTextColourId, controls->selectedTextColour },
+                 { juce::CaretComponent::caretColourId, controls->caretColour } })
+            if (colour && editor.findColour (id) != *colour) editor.setColour (id, *colour);
     editor.setTextToShowWhenEmpty (editor.getTextToShowWhenEmpty(), juce::Colours::transparentBlack);
     if (editor.getFont() != style->font) editor.applyFontToAllText (style->font, true);
     if (! editor.getLocalBounds().isEmpty())
@@ -583,8 +578,8 @@ void JuceSkinAdapter::drawLinearSlider (
     juce::Slider::SliderStyle, juce::Slider& slider)
 {
     SkinRenderContext context;
-    context.bounds = { static_cast<float> (x), static_cast<float> (y),
-                       static_cast<float> (width), static_cast<float> (height) };
+    juce::ignoreUnused (x, y, width, height);
+    context.bounds = slider.getLocalBounds().toFloat();
     context.contentBounds = context.bounds;
     context.state = stateFor (slider, slider.isMouseOver (true), slider.isMouseButtonDown());
     context.minimum = slider.getMinimum();
@@ -599,8 +594,8 @@ void JuceSkinAdapter::drawRotarySlider (
     float sliderPos, float, float, juce::Slider& slider)
 {
     SkinRenderContext context;
-    context.bounds = { static_cast<float> (x), static_cast<float> (y),
-                       static_cast<float> (width), static_cast<float> (height) };
+    juce::ignoreUnused (x, y, width, height);
+    context.bounds = slider.getLocalBounds().toFloat();
     context.contentBounds = context.bounds;
     context.state = stateFor (slider, slider.isMouseOver (true), slider.isMouseButtonDown());
     context.minimum = slider.getMinimum();
@@ -621,6 +616,44 @@ void JuceSkinAdapter::drawProgressBar (
     context.normalisedValue = juce::jlimit (0.0, 1.0, progress);
     context.displayValue = text;
     drawBinding (graphics, progressBar, SkinRenderTarget::progressBar, std::move (context));
+}
+
+juce::Slider::SliderLayout JuceSkinAdapter::getSliderLayout (juce::Slider& slider)
+{
+    const auto target = slider.isRotary() ? SkinRenderTarget::rotarySlider : SkinRenderTarget::linearSlider;
+    if (const auto controls = controlStyleFor (slider, target); controls && controls->trackBounds)
+    {
+        juce::Slider::SliderLayout layout;
+        layout.sliderBounds = controls->trackBounds->toNearestInt();
+        return layout;
+    }
+    return juce::LookAndFeel_V4::getSliderLayout (slider);
+}
+
+int JuceSkinAdapter::getSliderThumbRadius (juce::Slider& slider)
+{
+    const auto target = slider.isRotary() ? SkinRenderTarget::rotarySlider : SkinRenderTarget::linearSlider;
+    if (const auto controls = controlStyleFor (slider, target); controls && controls->thumbRadius)
+        return juce::roundToInt (*controls->thumbRadius);
+    return juce::LookAndFeel_V4::getSliderThumbRadius (slider);
+}
+
+int JuceSkinAdapter::getDefaultScrollbarWidth()
+{
+    if (const auto controls = controlStyleFor (ancillaryProxy, SkinRenderTarget::scrollBar);
+        controls && controls->thickness)
+        return juce::roundToInt (*controls->thickness);
+    return juce::LookAndFeel_V4::getDefaultScrollbarWidth();
+}
+
+int JuceSkinAdapter::getMinimumScrollbarThumbSize (juce::ScrollBar& scrollBar)
+{
+    SkinRenderContext context;
+    context.scrollOrientation = scrollBar.isVertical() ? "vertical" : "horizontal";
+    if (const auto controls = controlStyleFor (scrollBar, SkinRenderTarget::scrollBar, context);
+        controls && controls->minThumbLength)
+        return juce::roundToInt (*controls->minThumbLength);
+    return juce::LookAndFeel_V4::getMinimumScrollbarThumbSize (scrollBar);
 }
 
 void JuceSkinAdapter::drawScrollbar (
@@ -683,6 +716,12 @@ void JuceSkinAdapter::getIdealPopupMenuItemSize (const juce::String& text, bool 
     context.contentBounds = context.bounds;
     context.menuPart = "item";
     context.primaryText = text;
+    if (const auto layout = rowLayoutFor (ancillaryProxy, SkinRenderTarget::popupMenu, context))
+    {
+        height = juce::jmax (height, static_cast<int> (std::ceil (layout->rowHeight)));
+        context.bounds.setHeight (static_cast<float> (height));
+        context.contentBounds = context.bounds;
+    }
     if (const auto style = textStyleFor (ancillaryProxy, SkinRenderTarget::popupMenu, context))
     {
         width = juce::jmax (width, static_cast<int> (std::ceil (juce::GlyphArrangement::getStringWidth (style->font, text)
@@ -697,15 +736,19 @@ juce::Rectangle<int> JuceSkinAdapter::getTooltipBounds (
 {
     const auto fallback = juce::LookAndFeel_V4::getTooltipBounds (text, screenPosition, parentArea);
     SkinRenderContext context;
-    context.bounds = fallback.withPosition (0, 0).toFloat();
+    context.bounds = parentArea.withPosition (0, 0).toFloat();
     context.contentBounds = context.bounds;
     context.primaryText = text;
+    const auto controls = controlStyleFor (ancillaryProxy, SkinRenderTarget::tooltip, context);
+    if (! controls || ! controls->maxWidth || ! controls->offsetX || ! controls->offsetY)
+        return fallback;
+    context.bounds.setWidth (juce::jmin (context.bounds.getWidth(), *controls->maxWidth));
+    context.contentBounds = context.bounds;
     const auto style = textStyleFor (ancillaryProxy, SkinRenderTarget::tooltip, context);
     if (! style) return fallback;
     const auto horizontalInset = juce::jmax (0.0f, context.bounds.getWidth() - style->bounds.getWidth());
     const auto verticalInset = juce::jmax (0.0f, context.bounds.getHeight() - style->bounds.getHeight());
-    const auto textWidth = juce::jmax (1.0f, juce::jmin (400.0f,
-        static_cast<float> (parentArea.getWidth()) - horizontalInset));
+    const auto textWidth = juce::jmax (1.0f, context.bounds.getWidth() - horizontalInset);
     juce::AttributedString attributed;
     attributed.append (text, style->font, style->colour);
     juce::TextLayout layout;
@@ -714,9 +757,11 @@ juce::Rectangle<int> JuceSkinAdapter::getTooltipBounds (
     const auto height = static_cast<int> (std::ceil (
         juce::jmin (juce::jmax (style->font.getHeight(), layout.getHeight()),
                     style->font.getHeight() * static_cast<float> (style->maxLines)) + verticalInset));
+    const auto offsetX = juce::roundToInt (*controls->offsetX);
+    const auto offsetY = juce::roundToInt (*controls->offsetY);
     return juce::Rectangle<int> (
-        screenPosition.x > parentArea.getCentreX() ? screenPosition.x - width - 12 : screenPosition.x + 24,
-        screenPosition.y > parentArea.getCentreY() ? screenPosition.y - height - 6 : screenPosition.y + 6,
+        screenPosition.x > parentArea.getCentreX() ? screenPosition.x - width - offsetX : screenPosition.x + offsetX,
+        screenPosition.y > parentArea.getCentreY() ? screenPosition.y - height - offsetY : screenPosition.y + offsetY,
         width, height).constrainedWithin (parentArea);
 }
 
@@ -849,8 +894,17 @@ void JuceSkinAdapter::drawTableHeaderBackground (
 {
     auto& owner = tableStyleOwner (header);
     SkinRenderContext context;
+    context.bounds = header.getLocalBounds().toFloat();
+    context.contentBounds = context.bounds;
     context.state = stateFor (header, header.isMouseOver (true), false);
     context.tableColumnCount = header.getNumColumns (true);
+    if (const auto* table = dynamic_cast<const SkinTableListBox*> (&owner))
+        if (const auto layout = table->resolvedRowLayout())
+            if (const auto found = layout->slots.find ("header.surface"); found != layout->slots.end())
+            {
+                context.bounds = found->second;
+                context.contentBounds = context.bounds;
+            }
     if (! drawSlotBinding (graphics, owner, SkinRenderTarget::table,
                            "header.surface", SkinRenderTarget::surface, context,
                            "header:surface"))
@@ -917,6 +971,68 @@ bool JuceSkinAdapter::drawCustomSlot (
                             std::move (context), instanceKey);
 }
 
+std::optional<SkinResolvedRowLayout> JuceSkinAdapter::rowLayoutFor (
+    const juce::Component& component, SkinRenderTarget target,
+    SkinRenderContext context) const
+{
+    auto binding = bindingFor (component, target);
+    if (binding.styleEntry == nullptr || ! binding.styleEntry->renderer.rowLayout)
+        binding = bindingFor (component, target, "default");
+    if (binding.styleEntry == nullptr || ! binding.styleEntry->renderer.rowLayout)
+        return std::nullopt;
+
+    if (context.bounds.isEmpty()) context.bounds = component.getLocalBounds().toFloat();
+    if (context.contentBounds.isEmpty()) context.contentBounds = context.bounds;
+    context.scaleFactor = juce::jmax (0.01f, renderingScaleFactorFor (component));
+    SkinValidationReport report;
+    auto layout = resolveSkinRowLayout (binding.styleEntry->renderer, context, report);
+    if (binding.faultSink != nullptr)
+        for (const auto& diagnostic : report.getDiagnostics())
+            binding.faultSink->reportRenderFault (
+                diagnostic, diagnostic.severity == SkinDiagnosticSeverity::warning
+                    ? SkinRenderStatus::ok
+                    : binding.requiredComponent ? SkinRenderStatus::fatalFault
+                                                : SkinRenderStatus::recoverableFault);
+    return layout;
+}
+
+std::optional<SkinResolvedControlStyle> JuceSkinAdapter::controlStyleFor (
+    const juce::Component& component, SkinRenderTarget target,
+    SkinRenderContext context) const
+{
+    auto binding = bindingFor (component, target);
+    if (binding.styleEntry == nullptr || ! binding.styleEntry->renderer.controlStyle)
+        binding = bindingFor (component, target, "default");
+    if (binding.styleEntry == nullptr || ! binding.styleEntry->renderer.controlStyle)
+        return std::nullopt;
+    if (context.bounds.isEmpty()) context.bounds = component.getLocalBounds().toFloat();
+    if (context.contentBounds.isEmpty()) context.contentBounds = context.bounds;
+    context.scaleFactor = juce::jmax (0.01f, renderingScaleFactorFor (component));
+    SkinValidationReport report;
+    auto controls = resolveSkinControlStyle (binding.styleEntry->renderer, context, report);
+    if (binding.faultSink != nullptr)
+        for (const auto& diagnostic : report.getDiagnostics())
+            binding.faultSink->reportRenderFault (
+                diagnostic, diagnostic.severity == SkinDiagnosticSeverity::warning
+                    ? SkinRenderStatus::ok
+                    : binding.requiredComponent ? SkinRenderStatus::fatalFault
+                                                : SkinRenderStatus::recoverableFault);
+    return controls;
+}
+
+void JuceSkinAdapter::applySlotStyle (juce::Component& child, const juce::Component& owner,
+                                     SkinRenderTarget ownerTarget, juce::StringRef slot) const
+{
+    const auto binding = bindingFor (owner, ownerTarget);
+    if (binding.styleEntry == nullptr) return;
+    const auto found = binding.styleEntry->slotStyles.find (juce::String (slot));
+    const auto style = found != binding.styleEntry->slotStyles.end() ? found->second : juce::String ("default");
+    if (child.getProperties().getWithDefault (styleProperty, {}).toString() == style) return;
+    child.getProperties().set (styleProperty, style);
+    child.resized();
+    child.repaint();
+}
+
 void JuceSkinAdapter::configureListBox (juce::ListBox& list) const
 {
     list.setOutlineThickness (0);
@@ -968,9 +1084,18 @@ void JuceSkinAdapter::drawListBoxRow (
     };
     const auto rowKey = "row:" + juce::String (rowNumber);
     const auto rowWidth = static_cast<float> (width);
+    auto surfaceContext = context;
+    if (const auto* table = dynamic_cast<const SkinTableListBox*> (&list))
+        if (const auto layout = table->resolvedRowLayout())
+        {
+            const auto found = layout->slots.find ("row.surface");
+            surfaceContext.bounds = found != layout->slots.end()
+                ? found->second : context.bounds.withHeight (layout->rowHeight);
+            surfaceContext.contentBounds = surfaceContext.bounds;
+        }
     const auto surfaceDrawn = drawSlotBinding (
         graphics, list, SkinRenderTarget::table, "row.surface",
-        SkinRenderTarget::surface, context, rowKey + ":surface");
+        SkinRenderTarget::surface, surfaceContext, rowKey + ":surface");
     const auto cells = geometry.value_or (ListBoxRowGeometry {
         { 0.0f, 0.0f, rowWidth * 0.5f, static_cast<float> (height) },
         { rowWidth * 0.5f, 0.0f, rowWidth * 0.3f, static_cast<float> (height) },

@@ -1,9 +1,103 @@
 {
-  "apiVersion": 1, "target": "comboBox",
+  "apiVersion": 1,
+  "target": "comboBox",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.control" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1, "placement": "inside" } },
-    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 12, "right": 34 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.medium" }, "fontSize": 13, "color": { "$ref": "colors.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
-    { "id": "chevron", "type": "text", "frame": { "x": { "$expr": "bounds.width - 28" }, "y": 0, "width": 20, "height": { "$expr": "bounds.height" } }, "text": "⌄", "font": { "$ref": "fonts.medium" }, "fontSize": 15, "color": { "$ref": "colors.textMuted" }, "align": "center", "maxLines": 1 }
+    {
+      "id": "trigger",
+      "type": "group",
+      "visible": {
+        "$expr": "not (combo.popupOpen and combo.hasSelection)"
+      },
+      "children": [
+        {
+          "id": "body",
+          "type": "roundedRect",
+          "frame": {
+            "anchor": "bounds",
+            "inset": 0.5
+          },
+          "radius": {
+            "$ref": "metrics.radius"
+          },
+          "fill": {
+            "$ref": "colors.control"
+          },
+          "stroke": {
+            "color": {
+              "$ref": "colors.border"
+            },
+            "width": 1,
+            "placement": "inside"
+          }
+        },
+        {
+          "id": "label",
+          "type": "text",
+          "frame": {
+            "anchor": "contentBounds",
+            "inset": {
+              "left": 12,
+              "right": 34
+            }
+          },
+          "text": {
+            "$context": "text.primary"
+          },
+          "font": {
+            "$ref": "fonts.medium"
+          },
+          "fontSize": 13,
+          "color": {
+            "$ref": "colors.text"
+          },
+          "align": "left",
+          "maxLines": 1,
+          "overflow": "ellipsis"
+        },
+        {
+          "id": "chevron",
+          "type": "text",
+          "frame": {
+            "x": {
+              "$expr": "bounds.width - 28"
+            },
+            "y": 0,
+            "width": 20,
+            "height": {
+              "$expr": "bounds.height"
+            }
+          },
+          "text": "\u2304",
+          "font": {
+            "$ref": "fonts.medium"
+          },
+          "fontSize": 15,
+          "color": {
+            "$ref": "colors.textMuted"
+          },
+          "align": "center",
+          "maxLines": 1
+        }
+      ]
+    }
   ],
-  "variants": { "hover": { "body.opacity": 0.9 }, "pressed": { "body.opacity": 0.76 }, "focused": { "body.stroke.color": { "$ref": "colors.focus" }, "body.stroke.width": 2 }, "disabled": { "body.opacity": 0.4, "label.opacity": 0.55, "chevron.opacity": 0.55 } }
+  "variants": {
+    "hover": {
+      "body.opacity": 0.9
+    },
+    "pressed": {
+      "body.opacity": 0.76
+    },
+    "focused": {
+      "body.stroke.color": {
+        "$ref": "colors.focus"
+      },
+      "body.stroke.width": 2
+    },
+    "disabled": {
+      "body.opacity": 0.4,
+      "label.opacity": 0.55,
+      "chevron.opacity": 0.55
+    }
+  }
 }

@@ -31,7 +31,7 @@
                 "component": "app.brand.title",
                 "style": "label.studioBrand",
                 "grow": 1,
-                "height": 28
+                "height": 40
               },
               {
                 "id": "studio-studio-modes",
@@ -291,7 +291,7 @@
                         "id": "studio-output-mixer",
                         "type": "component",
                         "component": "output.mixer",
-                        "style": "channelMap.studioMixer",
+                        "style": "channelMixer.studio",
                         "anchors": {
                           "left": 0,
                           "right": 0,
@@ -491,8 +491,8 @@
         "type": "component",
         "component": "app.status",
         "style": "label.studioNotice",
-        "width": "42%",
-        "height": 84,
+        "width": 360,
+        "height": 56,
         "zIndex": 100,
         "anchors": {
           "top": 80,

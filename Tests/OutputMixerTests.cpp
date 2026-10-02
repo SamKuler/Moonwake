@@ -21,8 +21,30 @@ public:
     OutputMixerTests() : UnitTest ("OutputMixer", "skin") {}
     void runTest() override
     {
+        beginTest ("skin fixtures compile with mixer control geometry");
+        SkinValidationReport report;
+        const auto foundationPackage = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::foundation, report);
+        const auto foundation = foundationPackage ? SkinCompiler::compile (*foundationPackage, {}, report) : nullptr;
+        const auto package = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::defaultSkin, report);
+        const auto skin = package && foundation ? SkinCompiler::compile (*package, foundation, report) : nullptr;
+        expect (skin != nullptr, report.toText());
+        if (! skin) return;
+        struct Faults final : SkinRuntimeFaultSink
+        {
+            void reportRenderFault (const SkinDiagnostic&, SkinRenderStatus) override { ++count; }
+            int count = 0;
+        } faults;
+        SkinRenderer renderer;
+        auto activeSkin = skin;
+        JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
+        {
+            return JuceSkinAdapter::RuntimeBinding { activeSkin->resolveStyle (target,
+                style.isEmpty() ? "channelMixer.studio" : style), nullptr, &faults, true };
+        }, renderer);
         OutputMixerComponent mixer;
         mixer.setBounds (0, 0, 329, 368);
+        mixer.getProperties().set (JuceSkinAdapter::styleProperty, "channelMixer.studio");
+        mixer.setLookAndFeel (&adapter);
         auto settings = defaultOutputChannelMix();
         auto& left = *std::find_if (settings.begin(), settings.end(), [] (const auto& setting)
             { return setting.channel == juce::AudioChannelSet::left; });
@@ -94,26 +116,30 @@ public:
         expect (gain != nullptr);
         if (gain) expectWithinAbsoluteError (gain->getValue(), static_cast<double> (juce::Decibels::gainToDecibels (left.gain)), 0.051);
 
+        beginTest ("same-size skin changes update the native fader range with an unchanged style name");
+        if (gain)
+        {
+            const auto originalBounds = gain->getBounds();
+            const auto originalStart = gain->getPositionOfValue (gain->getMinimum());
+            auto changedSkin = std::make_shared<CompiledSkin> (*skin);
+            const auto gainStyle = skin->renderers.at ("channelMixer.studio").slotStyles.at ("row.gain");
+            auto& controls = changedSkin->renderers.at (gainStyle).renderer.controlStyle;
+            expect (controls.has_value());
+            if (controls)
+            {
+                controls->properties.at ("trackBounds.x").value = SkinCompiledRenderValue (17.0);
+                activeSkin = changedSkin;
+                mixer.resized();
+                expect (gain->getBounds() == originalBounds);
+                expectWithinAbsoluteError (gain->getPositionOfValue (gain->getMinimum()), 17.0f, 0.01f);
+                activeSkin = skin;
+                mixer.resized();
+                expectWithinAbsoluteError (gain->getPositionOfValue (gain->getMinimum()), originalStart, 0.01f);
+            }
+        }
+
         beginTest ("actual mixer rows render through declared skin slots at compact and default sizes");
-        SkinValidationReport report;
-        const auto foundationPackage = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::foundation, report);
-        const auto foundation = foundationPackage ? SkinCompiler::compile (*foundationPackage, {}, report) : nullptr;
-        const auto package = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::defaultSkin, report);
-        const auto skin = package && foundation ? SkinCompiler::compile (*package, foundation, report) : nullptr;
-        expect (skin != nullptr, report.toText());
-        if (! skin) return;
-        struct Faults final : SkinRuntimeFaultSink
-        {
-            void reportRenderFault (const SkinDiagnostic&, SkinRenderStatus) override { ++count; }
-            int count = 0;
-        } faults;
-        SkinRenderer renderer;
-        JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
-        {
-            return JuceSkinAdapter::RuntimeBinding { skin->resolveStyle (target,
-                style.isEmpty() ? "channelMap.studioMixer" : style), nullptr, &faults, true };
-        }, renderer);
-        mixer.getProperties().set (JuceSkinAdapter::styleProperty, "channelMap.studioMixer");
+        mixer.getProperties().set (JuceSkinAdapter::styleProperty, "channelMixer.studio");
         mixer.setLookAndFeel (&adapter);
         mixer.setState (OutputLayout::nineOneSix, settings, {});
         for (const auto size : { juce::Point<int> (329, 368), juce::Point<int> (405, 468) })
@@ -130,7 +156,7 @@ public:
                 expect (viewport->getViewArea().getBottom() >= viewport->getViewedComponent()->getHeight());
             }
         }
-        mixer.getProperties().set (JuceSkinAdapter::styleProperty, "channelMap.default");
+        mixer.getProperties().set (JuceSkinAdapter::styleProperty, "channelMixer.default");
         expect (mixer.createComponentSnapshot (mixer.getLocalBounds()).isValid());
         expectEquals (faults.count, 0, "Foundation supplies every mixer control slot");
         mixer.setLookAndFeel (nullptr);

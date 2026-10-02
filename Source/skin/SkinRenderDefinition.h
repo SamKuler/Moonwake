@@ -19,7 +19,7 @@ enum class SkinRenderTarget
 {
     label, textButton, toggleButton, comboBox, textEditor, linearSlider,
     rotarySlider, progressBar, scrollBar, popupMenu, tooltip, table, surface,
-    artwork, effectChain, outputStage, channelMap, pluginList, skinList
+    artwork, effectChain, outputStage, channelMap, pluginList, skinList, channelMixer
 };
 
 enum class SkinPrimitive
@@ -144,6 +144,33 @@ struct SkinTransition
     juce::String durationTokenReference;
 };
 
+struct SkinRowSlotFrame
+{
+    SkinRenderPropertyBinding x, y, width, height;
+};
+
+struct SkinRowLayoutOverride
+{
+    std::optional<SkinRenderPropertyBinding> rowHeight, rowGap, headerHeight;
+    std::map<juce::String, SkinRowSlotFrame> slots;
+};
+
+struct SkinRowLayoutDefinition
+{
+    struct Breakpoint
+    {
+        std::optional<float> minWidth, maxWidth;
+        SkinRowLayoutOverride values;
+    };
+    SkinRowLayoutOverride base;
+    std::vector<Breakpoint> breakpoints;
+};
+
+struct SkinControlStyleDefinition
+{
+    std::map<juce::String, SkinRenderPropertyBinding> properties;
+};
+
 struct SkinRenderProgram
 {
     SkinRenderTarget target = SkinRenderTarget::surface;
@@ -155,6 +182,8 @@ struct SkinRenderProgram
     std::set<juce::String> contextPaths;
     int worstCaseOperations = 0;
     int pathCommandCount = 0;
+    std::optional<SkinRowLayoutDefinition> rowLayout;
+    std::optional<SkinControlStyleDefinition> controlStyle;
 };
 
 struct SkinRenderStyleEntry

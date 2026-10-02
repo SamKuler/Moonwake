@@ -5,6 +5,7 @@
 #include "SkinLayoutEngine.h"
 #include "SkinRenderCompiler.h"
 #include "SkinRenderer.h"
+#include "SkinRowLayout.h"
 #include "SkinSchemaValidator.h"
 #include "app/ProductIdentity.h"
 
@@ -288,7 +289,7 @@ std::optional<SkinExpressionValue> syntheticContextValue (
         case SkinExpressionType::number:
             return SkinExpressionValue (1.0);
         case SkinExpressionType::boolean:
-            return SkinExpressionValue (true);
+            return SkinExpressionValue (path != "combo.popupOpen");
         case SkinExpressionType::string:
             if (path == "plugin.format")
                 return SkinExpressionValue (juce::String ("VST3"));
@@ -388,6 +389,7 @@ bool isInteractiveRendererTarget (SkinRenderTarget target)
         case SkinRenderTarget::scrollBar:
         case SkinRenderTarget::table:
         case SkinRenderTarget::effectChain:
+        case SkinRenderTarget::channelMixer:
         case SkinRenderTarget::channelMap:
         case SkinRenderTarget::pluginList:
         case SkinRenderTarget::skinList:
@@ -705,7 +707,14 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
             *componentDocument, package, compiled->tokens, catalog, report);
         if (report.hasErrors()) return {};
         for (auto& [name, renderer] : localRenderers)
+        {
+            if (const auto inherited = compiled->renderers.find (name); inherited != compiled->renderers.end())
+            {
+                if (! renderer.renderer.rowLayout) renderer.renderer.rowLayout = inherited->second.renderer.rowLayout;
+                if (! renderer.renderer.controlStyle) renderer.renderer.controlStyle = inherited->second.renderer.controlStyle;
+            }
             compiled->renderers.insert_or_assign (name, renderer);
+        }
     }
     else if (parent == nullptr)
     {
@@ -742,7 +751,40 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
         for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
                                    juce::Rectangle<float> (0, 0, 1240, 800) })
             for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
-                if (! SkinLayoutEngine::resolve (layout, bounds, 1.0f, report, workspace)) return {};
+            {
+                const auto resolved = SkinLayoutEngine::resolve (layout, bounds, 1.0f, report, workspace, compiled.get());
+                if (! resolved) return {};
+                const auto validateRows = [&] (auto&& self, const SkinResolvedNode& node) -> bool
+                {
+                    if (node.visible && ! node.bounds.isEmpty() && node.type == SkinLayoutNodeType::component)
+                    {
+                        const auto* descriptor = PlayerComponentCatalog::find (node.componentId);
+                        const auto target = descriptor != nullptr ? skinRenderTargetFromName (descriptor->defaultRendererTarget) : std::nullopt;
+                        if (target)
+                        {
+                            auto* style = compiled->resolveStyle (*target, node.style);
+                            if (style != nullptr && ! style->renderer.rowLayout)
+                                style = compiled->resolveStyle (*target, "default");
+                            if (style != nullptr && style->renderer.rowLayout)
+                            {
+                                SkinRenderContext context;
+                                context.bounds = context.contentBounds = node.bounds.withPosition (0, 0);
+                                context.tableRowCount = context.repeatItemCount = 3;
+                                context.tableColumnCount = 3;
+                                context.extraLookup = [presentation = node.presentation] (std::string_view key) -> std::optional<SkinExpressionValue>
+                                {
+                                    if (key == "table.presentation") return SkinExpressionValue (presentation.isEmpty() ? juce::String ("table") : presentation);
+                                    return std::nullopt;
+                                };
+                                if (! resolveSkinRowLayout (style->renderer, context, report)) return false;
+                            }
+                        }
+                    }
+                    for (const auto& child : node.children) if (! self (self, child)) return false;
+                    return true;
+                };
+                if (! validateRows (validateRows, resolved->root)) return {};
+            }
     }
 
     std::set<juce::String> referencedAssets;

@@ -15,9 +15,7 @@
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textSection"
-      },
+      "fontSize": 22,
       "color": {
         "$ref": "colors.studio.text"
       },
@@ -36,21 +34,19 @@
         },
         "height": 24
       },
-      "text": "Sample peak · dBFS",
+      "text": "Sample peak \u00b7 dBFS",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textSecondary"
-      },
+      "fontSize": 17,
       "color": {
-        "$ref": "colors.studio.text"
+        "$ref": "colors.studio.muted"
       },
       "align": "left",
       "maxLines": 1,
       "overflow": "ellipsis",
       "visible": {
-        "$expr": "meter.mode == 'peak'"
+        "$expr": "meter.mode == 'peak' and not meter.interrupted"
       }
     },
     {
@@ -64,21 +60,19 @@
         },
         "height": 24
       },
-      "text": "Peak + RMS · dBFS",
+      "text": "Peak bars / RMS line \u00b7 dBFS",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textSecondary"
-      },
+      "fontSize": 17,
       "color": {
-        "$ref": "colors.studio.text"
+        "$ref": "colors.studio.muted"
       },
       "align": "left",
       "maxLines": 1,
       "overflow": "ellipsis",
       "visible": {
-        "$expr": "meter.mode == 'rms'"
+        "$expr": "meter.mode == 'rms' and not meter.interrupted"
       }
     },
     {
@@ -92,13 +86,37 @@
         },
         "height": 24
       },
-      "text": "Loudness · LUFS",
+      "text": "Loudness \u00b7 LUFS",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textSecondary"
+      "fontSize": 17,
+      "color": {
+        "$ref": "colors.studio.muted"
       },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness' and not meter.interrupted"
+      }
+    },
+    {
+      "id": "interruption",
+      "type": "text",
+      "frame": {
+        "x": 0,
+        "y": 32,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 24
+      },
+      "text": "Measurement restarted",
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 17,
       "color": {
         "$ref": "colors.studio.text"
       },
@@ -106,29 +124,25 @@
       "maxLines": 1,
       "overflow": "ellipsis",
       "visible": {
-        "$expr": "meter.mode == 'loudness'"
+        "$expr": "meter.interrupted"
       }
     },
     {
       "id": "single-scale-0",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((80) + (max(60, bounds.height - 156)) * 0.0) - 9"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 0 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
       "text": "0",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -140,47 +154,41 @@
       }
     },
     {
-      "id": "single-line-0",
+      "id": "single-grid-0",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(80) + (max(60, bounds.height - 156)) * 0.0"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 0 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
       }
     },
     {
-      "id": "single-scale-6",
+      "id": "single-scale-1",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((80) + (max(60, bounds.height - 156)) * 0.1) - 9"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 1 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
-      "text": "-6",
+      "text": "-20",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -192,47 +200,41 @@
       }
     },
     {
-      "id": "single-line-6",
+      "id": "single-grid-1",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(80) + (max(60, bounds.height - 156)) * 0.1"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 1 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
       }
     },
     {
-      "id": "single-scale-12",
+      "id": "single-scale-2",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((80) + (max(60, bounds.height - 156)) * 0.2) - 9"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 2 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
-      "text": "-12",
+      "text": "-40",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -244,203 +246,41 @@
       }
     },
     {
-      "id": "single-line-12",
+      "id": "single-grid-2",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(80) + (max(60, bounds.height - 156)) * 0.2"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 2 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
       }
     },
     {
-      "id": "single-scale-24",
+      "id": "single-scale-3",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((80) + (max(60, bounds.height - 156)) * 0.4) - 9"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 3 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
-      },
-      "text": "-24",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "right",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      }
-    },
-    {
-      "id": "single-line-24",
-      "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      },
-      "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44"
-        },
-        "y": {
-          "$expr": "(80) + (max(60, bounds.height - 156)) * 0.4"
-        },
-        "width": {
-          "$expr": "(meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
-        },
-        "height": 1
-      },
-      "fill": {
-        "$ref": "colors.studio.border"
-      }
-    },
-    {
-      "id": "single-scale-36",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5"
-        },
-        "y": {
-          "$expr": "((80) + (max(60, bounds.height - 156)) * 0.6) - 9"
-        },
-        "width": 36,
-        "height": 18
-      },
-      "text": "-36",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "right",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      }
-    },
-    {
-      "id": "single-line-36",
-      "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      },
-      "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44"
-        },
-        "y": {
-          "$expr": "(80) + (max(60, bounds.height - 156)) * 0.6"
-        },
-        "width": {
-          "$expr": "(meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
-        },
-        "height": 1
-      },
-      "fill": {
-        "$ref": "colors.studio.border"
-      }
-    },
-    {
-      "id": "single-scale-48",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5"
-        },
-        "y": {
-          "$expr": "((80) + (max(60, bounds.height - 156)) * 0.8) - 9"
-        },
-        "width": 36,
-        "height": 18
-      },
-      "text": "-48",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "right",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      }
-    },
-    {
-      "id": "single-line-48",
-      "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      },
-      "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44"
-        },
-        "y": {
-          "$expr": "(80) + (max(60, bounds.height - 156)) * 0.8"
-        },
-        "width": {
-          "$expr": "(meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
-        },
-        "height": 1
-      },
-      "fill": {
-        "$ref": "colors.studio.border"
-      }
-    },
-    {
-      "id": "single-scale-60",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5"
-        },
-        "y": {
-          "$expr": "((80) + (max(60, bounds.height - 156)) * 1.0) - 9"
-        },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
       "text": "-60",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -452,25 +292,23 @@
       }
     },
     {
-      "id": "single-line-60",
+      "id": "single-grid-3",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(80) + (max(60, bounds.height - 156)) * 1.0"
+          "$expr": "(72) + (max(48,bounds.height - 188)) * 3 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
       }
     },
     {
@@ -482,88 +320,93 @@
         "$expr": "meter.mode != 'loudness' and (meter.channelCount <= 8)"
       },
       "template": {
-        "id": "single-meters-channel",
+        "id": "single-meter",
         "type": "group",
         "children": [
           {
-            "id": "single-meters-well",
-            "type": "roundedRect",
-            "visible": {
-              "$expr": "true"
-            },
+            "id": "single-track",
+            "type": "rect",
             "frame": {
               "x": {
-                "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))) + ((min(32, (bounds.width - 44) / max(1, meter.channelCount))) - 14) * 0.5"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,meter.channelCount)) + (((bounds.width - 42) / max(1,meter.channelCount)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "80"
+                "$expr": "72"
               },
-              "width": 14,
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12))"
+              },
               "height": {
-                "$expr": "max(60, bounds.height - 156)"
+                "$expr": "max(48,bounds.height - 188)"
               }
             },
-            "radius": 2,
             "fill": {
               "$ref": "colors.studio.background"
+            },
+            "visible": {
+              "$expr": "item.index >= 0 and item.index < 8"
             }
           },
           {
-            "id": "single-meters-peak",
+            "id": "single-peak",
             "type": "rect",
-            "visible": {
-              "$expr": "true"
-            },
             "frame": {
               "x": {
-                "$expr": "(((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))) + ((min(32, (bounds.width - 44) / max(1, meter.channelCount))) - 14) * 0.5) + 1"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,meter.channelCount)) + (((bounds.width - 42) / max(1,meter.channelCount)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "(80) + (max(60, bounds.height - 156)) * (1 - clamp((item.peakDb + 60) / 60, 0, 1))"
+                "$expr": "((72) + (max(48,bounds.height - 188))) - (max(48,bounds.height - 188)) * clamp((item.peakDb + 60) / 60,0,1)"
               },
-              "width": 12,
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12))"
+              },
               "height": {
-                "$expr": "(max(60, bounds.height - 156)) * clamp((item.peakDb + 60) / 60, 0, 1)"
+                "$expr": "(max(48,bounds.height - 188)) * clamp((item.peakDb + 60) / 60,0,1)"
               }
             },
             "fill": {
               "$ref": "colors.studio.active"
+            },
+            "visible": {
+              "$expr": "item.index >= 0 and item.index < 8"
             }
           },
           {
-            "id": "single-meters-rms",
+            "id": "single-rms",
             "type": "rect",
-            "visible": {
-              "$expr": "(true) and meter.mode == 'rms'"
-            },
             "frame": {
               "x": {
-                "$expr": "(((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))) + ((min(32, (bounds.width - 44) / max(1, meter.channelCount))) - 14) * 0.5) + 4"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,meter.channelCount)) + (((bounds.width - 42) / max(1,meter.channelCount)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "(80) + (max(60, bounds.height - 156)) * (1 - clamp((item.rmsDb + 60) / 60, 0, 1))"
+                "$expr": "((72) + (max(48,bounds.height - 188))) - (max(48,bounds.height - 188)) * clamp((item.rmsDb + 60) / 60,0,1)"
               },
-              "width": 6,
-              "height": {
-                "$expr": "(max(60, bounds.height - 156)) * clamp((item.rmsDb + 60) / 60, 0, 1)"
-              }
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12))"
+              },
+              "height": 1.5
             },
-            "fill": "#F0CE7AFF"
+            "fill": {
+              "$ref": "colors.studio.text"
+            },
+            "visible": {
+              "$expr": "item.index >= 0 and item.index < 8 and meter.mode == 'rms' and item.rmsDb > -60"
+            }
           },
           {
-            "id": "single-meters-name",
+            "id": "single-channel",
             "type": "text",
             "frame": {
               "x": {
-                "$expr": "((bounds.width - (44 + (meter.channelCount) * (min(32, (bounds.width - 44) / max(1, meter.channelCount))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / max(1, meter.channelCount)))"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,meter.channelCount))"
               },
               "y": {
-                "$expr": "(80) + (max(60, bounds.height - 156)) + 5"
+                "$expr": "(72) + (max(48,bounds.height - 188)) + 4"
               },
               "width": {
-                "$expr": "min(32, (bounds.width - 44) / max(1, meter.channelCount))"
+                "$expr": "(bounds.width - 42) / max(1,meter.channelCount)"
               },
-              "height": 20
+              "height": 22
             },
             "text": {
               "$context": "item.label"
@@ -571,9 +414,7 @@
             "font": {
               "$ref": "fonts.workspaceBody"
             },
-            "fontSize": {
-              "$ref": "metrics.textCaption"
-            },
+            "fontSize": 16,
             "color": {
               "$ref": "colors.studio.text"
             },
@@ -581,7 +422,7 @@
             "maxLines": 1,
             "overflow": "ellipsis",
             "visible": {
-              "$expr": "true"
+              "$expr": "item.index >= 0 and item.index < 8"
             }
           }
         ]
@@ -591,22 +432,18 @@
       "id": "upper-scale-0",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((72) + (max(60, (bounds.height - 176) * 0.5)) * 0.0) - 9"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 0 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
       "text": "0",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -618,47 +455,41 @@
       }
     },
     {
-      "id": "upper-line-0",
+      "id": "upper-grid-0",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * 0.0"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 0 / 3"
         },
         "width": {
-          "$expr": "(8) * (min(32, (bounds.width - 44) / (8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
-      "id": "upper-scale-12",
+      "id": "upper-scale-1",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((72) + (max(60, (bounds.height - 176) * 0.5)) * 0.2) - 9"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 1 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
-      "text": "-12",
+      "text": "-20",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -670,47 +501,41 @@
       }
     },
     {
-      "id": "upper-line-12",
+      "id": "upper-grid-1",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * 0.2"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 1 / 3"
         },
         "width": {
-          "$expr": "(8) * (min(32, (bounds.width - 44) / (8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
-      "id": "upper-scale-24",
+      "id": "upper-scale-2",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((72) + (max(60, (bounds.height - 176) * 0.5)) * 0.4) - 9"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 2 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
-      "text": "-24",
+      "text": "-40",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -722,151 +547,41 @@
       }
     },
     {
-      "id": "upper-line-24",
+      "id": "upper-grid-2",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * 0.4"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 2 / 3"
         },
         "width": {
-          "$expr": "(8) * (min(32, (bounds.width - 44) / (8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
-      "id": "upper-scale-36",
+      "id": "upper-scale-3",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((72) + (max(60, (bounds.height - 176) * 0.5)) * 0.6) - 9"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 3 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
-      },
-      "text": "-36",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "right",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      }
-    },
-    {
-      "id": "upper-line-36",
-      "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
-      "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44"
-        },
-        "y": {
-          "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * 0.6"
-        },
-        "width": {
-          "$expr": "(8) * (min(32, (bounds.width - 44) / (8)))"
-        },
-        "height": 1
-      },
-      "fill": {
-        "$ref": "colors.studio.border"
-      }
-    },
-    {
-      "id": "upper-scale-48",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5"
-        },
-        "y": {
-          "$expr": "((72) + (max(60, (bounds.height - 176) * 0.5)) * 0.8) - 9"
-        },
-        "width": 36,
-        "height": 18
-      },
-      "text": "-48",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "right",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      }
-    },
-    {
-      "id": "upper-line-48",
-      "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
-      "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44"
-        },
-        "y": {
-          "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * 0.8"
-        },
-        "width": {
-          "$expr": "(8) * (min(32, (bounds.width - 44) / (8)))"
-        },
-        "height": 1
-      },
-      "fill": {
-        "$ref": "colors.studio.border"
-      }
-    },
-    {
-      "id": "upper-scale-60",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5"
-        },
-        "y": {
-          "$expr": "((72) + (max(60, (bounds.height - 176) * 0.5)) * 1.0) - 9"
-        },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
       "text": "-60",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -878,25 +593,23 @@
       }
     },
     {
-      "id": "upper-line-60",
+      "id": "upper-grid-3",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * 1.0"
+          "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) * 3 / 3"
         },
         "width": {
-          "$expr": "(8) * (min(32, (bounds.width - 44) / (8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
@@ -908,88 +621,93 @@
         "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       },
       "template": {
-        "id": "upper-meters-channel",
+        "id": "upper-meter",
         "type": "group",
         "children": [
           {
-            "id": "upper-meters-well",
-            "type": "roundedRect",
-            "visible": {
-              "$expr": "item.index < 8"
-            },
+            "id": "upper-track",
+            "type": "rect",
             "frame": {
               "x": {
-                "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / (8))) + ((min(32, (bounds.width - 44) / (8))) - 14) * 0.5"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,8)) + (((bounds.width - 42) / max(1,8)) - (max(4,min(48,((bounds.width - 42) / max(1,8)) - 12)))) * 0.5"
               },
               "y": {
                 "$expr": "72"
               },
-              "width": 14,
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,8)) - 12))"
+              },
               "height": {
-                "$expr": "max(60, (bounds.height - 176) * 0.5)"
+                "$expr": "max(28,(bounds.height - 220) / 2)"
               }
             },
-            "radius": 2,
             "fill": {
               "$ref": "colors.studio.background"
+            },
+            "visible": {
+              "$expr": "item.index >= 0 and item.index < 8"
             }
           },
           {
-            "id": "upper-meters-peak",
+            "id": "upper-peak",
             "type": "rect",
-            "visible": {
-              "$expr": "item.index < 8"
-            },
             "frame": {
               "x": {
-                "$expr": "(((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / (8))) + ((min(32, (bounds.width - 44) / (8))) - 14) * 0.5) + 1"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,8)) + (((bounds.width - 42) / max(1,8)) - (max(4,min(48,((bounds.width - 42) / max(1,8)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * (1 - clamp((item.peakDb + 60) / 60, 0, 1))"
+                "$expr": "((72) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.peakDb + 60) / 60,0,1)"
               },
-              "width": 12,
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,8)) - 12))"
+              },
               "height": {
-                "$expr": "(max(60, (bounds.height - 176) * 0.5)) * clamp((item.peakDb + 60) / 60, 0, 1)"
+                "$expr": "(max(28,(bounds.height - 220) / 2)) * clamp((item.peakDb + 60) / 60,0,1)"
               }
             },
             "fill": {
               "$ref": "colors.studio.active"
+            },
+            "visible": {
+              "$expr": "item.index >= 0 and item.index < 8"
             }
           },
           {
-            "id": "upper-meters-rms",
+            "id": "upper-rms",
             "type": "rect",
-            "visible": {
-              "$expr": "(item.index < 8) and meter.mode == 'rms'"
-            },
             "frame": {
               "x": {
-                "$expr": "(((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / (8))) + ((min(32, (bounds.width - 44) / (8))) - 14) * 0.5) + 4"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,8)) + (((bounds.width - 42) / max(1,8)) - (max(4,min(48,((bounds.width - 42) / max(1,8)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) * (1 - clamp((item.rmsDb + 60) / 60, 0, 1))"
+                "$expr": "((72) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.rmsDb + 60) / 60,0,1)"
               },
-              "width": 6,
-              "height": {
-                "$expr": "(max(60, (bounds.height - 176) * 0.5)) * clamp((item.rmsDb + 60) / 60, 0, 1)"
-              }
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,8)) - 12))"
+              },
+              "height": 1.5
             },
-            "fill": "#F0CE7AFF"
+            "fill": {
+              "$ref": "colors.studio.text"
+            },
+            "visible": {
+              "$expr": "item.index >= 0 and item.index < 8 and meter.mode == 'rms' and item.rmsDb > -60"
+            }
           },
           {
-            "id": "upper-meters-name",
+            "id": "upper-channel",
             "type": "text",
             "frame": {
               "x": {
-                "$expr": "((bounds.width - (44 + (8) * (min(32, (bounds.width - 44) / (8))))) * 0.5) + 44 + (item.index) * (min(32, (bounds.width - 44) / (8)))"
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,8))"
               },
               "y": {
-                "$expr": "(72) + (max(60, (bounds.height - 176) * 0.5)) + 5"
+                "$expr": "(72) + (max(28,(bounds.height - 220) / 2)) + 4"
               },
               "width": {
-                "$expr": "min(32, (bounds.width - 44) / (8))"
+                "$expr": "(bounds.width - 42) / max(1,8)"
               },
-              "height": 20
+              "height": 22
             },
             "text": {
               "$context": "item.label"
@@ -997,9 +715,7 @@
             "font": {
               "$ref": "fonts.workspaceBody"
             },
-            "fontSize": {
-              "$ref": "metrics.textCaption"
-            },
+            "fontSize": 16,
             "color": {
               "$ref": "colors.studio.text"
             },
@@ -1007,7 +723,7 @@
             "maxLines": 1,
             "overflow": "ellipsis",
             "visible": {
-              "$expr": "item.index < 8"
+              "$expr": "item.index >= 0 and item.index < 8"
             }
           }
         ]
@@ -1017,22 +733,18 @@
       "id": "lower-scale-0",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.0) - 9"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 0 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
       "text": "0",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -1044,47 +756,41 @@
       }
     },
     {
-      "id": "lower-line-0",
+      "id": "lower-grid-0",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.0"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 0 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
-      "id": "lower-scale-12",
+      "id": "lower-scale-1",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.2) - 9"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 1 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
-      "text": "-12",
+      "text": "-20",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -1096,47 +802,41 @@
       }
     },
     {
-      "id": "lower-line-12",
+      "id": "lower-grid-1",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.2"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 1 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
-      "id": "lower-scale-24",
+      "id": "lower-scale-2",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.4) - 9"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 2 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
-      "text": "-24",
+      "text": "-40",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -1148,151 +848,41 @@
       }
     },
     {
-      "id": "lower-line-24",
+      "id": "lower-grid-2",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.4"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 2 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
-      "id": "lower-scale-36",
+      "id": "lower-scale-3",
       "type": "text",
       "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5"
-        },
+        "x": 0,
         "y": {
-          "$expr": "((96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.6) - 9"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 3 / 3 - 10"
         },
-        "width": 36,
-        "height": 18
-      },
-      "text": "-36",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "right",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      }
-    },
-    {
-      "id": "lower-line-36",
-      "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
-      "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44"
-        },
-        "y": {
-          "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.6"
-        },
-        "width": {
-          "$expr": "(meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8)))"
-        },
-        "height": 1
-      },
-      "fill": {
-        "$ref": "colors.studio.border"
-      }
-    },
-    {
-      "id": "lower-scale-48",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5"
-        },
-        "y": {
-          "$expr": "((96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.8) - 9"
-        },
-        "width": 36,
-        "height": 18
-      },
-      "text": "-48",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "right",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      }
-    },
-    {
-      "id": "lower-line-48",
-      "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
-      "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44"
-        },
-        "y": {
-          "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 0.8"
-        },
-        "width": {
-          "$expr": "(meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8)))"
-        },
-        "height": 1
-      },
-      "fill": {
-        "$ref": "colors.studio.border"
-      }
-    },
-    {
-      "id": "lower-scale-60",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "(bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5"
-        },
-        "y": {
-          "$expr": "((96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 1.0) - 9"
-        },
-        "width": 36,
-        "height": 18
+        "width": 32,
+        "height": 20
       },
       "text": "-60",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -1304,25 +894,23 @@
       }
     },
     {
-      "id": "lower-line-60",
+      "id": "lower-grid-3",
       "type": "rect",
-      "visible": {
-        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
-      },
       "frame": {
-        "x": {
-          "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44"
-        },
+        "x": 42,
         "y": {
-          "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * 1.0"
+          "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) * 3 / 3"
         },
         "width": {
-          "$expr": "(meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8)))"
+          "$expr": "max(0,bounds.width - 42)"
         },
         "height": 1
       },
       "fill": {
         "$ref": "colors.studio.border"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       }
     },
     {
@@ -1334,88 +922,93 @@
         "$expr": "meter.mode != 'loudness' and (meter.channelCount > 8)"
       },
       "template": {
-        "id": "lower-meters-channel",
+        "id": "lower-meter",
         "type": "group",
         "children": [
           {
-            "id": "lower-meters-well",
-            "type": "roundedRect",
-            "visible": {
-              "$expr": "item.index >= 8"
-            },
+            "id": "lower-track",
+            "type": "rect",
             "frame": {
               "x": {
-                "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44 + (item.index - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))) + ((min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))) - 14) * 0.5"
+                "$expr": "42 + (item.index - 8) * ((bounds.width - 42) / max(1,meter.channelCount - 8)) + (((bounds.width - 42) / max(1,meter.channelCount - 8)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "96 + max(60, (bounds.height - 176) * 0.5)"
+                "$expr": "72 + max(28,(bounds.height - 220) / 2) + 32"
               },
-              "width": 14,
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12))"
+              },
               "height": {
-                "$expr": "max(60, (bounds.height - 176) * 0.5)"
+                "$expr": "max(28,(bounds.height - 220) / 2)"
               }
             },
-            "radius": 2,
             "fill": {
               "$ref": "colors.studio.background"
+            },
+            "visible": {
+              "$expr": "item.index >= 8 and item.index < 16"
             }
           },
           {
-            "id": "lower-meters-peak",
+            "id": "lower-peak",
             "type": "rect",
-            "visible": {
-              "$expr": "item.index >= 8"
-            },
             "frame": {
               "x": {
-                "$expr": "(((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44 + (item.index - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))) + ((min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))) - 14) * 0.5) + 1"
+                "$expr": "42 + (item.index - 8) * ((bounds.width - 42) / max(1,meter.channelCount - 8)) + (((bounds.width - 42) / max(1,meter.channelCount - 8)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * (1 - clamp((item.peakDb + 60) / 60, 0, 1))"
+                "$expr": "((72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.peakDb + 60) / 60,0,1)"
               },
-              "width": 12,
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12))"
+              },
               "height": {
-                "$expr": "(max(60, (bounds.height - 176) * 0.5)) * clamp((item.peakDb + 60) / 60, 0, 1)"
+                "$expr": "(max(28,(bounds.height - 220) / 2)) * clamp((item.peakDb + 60) / 60,0,1)"
               }
             },
             "fill": {
               "$ref": "colors.studio.active"
+            },
+            "visible": {
+              "$expr": "item.index >= 8 and item.index < 16"
             }
           },
           {
-            "id": "lower-meters-rms",
+            "id": "lower-rms",
             "type": "rect",
-            "visible": {
-              "$expr": "(item.index >= 8) and meter.mode == 'rms'"
-            },
             "frame": {
               "x": {
-                "$expr": "(((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44 + (item.index - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))) + ((min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))) - 14) * 0.5) + 4"
+                "$expr": "42 + (item.index - 8) * ((bounds.width - 42) / max(1,meter.channelCount - 8)) + (((bounds.width - 42) / max(1,meter.channelCount - 8)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) * (1 - clamp((item.rmsDb + 60) / 60, 0, 1))"
+                "$expr": "((72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.rmsDb + 60) / 60,0,1)"
               },
-              "width": 6,
-              "height": {
-                "$expr": "(max(60, (bounds.height - 176) * 0.5)) * clamp((item.rmsDb + 60) / 60, 0, 1)"
-              }
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12))"
+              },
+              "height": 1.5
             },
-            "fill": "#F0CE7AFF"
+            "fill": {
+              "$ref": "colors.studio.text"
+            },
+            "visible": {
+              "$expr": "item.index >= 8 and item.index < 16 and meter.mode == 'rms' and item.rmsDb > -60"
+            }
           },
           {
-            "id": "lower-meters-name",
+            "id": "lower-channel",
             "type": "text",
             "frame": {
               "x": {
-                "$expr": "((bounds.width - (44 + (meter.channelCount - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))))) * 0.5) + 44 + (item.index - 8) * (min(32, (bounds.width - 44) / max(1, meter.channelCount - 8)))"
+                "$expr": "42 + (item.index - 8) * ((bounds.width - 42) / max(1,meter.channelCount - 8))"
               },
               "y": {
-                "$expr": "(96 + max(60, (bounds.height - 176) * 0.5)) + (max(60, (bounds.height - 176) * 0.5)) + 5"
+                "$expr": "(72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2)) + 4"
               },
               "width": {
-                "$expr": "min(32, (bounds.width - 44) / max(1, meter.channelCount - 8))"
+                "$expr": "(bounds.width - 42) / max(1,meter.channelCount - 8)"
               },
-              "height": 20
+              "height": 22
             },
             "text": {
               "$context": "item.label"
@@ -1423,9 +1016,7 @@
             "font": {
               "$ref": "fonts.workspaceBody"
             },
-            "fontSize": {
-              "$ref": "metrics.textCaption"
-            },
+            "fontSize": 16,
             "color": {
               "$ref": "colors.studio.text"
             },
@@ -1433,90 +1024,50 @@
             "maxLines": 1,
             "overflow": "ellipsis",
             "visible": {
-              "$expr": "item.index >= 8"
+              "$expr": "item.index >= 8 and item.index < 16"
             }
           }
         ]
       }
     },
     {
-      "id": "integrated-caption",
-      "type": "text",
+      "id": "metrics-divider",
+      "type": "rect",
       "frame": {
         "x": 0,
-        "y": 76,
+        "y": {
+          "$expr": "bounds.height - 77"
+        },
         "width": {
           "$expr": "bounds.width"
         },
-        "height": 24
+        "height": 1
       },
-      "text": "Integrated",
-      "font": {
-        "$ref": "fonts.workspaceBody"
+      "fill": {
+        "$ref": "colors.studio.border"
       },
-      "fontSize": {
-        "$ref": "metrics.textSecondary"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "left",
-      "maxLines": 1,
-      "overflow": "ellipsis",
       "visible": {
-        "$expr": "meter.mode == 'loudness'"
+        "$expr": "meter.mode != 'loudness'"
       }
     },
     {
-      "id": "integrated-value",
+      "id": "summary-peak-label",
       "type": "text",
       "frame": {
         "x": 0,
-        "y": 104,
-        "width": {
-          "$expr": "bounds.width"
+        "y": {
+          "$expr": "bounds.height - 67"
         },
-        "height": 60
-      },
-      "text": {
-        "$context": "meter.integratedText"
-      },
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textMeterValue"
-      },
-      "color": {
-        "$ref": "colors.studio.text"
-      },
-      "align": "left",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode == 'loudness'"
-      }
-    },
-    {
-      "id": "momentary-caption",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "0"
-        },
-        "y": 178,
         "width": {
-          "$expr": "bounds.width * 0.5"
+          "$expr": "bounds.width * 0.48"
         },
         "height": 22
       },
-      "text": "Momentary",
+      "text": "Max true peak \u00b7 dBTP",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 15,
       "color": {
         "$ref": "colors.studio.muted"
       },
@@ -1524,141 +1075,21 @@
       "maxLines": 1,
       "overflow": "ellipsis",
       "visible": {
-        "$expr": "meter.mode == 'loudness'"
+        "$expr": "meter.mode != 'loudness'"
       }
     },
     {
-      "id": "momentary-value",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "0"
-        },
-        "y": 202,
-        "width": {
-          "$expr": "bounds.width * 0.5"
-        },
-        "height": 32
-      },
-      "text": {
-        "$context": "meter.momentaryText"
-      },
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textStudioTitle"
-      },
-      "color": {
-        "$ref": "colors.studio.text"
-      },
-      "align": "left",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode == 'loudness'"
-      }
-    },
-    {
-      "id": "shortTerm-caption",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "bounds.width * 0.5"
-        },
-        "y": 178,
-        "width": {
-          "$expr": "bounds.width * 0.5"
-        },
-        "height": 22
-      },
-      "text": "Short-term",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "left",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode == 'loudness'"
-      }
-    },
-    {
-      "id": "shortTerm-value",
-      "type": "text",
-      "frame": {
-        "x": {
-          "$expr": "bounds.width * 0.5"
-        },
-        "y": 202,
-        "width": {
-          "$expr": "bounds.width * 0.5"
-        },
-        "height": 32
-      },
-      "text": {
-        "$context": "meter.shortTermText"
-      },
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textStudioTitle"
-      },
-      "color": {
-        "$ref": "colors.studio.text"
-      },
-      "align": "left",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode == 'loudness'"
-      }
-    },
-    {
-      "id": "true-peak-caption",
+      "id": "summary-peak-value",
       "type": "text",
       "frame": {
         "x": 0,
-        "y": 256,
-        "width": {
-          "$expr": "bounds.width"
+        "y": {
+          "$expr": "bounds.height - 43"
         },
-        "height": 22
-      },
-      "text": "True peak max · dBTP",
-      "font": {
-        "$ref": "fonts.workspaceBody"
-      },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
-      "color": {
-        "$ref": "colors.studio.muted"
-      },
-      "align": "left",
-      "maxLines": 1,
-      "overflow": "ellipsis",
-      "visible": {
-        "$expr": "meter.mode == 'loudness'"
-      }
-    },
-    {
-      "id": "true-peak-value",
-      "type": "text",
-      "frame": {
-        "x": 0,
-        "y": 280,
         "width": {
-          "$expr": "bounds.width"
+          "$expr": "bounds.width * 0.48"
         },
-        "height": 32
+        "height": 36
       },
       "text": {
         "$context": "meter.truePeakText"
@@ -1666,9 +1097,127 @@
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textStudioTitle"
+      "fontSize": 30,
+      "color": {
+        "$ref": "colors.studio.text"
       },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode != 'loudness'"
+      }
+    },
+    {
+      "id": "summary-integrated-label",
+      "type": "text",
+      "frame": {
+        "x": {
+          "$expr": "bounds.width * 0.52"
+        },
+        "y": {
+          "$expr": "bounds.height - 67"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.48"
+        },
+        "height": 22
+      },
+      "text": "Integrated \u00b7 LUFS",
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 15,
+      "color": {
+        "$ref": "colors.studio.muted"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode != 'loudness'"
+      }
+    },
+    {
+      "id": "summary-integrated-value",
+      "type": "text",
+      "frame": {
+        "x": {
+          "$expr": "bounds.width * 0.52"
+        },
+        "y": {
+          "$expr": "bounds.height - 43"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.48"
+        },
+        "height": 36
+      },
+      "text": {
+        "$context": "meter.integratedText"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 30,
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode != 'loudness'"
+      }
+    },
+    {
+      "id": "loudness-integrated-label",
+      "type": "text",
+      "frame": {
+        "x": 0,
+        "y": {
+          "$expr": "82"
+        },
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 22
+      },
+      "text": "Integrated",
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 17,
+      "color": {
+        "$ref": "colors.studio.muted"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      }
+    },
+    {
+      "id": "loudness-integrated-value",
+      "type": "text",
+      "frame": {
+        "x": 0,
+        "y": {
+          "$expr": "(82) + 26"
+        },
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 56
+      },
+      "text": {
+        "$context": "meter.integratedText"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 48,
       "color": {
         "$ref": "colors.studio.text"
       },
@@ -1680,62 +1229,182 @@
       }
     },
     {
-      "id": "device",
+      "id": "loudness-momentary-label",
       "type": "text",
       "frame": {
         "x": 0,
         "y": {
-          "$expr": "bounds.height - 42"
+          "$expr": "bounds.height * 0.53"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.48"
+        },
+        "height": 22
+      },
+      "text": "Momentary",
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 17,
+      "color": {
+        "$ref": "colors.studio.muted"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      }
+    },
+    {
+      "id": "loudness-momentary-value",
+      "type": "text",
+      "frame": {
+        "x": 0,
+        "y": {
+          "$expr": "(bounds.height * 0.53) + 26"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.48"
+        },
+        "height": 36
+      },
+      "text": {
+        "$context": "meter.momentaryText"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 28,
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      }
+    },
+    {
+      "id": "loudness-short-label",
+      "type": "text",
+      "frame": {
+        "x": {
+          "$expr": "bounds.width * 0.52"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.53"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.48"
+        },
+        "height": 22
+      },
+      "text": "Short-term",
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 17,
+      "color": {
+        "$ref": "colors.studio.muted"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      }
+    },
+    {
+      "id": "loudness-short-value",
+      "type": "text",
+      "frame": {
+        "x": {
+          "$expr": "bounds.width * 0.52"
+        },
+        "y": {
+          "$expr": "(bounds.height * 0.53) + 26"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.48"
+        },
+        "height": 36
+      },
+      "text": {
+        "$context": "meter.shortTermText"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": 28,
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      }
+    },
+    {
+      "id": "loudness-truepeak-label",
+      "type": "text",
+      "frame": {
+        "x": 0,
+        "y": {
+          "$expr": "bounds.height - 72"
         },
         "width": {
           "$expr": "bounds.width"
         },
         "height": 22
       },
-      "text": {
-        "$context": "text.secondary"
-      },
+      "text": "Max true peak \u00b7 dBTP",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 17,
       "color": {
         "$ref": "colors.studio.muted"
       },
       "align": "left",
       "maxLines": 1,
-      "overflow": "ellipsis"
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      }
     },
     {
-      "id": "measurement-status",
+      "id": "loudness-truepeak-value",
       "type": "text",
       "frame": {
         "x": 0,
         "y": {
-          "$expr": "bounds.height - 20"
+          "$expr": "(bounds.height - 72) + 26"
         },
         "width": {
           "$expr": "bounds.width"
         },
-        "height": 20
+        "height": 36
       },
       "text": {
-        "$context": "meter.status"
+        "$context": "meter.truePeakText"
       },
       "font": {
         "$ref": "fonts.workspaceBody"
       },
-      "fontSize": {
-        "$ref": "metrics.textCaption"
-      },
+      "fontSize": 28,
       "color": {
-        "$ref": "colors.studio.muted"
+        "$ref": "colors.studio.text"
       },
       "align": "left",
       "maxLines": 1,
-      "overflow": "ellipsis"
+      "overflow": "ellipsis",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      }
     }
   ]
 }

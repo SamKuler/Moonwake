@@ -1,0 +1,59 @@
+{
+  "apiVersion": 1,
+  "target": "table",
+  "layers": [
+    {
+      "id": "body",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000000"
+    }
+  ],
+  "variants": {
+    "focused": {
+      "body.fill": "#D697620A"
+    },
+    "disabled": {
+      "body.opacity": 0.4
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 56,
+    "rowGap": 0,
+    "headerHeight": 0,
+    "slots": {
+      "row.surface": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      },
+      "cell.title": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$expr": "bounds.width - 56"
+        },
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      },
+      "cell.duration": {
+        "x": {
+          "$expr": "bounds.width - 56"
+        },
+        "y": 0,
+        "width": 56,
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      }
+    }
+  }
+}

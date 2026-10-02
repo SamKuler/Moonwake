@@ -4,5 +4,17 @@
     { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.controlActive" }, "stroke": { "color": { "$ref": "colors.controlActive" }, "width": 1, "placement": "inside" } },
     { "id": "focus", "type": "roundedRect", "visible": { "$context": "state.focused" }, "frame": { "anchor": "bounds", "inset": 1.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.transparent" }, "stroke": { "color": { "$ref": "colors.focus" }, "width": 2, "placement": "inside" } }
   ],
-  "variants": { "hover": { "body.opacity": 0.9 }, "pressed": { "body.opacity": 0.76 }, "disabled": { "body.opacity": 0.4 } }
+  "variants": { "hover": { "body.opacity": 0.9 }, "pressed": { "body.opacity": 0.76 }, "disabled": { "body.opacity": 0.4 } },
+  "controlStyle": {
+    "iconBounds": {
+      "x": {
+        "$expr": "(bounds.width - 18) * 0.5"
+      },
+      "y": {
+        "$expr": "(bounds.height - 18) * 0.5"
+      },
+      "width": 18,
+      "height": 18
+    }
+  }
 }

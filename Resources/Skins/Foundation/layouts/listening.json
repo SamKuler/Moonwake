@@ -1,64 +1,274 @@
 {
   "apiVersion": 1,
   "root": {
-    "id": "listening-root", "type": "column", "padding": 0, "gap": 0, "style": "surface.canvas",
+    "id": "listening-root",
+    "type": "column",
+    "padding": 0,
+    "gap": 0,
+    "style": "surface.canvas",
     "children": [
       {
-        "id": "listening-header", "type": "row", "height": 60, "padding": 12, "gap": 8, "align": "center",
+        "id": "listening-header",
+        "type": "row",
+        "height": 60,
+        "padding": 12,
+        "gap": 8,
+        "align": "center",
         "children": [
-          { "id": "listening-brand", "type": "component", "component": "app.brand.title", "style": "label.title", "grow": 1 },
-          { "id": "listening-studio", "type": "component", "component": "workspace.studio", "style": "textButton.default", "width": 108, "height": 36, "focusOrder": 10 },
-          { "id": "listening-mode", "type": "component", "component": "workspace.listening", "style": "textButton.primary", "width": 108, "height": 36, "focusOrder": 20 },
-          { "id": "listening-settings", "type": "component", "component": "settings.open", "style": "textButton.iconNeutral", "width": 44, "height": 36, "focusOrder": 30 }
+          {
+            "id": "listening-brand",
+            "type": "component",
+            "component": "app.brand.title",
+            "style": "label.title",
+            "grow": 1
+          },
+          {
+            "id": "listening-studio",
+            "type": "component",
+            "component": "workspace.studio",
+            "style": "textButton.default",
+            "width": 108,
+            "height": 36,
+            "focusOrder": 10
+          },
+          {
+            "id": "listening-mode",
+            "type": "component",
+            "component": "workspace.listening",
+            "style": "textButton.primary",
+            "width": 108,
+            "height": 36,
+            "focusOrder": 20
+          },
+          {
+            "id": "listening-settings",
+            "type": "component",
+            "component": "settings.open",
+            "style": "textButton.iconNeutral",
+            "width": 44,
+            "height": 36,
+            "focusOrder": 30
+          }
         ]
       },
       {
-        "id": "listening-content", "type": "row", "padding": 12, "gap": 12, "grow": 1,
+        "id": "listening-content",
+        "type": "row",
+        "padding": 12,
+        "gap": 12,
+        "grow": 1,
         "children": [
           {
-            "id": "listening-art", "type": "column", "width": "34%", "padding": 14, "gap": 8, "style": "surface.default",
+            "id": "listening-art",
+            "type": "column",
+            "width": "34%",
+            "padding": 14,
+            "gap": 8,
+            "style": "surface.default",
             "children": [
-              { "id": "listening-cover", "type": "component", "component": "artwork.cover", "presentation": "contain", "grow": 1 },
-              { "id": "listening-meta", "type": "component", "component": "artwork.metadata", "height": 24 }
+              {
+                "id": "listening-cover",
+                "type": "component",
+                "component": "artwork.cover",
+                "presentation": "contain",
+                "grow": 1
+              },
+              {
+                "id": "listening-meta",
+                "type": "component",
+                "component": "artwork.metadata",
+                "height": 24
+              }
             ]
           },
           {
-            "id": "listening-main", "type": "column", "gap": 10, "grow": 1,
+            "id": "listening-main",
+            "type": "column",
+            "gap": 10,
+            "grow": 1,
             "children": [
-              { "id": "listening-now-playing", "type": "component", "component": "nowPlaying.title", "style": "label.title", "height": 42 },
-              { "id": "listening-now-meta", "type": "component", "component": "nowPlaying.metadata", "style": "label.muted", "height": 22 },
               {
-                "id": "listening-queue-panel", "type": "column", "padding": 10, "gap": 8, "grow": 1, "style": "surface.default",
+                "id": "listening-now-playing",
+                "type": "component",
+                "component": "nowPlaying.title",
+                "style": "label.title",
+                "height": 42
+              },
+              {
+                "id": "listening-now-meta",
+                "type": "component",
+                "component": "nowPlaying.metadata",
+                "style": "label.muted",
+                "height": 22
+              },
+              {
+                "id": "listening-queue-panel",
+                "type": "column",
+                "padding": 10,
+                "gap": 8,
+                "grow": 1,
+                "style": "surface.default",
                 "children": [
                   {
-                    "id": "listening-queue-header", "type": "row", "height": 38, "gap": 8, "align": "center",
+                    "id": "listening-queue-header",
+                    "type": "row",
+                    "height": 38,
+                    "gap": 8,
+                    "align": "center",
                     "children": [
-                      { "id": "listening-queue-title", "type": "component", "component": "queue.title", "grow": 1 },
-                      { "id": "listening-queue-count", "type": "component", "component": "queue.count", "width": 72 },
-                      { "id": "listening-add", "type": "component", "component": "library.add", "style": "textButton.iconPrimary", "width": 44, "height": 36, "focusOrder": 40 }
+                      {
+                        "id": "listening-queue-title",
+                        "type": "component",
+                        "component": "queue.title",
+                        "grow": 1
+                      },
+                      {
+                        "id": "listening-queue-count",
+                        "type": "component",
+                        "component": "queue.count",
+                        "width": 72
+                      },
+                      {
+                        "id": "listening-add",
+                        "type": "component",
+                        "component": "library.add",
+                        "style": "textButton.iconPrimary",
+                        "width": 44,
+                        "height": 36,
+                        "focusOrder": 40
+                      }
                     ]
                   },
-                  { "id": "listening-library-search", "type": "component", "component": "library.search", "height": 34, "focusOrder": 45 },
-                  { "id": "listening-queue-stack", "type": "stack", "grow": 1, "children": [
-                    { "id": "listening-queue", "type": "component", "component": "queue.table", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 }, "focusOrder": 50 },
-                    { "id": "listening-queue-empty", "type": "component", "component": "queue.empty", "anchors": { "top": 0, "right": 0, "bottom": 0, "left": 0 } }
-                  ] }
+                  {
+                    "id": "listening-library-search",
+                    "type": "component",
+                    "component": "library.search",
+                    "height": 34,
+                    "focusOrder": 45
+                  },
+                  {
+                    "id": "listening-queue-stack",
+                    "type": "stack",
+                    "grow": 1,
+                    "children": [
+                      {
+                        "id": "listening-queue",
+                        "type": "component",
+                        "component": "queue.table",
+                        "style": "table.list",
+                        "presentation": "list",
+                        "anchors": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "focusOrder": 50
+                      },
+                      {
+                        "id": "listening-queue-empty",
+                        "type": "component",
+                        "component": "queue.empty",
+                        "anchors": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        }
+                      }
+                    ]
+                  }
                 ]
               },
               {
-                "id": "listening-transport", "type": "column", "height": 108, "padding": { "top": 8, "right": 12, "bottom": 8, "left": 12 }, "gap": 4, "style": "surface.default",
+                "id": "listening-transport",
+                "type": "column",
+                "height": 108,
+                "padding": {
+                  "top": 8,
+                  "right": 12,
+                  "bottom": 8,
+                  "left": 12
+                },
+                "gap": 4,
+                "style": "surface.default",
                 "children": [
-                  { "id": "listening-seek", "type": "component", "component": "transport.seek", "presentation": "linearHorizontal", "style": "linearSlider.default", "height": 28, "focusOrder": 90 },
                   {
-                    "id": "listening-controls", "type": "row", "height": 60, "gap": 8, "align": "center",
+                    "id": "listening-seek",
+                    "type": "component",
+                    "component": "transport.seek",
+                    "presentation": "linearHorizontal",
+                    "style": "linearSlider.default",
+                    "height": 28,
+                    "focusOrder": 90
+                  },
+                  {
+                    "id": "listening-controls",
+                    "type": "row",
+                    "height": 60,
+                    "gap": 8,
+                    "align": "center",
                     "children": [
-                      { "id": "listening-previous", "type": "component", "component": "transport.previous", "style": "textButton.iconNeutral", "width": 44, "height": 40, "focusOrder": 60 },
-                      { "id": "listening-play", "type": "component", "component": "transport.playPause", "style": "textButton.iconPrimary", "width": 52, "height": 44, "focusOrder": 70 },
-                      { "id": "listening-next", "type": "component", "component": "transport.next", "style": "textButton.iconNeutral", "width": 44, "height": 40, "focusOrder": 80 },
-                      { "id": "listening-effects", "type": "component", "component": "effects.open", "style": "textButton.iconNeutral", "width": 44, "height": 40, "focusOrder": 110 },
-                      { "id": "listening-spacer", "type": "visual", "style": "surface.canvas", "grow": 1 },
-                      { "id": "listening-time", "type": "component", "component": "transport.time", "style": "label.data", "width": 116, "height": 24 },
-                      { "id": "listening-volume", "type": "component", "component": "transport.volume", "presentation": "rotary", "style": "rotarySlider.default", "width": 60, "height": 60, "focusOrder": 100 }
+                      {
+                        "id": "listening-previous",
+                        "type": "component",
+                        "component": "transport.previous",
+                        "style": "textButton.iconNeutral",
+                        "width": 44,
+                        "height": 40,
+                        "focusOrder": 60
+                      },
+                      {
+                        "id": "listening-play",
+                        "type": "component",
+                        "component": "transport.playPause",
+                        "style": "textButton.iconPrimary",
+                        "width": 52,
+                        "height": 44,
+                        "focusOrder": 70
+                      },
+                      {
+                        "id": "listening-next",
+                        "type": "component",
+                        "component": "transport.next",
+                        "style": "textButton.iconNeutral",
+                        "width": 44,
+                        "height": 40,
+                        "focusOrder": 80
+                      },
+                      {
+                        "id": "listening-effects",
+                        "type": "component",
+                        "component": "effects.open",
+                        "style": "textButton.iconNeutral",
+                        "width": 44,
+                        "height": 40,
+                        "focusOrder": 110
+                      },
+                      {
+                        "id": "listening-spacer",
+                        "type": "visual",
+                        "style": "surface.canvas",
+                        "grow": 1
+                      },
+                      {
+                        "id": "listening-time",
+                        "type": "component",
+                        "component": "transport.time",
+                        "style": "label.data",
+                        "width": 116,
+                        "height": 24
+                      },
+                      {
+                        "id": "listening-volume",
+                        "type": "component",
+                        "component": "transport.volume",
+                        "presentation": "rotary",
+                        "style": "rotarySlider.default",
+                        "width": 60,
+                        "height": 60,
+                        "focusOrder": 100
+                      }
                     ]
                   }
                 ]
@@ -67,7 +277,12 @@
           }
         ]
       },
-      { "id": "listening-status", "type": "component", "component": "app.status", "height": 28 }
+      {
+        "id": "listening-status",
+        "type": "component",
+        "component": "app.status",
+        "height": 28
+      }
     ]
   }
 }

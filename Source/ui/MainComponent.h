@@ -27,7 +27,7 @@
 
 class MainComponent final : public juce::Component,
                             private juce::TableListBoxModel,
-                            private juce::Timer,
+                            private juce::MultiTimer,
                             private juce::FileDragAndDropTarget,
                             private SkinManager::Listener
 {
@@ -43,7 +43,7 @@ private:
     class EffectSlotRow;
     class PluginEditorWindow;
 
-    void timerCallback() override;
+    void timerCallback (int timerID) override;
     void showStatus (const juce::String&, bool isError = false);
     void skinChanged() override;
     int getNumRows() override;
@@ -102,11 +102,11 @@ private:
     SkinManager skinManager;
     SkinComponentBindings skinBindings;
     SkinRenderer skinRenderer;
+    std::shared_ptr<SkinSession> appliedSkinSession;
     JuceSkinAdapter skinAdapter;
     AudioSettingsPanel audioSettingsPanel;
     PluginSettingsPanel pluginSettingsPanel;
     SkinLibraryPanel skinLibraryPanel;
-    std::shared_ptr<SkinSession> appliedSkinSession;
     bool hasAppliedSkinLayout = false;
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<std::unique_ptr<PluginEditorWindow>> pluginEditorWindows;
@@ -165,6 +165,7 @@ private:
     juce::Label statusLabel;
     juce::Slider volumeSlider;
     juce::Slider seekSlider;
+    bool seekGestureInProgress = false;
     AlbumArtworkComponent albumArtwork;
     OutputStageComponent outputStage;
     OutputMixerComponent outputMixer;
@@ -181,6 +182,7 @@ private:
     bool pluginInsertionInProgress = false;
     bool refreshingPlaylist = false;
 
-    static constexpr int effectRowHeight = 80;
-    static constexpr int effectRowGap = 8;
+    SkinResolvedRowLayout effectRowLayout;
+    int effectRowHeight = 1;
+    int effectRowGap = 0;
 };

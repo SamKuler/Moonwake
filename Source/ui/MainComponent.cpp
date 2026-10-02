@@ -247,14 +247,18 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        auto bounds = getLocalBounds().toFloat().reduced (0.5f);
-        if (! drawSlot (g, *this, "slot.surface", SkinRenderTarget::surface,
-                        {}, {}, isMouseOver (true), isMouseButtonDown(), false,
-                        bounds))
-            return;
+        const auto frame = [&] (const juce::String& slot)
+        {
+            const auto found = owner.effectRowLayout.slots.find (slot);
+            return found != owner.effectRowLayout.slots.end() ? found->second : juce::Rectangle<float>{};
+        };
+        auto bounds = frame ("slot.surface");
+        if (! bounds.isEmpty())
+            static_cast<void> (drawSlot (g, *this, "slot.surface", SkinRenderTarget::surface,
+                {}, {}, isMouseOver (true), isMouseButtonDown(), false, bounds));
 
-        const juce::Rectangle<float> indicator (8.0f, 13.0f, 8.0f, 20.0f);
-        static_cast<void> (drawSlot (
+        const auto indicator = frame ("slot.dragIndicator");
+        if (! indicator.isEmpty()) static_cast<void> (drawSlot (
             g, *this, "slot.dragIndicator", SkinRenderTarget::surface,
             {}, "drag", isMouseOver (true), isMouseButtonDown(),
             false, indicator));
@@ -262,17 +266,17 @@ public:
 
     void resized() override
     {
-        auto bounds = getLocalBounds().reduced (12, 8);
-        auto heading = bounds.removeFromTop (28);
-        scopeButton.setBounds (heading.removeFromRight (juce::jmin (200, heading.getWidth() * 2 / 5)));
-        heading.removeFromRight (10);
-        nameLabel.setBounds (heading);
-        bounds.removeFromTop (8);
-        removeButton.setBounds (bounds.removeFromRight (28));
-        bounds.removeFromRight (6);
-        editorButton.setBounds (bounds.removeFromRight (56));
-        bounds.removeFromRight (6);
-        bypassButton.setBounds (bounds.removeFromRight (86));
+        const auto place = [&] (juce::Component& component, const juce::String& slot)
+        {
+            const auto found = owner.effectRowLayout.slots.find (slot);
+            component.setBounds (found != owner.effectRowLayout.slots.end()
+                ? found->second.getSmallestIntegerContainer() : juce::Rectangle<int>{});
+        };
+        place (nameLabel, "slot.name");
+        place (scopeButton, "slot.scope");
+        place (bypassButton, "slot.bypass");
+        place (editorButton, "slot.editor");
+        place (removeButton, "slot.remove");
     }
 
 private:
@@ -290,7 +294,7 @@ private:
         context.state.enabled = control.isEnabled();
         context.state.hover = over;
         context.state.pressed = down;
-        context.state.focused = control.hasKeyboardFocus (true);
+        context.state.focused = control.hasKeyboardFocus (false);
         context.state.selected = selected;
         context.state.dragging = dragging;
         context.extraLookup = [count = slotCount, row = index,
@@ -392,9 +396,9 @@ MainComponent::MainComponent()
     appEyebrowLabel.setText ("Music for macOS", juce::dontSendNotification);
     appEyebrowLabel.setJustificationType (juce::Justification::centredLeft);
 
-    titleLabel.setText (juce::String::fromUTF8 (MoonwakeIdentity::displayCredit),
+    titleLabel.setText (MoonwakeIdentity::productName,
                         juce::dontSendNotification);
-    titleLabel.setTitle (juce::String::fromUTF8 (MoonwakeIdentity::displayCredit));
+    titleLabel.setTitle (MoonwakeIdentity::productName);
     titleLabel.setJustificationType (juce::Justification::centredLeft);
 
     nowPlayingEyebrowLabel.setText ("Now playing", juce::dontSendNotification);
@@ -438,12 +442,13 @@ MainComponent::MainComponent()
     repeatModeBox.addItem ("Repeat off", 1);
     repeatModeBox.addItem ("Repeat all", 2);
     repeatModeBox.addItem ("Repeat one", 3);
-    repeatModeBox.setSelectedId (1);
+    repeatModeBox.setSelectedId (1, juce::dontSendNotification);
 
     for (const auto& layout : outputLayouts())
         outputLayoutBox.addItem (juce::String (layout.name) + " / " + juce::String (layout.channels.size()) + " ch",
                                  static_cast<int> (layout.layout) + 1);
-    outputLayoutBox.setSelectedId (static_cast<int> (OutputLayout::stereo) + 1);
+    outputLayoutBox.setSelectedId (static_cast<int> (OutputLayout::stereo) + 1,
+                                   juce::dontSendNotification);
 
     playlistTable.setModel (this);
     playlistTable.setOutlineThickness (0);
@@ -506,7 +511,7 @@ MainComponent::MainComponent()
     effectRackViewport.setScrollBarsShown (true, false);
 
     volumeSlider.setRange (0.0, 1.0, 0.01);
-    volumeSlider.setValue (0.8);
+    volumeSlider.setValue (0.8, juce::dontSendNotification);
     volumeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     volumeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
 
@@ -613,7 +618,8 @@ MainComponent::MainComponent()
     {
         refreshEffectScopes();
         refreshEffects();
-        reportStatus (message, isError);
+        if (isError) reportStatus (message, true);
+        else updateTransportState();
     });
     pluginSettingsPanel.setStatusCallback (reportStatus);
     pluginSettingsPanel.setScanFolderCallback ([this] { choosePluginDirectory(); });
@@ -680,8 +686,6 @@ MainComponent::MainComponent()
             playlistTable.getSelectedRow());
         if (! controller.removeTrack (index))
             showStatus ("Select a track to remove.", true);
-        else
-            showStatus (controller.getLastStatusMessage());
 
         refreshPlaylist();
         updateTransportState();
@@ -690,7 +694,6 @@ MainComponent::MainComponent()
     {
         controller.clearPlaylist();
         refreshPlaylist();
-        showStatus (controller.getLastStatusMessage());
         updateTransportState();
     };
     moveTrackUpButton.onClick = [this]
@@ -698,20 +701,14 @@ MainComponent::MainComponent()
         const auto index = libraryFilter.playlistIndexForRow (
             playlistTable.getSelectedRow());
         if (controller.moveTrack (index, index - 1))
-        {
             refreshPlaylist();
-            showStatus (controller.getLastStatusMessage());
-        }
     };
     moveTrackDownButton.onClick = [this]
     {
         const auto index = libraryFilter.playlistIndexForRow (
             playlistTable.getSelectedRow());
         if (controller.moveTrack (index, index + 1))
-        {
             refreshPlaylist();
-            showStatus (controller.getLastStatusMessage());
-        }
     };
     addEffectButton.onClick = [this]
     {
@@ -731,7 +728,7 @@ MainComponent::MainComponent()
 
                 safeThis->pluginInsertionInProgress = false;
                 safeThis->addEffectButton.setEnabled (safeThis->pluginCombo.getSelectedId() > 0);
-                safeThis->showStatus (message, ! inserted);
+                safeThis->showStatus (inserted ? juce::String{} : message, ! inserted);
                 safeThis->refreshEffects();
             }, effectScopeChoices[static_cast<size_t> (effectScopeBox.getSelectedId() - 1)]);
     };
@@ -775,8 +772,7 @@ MainComponent::MainComponent()
     {
         const auto error = controller.setOutputLayout (static_cast<OutputLayout> (outputLayoutBox.getSelectedId() - 1));
 
-        showStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
-                    error.isNotEmpty());
+        if (error.isNotEmpty()) showStatus (error, true);
         audioSettingsPanel.refresh();
         refreshEffectScopes();
         refreshEffects();
@@ -786,11 +782,21 @@ MainComponent::MainComponent()
     {
         controller.setVolume (volumeSlider.getValue());
     };
-    seekSlider.onDragEnd = [this]
+    const auto commitSeek = [this]
     {
         if (! controller.seekToRatio (seekSlider.getValue()))
             showStatus (controller.getLastStatusMessage(), true);
         updateTransportState();
+    };
+    seekSlider.onDragStart = [this] { seekGestureInProgress = true; };
+    seekSlider.onDragEnd = [this, commitSeek]
+    {
+        seekGestureInProgress = false;
+        commitSeek();
+    };
+    seekSlider.onValueChange = [this, commitSeek]
+    {
+        if (! seekGestureInProgress) commitSeek();
     };
 
     const auto remoteLifetime = remoteCommandLifetime;
@@ -822,7 +828,8 @@ MainComponent::MainComponent()
         startupErrors.add (skinReport.toText());
     if (! startupErrors.isEmpty())
         showStatus (startupErrors.joinIntoString (" "), true);
-    startTimerHz (5);
+    startTimer (1, 200);
+    startTimer (2, 33);
     setWantsKeyboardFocus (true);
     setFocusContainerType (juce::Component::FocusContainerType::keyboardFocusContainer);
     juce::Component* focusOrder[] = { &listeningModeButton, &studioModeButton, &settingsButton,
@@ -863,7 +870,8 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
-    stopTimer();
+    stopTimer (1);
+    stopTimer (2);
     stateRestoreService.cancel();
     remoteCommandLifetime->store (false, std::memory_order_release);
     nowPlayingCoordinator.setCommandHandler ({});
@@ -1024,9 +1032,6 @@ void MainComponent::skinChanged()
 {
     skinLibraryPanel.refresh();
     resized();
-    if (! librarySearchEditor.isShowing()
-        && librarySearchEditor.getText().isNotEmpty())
-        librarySearchEditor.clear();
     repaint();
 }
 
@@ -1065,7 +1070,16 @@ void MainComponent::resized()
             for (const auto& id : skinBindings.ids())
                 if (auto* editor = dynamic_cast<juce::TextEditor*> (skinBindings.find (id)))
                     skinAdapter.configureTextEditor (*editor);
+        for (const auto& id : skinBindings.ids())
+            if (auto* component = skinBindings.find (id))
+            {
+                component->sendLookAndFeelChange();
+                component->resized();
+            }
         hasAppliedSkinLayout = true;
+        if ((requestedEntry == SkinLayoutEntry::studio || requestedEntry == SkinLayoutEntry::listening)
+            && ! librarySearchEditor.isVisible() && librarySearchEditor.getText().isNotEmpty())
+            librarySearchEditor.clear();
     }
     else
     {
@@ -1102,6 +1116,13 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
             if (dynamic_cast<juce::TextEditor*> (focused) != nullptr)
                 return false;
         showStatus ({});
+        return true;
+    }
+    if (key == juce::KeyPress::escapeKey && (settingsDrawerOpen || effectsDrawerOpen))
+    {
+        closeDrawers();
+        applyWorkspaceVisuals();
+        resized();
         return true;
     }
     if (key == juce::KeyPress::spaceKey)
@@ -1156,7 +1177,7 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 void MainComponent::setWorkspaceMode (WorkspaceMode mode)
 {
     if (restoreStatus == RestoreStatus::loading) return;
-    if (workspaceMode == mode)
+    if (workspaceMode == mode && ! settingsDrawerOpen && ! effectsDrawerOpen)
         return;
 
     closeDrawers();
@@ -1203,8 +1224,19 @@ void MainComponent::mouseUp (const juce::MouseEvent& event)
     if (event.originalComponent == &statusLabel) showStatus ({});
 }
 
-void MainComponent::timerCallback()
+void MainComponent::timerCallback (int timerID)
 {
+    if (timerID == 2)
+    {
+        if (outputStage.isShowing() || outputMixer.isShowing())
+        {
+            const auto readings = controller.getOutputMeterReadings();
+            if (outputStage.isShowing()) outputStage.setMeterReadings (readings);
+            if (outputMixer.isShowing()) outputMixer.setPeaks (readings.samplePeak);
+        }
+        return;
+    }
+
     if (statusVisibleUntil > 0.0
         && juce::Time::getMillisecondCounterHiRes() / 1000.0 >= statusVisibleUntil)
         showStatus ({});
@@ -1658,10 +1690,30 @@ void MainComponent::refreshEffects()
         }
     }
 
-    const auto contentWidth = juce::jmax (1, effectRackViewport.getWidth() - 14);
-    effectRackContent.setSize (contentWidth,
-                               juce::jmax (effectRackViewport.getHeight(),
-                                           chain.size() * (effectRowHeight + effectRowGap)));
+    if (effectRackViewport.getLocalBounds().isEmpty()) return;
+    SkinRenderContext layoutContext;
+    layoutContext.bounds = effectRackViewport.getLocalBounds().toFloat();
+    layoutContext.repeatItemCount = chain.size();
+    layoutContext.extraLookup = [count = chain.size()] (std::string_view key) -> std::optional<SkinExpressionValue>
+    {
+        if (key == "chain.slotCount") return SkinExpressionValue (static_cast<double> (count));
+        return std::nullopt;
+    };
+    const auto initialLayout = skinAdapter.rowLayoutFor (effectRackViewport, SkinRenderTarget::effectChain, layoutContext);
+    if (! initialLayout) return;
+    effectRowHeight = juce::jmax (1, juce::roundToInt (initialLayout->rowHeight));
+    effectRowGap = juce::jmax (0, juce::roundToInt (initialLayout->rowGap));
+    const auto contentHeight = juce::jmax (effectRackViewport.getHeight(),
+        chain.size() * (effectRowHeight + effectRowGap) - (chain.size() > 0 ? effectRowGap : 0));
+    const auto scrollbarWidth = contentHeight > effectRackViewport.getHeight()
+        ? effectRackViewport.getScrollBarThickness() : 0;
+    const auto contentWidth = juce::jmax (1, effectRackViewport.getWidth() - scrollbarWidth);
+    layoutContext.bounds.setWidth (static_cast<float> (contentWidth));
+    effectRowLayout = skinAdapter.rowLayoutFor (effectRackViewport, SkinRenderTarget::effectChain, layoutContext).value_or (*initialLayout);
+    effectRowHeight = juce::jmax (1, juce::roundToInt (effectRowLayout.rowHeight));
+    effectRowGap = juce::jmax (0, juce::roundToInt (effectRowLayout.rowGap));
+    effectRackContent.setSize (contentWidth, juce::jmax (effectRackViewport.getHeight(),
+        chain.size() * (effectRowHeight + effectRowGap) - (chain.size() > 0 ? effectRowGap : 0)));
 
     auto y = 0;
     for (auto& row : effectRows)
@@ -1703,7 +1755,7 @@ void MainComponent::updateTransportState()
         state, juce::Time::getMillisecondCounterHiRes() / 1000.0,
         shouldDeferTransportCommands());
 
-    if (! seekSlider.isMouseButtonDown())
+    if (! seekGestureInProgress)
         seekSlider.setValue (state.seekRatio, juce::dontSendNotification);
 
     playPauseButton.setButtonText (state.isPlaying ? "Pause" : "Play");
@@ -1792,8 +1844,9 @@ void MainComponent::updateTransportState()
                                juce::dontSendNotification);
     outputStage.setState (state.outputLayout, workspaceMode, state.isPlaying, state.selectedTrackTitle,
                           deviceName, state.availableOutputChannels, state.outputPeakLevels);
-    outputStage.setMeterReadings (controller.getOutputMeterReadings());
-    outputMixer.setState (state.outputLayout, controller.getOutputChannelMix(), state.outputPeakLevels);
+    const auto meterReadings = controller.getOutputMeterReadings();
+    outputStage.setMeterReadings (meterReadings);
+    outputMixer.setState (state.outputLayout, controller.getOutputChannelMix(), meterReadings.samplePeak);
 
     const auto hasSelection = playlistTable.getSelectedRow() >= 0;
     removeTrackButton.setEnabled (hasSelection);
@@ -1928,7 +1981,6 @@ void MainComponent::moveEffectFromDrag (int fromIndex, int yInRackContent)
         return;
     }
 
-    showStatus ("Effect reordered.");
     refreshEffects();
 }
 

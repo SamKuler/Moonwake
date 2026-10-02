@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.4.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.5.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -185,6 +185,8 @@ set(MOONWAKE_SOURCES
     Source/skin/SkinFontResolver.cpp
     Source/skin/SkinAnimationEngine.cpp
     Source/skin/SkinRenderCompiler.cpp
+    Source/skin/SkinRowLayout.cpp
+    Source/skin/SkinControlStyle.cpp
     Source/skin/SkinRenderDefinition.cpp
     Source/skin/SkinRenderer.cpp
     Source/skin/SkinSchemaRegistry.cpp
@@ -345,6 +347,8 @@ add_executable(MoonwakeTests
         Source/skin/SkinFontResolver.cpp
         Source/skin/SkinAnimationEngine.cpp
         Source/skin/SkinRenderCompiler.cpp
+        Source/skin/SkinRowLayout.cpp
+        Source/skin/SkinControlStyle.cpp
         Source/skin/SkinRenderDefinition.cpp
         Source/skin/SkinRenderer.cpp
         Source/skin/SkinSchemaRegistry.cpp
@@ -503,6 +507,8 @@ add_executable(MoonwakeSkinTool
     Source/skin/SkinFontResolver.cpp
     Source/skin/SkinAnimationEngine.cpp
     Source/skin/SkinRenderCompiler.cpp
+    Source/skin/SkinRowLayout.cpp
+    Source/skin/SkinControlStyle.cpp
     Source/skin/SkinRenderDefinition.cpp
     Source/skin/SkinRenderer.cpp
     Source/skin/SkinSchemaRegistry.cpp

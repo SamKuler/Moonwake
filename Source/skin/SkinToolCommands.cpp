@@ -1,4 +1,5 @@
 #include "SkinToolCommands.h"
+#include "SkinControlStyle.h"
 
 #include "CompiledSkin.h"
 #include "SkinBuiltInPackages.h"
@@ -306,7 +307,7 @@ std::optional<SkinResolvedLayout> resolveLayout (
         juce::Rectangle<float> (0.0f, 0.0f,
                                 static_cast<float> (options.width),
                                 static_cast<float> (options.height)),
-        1.0f, report, options.theme);
+        1.0f, report, options.theme, &skin);
 }
 
 ExecutionResult layoutCommand (const Options& options)
@@ -333,7 +334,7 @@ std::optional<SkinExpressionValue> representativeValue (
     switch (found->second)
     {
         case SkinExpressionType::number: return SkinExpressionValue (0.62);
-        case SkinExpressionType::boolean: return SkinExpressionValue (true);
+        case SkinExpressionType::boolean: return SkinExpressionValue (key != "combo.popupOpen");
         case SkinExpressionType::string:
             if (key == "plugin.format") return SkinExpressionValue (juce::String ("VST3"));
             if (key == "output.layout") return SkinExpressionValue (juce::String ("5.1"));
@@ -424,15 +425,13 @@ bool drawStyle (juce::Graphics& graphics, const CompiledSkin& skin,
     if (iconStyle == nullptr) return false;
 
     auto iconContext = context;
-    const auto requested = context.bounds.getHeight() >= 46.0f ? 20.0f : 18.0f;
-    const auto size = juce::jmax (12.0f, juce::jmin (
-        requested, juce::jmin (context.bounds.getWidth(),
-                               context.bounds.getHeight()) - 12.0f));
-    const auto y = context.bounds.getCentreY() - size * 0.5f;
-    iconContext.bounds = descriptor->iconPresentation == "leading"
-        ? juce::Rectangle<float> (context.bounds.getX() + 10.0f, y, size, size)
-        : juce::Rectangle<float> (context.bounds.getCentreX() - size * 0.5f,
-                                  y, size, size);
+    const auto* controlOwner = &style;
+    if (! style.renderer.controlStyle)
+        controlOwner = skin.resolveStyle (SkinRenderTarget::textButton, "default");
+    const auto control = controlOwner != nullptr
+        ? resolveSkinControlStyle (controlOwner->renderer, context, report) : std::nullopt;
+    if (! control || ! control->iconBounds) return false;
+    iconContext.bounds = *control->iconBounds;
     iconContext.contentBounds = iconContext.bounds;
     SkinRenderer iconRenderer (
         iconStyle->assets != nullptr ? iconStyle->assets : skin.assets);

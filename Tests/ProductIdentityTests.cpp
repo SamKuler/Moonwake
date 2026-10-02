@@ -28,7 +28,7 @@ public:
             expectEquals (juce::String (MoonwakeIdentity::scannerBundleId),
                           juce::String ("com.samkuler.moonwake.scanner"));
             expectEquals (juce::String (MoonwakeIdentity::version),
-                          juce::String ("0.4.0"));
+                          juce::String ("0.5.0"));
             expectEquals (juce::String (MoonwakeIdentity::skinApiName),
                           juce::String ("Moonwake Skin API"));
             expectEquals (MoonwakeIdentity::skinApiVersion, 1);

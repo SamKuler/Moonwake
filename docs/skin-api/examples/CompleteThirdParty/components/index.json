@@ -28,7 +28,7 @@
   "outputStage": {
     "default": "components/output-stage.json"
   },
-  "channelMap": {
+  "channelMixer": {
     "mixer": {
       "renderer": "components/output-mixer.json",
       "slots": {
@@ -39,6 +39,19 @@
         "row.gain": "linearSlider.default",
         "row.mute": "toggleButton.default",
         "row.solo": "toggleButton.default"
+      }
+    }
+  },
+  "effectChain": {
+    "default": {
+      "renderer": "components/effect-chain.json",
+      "slots": {
+        "slot.surface": "surface.card",
+        "slot.name": "label.default",
+        "slot.scope": "textButton.neutral",
+        "slot.bypass": "textButton.neutral",
+        "slot.editor": "textButton.neutral",
+        "slot.remove": "textButton.defaultCompact"
       }
     }
   }

@@ -17,13 +17,13 @@ public:
         setWantsKeyboardFocus (true);
         setModel (this);
         setOutlineThickness (0);
-        setRowHeight (rowHeight);
+        setRowHeight (1);
         setColour (juce::ListBox::backgroundColourId,
                    juce::Colour {});
         setColour (juce::ListBox::outlineColourId,
                    juce::Colour {});
         auto header = std::make_unique<Header> (*this);
-        header->setSize (1, headerHeight);
+        header->setSize (1, 0);
         setHeaderComponent (std::move (header));
     }
 
@@ -33,6 +33,7 @@ public:
     {
         plugins = std::move (pluginsToUse);
         firstVisibleRow = 0;
+        resized();
         updateContent();
         setFirstVisibleRow (0);
         if (auto* handler = getAccessibilityHandler())
@@ -45,12 +46,30 @@ public:
 
     void resized() override
     {
+        const auto first = firstVisibleRow;
+        const auto applyRows = [this] (int width)
+        {
+            if (const auto layout = rowLayout (width))
+            {
+                setRowHeight (juce::jmax (1, juce::roundToInt (layout->rowHeight + layout->rowGap)));
+                if (auto* header = getHeaderComponent())
+                    header->setSize (getWidth(), juce::roundToInt (layout->headerHeight));
+            }
+        };
         juce::ListBox::resized();
+        const auto width = getViewport()->getMaximumVisibleWidth();
+        applyRows (width);
+        juce::ListBox::resized();
+        if (const auto availableWidth = getViewport()->getMaximumVisibleWidth(); availableWidth != width)
+        {
+            applyRows (availableWidth);
+            juce::ListBox::resized();
+        }
         auto* viewport = getViewport();
         const auto bounds = viewport->getBounds();
-        const auto completeRowsHeight = bounds.getHeight() / rowHeight * rowHeight;
-        viewport->setBounds (bounds.withHeight (completeRowsHeight));
-        setFirstVisibleRow (firstVisibleRow);
+        const auto completeRowsHeight = bounds.getHeight() / getRowHeight() * getRowHeight();
+        viewport->setBounds (bounds.withHeight (completeRowsHeight > 0 ? completeRowsHeight : bounds.getHeight()));
+        setFirstVisibleRow (first);
     }
 
     void paint (juce::Graphics& graphics) override
@@ -67,20 +86,9 @@ public:
         juce::ListBox::paint (graphics);
 
         if (plugins.isEmpty())
-        {
-            auto emptyBounds = getLocalBounds().reduced (10, 0);
-            emptyBounds.removeFromTop (headerHeight);
-            SkinRenderContext emptyContext;
-            emptyContext.bounds = emptyBounds.toFloat().reduced (0.0f, 10.0f);
-            emptyContext.contentBounds = emptyContext.bounds;
-            emptyContext.primaryText = "No plug-ins found.\nScan VST3 and Audio Unit locations to get started.";
-            emptyContext.state.enabled = true;
-            if (adapter != nullptr)
-                static_cast<void> (adapter->drawCustomSlot (
-                    graphics, *this, SkinRenderTarget::pluginList,
-                    "row.status", SkinRenderTarget::label,
-                    emptyContext, "empty"));
-        }
+            if (const auto layout = rowLayout (getWidth()))
+                drawTextSlot (graphics, *layout, "empty.message",
+                    "No plug-ins found.\nScan VST3 and Audio Unit locations to get started.", "empty");
     }
 
     void mouseWheelMove (const juce::MouseEvent&,
@@ -113,8 +121,8 @@ private:
         explicit Header (PluginListView& ownerToUse) : owner (ownerToUse) {}
         void paint (juce::Graphics& graphics) override
         {
-            owner.drawTextSlot (graphics, getLocalBounds().reduced (10, 0), "row.name",
-                                "Known plug-ins", "heading");
+            if (const auto layout = owner.rowLayout (owner.getViewport()->getMaximumVisibleWidth()))
+                owner.drawTextSlot (graphics, *layout, "header.label", "Known plug-ins", "heading");
         }
 
         std::unique_ptr<juce::AccessibilityHandler>
@@ -145,13 +153,14 @@ private:
     {
         if (! juce::isPositiveAndBelow (rowNumber, plugins.size()))
             return;
-        auto row = juce::Rectangle<int> (0, 0, width, height).reduced (10, 0);
+        const auto layout = rowLayout (width);
+        if (! layout) return;
         const auto& plugin = plugins.getReference (rowNumber);
         const auto manufacturer = plugin.manufacturerName.isNotEmpty()
                                     ? plugin.manufacturerName
                                     : juce::String ("Unknown");
         SkinRenderContext rowContext;
-        rowContext.bounds = row.toFloat();
+        rowContext.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
         rowContext.contentBounds = rowContext.bounds;
         rowContext.state.enabled = true;
         rowContext.extraLookup = [rowNumber,
@@ -164,32 +173,20 @@ private:
                 path, rowNumber, name, manufacturer, format, true);
         };
         const auto rowKey = "plugin:" + juce::String (rowNumber);
-        if (adapter != nullptr)
+        if (const auto surface = layout->slots.find ("row.surface"); surface != layout->slots.end())
+        {
+            auto surfaceContext = rowContext;
+            surfaceContext.bounds = surface->second;
+            surfaceContext.contentBounds = surfaceContext.bounds;
             static_cast<void> (adapter->drawCustomSlot (
                 graphics, *this, SkinRenderTarget::pluginList,
-                "row.surface", SkinRenderTarget::surface, rowContext, rowKey));
-
-        auto formatBounds = row.removeFromRight (84);
-        row.removeFromRight (12);
-        juce::Rectangle<int> nameBounds, makerBounds;
-        if (width < 420)
-        {
-            row.reduce (0, 2);
-            nameBounds = row.removeFromTop (20);
-            row.removeFromTop (2);
-            makerBounds = row;
+                "row.surface", SkinRenderTarget::surface, surfaceContext, rowKey));
         }
-        else
-        {
-            makerBounds = row.removeFromRight (juce::jmax (72, row.getWidth() / 3));
-            row.removeFromRight (12);
-            nameBounds = row;
-        }
-        drawTextSlot (graphics, nameBounds, "row.name", plugin.name, rowKey,
+        drawTextSlot (graphics, *layout, "row.name", plugin.name, rowKey,
                       &rowContext);
-        drawTextSlot (graphics, makerBounds, "row.manufacturer",
+        drawTextSlot (graphics, *layout, "row.manufacturer",
                       manufacturer, rowKey, &rowContext);
-        drawTextSlot (graphics, formatBounds, "row.format",
+        drawTextSlot (graphics, *layout, "row.format",
                       plugin.pluginFormatName, rowKey, &rowContext);
     }
 
@@ -198,8 +195,8 @@ private:
         if (auto* viewport = getViewport())
         {
             firstVisibleRow = juce::jmax (
-                0, viewport->getViewPositionY() / rowHeight);
-            const auto alignedY = firstVisibleRow * rowHeight;
+                0, viewport->getViewPositionY() / getRowHeight());
+            const auto alignedY = firstVisibleRow * getRowHeight();
             if (viewport->getViewPositionY() != alignedY)
                 viewport->setViewPosition (viewport->getViewPositionX(), alignedY);
         }
@@ -207,7 +204,7 @@ private:
 
     [[nodiscard]] int visibleRowCount() const
     {
-        return juce::jmax (1, getViewport()->getMaximumVisibleHeight() / rowHeight);
+        return juce::jmax (1, getViewport()->getMaximumVisibleHeight() / getRowHeight());
     }
 
     bool setFirstVisibleRow (int requested)
@@ -218,17 +215,29 @@ private:
         if (auto* viewport = getViewport())
             viewport->setViewPosition (
                 viewport->getViewPositionX(),
-                firstVisibleRow * rowHeight);
+                firstVisibleRow * getRowHeight());
         return true;
     }
 
-    void drawTextSlot (juce::Graphics& graphics, juce::Rectangle<int> bounds,
+    [[nodiscard]] std::optional<SkinResolvedRowLayout> rowLayout (int width) const
+    {
+        if (adapter == nullptr) return std::nullopt;
+        SkinRenderContext context;
+        context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (getHeight()) };
+        context.tableRowCount = plugins.size();
+        context.tableColumnCount = 3;
+        return adapter->rowLayoutFor (*this, SkinRenderTarget::pluginList, context);
+    }
+
+    void drawTextSlot (juce::Graphics& graphics, const SkinResolvedRowLayout& layout,
                        juce::StringRef slot, const juce::String& text,
                        const juce::String& key,
                        const SkinRenderContext* ownerContext = nullptr)
     {
+        const auto frame = layout.slots.find (juce::String (slot));
+        if (frame == layout.slots.end()) return;
         SkinRenderContext context;
-        context.bounds = bounds.toFloat();
+        context.bounds = frame->second;
         context.contentBounds = context.bounds;
         context.primaryText = text;
         context.state.enabled = true;
@@ -244,8 +253,6 @@ private:
     JuceSkinAdapter* adapter = nullptr;
     juce::Array<juce::PluginDescription> plugins;
     int firstVisibleRow = 0;
-    static constexpr int headerHeight = 32;
-    static constexpr int rowHeight = 44;
 };
 
 PluginSettingsPanel::PluginSettingsPanel (PlayerController& controllerToUse,

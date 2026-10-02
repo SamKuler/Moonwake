@@ -1,6 +1,6 @@
 {
   "apiVersion": 1,
-  "target": "channelMap",
+  "target": "channelMixer",
   "layers": [
     {
       "id": "body",
@@ -30,6 +30,58 @@
         "$ref": "colors.focus"
       },
       "body.stroke.width": 2
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 56,
+    "rowGap": 4,
+    "slots": {
+      "row.source": {
+        "x": 0,
+        "y": 0,
+        "width": 40,
+        "height": 28
+      },
+      "row.peak": {
+        "x": 40,
+        "y": 0,
+        "width": {
+          "$expr": "max(0,bounds.width - 174)"
+        },
+        "height": 28
+      },
+      "row.destination": {
+        "x": {
+          "$expr": "bounds.width - 132"
+        },
+        "y": 0,
+        "width": 60,
+        "height": 28
+      },
+      "row.mute": {
+        "x": {
+          "$expr": "bounds.width - 68"
+        },
+        "y": 0,
+        "width": 32,
+        "height": 28
+      },
+      "row.solo": {
+        "x": {
+          "$expr": "bounds.width - 32"
+        },
+        "y": 0,
+        "width": 32,
+        "height": 28
+      },
+      "row.gain": {
+        "x": 0,
+        "y": 30,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 24
+      }
     }
   }
 }

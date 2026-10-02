@@ -2,6 +2,8 @@
 
 #include "skin/SkinAnimationEngine.h"
 #include "skin/SkinRenderer.h"
+#include "skin/SkinRowLayout.h"
+#include "skin/SkinControlStyle.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -55,6 +57,8 @@ public:
     void drawRotarySlider (juce::Graphics&, int x, int y, int width, int height,
                            float sliderPos, float startAngle, float endAngle,
                            juce::Slider&) override;
+    juce::Slider::SliderLayout getSliderLayout (juce::Slider&) override;
+    int getSliderThumbRadius (juce::Slider&) override;
     void drawProgressBar (juce::Graphics&, juce::ProgressBar&, int width, int height,
                           double progress, const juce::String&) override;
     void drawScrollbar (juce::Graphics&, juce::ScrollBar&, int x, int y,
@@ -63,6 +67,8 @@ public:
     void drawScrollbarButton (juce::Graphics&, juce::ScrollBar&, int width,
                               int height, int buttonDirection, bool vertical,
                               bool over, bool down) override;
+    int getDefaultScrollbarWidth() override;
+    int getMinimumScrollbarThumbSize (juce::ScrollBar&) override;
     juce::Font getPopupMenuFont() override;
     int getPopupMenuBorderSize() override;
     void getIdealPopupMenuItemSize (const juce::String&, bool separator, int standardHeight,
@@ -98,6 +104,12 @@ public:
 
     void configureListBox (juce::ListBox&) const;
     void configureTextEditor (juce::TextEditor&) const;
+    [[nodiscard]] std::optional<SkinResolvedRowLayout> rowLayoutFor (
+        const juce::Component&, SkinRenderTarget, SkinRenderContext = {}) const;
+    [[nodiscard]] std::optional<SkinResolvedControlStyle> controlStyleFor (
+        const juce::Component&, SkinRenderTarget, SkinRenderContext = {}) const;
+    void applySlotStyle (juce::Component& child, const juce::Component& owner,
+                         SkinRenderTarget ownerTarget, juce::StringRef slot) const;
     struct ListBoxRowGeometry
     {
         juce::Rectangle<float> title;

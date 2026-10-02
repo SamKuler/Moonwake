@@ -1,7 +1,104 @@
 {
-  "apiVersion": 1, "target": "skinList",
+  "apiVersion": 1,
+  "target": "skinList",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.surfaceRaised" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1, "placement": "inside" } }
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$ref": "colors.surfaceRaised"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.border"
+        },
+        "width": 1,
+        "placement": "inside"
+      }
+    }
   ],
-  "variants": { "focused": { "body.stroke.color": { "$ref": "colors.focus" }, "body.stroke.width": 2 } }
+  "variants": {
+    "focused": {
+      "body.stroke.color": {
+        "$ref": "colors.focus"
+      },
+      "body.stroke.width": 2
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 56,
+    "rowGap": 0,
+    "headerHeight": 0,
+    "slots": {
+      "empty.message": {
+        "x": 15,
+        "y": 6,
+        "width": {
+          "$expr": "max(0, bounds.width - 30)"
+        },
+        "height": {
+          "$expr": "max(0, container.height - 12)"
+        }
+      },
+      "row.surface": {
+        "x": 1,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 2)"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.name": {
+        "x": 15,
+        "y": 6,
+        "width": {
+          "$expr": "max(0, bounds.width - 46 - clamp((bounds.width - 30) / 3, 56, 88) - clamp((bounds.width - 2) / 6, 32, 60))"
+        },
+        "height": 22
+      },
+      "row.author": {
+        "x": 15,
+        "y": 30,
+        "width": {
+          "$expr": "max(0, bounds.width - 46 - clamp((bounds.width - 30) / 3, 56, 88) - clamp((bounds.width - 2) / 6, 32, 60))"
+        },
+        "height": {
+          "$expr": "max(0, layout.rowHeight - 36)"
+        }
+      },
+      "row.version": {
+        "x": {
+          "$expr": "bounds.width - 23 - clamp((bounds.width - 30) / 3, 56, 88) - clamp((bounds.width - 2) / 6, 32, 60)"
+        },
+        "y": 6,
+        "width": {
+          "$expr": "clamp((bounds.width - 2) / 6, 32, 60)"
+        },
+        "height": {
+          "$expr": "max(0, layout.rowHeight - 12)"
+        }
+      },
+      "row.status": {
+        "x": {
+          "$expr": "bounds.width - 15 - clamp((bounds.width - 30) / 3, 56, 88)"
+        },
+        "y": 11,
+        "width": {
+          "$expr": "clamp((bounds.width - 30) / 3, 56, 88)"
+        },
+        "height": {
+          "$expr": "max(0, layout.rowHeight - 22)"
+        }
+      }
+    }
+  }
 }

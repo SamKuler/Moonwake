@@ -77,6 +77,7 @@ std::unique_ptr<juce::Component> componentFor (SkinComponentKind kind, double& p
         case SkinComponentKind::artwork:
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:
+        case SkinComponentKind::channelMixer:
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList: return std::make_unique<juce::Component>();
@@ -122,11 +123,11 @@ public:
             expect (requiredFor (SkinLayoutEntry::studio) == workspace);
             expect (requiredFor (SkinLayoutEntry::listening) == workspace);
             expect (requiredFor (SkinLayoutEntry::effects) == setOf ({
-                "effects.close", "effects.filter", "effects.catalog", "effects.add",
+                "effects.filter", "effects.catalog", "effects.add",
                 "effects.chain"
             }));
             expect (requiredFor (SkinLayoutEntry::settings) == setOf ({
-                "settings.close", "settings.audio.device", "settings.audio.sampleRate",
+                "settings.audio.device", "settings.audio.sampleRate",
                 "settings.audio.bufferSize", "settings.audio.channelLayout",
                 "settings.plugins.scanAll", "settings.plugins.scanFolder",
                 "settings.plugins.cancel", "settings.plugins.progress",
@@ -249,19 +250,19 @@ public:
         expect (slotsOf ("settings.audio.channelMap")
                 == std::map<juce::String, juce::String> ({
                     { "row.surface", "surface" }, { "row.source", "label" },
-                    { "row.destination", "label" }
+                    { "row.destination", "label" }, { "header.label", "label" }, { "empty.message", "label" }
                 }));
         expect (slotsOf ("settings.plugins.knownList")
                 == std::map<juce::String, juce::String> ({
                     { "row.surface", "surface" }, { "row.name", "label" },
                     { "row.manufacturer", "label" }, { "row.format", "label" },
-                    { "row.status", "label" }
+                    { "row.status", "label" }, { "header.label", "label" }, { "empty.message", "label" }
                 }));
         expect (slotsOf ("settings.skins.library")
                 == std::map<juce::String, juce::String> ({
                     { "row.surface", "surface" }, { "row.name", "label" },
                     { "row.author", "label" }, { "row.version", "label" },
-                    { "row.status", "label" }
+                    { "row.status", "label" }, { "empty.message", "label" }
                 }));
 
         beginTest ("runtime bindings reject unknown, duplicate and JUCE type mismatches");

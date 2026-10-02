@@ -138,6 +138,7 @@ std::unique_ptr<juce::Component> componentFor (juce::StringRef id)
         case SkinComponentKind::artwork:
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:
+        case SkinComponentKind::channelMixer:
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
@@ -165,7 +166,10 @@ void setQueuePresentation (juce::var node, const juce::String& presentation)
 {
     if (! node.isObject()) return;
     if (node.getProperty ("component", {}).toString() == "queue.table")
+    {
         node.getDynamicObject()->setProperty ("presentation", presentation);
+        node.getDynamicObject()->setProperty ("style", presentation == "list" ? "table.list" : "table.default");
+    }
     if (const auto* children = node.getProperty ("children", {}).getArray())
         for (const auto& child : *children) setQueuePresentation (child, presentation);
     setQueuePresentation (node.getProperty ("child", {}), presentation);
@@ -271,7 +275,16 @@ public:
             const auto imported = manager.importSkin (source);
             expect (! imported.hasErrors(), imported.toText());
             expect (manager.preview ({ "com.example.scroll-host", "1.0.0" }, report), report.toText());
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
+            {
+                const auto session = manager.activeSession();
+                return JuceSkinAdapter::RuntimeBinding {
+                    session->compiledSkin()->resolveStyle (target, style),
+                    &session->animations(), session.get(), false };
+            }, renderer);
             juce::Component root;
+            root.setLookAndFeel (&adapter);
             root.setBounds (0, 0, 1240, 800);
             SkinComponentBindings bindings;
             std::vector<std::unique_ptr<juce::Component>> components;
@@ -332,6 +345,7 @@ public:
             expect (queue.getBounds().isEmpty());
             expectEquals (queue.getRowHeight(), 32);
             expectEquals (queue.getHeaderHeight(), 24);
+            root.setLookAndFeel (nullptr);
             storage.deleteRecursively();
         }
 

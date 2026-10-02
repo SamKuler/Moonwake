@@ -3,5 +3,10 @@
   "layers": [
     { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": 6, "fill": { "$ref": "colors.surfaceRaised" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1 } },
     { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": 7 }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.body" }, "fontSize": 12, "color": { "$ref": "colors.text" }, "align": "left", "maxLines": 3, "overflow": "ellipsis" }
-  ]
+  ],
+  "controlStyle": {
+    "maxWidth": 400,
+    "offsetX": 24,
+    "offsetY": 6
+  }
 }

@@ -5,6 +5,8 @@
 
 #include <juce_graphics/juce_graphics.h>
 
+struct CompiledSkin;
+
 struct SkinResolvedNode
 {
     SkinLayoutNodeType type = SkinLayoutNodeType::visual;
@@ -23,6 +25,7 @@ struct SkinResolvedLayout
 {
     SkinResolvedNode root;
     std::map<juce::String, juce::String> ancillaryStyles;
+    float scrollBarWidth = 8.0f;
     [[nodiscard]] const SkinResolvedNode* component (const juce::String&) const;
 };
 
@@ -36,5 +39,5 @@ public:
         juce::Rectangle<float> bounds,
         float scaleFactor,
         SkinValidationReport&,
-        std::optional<WorkspaceMode> workspace = {});
+        std::optional<WorkspaceMode> workspace = {}, const CompiledSkin* skin = nullptr);
 };

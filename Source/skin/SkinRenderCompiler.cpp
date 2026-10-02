@@ -1,4 +1,6 @@
 #include "SkinRenderCompiler.h"
+#include "SkinRowLayout.h"
+#include "SkinControlStyle.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -133,6 +135,20 @@ public:
         if (report.hasErrors()) return std::nullopt;
         result.transitions = compileTransitions (root.getProperty ("transitions", {}));
         if (report.hasErrors()) return std::nullopt;
+        if (root.hasProperty ("rowLayout"))
+        {
+            const auto renderContextPaths = usedContextPaths;
+            result.rowLayout = compileRowLayout (root.getProperty ("rowLayout", {}));
+            usedContextPaths = renderContextPaths;
+            if (! result.rowLayout) return std::nullopt;
+        }
+        if (root.hasProperty ("controlStyle"))
+        {
+            const auto renderContextPaths = usedContextPaths;
+            result.controlStyle = compileControlStyle (root.getProperty ("controlStyle", {}));
+            usedContextPaths = renderContextPaths;
+            if (! result.controlStyle) return std::nullopt;
+        }
         if (pathCommands > SkinRenderLimits::maximumPackagePathCommands)
         {
             fail ("RENDER013", "/layers", "Path command budget exceeds 250000.");
@@ -147,6 +163,119 @@ public:
     }
 
 private:
+    std::optional<SkinControlStyleDefinition> compileControlStyle (const juce::var& raw)
+    {
+        const auto& descriptors = skinControlStylePropertyDescriptors (target);
+        if (descriptors.empty())
+        {
+            fail ("RENDER004", "/controlStyle", "This renderer target does not have a control style.");
+            return std::nullopt;
+        }
+        SkinControlStyleDefinition result;
+        const auto contexts = skinRenderContextForTarget (target);
+        const std::map<juce::String, SkinExpressionType> globalMetricContexts;
+        for (const auto& descriptor : descriptors)
+        {
+            const auto group = descriptor.path.upToFirstOccurrenceOf (".", false, false);
+            auto value = raw.getProperty (group, {});
+            if (descriptor.path.containsChar ('.'))
+                value = value.getProperty (descriptor.path.fromFirstOccurrenceOf (".", false, false), {});
+            const auto binding = compileValue (value, descriptor,
+                "/controlStyle/" + descriptor.path.replaceCharacter ('.', '/'),
+                target == SkinRenderTarget::scrollBar && descriptor.path == "thickness"
+                    ? globalMetricContexts : contexts);
+            if (! binding) return std::nullopt;
+            result.properties.emplace (descriptor.path, *binding);
+        }
+        return result;
+    }
+
+    std::optional<SkinRowLayoutOverride> compileRowLayoutValues (
+        const juce::var& raw, const juce::String& pointer)
+    {
+        SkinRowLayoutOverride result;
+        const auto contexts = skinRowLayoutContextTypes (target, false);
+        for (const auto& [name, destination] : {
+                 std::pair { "rowHeight", &result.rowHeight },
+                 std::pair { "rowGap", &result.rowGap },
+                 std::pair { "headerHeight", &result.headerHeight } })
+            if (raw.hasProperty (name))
+            {
+                *destination = compileValue (raw.getProperty (name, {}),
+                    skinRowLayoutMetricDescriptor (name), pointer + "/" + name, contexts);
+                if (! *destination) return std::nullopt;
+            }
+        const auto slots = raw.getProperty ("slots", {});
+        if (const auto* object = slots.getDynamicObject())
+        {
+            const auto slotContexts = skinRowLayoutContextTypes (target, true);
+            const auto& properties = object->getProperties();
+            for (int index = 0; index < properties.size(); ++index)
+            {
+                const auto name = properties.getName (index).toString();
+                const auto slotPointer = pointer + "/slots/" + escapePointer (name);
+                if (! skinRenderSlotTarget (target, name))
+                {
+                    fail ("RENDER004", slotPointer, "Row layout slot is unavailable for this target.");
+                    return std::nullopt;
+                }
+                const auto rawFrame = properties.getValueAt (index);
+                SkinRowSlotFrame frame;
+                for (const auto& [field, destination] : {
+                         std::pair { "x", &frame.x }, std::pair { "y", &frame.y },
+                         std::pair { "width", &frame.width }, std::pair { "height", &frame.height } })
+                {
+                    const auto& descriptor = skinRowLayoutFrameDescriptor (field);
+                    const auto binding = compileValue (rawFrame.getProperty (field, {}),
+                        descriptor, slotPointer + "/" + field, slotContexts);
+                    if (! binding) return std::nullopt;
+                    *destination = *binding;
+                }
+                result.slots.emplace (name, std::move (frame));
+            }
+        }
+        return result;
+    }
+
+    std::optional<SkinRowLayoutDefinition> compileRowLayout (const juce::var& raw)
+    {
+        if (target != SkinRenderTarget::table && target != SkinRenderTarget::effectChain
+            && target != SkinRenderTarget::channelMap && target != SkinRenderTarget::pluginList
+            && target != SkinRenderTarget::channelMixer
+            && target != SkinRenderTarget::skinList && target != SkinRenderTarget::popupMenu)
+        {
+            fail ("RENDER004", "/rowLayout", "This renderer target does not have a row layout.");
+            return std::nullopt;
+        }
+        SkinRowLayoutDefinition result;
+        const auto base = compileRowLayoutValues (raw, "/rowLayout");
+        if (! base) return std::nullopt;
+        result.base = *base;
+        const auto breakpointValues = raw.getProperty ("breakpoints", {});
+        if (const auto* breakpoints = breakpointValues.getArray())
+            for (int index = 0; index < breakpoints->size(); ++index)
+            {
+                const auto& entry = breakpoints->getReference (index);
+                const auto pointer = "/rowLayout/breakpoints/" + juce::String (index);
+                const auto when = entry.getProperty ("when", {});
+                SkinRowLayoutDefinition::Breakpoint breakpoint;
+                if (when.hasProperty ("minWidth"))
+                    breakpoint.minWidth = static_cast<float> (static_cast<double> (when.getProperty ("minWidth", {})));
+                if (when.hasProperty ("maxWidth"))
+                    breakpoint.maxWidth = static_cast<float> (static_cast<double> (when.getProperty ("maxWidth", {})));
+                if (breakpoint.minWidth && breakpoint.maxWidth && *breakpoint.minWidth > *breakpoint.maxWidth)
+                {
+                    fail ("RENDER004", pointer + "/when", "Row layout breakpoint width range is reversed.");
+                    return std::nullopt;
+                }
+                const auto values = compileRowLayoutValues (entry, pointer);
+                if (! values) return std::nullopt;
+                breakpoint.values = *values;
+                result.breakpoints.push_back (std::move (breakpoint));
+            }
+        return result;
+    }
+
     std::optional<SkinRenderLayer> compileLayer (
         const juce::var& raw, const juce::String& pointer, int depth,
         bool nestedBelowRepeat, std::optional<juce::String> activeRepeatSource)
@@ -1284,6 +1413,30 @@ bool SkinRenderCompiler::rebindProgramTokens (
     SkinRenderProgram& program, const SkinTokenStore& tokens,
     SkinValidationReport& report)
 {
+    if (program.controlStyle)
+        for (auto& [name, binding] : program.controlStyle->properties)
+        {
+            juce::ignoreUnused (name);
+            if (! rebindTokenBinding (binding, tokens, report)) return false;
+        }
+    if (program.rowLayout)
+    {
+        const auto rebind = [&] (SkinRowLayoutOverride& values)
+        {
+            for (auto* binding : { &values.rowHeight, &values.rowGap, &values.headerHeight })
+                if (*binding && ! rebindTokenBinding (**binding, tokens, report)) return false;
+            for (auto& [name, frame] : values.slots)
+            {
+                juce::ignoreUnused (name);
+                for (auto* binding : { &frame.x, &frame.y, &frame.width, &frame.height })
+                    if (! rebindTokenBinding (*binding, tokens, report)) return false;
+            }
+            return true;
+        };
+        if (! rebind (program.rowLayout->base)) return false;
+        for (auto& breakpoint : program.rowLayout->breakpoints)
+            if (! rebind (breakpoint.values)) return false;
+    }
     int pathCommands = 0;
     for (auto& layer : program.baseLayers)
         if (! rebindLayerTokens (layer, tokens, report, pathCommands)) return false;

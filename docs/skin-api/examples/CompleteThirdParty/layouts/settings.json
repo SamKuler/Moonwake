@@ -19,14 +19,6 @@
             "type": "component",
             "component": "settings.title",
             "grow": 1
-          },
-          {
-            "id": "settings-close",
-            "type": "component",
-            "component": "settings.close",
-            "style": "textButton.neutral",
-            "width": 84,
-            "focusOrder": 10
           }
         ]
       },
@@ -202,14 +194,6 @@
                 "type": "component",
                 "component": "settings.title",
                 "grow": 1
-              },
-              {
-                "id": "settings-close-studio",
-                "type": "component",
-                "component": "settings.close",
-                "style": "textButton.neutral",
-                "width": 84,
-                "focusOrder": 10
               }
             ]
           },

@@ -10,11 +10,9 @@
       },
       "frame": {
         "anchor": "bounds",
-        "inset": 0.5
+        "inset": 1
       },
-      "radius": {
-        "$ref": "metrics.controlRadius"
-      },
+      "radius": 8,
       "fill": {
         "$ref": "colors.studio.surface"
       },
@@ -35,13 +33,13 @@
       "frame": {
         "anchor": "bounds",
         "inset": {
-          "top": 2,
-          "right": 6,
-          "bottom": 2,
-          "left": 6
+          "top": 3,
+          "right": 5,
+          "bottom": 3,
+          "left": 5
         }
       },
-      "radius": 6,
+      "radius": 5,
       "fill": "#9CCBD820"
     },
     {
@@ -73,8 +71,8 @@
       "frame": {
         "anchor": "contentBounds",
         "inset": {
-          "left": 14,
-          "right": 30
+          "left": 34,
+          "right": 28
         }
       },
       "text": {
@@ -124,30 +122,27 @@
     },
     {
       "id": "check",
-      "type": "text",
+      "type": "path",
       "visible": {
         "$expr": "menu.part == 'item' and icon.name == 'checked'"
       },
-      "frame": {
-        "x": {
-          "$expr": "bounds.width - 27"
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.text"
         },
-        "y": 0,
-        "width": 17,
-        "height": {
-          "$expr": "bounds.height"
+        "width": 1.8,
+        "cap": "round"
+      },
+      "data": "M2 6 L5 9 L11 2",
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "translateX": 12,
+        "translateY": {
+          "$expr": "(bounds.height - 12) * 0.5"
         }
-      },
-      "text": "✓",
-      "font": {
-        "$ref": "fonts.workspaceMedium"
-      },
-      "fontSize": 13,
-      "color": {
-        "$ref": "colors.studio.active"
-      },
-      "align": "center",
-      "maxLines": 1
+      }
     },
     {
       "id": "submenu",
@@ -165,7 +160,7 @@
           "$expr": "bounds.height"
         }
       },
-      "text": "›",
+      "text": "\u203a",
       "font": {
         "$ref": "fonts.workspaceMedium"
       },
@@ -185,7 +180,7 @@
       "frame": {
         "anchor": "bounds"
       },
-      "text": "▲",
+      "text": "\u25b2",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
@@ -205,7 +200,7 @@
       "frame": {
         "anchor": "bounds"
       },
-      "text": "▼",
+      "text": "\u25bc",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
@@ -227,5 +222,9 @@
     "disabled": {
       "label.opacity": 0.45
     }
+  },
+  "rowLayout": {
+    "rowHeight": 34,
+    "slots": {}
   }
 }

@@ -267,7 +267,7 @@ const std::vector<juce::String>& skinRenderTargetNames()
         "label", "textButton", "toggleButton", "comboBox", "textEditor",
         "linearSlider", "rotarySlider", "progressBar", "scrollBar", "popupMenu",
         "tooltip", "table", "surface", "artwork", "effectChain", "outputStage",
-        "channelMap", "pluginList", "skinList"
+        "channelMap", "pluginList", "skinList", "channelMixer"
     };
     return names;
 }
@@ -410,6 +410,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
                                   { "meter.mode", Type::string },
                                   { "meter.status", Type::string },
                                   { "meter.available", Type::boolean },
+                                  { "meter.interrupted", Type::boolean },
                                   { "meter.momentary", Type::number },
                                   { "meter.shortTerm", Type::number },
                                   { "meter.integrated", Type::number },
@@ -429,6 +430,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
                 result.emplace (prefix + "isLfe", Type::boolean);
             }
             break;
+        case SkinRenderTarget::channelMixer:
         case SkinRenderTarget::channelMap:
         case SkinRenderTarget::pluginList:
         case SkinRenderTarget::skinList:
@@ -447,6 +449,11 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
     else if (repeatSource == "output.channelLabels")
         addContext (result, { { "item.index", Type::number }, { "item.label", Type::string } });
 
+    if (target == SkinRenderTarget::comboBox)
+    {
+        result.emplace ("combo.popupOpen", Type::boolean);
+        result.emplace ("combo.hasSelection", Type::boolean);
+    }
     return result;
 }
 
@@ -490,6 +497,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
                 { "slot.name", Type::string }
             });
             break;
+        case SkinRenderTarget::channelMixer:
         case SkinRenderTarget::channelMap:
             addContext (result, {
                 { "channel.index", Type::number },

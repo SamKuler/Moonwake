@@ -15,6 +15,7 @@ public:
     void resized() override;
     void paint (juce::Graphics&) override;
     [[nodiscard]] JuceSkinAdapter::ListBoxRowGeometry rowGeometry (int rowHeight) const;
+    [[nodiscard]] std::optional<SkinResolvedRowLayout> resolvedRowLayout() const;
 
 private:
     struct OriginalState
@@ -28,6 +29,9 @@ private:
     std::optional<OriginalState> originalState;
     juce::String presentation;
     juce::String tableColumns;
+    juce::String lastAppliedTableColumns;
+    bool customTableColumns = false;
 
+    void rememberTableColumns();
     void layoutPresentationColumns();
 };

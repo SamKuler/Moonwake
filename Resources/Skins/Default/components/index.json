@@ -306,7 +306,7 @@
     "listening": {
       "renderer": "components/listening-effect-chain.json",
       "slots": {
-        "slot.surface": "surface.listening",
+        "slot.surface": "surface.listeningListRow",
         "slot.name": "label.listening",
         "slot.bypass": "textButton.listeningNeutral",
         "slot.editor": "textButton.listeningNeutral",
@@ -318,7 +318,7 @@
     "studio": {
       "renderer": "components/studio-effect-chain.json",
       "slots": {
-        "slot.surface": "surface.studio",
+        "slot.surface": "surface.studioListRow",
         "slot.name": "label.studio",
         "slot.bypass": "textButton.studioNeutral",
         "slot.editor": "textButton.studioNeutral",
@@ -337,7 +337,9 @@
       "slots": {
         "row.surface": "surface.listeningReadOnlyRow",
         "row.source": "label.listeningData",
-        "row.destination": "label.listeningData"
+        "row.destination": "label.listeningData",
+        "header.label": "label.listeningData",
+        "empty.message": "label.listeningData"
       }
     },
     "studio": {
@@ -345,19 +347,9 @@
       "slots": {
         "row.surface": "surface.studioReadOnlyRow",
         "row.source": "label.studioData",
-        "row.destination": "label.studioData"
-      }
-    },
-    "studioMixer": {
-      "renderer": "components/studio-mixer.json",
-      "slots": {
-        "row.surface": "surface.studioReadOnlyRow",
-        "row.source": "label.studioMixerName",
-        "row.destination": "label.studioMixerData",
-        "row.peak": "label.studioMixerData",
-        "row.gain": "linearSlider.studioGain",
-        "row.mute": "toggleButton.studioMixerMute",
-        "row.solo": "toggleButton.studioMixerSolo"
+        "row.destination": "label.studioData",
+        "header.label": "label.studioData",
+        "empty.message": "label.studioData"
       }
     }
   },
@@ -369,7 +361,9 @@
         "row.name": "label.listening",
         "row.manufacturer": "label.listeningData",
         "row.format": "label.listeningData",
-        "row.status": "label.listeningMuted"
+        "row.status": "label.listeningMuted",
+        "header.label": "label.listening",
+        "empty.message": "label.listeningMuted"
       }
     },
     "studio": {
@@ -379,7 +373,9 @@
         "row.name": "label.studio",
         "row.manufacturer": "label.studioData",
         "row.format": "label.studioData",
-        "row.status": "label.studioMuted"
+        "row.status": "label.studioMuted",
+        "header.label": "label.studio",
+        "empty.message": "label.studioMuted"
       }
     }
   },
@@ -391,7 +387,8 @@
         "row.name": "label.listening",
         "row.author": "label.listeningData",
         "row.version": "label.listeningData",
-        "row.status": "label.listeningSkinStatus"
+        "row.status": "label.listeningSkinStatus",
+        "empty.message": "label.listeningSkinStatus"
       }
     },
     "studio": {
@@ -401,7 +398,22 @@
         "row.name": "label.studio",
         "row.author": "label.studioData",
         "row.version": "label.studioData",
-        "row.status": "label.studioSkinStatus"
+        "row.status": "label.studioSkinStatus",
+        "empty.message": "label.studioSkinStatus"
+      }
+    }
+  },
+  "channelMixer": {
+    "studio": {
+      "renderer": "components/studio-mixer.json",
+      "slots": {
+        "row.surface": "surface.studioReadOnlyRow",
+        "row.source": "label.studioMixerName",
+        "row.destination": "label.studioMixerData",
+        "row.peak": "label.studioMixerData",
+        "row.gain": "linearSlider.studioGain",
+        "row.mute": "toggleButton.studioMixerMute",
+        "row.solo": "toggleButton.studioMixerSolo"
       }
     }
   }

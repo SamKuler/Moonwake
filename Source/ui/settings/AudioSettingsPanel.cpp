@@ -36,16 +36,17 @@ public:
         setDescription ("Shows how the selected multichannel layout maps to CoreAudio outputs.");
         setWantsKeyboardFocus (false);
         setMouseClickGrabsKeyboardFocus (false);
-        setInterceptsMouseClicks (false, false);
+        setInterceptsMouseClicks (true, true);
+        getViewport()->getViewedComponent()->setInterceptsMouseClicks (false, false);
         setModel (this);
         setOutlineThickness (0);
-        setRowHeight (rowHeight);
+        setRowHeight (1);
         setColour (juce::ListBox::backgroundColourId,
                    juce::Colour {});
         setColour (juce::ListBox::outlineColourId,
                    juce::Colour {});
         auto header = std::make_unique<Header> (*this);
-        header->setSize (1, headerHeight);
+        header->setSize (1, 0);
         setHeaderComponent (std::move (header));
     }
 
@@ -55,7 +56,7 @@ public:
     {
         names = channelNames (layoutToUse);
         availableChannelCount = juce::jmax (0, availableOutputs);
-        updateRowHeight();
+        resized();
         updateContent();
         if (auto* handler = getAccessibilityHandler())
             handler->notifyAccessibilityEvent (
@@ -80,12 +81,32 @@ public:
                 background, "settings.audio.channelMap"));
 
         juce::ListBox::paint (graphics);
+        if (names.isEmpty())
+            if (const auto layout = rowLayout (getWidth()))
+                drawTextSlot (graphics, *layout, "empty.message", "No output channels available.", "empty");
     }
 
     void resized() override
     {
-        updateRowHeight();
+        const auto applyRows = [this] (int width)
+        {
+            if (const auto layout = rowLayout (width))
+            {
+                setRowHeight (juce::jmax (1, juce::roundToInt (layout->rowHeight + layout->rowGap)));
+                if (auto* header = getHeaderComponent())
+                    header->setSize (getWidth(), juce::roundToInt (layout->headerHeight));
+            }
+        };
         juce::ListBox::resized();
+        const auto width = getViewport()->getMaximumVisibleWidth();
+        applyRows (width);
+        juce::ListBox::resized();
+        // Changing row metrics can reveal the scrollbar and cross a width breakpoint.
+        if (const auto availableWidth = getViewport()->getMaximumVisibleWidth(); availableWidth != width)
+        {
+            applyRows (availableWidth);
+            juce::ListBox::resized();
+        }
     }
 
 private:
@@ -95,8 +116,8 @@ private:
         explicit Header (ChannelMapView& ownerToUse) : owner (ownerToUse) {}
         void paint (juce::Graphics& graphics) override
         {
-            owner.drawTextSlot (graphics, getLocalBounds().reduced (10, 0), "row.source",
-                                "Output channels", "heading");
+            if (const auto layout = owner.rowLayout (owner.getViewport()->getMaximumVisibleWidth()))
+                owner.drawTextSlot (graphics, *layout, "header.label", "Output channels", "heading");
         }
 
         std::unique_ptr<juce::AccessibilityHandler>
@@ -127,9 +148,10 @@ private:
     {
         if (! juce::isPositiveAndBelow (rowNumber, names.size()))
             return;
-        auto row = juce::Rectangle<int> (0, 0, width, height).reduced (10, 0);
+        const auto layout = rowLayout (width);
+        if (! layout) return;
         SkinRenderContext rowContext;
-        rowContext.bounds = row.toFloat();
+        rowContext.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
         rowContext.contentBounds = rowContext.bounds;
         const auto connected = rowNumber < availableChannelCount;
         const auto sourceLabel = names[rowNumber];
@@ -145,36 +167,40 @@ private:
                 path, rowNumber, sourceLabel, deviceLabel, connected);
         };
         const auto rowKey = "channel:" + juce::String (rowNumber);
-        if (adapter != nullptr)
+        if (const auto surface = layout->slots.find ("row.surface"); surface != layout->slots.end())
+        {
+            auto surfaceContext = rowContext;
+            surfaceContext.bounds = surface->second;
+            surfaceContext.contentBounds = surfaceContext.bounds;
             static_cast<void> (adapter->drawCustomSlot (
                 graphics, *this, SkinRenderTarget::channelMap,
-                "row.surface", SkinRenderTarget::surface, rowContext, rowKey));
-
-        auto sourceBounds = row.removeFromLeft (
-            juce::jmax (52, row.getWidth() / 3));
-        row.removeFromLeft (12);
-        auto destinationBounds = row;
-        drawTextSlot (graphics, sourceBounds, "row.source", sourceLabel,
+                "row.surface", SkinRenderTarget::surface, surfaceContext, rowKey));
+        }
+        drawTextSlot (graphics, *layout, "row.source", sourceLabel,
                       rowKey, &rowContext);
-        drawTextSlot (graphics, destinationBounds, "row.destination", deviceLabel,
+        drawTextSlot (graphics, *layout, "row.destination", deviceLabel,
                       rowKey, &rowContext);
     }
 
-    void updateRowHeight()
+    [[nodiscard]] std::optional<SkinResolvedRowLayout> rowLayout (int width) const
     {
-        const auto contentHeight = juce::jmax (0, getHeight() - headerHeight - 16);
-        setRowHeight (names.isEmpty()
-                          ? rowHeight
-                          : juce::jlimit (30, 44, contentHeight / names.size()));
+        if (adapter == nullptr) return std::nullopt;
+        SkinRenderContext context;
+        context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (getHeight()) };
+        context.tableRowCount = names.size();
+        context.tableColumnCount = 2;
+        return adapter->rowLayoutFor (*this, SkinRenderTarget::channelMap, context);
     }
 
-    void drawTextSlot (juce::Graphics& graphics, juce::Rectangle<int> bounds,
+    void drawTextSlot (juce::Graphics& graphics, const SkinResolvedRowLayout& layout,
                        juce::StringRef slot, const juce::String& text,
                        const juce::String& key,
                        const SkinRenderContext* ownerContext = nullptr)
     {
+        const auto frame = layout.slots.find (juce::String (slot));
+        if (frame == layout.slots.end()) return;
         SkinRenderContext context;
-        context.bounds = bounds.toFloat();
+        context.bounds = frame->second;
         context.contentBounds = context.bounds;
         context.primaryText = text;
         context.state.enabled = isEnabled();
@@ -190,8 +216,6 @@ private:
     JuceSkinAdapter* adapter = nullptr;
     juce::StringArray names;
     int availableChannelCount = 0;
-    static constexpr int headerHeight = 32;
-    static constexpr int rowHeight = 36;
 };
 
 AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,

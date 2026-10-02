@@ -5,5 +5,18 @@
     { "id": "value", "type": "roundedRect", "frame": { "x": 4, "y": { "$expr": "bounds.height * 0.5 - 2" }, "width": { "$expr": "(bounds.width - 8) * value.normalized" }, "height": 4 }, "radius": 2, "fill": { "$ref": "colors.controlActive" } },
     { "id": "focus", "type": "roundedRect", "visible": { "$context": "state.focused" }, "frame": { "anchor": "bounds", "inset": 1.5 }, "radius": 5, "fill": { "$ref": "colors.transparent" }, "stroke": { "color": { "$ref": "colors.focus" }, "width": 2 } }
   ],
-  "variants": { "disabled": { "track.opacity": 0.4, "value.opacity": 0.4 } }
+  "variants": { "disabled": { "track.opacity": 0.4, "value.opacity": 0.4 } },
+  "controlStyle": {
+    "trackBounds": {
+      "x": 4,
+      "y": {
+        "$expr": "bounds.height * 0.5 - 2"
+      },
+      "width": {
+        "$expr": "max(0, bounds.width - 8)"
+      },
+      "height": 4
+    },
+    "thumbRadius": 4
+  }
 }

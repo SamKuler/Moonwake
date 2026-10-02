@@ -115,5 +115,18 @@
       "track.opacity": 0.4,
       "value.opacity": 0.4
     }
+  },
+  "controlStyle": {
+    "trackBounds": {
+      "x": 5,
+      "y": {
+        "$expr": "bounds.height * 0.5 - 2"
+      },
+      "width": {
+        "$expr": "max(0,bounds.width - 10)"
+      },
+      "height": 4
+    },
+    "thumbRadius": 5
   }
 }

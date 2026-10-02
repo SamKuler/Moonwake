@@ -1,5 +1,7 @@
 #include "skin/SkinAnimationEngine.h"
 #include "skin/SkinAssetCache.h"
+#include "skin/SkinBuiltInPackages.h"
+#include "skin/SkinCompiler.h"
 #include "skin/SkinComponentBindings.h"
 #include "skin/SkinRenderer.h"
 #include "ui/AlbumArtworkComponent.h"
@@ -91,6 +93,20 @@ SkinRenderProgram simpleProgram (SkinRenderTarget target, SkinRenderLayer layer)
     return program;
 }
 
+void setControlStyle (SkinRenderProgram& program,
+                      std::initializer_list<std::pair<const char*, SkinCompiledRenderValue>> values)
+{
+    program.controlStyle.emplace();
+    for (const auto& [name, value] : values)
+    {
+        const auto& descriptors = skinControlStylePropertyDescriptors (program.target);
+        const auto found = std::find_if (descriptors.begin(), descriptors.end(), [&] (const auto& descriptor)
+        { return descriptor.path == name; });
+        jassert (found != descriptors.end());
+        program.controlStyle->properties[name] = { value, found->fallback, &*found, false, {}, {}, 0, {} };
+    }
+}
+
 juce::Image render (const SkinRenderProgram& program, SkinRenderContext context,
                     SkinRenderer& renderer, SkinRuntimeFaultSink& sink)
 {
@@ -180,6 +196,50 @@ public:
             expectEquals (pixelHash (image),
                           juce::String ("1d08f82368912257dfe27d4fe2844d2b559f4497478da98513d42e0f28778c7e"));
             expect (sink.status == SkinRenderStatus::ok);
+        }
+
+        beginTest ("static renderers skip hidden geometry and repeat children with an animation engine attached");
+        {
+            SkinTokenStore tokens;
+            SkinValidationReport report;
+            const auto geometry = SkinExpression::compile ("meter.integrated",
+                skinRenderContextForTarget (SkinRenderTarget::outputStage), tokens, report, "static", "/width");
+            expect (geometry.has_value(), report.toText());
+            auto hidden = rectangleLayer ("hidden", { 0, 0, 20, 20 }, juce::Colours::red);
+            hidden.properties["visible"] = literalBinding (hidden.primitive, "visible", false);
+            if (geometry) hidden.properties["frame.width"].value = *geometry;
+            auto program = simpleProgram (SkinRenderTarget::outputStage, hidden);
+            SkinRenderLayer repeated;
+            repeated.id = "channels";
+            repeated.primitive = SkinPrimitive::repeat;
+            repeated.repeatSource = "meter.channels";
+            repeated.repeatLimit = maximumOutputChannels;
+            setCommon (repeated);
+            hidden.id = "hidden-channel";
+            repeated.children.push_back (hidden);
+            program.baseLayers.push_back (repeated);
+            program.baseLayers.push_back (rectangleLayer ("visible", { 30, 10, 20, 20 }, juce::Colours::green));
+            SkinRenderContext context;
+            context.bounds = { 0, 0, 80, 40 };
+            context.contentBounds = context.bounds;
+            context.meterLabels = { "L", "R", "C", "LFE", "Ls", "Rs", "Ltf", "Rtf", "Ltr", "Rtr" };
+            int hiddenGeometryReads = 0;
+            context.extraLookup = [&] (std::string_view) -> std::optional<SkinExpressionValue>
+            {
+                ++hiddenGeometryReads;
+                return 20.0;
+            };
+            SkinAnimationEngine animations;
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            juce::Image image (juce::Image::ARGB, 80, 40, true);
+            juce::Graphics graphics (image);
+            expect (renderer.draw (graphics, program, context, true, sink, &animations, "static") == SkinRenderStatus::ok);
+            expectEquals (hiddenGeometryReads, 0);
+            expect (image.getPixelAt (5, 5).isTransparent());
+            expect (image.getPixelAt (35, 15) == juce::Colours::green);
+            expect (sink.diagnostics.empty());
+            expect (! animations.isTimerNeeded());
         }
 
         beginTest ("merges selected hover pressed focused and disabled variants in frozen order");
@@ -1787,6 +1847,137 @@ public:
             slider.setLookAndFeel (nullptr);
         }
 
+        beginTest ("native slider hit geometry and scrollbar metrics follow their resolved control profiles");
+        {
+            SkinRenderStyleEntry sliderEntry, ownerEntry, scrollEntry;
+            sliderEntry.renderer = simpleProgram (SkinRenderTarget::linearSlider,
+                rectangleLayer ("track", { 7, 12, 186, 4 }, juce::Colours::red));
+            setControlStyle (sliderEntry.renderer, {
+                { "trackBounds.x", 7.0 }, { "trackBounds.y", 12.0 },
+                { "trackBounds.width", 186.0 }, { "trackBounds.height", 4.0 }, { "thumbRadius", 3.0 }
+            });
+            ownerEntry.renderer.target = SkinRenderTarget::channelMixer;
+            ownerEntry.slotStyles["row.gain"] = "linearSlider.mixer";
+            scrollEntry.renderer.target = SkinRenderTarget::scrollBar;
+            setControlStyle (scrollEntry.renderer, { { "thickness", 11.0 }, { "minThumbLength", 29.0 } });
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
+            {
+                const auto* entry = target == SkinRenderTarget::channelMixer ? &ownerEntry
+                    : target == SkinRenderTarget::scrollBar ? &scrollEntry
+                    : style == "linearSlider.mixer" ? &sliderEntry : nullptr;
+                return JuceSkinAdapter::RuntimeBinding { entry, nullptr, &sink, true };
+            }, renderer);
+            juce::Component owner;
+            juce::Slider slider;
+            slider.setSliderStyle (juce::Slider::LinearHorizontal);
+            slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+            slider.setBounds (0, 0, 200, 28);
+            slider.setRange (0, 1);
+            slider.setLookAndFeel (&adapter);
+            adapter.applySlotStyle (slider, owner, SkinRenderTarget::channelMixer, "row.gain");
+            expectEquals (slider.getProperties()[JuceSkinAdapter::styleProperty].toString(), juce::String ("linearSlider.mixer"));
+            expectWithinAbsoluteError (slider.getPositionOfValue (0.0), 7.0f, 0.001f);
+            expectWithinAbsoluteError (slider.getPositionOfValue (1.0), 193.0f, 0.001f);
+            expectEquals (adapter.getSliderThumbRadius (slider), 3);
+            juce::Image painted (juce::Image::ARGB, 200, 28, true);
+            { juce::Graphics graphics (painted); slider.paintEntireComponent (graphics, true); }
+            expect (painted.getPixelAt (7, 12) == juce::Colours::red);
+            expect (painted.getPixelAt (6, 12).isTransparent());
+            expectEquals (adapter.getDefaultScrollbarWidth(), 11);
+            juce::ScrollBar scrollBar (true);
+            expectEquals (adapter.getMinimumScrollbarThumbSize (scrollBar), 29);
+            expect (sink.diagnostics.empty());
+            slider.setLookAndFeel (nullptr);
+        }
+
+        beginTest ("button icon bounds come from the owner control profile");
+        {
+            SkinRenderStyleEntry buttonEntry, iconEntry;
+            buttonEntry.renderer = simpleProgram (SkinRenderTarget::textButton,
+                rectangleLayer ("body", { 0, 0, 80, 40 }, juce::Colours::transparentBlack));
+            buttonEntry.slotStyles["icon.play"] = "surface.icon";
+            setControlStyle (buttonEntry.renderer, {
+                { "iconBounds.x", 4.0 }, { "iconBounds.y", 6.0 },
+                { "iconBounds.width", 12.0 }, { "iconBounds.height", 14.0 }
+            });
+            auto icon = rectangleLayer ("icon", { 0, 0, 1, 1 }, juce::Colours::red);
+            for (const auto* field : { "x", "y", "width", "height" }) icon.properties.erase ("frame." + juce::String (field));
+            icon.properties["frame.anchor"] = literalBinding (icon.primitive, "frame.anchor", juce::String ("bounds"));
+            iconEntry.renderer = simpleProgram (SkinRenderTarget::surface, icon);
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String&)
+            {
+                return JuceSkinAdapter::RuntimeBinding { target == SkinRenderTarget::textButton ? &buttonEntry : &iconEntry,
+                                                        nullptr, nullptr, false };
+            }, renderer);
+            juce::TextButton button;
+            button.setSize (80, 40);
+            button.getProperties().set (SkinComponentBindings::iconNameProperty, "play");
+            juce::Image painted (juce::Image::ARGB, 80, 40, true);
+            { juce::Graphics graphics (painted); adapter.drawButtonBackground (graphics, button, {}, false, false); }
+            expect (painted.getPixelAt (4, 6) == juce::Colours::red);
+            expect (painted.getPixelAt (15, 19) == juce::Colours::red);
+            expect (painted.getPixelAt (16, 19).isTransparent());
+            expect (painted.getPixelAt (4, 20).isTransparent());
+        }
+
+        beginTest ("adapter row geometry inherits the default profile and reports invalid active metrics");
+        {
+            SkinTokenStore tokens;
+            SkinValidationReport report;
+            const auto rowHeight = SkinExpression::compile ("bounds.height / table.rowCount",
+                skinRowLayoutContextTypes (SkinRenderTarget::table, false), tokens, report, "row", "/height");
+            const auto slotWidth = SkinExpression::compile ("bounds.width - 16",
+                skinRowLayoutContextTypes (SkinRenderTarget::table, true), tokens, report, "row", "/width");
+            expect (rowHeight && slotWidth, report.toText());
+            SkinRenderStyleEntry named, fallback;
+            named.renderer.target = fallback.renderer.target = SkinRenderTarget::table;
+            fallback.renderer.rowLayout.emplace();
+            const auto& metric = skinRowLayoutMetricDescriptor ("rowHeight");
+            SkinRenderPropertyBinding height { 50.0, metric.fallback, &metric, false, {}, {}, 0, {} };
+            if (rowHeight) height.value = *rowHeight;
+            fallback.renderer.rowLayout->base.rowHeight = height;
+            auto width = literalBinding (SkinPrimitive::rectangle, "frame.width", 100.0);
+            if (slotWidth) width.value = *slotWidth;
+            fallback.renderer.rowLayout->base.slots["cell.title"] = {
+                literalBinding (SkinPrimitive::rectangle, "frame.x", 8.0),
+                literalBinding (SkinPrimitive::rectangle, "frame.y", 0.0), width,
+                literalBinding (SkinPrimitive::rectangle, "frame.height", 40.0)
+            };
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget, const juce::String& style)
+            {
+                return JuceSkinAdapter::RuntimeBinding {
+                    style == "default" ? &fallback : &named, nullptr, &sink, true
+                };
+            }, renderer);
+            juce::Component owner;
+            owner.setSize (200, 100);
+            owner.getProperties().set (JuceSkinAdapter::styleProperty, "table.custom");
+            SkinRenderContext context;
+            context.tableRowCount = 2;
+            const auto inherited = adapter.rowLayoutFor (owner, SkinRenderTarget::table, context);
+            expect (inherited.has_value());
+            if (inherited)
+            {
+                expectWithinAbsoluteError (inherited->rowHeight, 50.0f, 0.001f);
+                expectWithinAbsoluteError (inherited->slots.at ("cell.title").getWidth(), 184.0f, 0.001f);
+            }
+            named.renderer.rowLayout = fallback.renderer.rowLayout;
+            named.renderer.rowLayout->base.rowHeight->value = SkinCompiledRenderValue (40.0);
+            const auto explicitLayout = adapter.rowLayoutFor (owner, SkinRenderTarget::table, context);
+            expect (explicitLayout.has_value());
+            if (explicitLayout) expectWithinAbsoluteError (explicitLayout->rowHeight, 40.0f, 0.001f);
+            named.renderer.rowLayout->base.rowHeight->value = SkinCompiledRenderValue (-1.0);
+            expect (! adapter.rowLayoutFor (owner, SkinRenderTarget::table, context));
+            expect (sink.status == SkinRenderStatus::fatalFault);
+            expect (std::any_of (sink.diagnostics.begin(), sink.diagnostics.end(), [] (const auto& diagnostic)
+            { return diagnostic.code == "RENDER004"; }));
+        }
+
         beginTest ("native ComboBox paint routes placeholders and disabled selection through one skin renderer");
         {
             SkinTokenStore tokens;
@@ -1845,6 +2036,147 @@ public:
                 }
             expect (sink.diagnostics.empty());
             combo.setLookAndFeel (nullptr);
+        }
+
+        beginTest ("ComboBox transfers its focus feedback to the popup and restores it on dismissal");
+        if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
+        {
+            expect (false, "native ComboBox regression requires access to a display");
+        }
+        else
+        {
+            SkinRenderStyleEntry comboEntry;
+            comboEntry.renderer = simpleProgram (SkinRenderTarget::comboBox,
+                rectangleLayer ("body", { 0, 0, 180, 36 }, juce::Colours::blue));
+            comboEntry.renderer.variants[4].properties["body.fill"] = literalBinding (
+                SkinPrimitive::rectangle, "fill", juce::Colours::green);
+            SkinRenderStyleEntry menuEntry;
+            menuEntry.renderer = simpleProgram (SkinRenderTarget::popupMenu,
+                rectangleLayer ("body", { 0, 0, 180, 108 }, juce::Colours::grey, 8));
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String&)
+            {
+                return JuceSkinAdapter::RuntimeBinding {
+                    target == SkinRenderTarget::comboBox ? &comboEntry : &menuEntry, nullptr, &sink, true
+                };
+            }, renderer);
+            juce::Component host;
+            host.setBounds (100, 100, 300, 220);
+            host.setLookAndFeel (&adapter);
+            juce::ComboBox combo;
+            combo.setBounds (20, 20, 180, 36);
+            combo.addItemList ({ "Repeat off", "Repeat all", "Repeat one" }, 1);
+            combo.setSelectedId (1, juce::dontSendNotification);
+            host.addAndMakeVisible (combo);
+            host.addToDesktop (0);
+            host.setVisible (true);
+            host.toFront (true);
+            combo.grabKeyboardFocus();
+            const auto paintedColour = [&]
+            {
+                juce::Image image (juce::Image::ARGB, 180, 36, true);
+                juce::Graphics graphics (image);
+                combo.paintEntireComponent (graphics, true);
+                return image.getPixelAt (5, 5);
+            };
+            expect (combo.hasKeyboardFocus (true));
+            expect (paintedColour() == juce::Colours::green);
+            combo.showPopup();
+            expect (combo.isPopupActive());
+            expect (paintedColour() == juce::Colours::blue,
+                          "the open menu must own focus feedback at its rounded transparent corners");
+            combo.hidePopup();
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            combo.grabKeyboardFocus();
+            expect (! combo.isPopupActive());
+            expect (paintedColour() == juce::Colours::green);
+            host.removeFromDesktop();
+            host.setLookAndFeel (nullptr);
+            expect (sink.diagnostics.empty());
+        }
+
+        beginTest ("built-in ComboBox triggers transfer their complete surface only to an overlapping selected menu");
+        if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
+        {
+            expect (false, "native built-in ComboBox regression requires access to a display");
+        }
+        else
+        {
+            SkinValidationReport report;
+            const auto foundationPackage = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::foundation, report);
+            const auto foundation = foundationPackage ? SkinCompiler::compile (*foundationPackage, {}, report) : nullptr;
+            const auto defaultPackage = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::defaultSkin, report);
+            const auto defaultSkin = defaultPackage && foundation
+                ? SkinCompiler::compile (*defaultPackage, foundation, report) : nullptr;
+            expect (foundation != nullptr && defaultSkin != nullptr, report.toText());
+            for (const auto& [skin, suffix] : {
+                     std::pair { foundation, juce::String ("default") },
+                     std::pair { defaultSkin, juce::String ("studio") },
+                     std::pair { defaultSkin, juce::String ("listening") } })
+            {
+                if (skin == nullptr) continue;
+                FaultRecorder sink;
+                SkinRenderer renderer;
+                JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding {
+                        skin->resolveStyle (target, skinRenderTargetName (target) + "." + suffix), nullptr, &sink, true
+                    };
+                }, renderer);
+                juce::Component host;
+                host.setBounds (100, 100, 320, 260);
+                host.setLookAndFeel (&adapter);
+                juce::ComboBox combo;
+                combo.setBounds (20, 20, 220, 36);
+                combo.addItemList ({ "Repeat off", "Repeat all", "Repeat one" }, 1);
+                combo.setTextWhenNothingSelected ("No matching effects");
+                host.addAndMakeVisible (combo);
+                host.addToDesktop (0);
+                host.setVisible (true);
+                host.toFront (true);
+                const auto opaquePixels = [&]
+                {
+                    const auto image = combo.createComponentSnapshot (combo.getLocalBounds());
+                    int count = 0;
+                    for (int y = 0; y < image.getHeight(); ++y)
+                        for (int x = 0; x < image.getWidth(); ++x)
+                            if (! image.getPixelAt (x, y).isTransparent()) ++count;
+                    return count;
+                };
+                for (const auto selected : { 1, 2, 3, 0, -1 })
+                {
+                    if (selected < 0) combo.clear (juce::dontSendNotification);
+                    combo.setSelectedId (juce::jmax (0, selected), juce::dontSendNotification);
+                    combo.grabKeyboardFocus();
+                    const auto focused = combo.createComponentSnapshot (combo.getLocalBounds());
+                    expect (opaquePixels() > 0, suffix + " closed trigger remains visible");
+                    combo.showPopup();
+                    juce::Component* menu = nullptr;
+                    for (int index = 0; index < juce::Desktop::getInstance().getNumComponents(); ++index)
+                        if (auto* candidate = juce::Desktop::getInstance().getComponent (index); candidate->getName() == "menu")
+                            menu = candidate;
+                    expect (menu != nullptr, suffix + " native menu must be created");
+                    if (menu != nullptr)
+                    {
+                        const auto coversTrigger = menu->getScreenBounds().contains (combo.getScreenBounds());
+                        expect (coversTrigger == (selected > 0), suffix + " popup placement follows the selected item");
+                        expect ((opaquePixels() == 0) == coversTrigger,
+                                suffix + " the trigger surface is hidden only when the menu covers it");
+                        const auto popup = menu->createComponentSnapshot (menu->getLocalBounds());
+                        expect (popup.getPixelAt (0, 0).isTransparent(), suffix + " menu corner stays transparent");
+                        expect (! popup.getPixelAt (popup.getWidth() / 2, popup.getHeight() / 2).isTransparent());
+                    }
+                    combo.hidePopup();
+                    juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+                    combo.grabKeyboardFocus();
+                    expectEquals (pixelHash (combo.createComponentSnapshot (combo.getLocalBounds())), pixelHash (focused),
+                                  suffix + " closing restores the complete focused trigger");
+                }
+                host.removeFromDesktop();
+                host.setLookAndFeel (nullptr);
+                expect (sink.diagnostics.empty());
+            }
         }
 
         beginTest ("real popup windows preserve skin transparency and a single themed highlight");
@@ -2042,6 +2374,11 @@ public:
             if (text) label.properties["text"].value = *text;
             SkinRenderStyleEntry entry;
             entry.renderer = simpleProgram (SkinRenderTarget::textEditor, label);
+            setControlStyle (entry.renderer, {
+                { "selectionColour", juce::Colour (0x40468ace) },
+                { "selectedTextColour", juce::Colour (0xff468ace) },
+                { "caretColour", juce::Colour (0xff468ace) }
+            });
             FaultRecorder sink;
             SkinRenderer renderer;
             JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String&)
@@ -2106,12 +2443,14 @@ public:
             changed.properties["color"] = literalBinding (label.primitive, "color", juce::Colours::green);
             changed.properties["align"] = literalBinding (label.primitive, "align", juce::String ("right"));
             changed.properties["frame.inset.right"] = literalBinding (label.primitive, "frame.inset.right", 21.0);
+            entry.renderer.controlStyle->properties.at ("selectedTextColour").value =
+                SkinCompiledRenderValue (juce::Colours::red);
             static_cast<void> (paintEditor());
             expectWithinAbsoluteError (editor.getFont().getHeight(), 22.0f, 0.001f);
             expect (editor.getJustificationType() == juce::Justification::centredRight);
             expectEquals (editor.getBorder().getRight(), 21);
             expect (editor.findColour (juce::TextEditor::textColourId) == juce::Colours::green);
-            expect (editor.findColour (juce::TextEditor::highlightedTextColourId) == juce::Colours::green);
+            expect (editor.findColour (juce::TextEditor::highlightedTextColourId) == juce::Colours::red);
             expect (sink.diagnostics.empty());
             editor.setLookAndFeel (nullptr);
         }
@@ -2140,6 +2479,13 @@ public:
             };
             auto popup = makeEntry (SkinRenderTarget::popupMenu, 28.0);
             auto tooltip = makeEntry (SkinRenderTarget::tooltip, 15.0);
+            popup.renderer.rowLayout.emplace();
+            const auto& rowHeightDescriptor = skinRowLayoutMetricDescriptor ("rowHeight");
+            popup.renderer.rowLayout->base.rowHeight = SkinRenderPropertyBinding {
+                66.0, rowHeightDescriptor.fallback, &rowHeightDescriptor, false, {}, {}, 0, {} };
+            setControlStyle (tooltip.renderer, {
+                { "maxWidth", 400.0 }, { "offsetX", 24.0 }, { "offsetY", 6.0 }
+            });
             SkinRenderer renderer;
             JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String&)
             {
@@ -2153,10 +2499,14 @@ public:
             const auto font = adapter.getPopupMenuFont();
             expectWithinAbsoluteError (font.getHeight(), 28.0f, 0.001f);
             expect (width >= juce::GlyphArrangement::getStringWidthInt (font, text) + 14);
-            expect (height >= 42);
+            expect (height >= 66);
+            adapter.getIdealPopupMenuItemSize (text, false, 80, width, height);
+            expect (height >= 80);
             const juce::Rectangle<int> parent (0, 0, 800, 600);
             const auto tip = adapter.getTooltipBounds (text, { 40, 40 }, parent);
             expect (parent.contains (tip));
+            expectEquals (tip.getX(), 64);
+            expectEquals (tip.getY(), 46);
             expect (tip.getHeight() >= 29, "tooltip must reserve both seven-pixel vertical insets");
             const auto wrapped = adapter.getTooltipBounds ("A longer tooltip with several words that wraps over multiple lines",
                                                           { 40, 40 }, { 0, 0, 180, 600 });

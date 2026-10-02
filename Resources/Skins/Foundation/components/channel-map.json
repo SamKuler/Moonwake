@@ -31,5 +31,68 @@
       },
       "body.stroke.width": 2
     }
+  },
+  "rowLayout": {
+    "rowHeight": {
+      "$expr": "clamp(round((container.height - 48) / max(1, table.rowCount)), 30, 44)"
+    },
+    "rowGap": 0,
+    "headerHeight": 32,
+    "slots": {
+      "header.label": {
+        "x": 10,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "layout.headerHeight"
+        }
+      },
+      "empty.message": {
+        "x": 10,
+        "y": {
+          "$expr": "layout.headerHeight + 10"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "max(0, container.height - layout.headerHeight - 20)"
+        }
+      },
+      "row.surface": {
+        "x": 10,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.source": {
+        "x": 10,
+        "y": 0,
+        "width": {
+          "$expr": "max(52, (bounds.width - 20) / 3)"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.destination": {
+        "x": {
+          "$expr": "22 + max(52, (bounds.width - 20) / 3)"
+        },
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 32 - max(52, (bounds.width - 20) / 3))"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      }
+    }
   }
 }

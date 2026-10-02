@@ -31,7 +31,7 @@
                 "component": "app.brand.title",
                 "style": "label.listeningBrand",
                 "grow": 1,
-                "height": 28
+                "height": 40
               },
               {
                 "id": "listening-listening-modes",
@@ -380,8 +380,8 @@
         "type": "component",
         "component": "app.status",
         "style": "label.listeningNotice",
-        "width": "42%",
-        "height": 84,
+        "width": 360,
+        "height": 56,
         "zIndex": 100,
         "anchors": {
           "top": 80,

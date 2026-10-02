@@ -61,5 +61,14 @@
       "body.opacity": 0.4,
       "label.opacity": 0.55
     }
+  },
+  "controlStyle": {
+    "selectionColour": "#31576633",
+    "selectedTextColour": {
+      "$ref": "colors.listening.text"
+    },
+    "caretColour": {
+      "$ref": "colors.listening.text"
+    }
   }
 }

@@ -18,7 +18,7 @@ public:
         setWantsKeyboardFocus (true);
         setModel (this);
         setOutlineThickness (0);
-        setRowHeight (rowHeight);
+        setRowHeight (1);
         setColour (juce::ListBox::backgroundColourId,
                    juce::Colour {});
         setColour (juce::ListBox::outlineColourId,
@@ -39,6 +39,7 @@ public:
             selectedIndex = indexOf (active);
         if (selectedIndex < 0 && ! selections.empty())
             selectedIndex = 0;
+        resized();
         updateContent();
         juce::SparseSet<int> selectedRows;
         if (selectedIndex >= 0)
@@ -93,6 +94,29 @@ public:
                 background, "settings.skins.library"));
 
         juce::ListBox::paint (graphics);
+        if (selections.empty())
+            if (const auto layout = rowLayout (getWidth()))
+                drawTextSlot (graphics, *layout, "empty.message", "No skins available.", "empty");
+    }
+
+    void resized() override
+    {
+        const auto first = firstVisibleRow;
+        const auto applyRows = [this] (int width)
+        {
+            if (const auto layout = rowLayout (width))
+                setRowHeight (juce::jmax (1, juce::roundToInt (layout->rowHeight + layout->rowGap)));
+        };
+        juce::ListBox::resized();
+        const auto width = getViewport()->getMaximumVisibleWidth();
+        applyRows (width);
+        juce::ListBox::resized();
+        if (const auto availableWidth = getViewport()->getMaximumVisibleWidth(); availableWidth != width)
+        {
+            applyRows (availableWidth);
+            juce::ListBox::resized();
+        }
+        setFirstVisibleRow (first);
     }
 
     void focusGained (juce::Component::FocusChangeType cause) override
@@ -168,14 +192,15 @@ private:
         if (! juce::isPositiveAndBelow (rowNumber,
                                         static_cast<int> (selections.size())))
             return;
-        auto row = juce::Rectangle<int> (0, 0, width, height).reduced (1, 0);
+        const auto layout = rowLayout (width);
+        if (! layout) return;
         const auto& description = selections[static_cast<size_t> (rowNumber)];
         const auto& selection = description.selection;
         const auto builtIn = description.builtIn;
         const auto active = selection == activeSelection;
         const auto previewed = active && previewActive;
         SkinRenderContext rowContext;
-        rowContext.bounds = row.toFloat();
+        rowContext.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
         rowContext.contentBounds = rowContext.bounds;
         rowContext.state.enabled = true;
         rowContext.state.selected = rowIsSelected;
@@ -191,30 +216,24 @@ private:
                 version, builtIn, active, previewed);
         };
         const auto rowKey = "skin:" + juce::String (rowNumber);
-        if (adapter != nullptr)
+        if (const auto surface = layout->slots.find ("row.surface"); surface != layout->slots.end())
+        {
+            auto surfaceContext = rowContext;
+            surfaceContext.bounds = surface->second;
+            surfaceContext.contentBounds = surfaceContext.bounds;
             static_cast<void> (adapter->drawCustomSlot (
                 graphics, *this, SkinRenderTarget::skinList,
                 "row.surface", SkinRenderTarget::surface,
-                rowContext, rowKey));
-
-        auto content = row.reduced (14, 6);
-        auto statusBounds = content.removeFromRight (
-            juce::jlimit (56, 88, content.getWidth() / 3)).reduced (0, 5);
-        content.removeFromRight (8);
-        auto versionBounds = content.removeFromRight (
-            juce::jlimit (32, 60, row.getWidth() / 6));
-        content.removeFromRight (8);
-        auto nameBounds = content.removeFromTop (22);
-        content.removeFromTop (2);
-        auto authorBounds = content;
-        drawTextSlot (graphics, nameBounds, "row.name", displayName (description),
+                surfaceContext, rowKey));
+        }
+        drawTextSlot (graphics, *layout, "row.name", displayName (description),
                       rowKey, &rowContext);
-        drawTextSlot (graphics, authorBounds, "row.author",
+        drawTextSlot (graphics, *layout, "row.author",
                       "by " + description.author,
                       rowKey, &rowContext);
-        drawTextSlot (graphics, versionBounds, "row.version", "v" + selection.version,
+        drawTextSlot (graphics, *layout, "row.version", "v" + selection.version,
                       rowKey, &rowContext);
-        drawTextSlot (graphics, statusBounds, "row.status",
+        drawTextSlot (graphics, *layout, "row.status",
                       previewed ? "Preview"
                                 : (active ? "Active"
                                           : (builtIn ? "Built in" : "Imported")),
@@ -232,17 +251,12 @@ private:
     {
         if (const auto* viewport = getViewport())
             firstVisibleRow = juce::jmax (
-                0, viewport->getViewPositionY() / rowHeight);
-    }
-
-    [[nodiscard]] juce::Rectangle<int> contentBounds() const
-    {
-        return getLocalBounds();
+                0, viewport->getViewPositionY() / getRowHeight());
     }
 
     [[nodiscard]] int visibleRowCount() const
     {
-        return juce::jmax (1, contentBounds().getHeight() / rowHeight);
+        return juce::jmax (1, getViewport()->getMaximumVisibleHeight() / getRowHeight());
     }
 
     bool setFirstVisibleRow (int requested)
@@ -250,13 +264,11 @@ private:
         const auto maximum = juce::jmax (
             0, static_cast<int> (selections.size()) - visibleRowCount());
         const auto next = juce::jlimit (0, maximum, requested);
-        if (next == firstVisibleRow)
-            return true;
         firstVisibleRow = next;
         if (auto* viewport = getViewport())
             viewport->setViewPosition (
                 viewport->getViewPositionX(),
-                firstVisibleRow * rowHeight);
+                firstVisibleRow * getRowHeight());
         return true;
     }
 
@@ -308,13 +320,25 @@ private:
         return selection.id;
     }
 
-    void drawTextSlot (juce::Graphics& graphics, juce::Rectangle<int> bounds,
+    [[nodiscard]] std::optional<SkinResolvedRowLayout> rowLayout (int width) const
+    {
+        if (adapter == nullptr) return std::nullopt;
+        SkinRenderContext context;
+        context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (getHeight()) };
+        context.tableRowCount = static_cast<int> (selections.size());
+        context.tableColumnCount = 4;
+        return adapter->rowLayoutFor (*this, SkinRenderTarget::skinList, context);
+    }
+
+    void drawTextSlot (juce::Graphics& graphics, const SkinResolvedRowLayout& layout,
                        juce::StringRef slot, const juce::String& text,
                        const juce::String& key,
                        const SkinRenderContext* ownerContext = nullptr)
     {
+        const auto frame = layout.slots.find (juce::String (slot));
+        if (frame == layout.slots.end()) return;
         SkinRenderContext context;
-        context.bounds = bounds.toFloat();
+        context.bounds = frame->second;
         context.contentBounds = context.bounds;
         context.primaryText = text;
         context.state.enabled = true;
@@ -332,7 +356,6 @@ private:
     SkinSelection activeSelection;
     bool previewActive = false;
     int firstVisibleRow = 0;
-    static constexpr int rowHeight = 56;
     std::function<void()> selectionChanged;
 };
 

@@ -30,6 +30,17 @@ void OutputStageComponent::setState (
         repaint();
 }
 
+void OutputStageComponent::setMeterReadings (OutputMeterReadings next)
+{
+    const auto changed = readings.samplePeak != next.samplePeak || readings.rms != next.rms
+        || readings.truePeak != next.truePeak || readings.maxTruePeak != next.maxTruePeak
+        || ! juce::exactlyEqual (readings.momentaryLufs, next.momentaryLufs) || ! juce::exactlyEqual (readings.shortTermLufs, next.shortTermLufs)
+        || ! juce::exactlyEqual (readings.integratedLufs, next.integratedLufs) || readings.available != next.available
+        || readings.measurementInterrupted != next.measurementInterrupted || readings.channels != next.channels;
+    readings = std::move (next);
+    if (changed) repaint();
+}
+
 void OutputStageComponent::paint (juce::Graphics& graphics)
 {
     auto* adapter = dynamic_cast<JuceSkinAdapter*> (&getLookAndFeel());
@@ -67,6 +78,7 @@ void OutputStageComponent::paint (juce::Graphics& graphics)
         if (path == "meter.mode") return SkinExpressionValue (juce::String (
             mode == MeterMode::peak ? "peak" : mode == MeterMode::rms ? "rms" : "loudness"));
         if (path == "meter.available") return SkinExpressionValue (readings.available);
+        if (path == "meter.interrupted") return SkinExpressionValue (readings.measurementInterrupted);
         if (path == "meter.status") return SkinExpressionValue (juce::String (
             readings.measurementInterrupted ? "Measurement restarted after a processing gap"
                                             : readings.available ? "Post effects / output gain" : "Waiting for audio"));

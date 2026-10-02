@@ -1,4 +1,6 @@
 #include "SkinLayoutEngine.h"
+#include "CompiledSkin.h"
+#include "SkinControlStyle.h"
 
 #include "PlayerComponentCatalog.h"
 
@@ -80,8 +82,8 @@ juce::String componentTarget (const SkinLayoutNode& node)
 class Resolver
 {
 public:
-    Resolver (float scaleFactorIn, SkinValidationReport& reportIn)
-        : scaleFactor (scaleFactorIn), report (reportIn)
+    Resolver (float scaleFactorIn, SkinValidationReport& reportIn, const CompiledSkin* skinIn)
+        : scaleFactor (scaleFactorIn), report (reportIn), skin (skinIn)
     {
     }
 
@@ -109,6 +111,24 @@ public:
                 break;
             }
 
+        if (skin != nullptr)
+        {
+            const auto chosen = ancillaryStyles.find ("scrollBar");
+            auto* style = skin->resolveStyle (SkinRenderTarget::scrollBar,
+                chosen == ancillaryStyles.end() ? "default" : chosen->second);
+            if (style != nullptr && ! style->renderer.controlStyle)
+                style = skin->resolveStyle (SkinRenderTarget::scrollBar, "default");
+            if (style != nullptr)
+            {
+                SkinRenderContext context;
+                context.bounds = context.contentBounds = bounds.withPosition (0, 0);
+                context.scaleFactor = scaleFactor;
+                if (const auto control = resolveSkinControlStyle (style->renderer, context, report))
+                    scrollBarWidth = control->thickness.value_or (scrollBarWidth);
+            }
+            if (report.hasErrors()) return std::nullopt;
+        }
+
         if (selected->common.minWidth > bounds.getWidth()
             || selected->common.minHeight > bounds.getHeight())
         {
@@ -119,7 +139,7 @@ public:
 
         auto root = resolveNode (*selected, bounds, bounds);
         if (! root || failed) return std::nullopt;
-        return SkinResolvedLayout { std::move (*root), std::move (ancillaryStyles) };
+        return SkinResolvedLayout { std::move (*root), std::move (ancillaryStyles), scrollBarWidth };
     }
 
 private:
@@ -703,11 +723,11 @@ private:
             if (layout.direction == SkinScrollLayout::Direction::vertical)
                 childViewport.setWidth (std::max (
                     0.0f, childViewport.getWidth()
-                              - static_cast<float> (SkinLayoutEngine::scrollBarThickness)));
+                              - scrollBarWidth));
             else
                 childViewport.setHeight (std::max (
                     0.0f, childViewport.getHeight()
-                               - static_cast<float> (SkinLayoutEngine::scrollBarThickness)));
+                               - scrollBarWidth));
             desired = desiredSize (*layout.child, childViewport.getWidth(),
                                    childViewport.getHeight());
         }
@@ -737,6 +757,8 @@ private:
 
     float scaleFactor;
     SkinValidationReport& report;
+    const CompiledSkin* skin;
+    float scrollBarWidth = static_cast<float> (SkinLayoutEngine::scrollBarThickness);
     bool failed = false;
 };
 
@@ -757,8 +779,8 @@ const SkinResolvedNode* SkinResolvedLayout::component (const juce::String& id) c
 std::optional<SkinResolvedLayout> SkinLayoutEngine::resolve (
     const SkinLayoutDefinition& definition, juce::Rectangle<float> bounds,
     float scaleFactor, SkinValidationReport& report,
-    std::optional<WorkspaceMode> workspace)
+    std::optional<WorkspaceMode> workspace, const CompiledSkin* skin)
 {
-    return Resolver (scaleFactor, report).run (
+    return Resolver (scaleFactor, report, skin).run (
         definition, bounds, workspace.value_or (definition.defaultWorkspace));
 }

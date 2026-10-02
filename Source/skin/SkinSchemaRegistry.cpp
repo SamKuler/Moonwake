@@ -2,6 +2,7 @@
 
 #include "PlayerComponentCatalog.h"
 #include "SkinRenderDefinition.h"
+#include "SkinControlStyle.h"
 #include "app/ProductIdentity.h"
 
 #include <algorithm>
@@ -847,6 +848,21 @@ juce::var renderSchema()
                                                        : "#/$defs/transition"));
     auto transitions = closedObject (transitionsProperties);
 
+    auto rowLayoutProperties = object();
+    for (const auto* field : { "rowHeight", "rowGap", "headerHeight" })
+        rowLayoutProperties.getDynamicObject()->setProperty (field, reference ("#/$defs/dynamicValue"));
+    rowLayoutProperties.getDynamicObject()->setProperty ("slots", dynamicObject (explicitFrame));
+    auto rowBreakpointProperties = rowLayoutProperties.clone();
+    auto rowWhenProperties = object();
+    for (const auto* field : { "minWidth", "maxWidth" })
+        rowWhenProperties.getDynamicObject()->setProperty (field, boundedNumber ("number", 0, 100000));
+    auto rowWhen = closedObject (rowWhenProperties);
+    rowWhen.getDynamicObject()->setProperty ("minProperties", 1);
+    rowBreakpointProperties.getDynamicObject()->setProperty ("when", rowWhen);
+    rowLayoutProperties.getDynamicObject()->setProperty (
+        "breakpoints", arraySchema (closedObject (rowBreakpointProperties, { "when" }), -1, 16));
+    const auto rowLayout = closedObject (rowLayoutProperties, { "rowHeight", "slots" });
+
     auto properties = object();
     auto apiVersion = object();
     apiVersion.getDynamicObject()->setProperty ("const", 1);
@@ -857,6 +873,41 @@ juce::var renderSchema()
                                SkinRenderLimits::maximumRootLayers));
     properties.getDynamicObject()->setProperty ("variants", variants);
     properties.getDynamicObject()->setProperty ("transitions", transitions);
+    properties.getDynamicObject()->setProperty ("rowLayout", rowLayout);
+    properties.getDynamicObject()->setProperty ("controlStyle", typedSchema ("object"));
+
+    juce::Array<juce::var> controlStyleConditions;
+    for (const auto& targetName : skinRenderTargetNames())
+    {
+        const auto target = skinRenderTargetFromName (targetName);
+        auto fields = object();
+        juce::Array<juce::var> requiredFields;
+        for (const auto& descriptor : skinControlStylePropertyDescriptors (*target))
+        {
+            const auto name = descriptor.path.upToFirstOccurrenceOf (".", false, false);
+            if (fields.hasProperty (name)) continue;
+            fields.getDynamicObject()->setProperty (name, descriptor.path.containsChar ('.')
+                ? explicitFrame : reference ("#/$defs/dynamicValue"));
+            requiredFields.add (name);
+        }
+        auto styleSchema = closedObject (fields);
+        styleSchema.getDynamicObject()->setProperty ("minProperties", 1);
+        styleSchema.getDynamicObject()->setProperty ("required", juce::var (requiredFields));
+        auto targetValue = object();
+        targetValue.getDynamicObject()->setProperty ("const", targetName);
+        auto conditionProperties = object();
+        conditionProperties.getDynamicObject()->setProperty ("target", targetValue);
+        auto condition = object();
+        condition.getDynamicObject()->setProperty ("properties", conditionProperties);
+        auto consequentProperties = object();
+        consequentProperties.getDynamicObject()->setProperty ("controlStyle", styleSchema);
+        auto consequent = object();
+        consequent.getDynamicObject()->setProperty ("properties", consequentProperties);
+        auto branch = object();
+        branch.getDynamicObject()->setProperty ("if", condition);
+        branch.getDynamicObject()->setProperty ("then", consequent);
+        controlStyleConditions.add (branch);
+    }
 
     auto definitions = object();
     definitions.getDynamicObject()->setProperty ("reference", tokenReference);
@@ -895,6 +946,7 @@ juce::var renderSchema()
     root->setProperty ("x-skinApi", MoonwakeIdentity::skinApiVersion);
     root->setProperty ("title", schemaTitle ("Render Definition"));
     root->setProperty ("$defs", definitions);
+    root->setProperty ("allOf", juce::var (controlStyleConditions));
     return result;
 }
 

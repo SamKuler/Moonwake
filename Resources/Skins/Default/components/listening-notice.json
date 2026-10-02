@@ -9,7 +9,7 @@
         "anchor": "bounds",
         "inset": 1
       },
-      "radius": 10,
+      "radius": 8,
       "fill": {
         "$ref": "colors.listening.surface"
       },
@@ -18,12 +18,6 @@
           "$ref": "colors.listening.border"
         },
         "width": 1
-      },
-      "shadow": {
-        "color": "#00000030",
-        "radius": 12,
-        "offsetX": 0,
-        "offsetY": 4
       }
     },
     {
@@ -31,7 +25,12 @@
       "type": "text",
       "frame": {
         "anchor": "contentBounds",
-        "inset": 12
+        "inset": {
+          "left": 12,
+          "right": 12,
+          "top": 8,
+          "bottom": 8
+        }
       },
       "text": {
         "$context": "text.primary"
@@ -46,7 +45,7 @@
         "$ref": "colors.listening.text"
       },
       "align": "left",
-      "maxLines": 3,
+      "maxLines": 2,
       "overflow": "ellipsis"
     }
   ]

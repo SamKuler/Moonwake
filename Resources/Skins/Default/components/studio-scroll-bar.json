@@ -41,5 +41,9 @@
     "disabled": {
       "thumb.opacity": 0.35
     }
+  },
+  "controlStyle": {
+    "thickness": 8,
+    "minThumbLength": 20
   }
 }

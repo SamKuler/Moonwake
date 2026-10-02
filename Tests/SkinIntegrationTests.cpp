@@ -603,14 +603,23 @@ std::map<juce::String, juce::String> componentParents (
     return result;
 }
 
+const SkinRenderLayer* findLayer (
+    const std::vector<SkinRenderLayer>& layers, juce::StringRef layerId)
+{
+    for (const auto& layer : layers)
+    {
+        if (layer.id == layerId) return &layer;
+        if (const auto* child = findLayer (layer.children, layerId)) return child;
+    }
+    return nullptr;
+}
+
 std::optional<juce::Colour> colourProperty (
     const SkinRenderStyleEntry& style, juce::StringRef layerId,
     juce::StringRef property)
 {
-    const auto layer = std::find_if (
-        style.renderer.baseLayers.begin(), style.renderer.baseLayers.end(),
-        [&] (const auto& candidate) { return candidate.id == layerId; });
-    if (layer == style.renderer.baseLayers.end()) return std::nullopt;
+    const auto* layer = findLayer (style.renderer.baseLayers, layerId);
+    if (layer == nullptr) return std::nullopt;
     const auto binding = layer->properties.find (juce::String (property));
     if (binding == layer->properties.end()) return std::nullopt;
     const auto resolved = binding->second.resolve ({}, {});
@@ -622,17 +631,7 @@ std::optional<double> numberProperty (
     const SkinRenderStyleEntry& style, juce::StringRef layerId,
     juce::StringRef property)
 {
-    const std::function<const SkinRenderLayer* (
-        const std::vector<SkinRenderLayer>&)> findLayer = [&] (const auto& layers)
-    {
-        for (const auto& candidate : layers)
-        {
-            if (candidate.id == layerId) return &candidate;
-            if (const auto* child = findLayer (candidate.children)) return child;
-        }
-        return static_cast<const SkinRenderLayer*> (nullptr);
-    };
-    const auto* layer = findLayer (style.renderer.baseLayers);
+    const auto* layer = findLayer (style.renderer.baseLayers, layerId);
     if (layer == nullptr) return std::nullopt;
     const auto binding = layer->properties.find (juce::String (property));
     if (binding == layer->properties.end()) return std::nullopt;
@@ -852,17 +851,17 @@ public:
                     expect (skinList.slotStyles.contains (slot), theme + ":" + slot);
             }
             const auto& meter = defaultSkin->renderers.at ("outputStage.studio").renderer;
-            for (const auto* context : { "meter.mode", "meter.channelCount", "item.peakDb", "item.label", "text.secondary" })
+            for (const auto* context : { "meter.mode", "meter.channelCount", "item.peakDb", "item.label", "meter.interrupted" })
                 expect (meter.contextPaths.contains (context), context);
             const auto channels = std::find_if (meter.baseLayers.begin(), meter.baseLayers.end(),
                 [] (const auto& layer) { return layer.repeatSource == "meter.channels"; });
-            expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 10,
-                    "Studio meters must use the actual channel list through 7.1.2");
+            expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 16,
+                    "Studio meters must use the actual channel list through 9.1.6");
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
-            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.2.0"));
+            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.5.0"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.4.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.5.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
@@ -1097,7 +1096,7 @@ public:
                 const auto settings = componentParents (
                     skin->layouts.at (SkinLayoutEntry::settings));
                 for (const auto& id : {
-                         "settings.title", "settings.close",
+                         "settings.title",
                          "settings.audio.device", "settings.audio.sampleRate",
                          "settings.audio.bufferSize", "settings.audio.channelLayout",
                          "settings.audio.channelMap", "settings.plugins.formats",
@@ -1109,6 +1108,7 @@ public:
                          "settings.skins.cancelPreview", "settings.skins.reload" })
                     expect (settings.contains (id), id);
                 expect (! settings.contains ("library.add"));
+                expect (! settings.contains ("settings.close"));
                 for (const auto& [id, parent] : settings)
                 {
                     juce::ignoreUnused (parent);
@@ -1125,9 +1125,10 @@ public:
                 const auto effects = componentParents (
                     skin->layouts.at (SkinLayoutEntry::effects));
                 for (const auto& required : {
-                         "effects.close", "effects.filter", "effects.catalog",
+                         "effects.filter", "effects.catalog",
                          "effects.add", "effects.chain" })
                     expect (effects.contains (required), required);
+                expect (! effects.contains ("effects.close"));
             }
         }
 

@@ -104,5 +104,15 @@
         "body.opacity"
       ]
     }
+  },
+  "controlStyle": {
+    "iconBounds": {
+      "x": 12,
+      "y": {
+        "$expr": "(bounds.height - 20) * 0.5"
+      },
+      "width": 20,
+      "height": 20
+    }
   }
 }

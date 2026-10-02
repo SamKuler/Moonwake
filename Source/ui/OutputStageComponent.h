@@ -12,8 +12,8 @@ class OutputStageComponent final : public juce::Component
 {
 public:
     enum class MeterMode { peak, rms, loudness };
-    void setMeterMode (MeterMode modeToUse) { mode = modeToUse; repaint(); }
-    void setMeterReadings (OutputMeterReadings readingsToUse) { readings = std::move (readingsToUse); repaint(); }
+    void setMeterMode (MeterMode modeToUse) { if (mode != modeToUse) { mode = modeToUse; repaint(); } }
+    void setMeterReadings (OutputMeterReadings);
     void setState (OutputLayout layoutToUse,
                    WorkspaceMode workspaceModeToUse,
                    bool isPlaying,

@@ -24,13 +24,10 @@ void SkinTableListBox::setPresentation (const juce::String& nextPresentation)
     if (! originalState)
         originalState = OriginalState { header.toString(), getRowHeight(),
                                         getHeaderHeight(), header.isStretchToFitActive() };
-    if (presentation == "table")
-        tableColumns = header.toString();
+    rememberTableColumns();
 
     presentation = nextPresentation;
     header.setStretchToFitActive (false);
-    setRowHeight (presentation == "list" ? 56 : 40);
-    setHeaderHeight (presentation == "list" ? 0 : 28);
     if (presentation == "table" && tableColumns.isNotEmpty())
     {
         header.restoreFromString (tableColumns);
@@ -46,21 +43,15 @@ void SkinTableListBox::setPresentation (const juce::String& nextPresentation)
         header.moveColumn (1, 0);
         if (presentation == "table") header.moveColumn (2, 1);
         header.moveColumn (3, presentation == "list" ? 1 : 2);
-        if (presentation == "table")
-        {
-            const auto width = getVisibleContentWidth();
-            const auto titleWidth = juce::roundToInt (static_cast<double> (width) * 0.4);
-            header.setColumnWidth (1, titleWidth);
-            header.setColumnWidth (2, juce::jmax (0, width - titleWidth - 64));
-            header.setColumnWidth (3, 64);
-        }
     }
+    if (presentation == "table") lastAppliedTableColumns = header.toString();
     resized();
 }
 
 void SkinTableListBox::resetPresentation()
 {
     if (! originalState) return;
+    rememberTableColumns();
     presentation.clear();
     auto& header = getHeader();
     header.setStretchToFitActive (false);
@@ -69,39 +60,92 @@ void SkinTableListBox::resetPresentation()
     header.restoreFromString (originalState->columns);
     header.setStretchToFitActive (originalState->stretchToFit);
     setMinimumContentWidth (header.getTotalWidth());
-    tableColumns.clear();
     originalState.reset();
 }
 
 void SkinTableListBox::resized()
 {
     juce::TableListBox::resized();
+    if (presentation.isEmpty()) return;
+    if (const auto layout = resolvedRowLayout())
+    {
+        const auto rowHeight = juce::roundToInt (layout->rowHeight + layout->rowGap);
+        const auto headerHeight = juce::roundToInt (layout->headerHeight);
+        if (getRowHeight() != rowHeight) setRowHeight (rowHeight);
+        if (getHeaderHeight() != headerHeight) setHeaderHeight (headerHeight);
+    }
     layoutPresentationColumns();
+}
+
+std::optional<SkinResolvedRowLayout> SkinTableListBox::resolvedRowLayout() const
+{
+    if (getLocalBounds().isEmpty() || getVisibleContentWidth() <= 0) return std::nullopt;
+    auto* adapter = dynamic_cast<JuceSkinAdapter*> (&getLookAndFeel());
+    if (adapter == nullptr) return std::nullopt;
+    SkinRenderContext context;
+    context.bounds = { 0, 0, static_cast<float> (getVisibleContentWidth()), static_cast<float> (getHeight()) };
+    context.contentBounds = context.bounds;
+    if (auto* model = getTableListBoxModel()) context.tableRowCount = model->getNumRows();
+    context.tableColumnCount = getHeader().getNumColumns (true);
+    context.extraLookup = [mode = presentation.isEmpty() ? juce::String ("table") : presentation]
+        (std::string_view path) -> std::optional<SkinExpressionValue>
+    {
+        if (path == "table.presentation") return SkinExpressionValue (mode);
+        return std::nullopt;
+    };
+    return adapter->rowLayoutFor (*this, SkinRenderTarget::table, std::move (context));
 }
 
 void SkinTableListBox::layoutPresentationColumns()
 {
-    if (presentation.isEmpty()) return;
+    if (presentation.isEmpty() || getLocalBounds().isEmpty()) return;
     auto& header = getHeader();
     const auto width = getVisibleContentWidth();
+    if (width <= 0) return;
     if (presentation == "list")
     {
-        header.setColumnWidth (3, 56);
-        header.setColumnWidth (1, juce::jmax (0, width - header.getColumnWidth (3)));
+        if (const auto layout = resolvedRowLayout())
+            for (const auto& [id, slot] : { std::pair { 1, "cell.title" },
+                                           std::pair { 3, "cell.duration" } })
+                if (const auto found = layout->slots.find (slot); found != layout->slots.end())
+                    header.setColumnWidth (id, juce::roundToInt (found->second.getWidth()));
     }
     else
     {
-        const auto flexibleWidth = header.getColumnWidth (1) + header.getColumnWidth (2);
-        const auto remaining = juce::jmax (0, width - header.getColumnWidth (3));
-        if (flexibleWidth > 0)
+        rememberTableColumns();
+        const auto layout = customTableColumns ? std::nullopt : resolvedRowLayout();
+        if (layout)
         {
-            const auto titleWidth = juce::roundToInt (
-                static_cast<double> (remaining) * header.getColumnWidth (1) / flexibleWidth);
-            header.setColumnWidth (1, titleWidth);
-            header.setColumnWidth (2, remaining - titleWidth);
+            for (const auto& [id, slot] : { std::pair { 1, "cell.title" },
+                                           std::pair { 2, "cell.location" },
+                                           std::pair { 3, "cell.duration" } })
+                if (const auto found = layout->slots.find (slot); found != layout->slots.end())
+                    header.setColumnWidth (id, juce::roundToInt (found->second.getWidth()));
         }
+        else
+        {
+            const auto flexibleWidth = header.getColumnWidth (1) + header.getColumnWidth (2);
+            const auto remaining = juce::jmax (0, width - header.getColumnWidth (3));
+            if (flexibleWidth > 0)
+            {
+                const auto titleWidth = juce::roundToInt (
+                    static_cast<double> (remaining) * header.getColumnWidth (1) / flexibleWidth);
+                header.setColumnWidth (1, titleWidth);
+                header.setColumnWidth (2, remaining - titleWidth);
+            }
+        }
+        tableColumns = lastAppliedTableColumns = header.toString();
     }
     setMinimumContentWidth (header.getTotalWidth());
+}
+
+void SkinTableListBox::rememberTableColumns()
+{
+    if (presentation != "table" || getLocalBounds().isEmpty() || getVisibleContentWidth() <= 0) return;
+    const auto current = getHeader().toString();
+    if (lastAppliedTableColumns.isNotEmpty() && current != lastAppliedTableColumns)
+        customTableColumns = true;
+    tableColumns = current;
 }
 
 void SkinTableListBox::paint (juce::Graphics& graphics)
@@ -114,6 +158,16 @@ void SkinTableListBox::paint (juce::Graphics& graphics)
 
 JuceSkinAdapter::ListBoxRowGeometry SkinTableListBox::rowGeometry (int rowHeight) const
 {
+    if (presentation == "list")
+        if (const auto layout = resolvedRowLayout())
+        {
+            const auto slot = [&] (const char* name)
+            {
+                const auto found = layout->slots.find (name);
+                return found != layout->slots.end() ? found->second : juce::Rectangle<float>{};
+            };
+            return { slot ("cell.title"), slot ("cell.location"), slot ("cell.duration") };
+        }
     const auto cell = [this, rowHeight] (int columnId)
     {
         const auto& header = getHeader();

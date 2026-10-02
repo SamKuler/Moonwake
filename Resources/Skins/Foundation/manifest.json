@@ -6,7 +6,7 @@
   "author": { "name": "Sam Kuler" },
   "description": "Accessible, complete and immutable fallback skin.",
   "license": "AGPL-3.0-only",
-  "minAppVersion": "0.2.0",
+  "minAppVersion": "0.5.0",
   "capabilities": ["tokens", "renderers", "layouts", "assets", "animations"],
   "entrypoints": {
     "tokens": "tokens.json",

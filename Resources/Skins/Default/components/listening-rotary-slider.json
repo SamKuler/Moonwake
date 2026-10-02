@@ -76,5 +76,18 @@
       "dial.stroke.width": 0,
       "arc.stroke.width": 0
     }
+  },
+  "controlStyle": {
+    "trackBounds": {
+      "x": 0,
+      "y": 0,
+      "width": {
+        "$expr": "bounds.width"
+      },
+      "height": {
+        "$expr": "bounds.height"
+      }
+    },
+    "thumbRadius": 0
   }
 }

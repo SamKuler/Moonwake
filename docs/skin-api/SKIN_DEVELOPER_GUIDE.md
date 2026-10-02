@@ -4,7 +4,7 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.4.0、内置皮肤 1.0.0
+- 版本基线：应用 0.5.0、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
@@ -302,6 +302,22 @@ manifest 声明了某项 capability，但未提供相应入口或内容时产生
 
 皮肤可以覆盖 builtin.foundation 的同名 token，也可以定义自有 token。第三方自有 token 应以 vendor. 前缀组织，例如 colors.vendor.meridian.recordRed。
 
+### 原生控件的皮肤度量（应用 0.5.0）
+
+renderer 可声明 `controlStyle`，为宿主的原生命中区域和附属窗口提供与绘制一致的度量。省略整个对象时继承 target.default；声明时须包含该 target 的完整字段，不能出现其他 target 的字段。
+
+| target | controlStyle 字段 |
+|---|---|
+| textButton | iconBounds：x、y、width、height |
+| linearSlider / rotarySlider | trackBounds：x、y、width、height；thumbRadius |
+| tooltip | maxWidth（含文字内边距）、offsetX、offsetY |
+| scrollBar | thickness、minThumbLength |
+| textEditor | selectionColour、selectedTextColour、caretColour |
+
+数值和颜色可以引用 token，几何字段可使用受限表达式。Slider 的 layers 以完整控件 bounds 绘制，trackBounds 描述原生输入映射使用的同一轨道；自定义滑块必须让两者一致。复合组件中原生子控件使用其 slot 映射出的 style。图标使用公开语义路径，尺寸和位置由 iconBounds 控制。Tooltip 会在父窗口边界内避让，滚动条 thickness 同时参与布局留白和原生滚动条宽度。TextEditor 的选区、选中文字和光标使用对应皮肤颜色。
+
+`scrollBar.thickness` 是布局级的逻辑像素度量，接受数值、token 引用和只依赖 token 的表达式，不读取控件 bounds、状态或显示器缩放 context。不同页面和断点可通过 `ancillaryStyles` 选择不同宽度，保证页面预留空间与所有原生滚动条使用相同值。
+
 ### 5.4 字体
 
 系统字体：
@@ -534,6 +550,44 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 复合组件中逐行或逐槽变化的专属 Context 只在对应 slot 调用时有效，并会继承到该 slot 绑定的子 renderer；例如 pluginList 的 `plugin.*` 可用于 `row.surface` 绑定的 surface renderer 和 `row.name` 绑定的 label renderer。复合组件自身的主体 renderer 每个组件只调用一次，因此不能引用逐行字段。编译器分别校验主体与 slot 上下文，避免导入成功后才出现缺值。
 
+### 复合组件的行布局
+
+`table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
+
+下例为 `pluginList` 的行布局：
+
+```json
+{
+  "apiVersion": 1,
+  "target": "pluginList",
+  "layers": [],
+  "rowLayout": {
+    "rowHeight": 52,
+    "rowGap": 8,
+    "headerHeight": 0,
+    "slots": {
+      "row.name": {
+        "x": 16,
+        "y": 0,
+        "width": { "$expr": "bounds.width - 32" },
+        "height": { "$context": "layout.rowHeight" }
+      }
+    },
+    "breakpoints": [
+      { "when": { "maxWidth": 400 }, "rowHeight": 80 }
+    ]
+  }
+}
+```
+
+`rowHeight` 和 `slots` 必需。`effectChain` 和 `channelMixer` 在合并当前断点后必须包含其目录定义的全部原生交互 slot；其他 target 的 `slots` 可为空对象。`rowGap`、`headerHeight` 缺省为 `0`。数值接受 number、`$ref`、`$context`、`$expr`，与绘制属性共用类型检查、受限表达式和继承 token 重绑定。`rowHeight` 至少为 `1`，间距、表头高度和 slot 宽高不得为负；这些度量及 slot 坐标沿用 Skin Layout 的 100000 逻辑像素范围。slot 名称必须属于该 target 的 Component Catalog；原生交互 slot 同时遵循对应控件的目录最小尺寸，换算后的原生控件矩形必须完整位于行内，避免裁切后无法操作。声明 `header.label`、`empty.message` 等公开 slot 时，坐标相对于它们各自的宿主绘制区域。
+
+度量解析时，`bounds`、`contentBounds` 来自整个组件；slot 矩形解析时，两者为从 `(0, 0)` 开始、宽度等于组件宽度、高度等于 `rowHeight` 的行矩形。`container.width`、`container.height` 表示传入的可用容器尺寸，供空态和表头布局引用。slot 表达式另可读取 `layout.rowHeight`、`layout.rowGap`、`layout.headerHeight`。所有行布局可读取 `table.rowCount`、`table.columnCount`；table 的宿主额外提供 `table.presentation`（`table` 或 `list`）。逐项业务字段仍只用于相应 slot 的绘制 context。
+
+`breakpoints` 最多 16 项；`when` 接受 `minWidth`、`maxWidth`，端点包含在内，至少声明一项。断点按声明顺序处理，匹配项覆写所声明的度量和 slot；未声明的值保留，slot 按 ID 合并。宽度为扣除可见滚动条后可用容器的局部宽度，单位与 Skin Layout 一致。布局几何不参与 renderer 状态动画。
+
+未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。无效尺寸、未知或缺少交互 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。Foundation 为内置复合组件提供完整布局，使旧皮肤也有可用的几何回退。
+
 ### 7.1 Renderer 调用粒度与专属 Context
 
 | target | 调用粒度 | 额外 Context | 固定 slots |
@@ -541,7 +595,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | label | 每个 Label 一次 | text.primary、text.secondary、text.align | 无 |
 | textButton | 每个按钮主体一次；显式绑定时再调用 icon slot | text.primary、text.align、icon.name、icon.path、state.* | 该组件声明的 icon.&lt;semantic&gt; surface slot；playPause 同时声明 icon.play 与 icon.pause |
 | toggleButton | 每个开关一次 | text.primary、text.align、state.selected | 无 |
-| comboBox | 主体一次；弹出菜单使用当前布局解析出的 popupMenu 样式 | text.primary、text.align、state.* | 无 |
+| comboBox | 主体一次；弹出菜单使用当前布局解析出的 popupMenu 样式 | text.primary、text.align、state.*、combo.popupOpen、combo.hasSelection | 无 |
 | textEditor | 主体一次 | text.primary、text.align、state.focused | 无 |
 | linearSlider | 每帧一次 | value.*、state.dragging | 无 |
 | rotarySlider | 每帧一次 | value.*、state.dragging | 无 |
@@ -554,9 +608,10 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | artwork | 封面组件一次 | artwork.hasTrack、artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
 | effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
-| channelMap | 输出端口映射或 output.mixer 的逐声道行 | 映射：channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected；Mixer：text.primary、value.*、state.* | row.surface、row.source、row.destination；Mixer 另含 row.peak、row.gain、row.mute、row.solo |
-| pluginList | 主体一次；每个可见插件调用 slots | slots：plugin.index、plugin.name、plugin.manufacturer、plugin.format、plugin.enabled | row.surface、row.name、row.manufacturer、row.format、row.status |
-| skinList | 主体一次；每个可见皮肤分别调用 slots | 行 slots：skin.index、skin.id、skin.name、skin.author、skin.version、skin.builtin、skin.active、skin.previewed | row.surface、row.name、row.author、row.version、row.status |
+| channelMap | 只读输出端口映射 | channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected | row.surface、row.source、row.destination、header.label、empty.message |
+| channelMixer | 每声道混音行及原生控制槽位 | text.primary、value.*、state.* | row.surface、row.source、row.destination、row.peak、row.gain、row.mute、row.solo |
+| pluginList | 主体一次；每个可见插件调用 slots | slots：plugin.index、plugin.name、plugin.manufacturer、plugin.format、plugin.enabled | row.surface、row.name、row.manufacturer、row.format、row.status、header.label、empty.message |
+| skinList | 主体一次；每个可见皮肤分别调用 slots | 行 slots：skin.index、skin.id、skin.name、skin.author、skin.version、skin.builtin、skin.active、skin.previewed | row.surface、row.name、row.author、row.version、row.status、empty.message |
 
 复合 entry 与简单 entry 使用同一规范查找顺序：当前皮肤精确 style → 父皮肤同名精确 style → 当前皮肤 target.default → 父皮肤 target.default → builtin.foundation target.default。component 省略 style 时从当前皮肤 target.default 开始。某个 slot 未显式绑定时从该 slot 类型的当前皮肤 target.default 开始。缺少 builtin.foundation 默认 renderer 属于应用构建错误。
 
@@ -1063,7 +1118,7 @@ Component Catalog 的 Skin API 1 默认尺寸：
 | artwork | 120 × 120 | 300 × 300 |
 | effectChain | 220 × 120 | 360 × 300 |
 | outputStage | 180 × 140 | 300 × 420 |
-| channelMap、pluginList、skinList | 180 × 100 | 360 × 240 |
+| channelMap、channelMixer、pluginList、skinList | 180 × 100 | 360 × 240 |
 
 Flex row/column：
 
@@ -1269,7 +1324,7 @@ effects.chain 内部动态槽使用固定 style slots：
 | ID | 类型 | 必需位置 | 行为或数据 |
 |---|---|---|---|
 | output.stage | outputStage | 可选 | 当前多声道电平、响度和扬声器标签 |
-| output.mixer | channelMap | 可选 | 每声道增益、静音和独奏，0.4.0 起 |
+| output.mixer | channelMixer | 可选 | 每声道增益、静音和独奏；组件自 0.4.0 起，独立 target 自 0.5.0 起 |
 | output.mode | comboBox | 可选 | 选择 Peak、Peak + RMS、Loudness 或 Mixer；0.4.0 起 |
 | output.reset | textButton | 可选 | 仪表模式下开始新测量；Mixer 模式下重置所有声道增益、静音和独奏；0.4.0 起 |
 
@@ -1287,6 +1342,7 @@ outputStage 提供：
 - meter.channels[n].rmsDb / truePeakDb：RMS / True Peak 电平，显示下限 -60 dB，保留正值。repeat 对应 `item.rmsDb` / `item.truePeakDb`。
 - meter.mode：`peak`、`rms` 或 `loudness`。
 - meter.available：后台是否已经发布测量结果。
+- meter.interrupted：是否因测量队列丢帧重新开始本次测量，应用 0.5.0 起。
 - meter.status：测量等待、中断或测量位置的显示文字。
 - meter.momentary / shortTerm / integrated：LUFS 数值；无有效结果时表达式值为 -100。
 - meter.momentaryText / shortTermText / integratedText：一位小数的 LUFS 字符串，无有效结果时为 `--`。
@@ -1296,7 +1352,7 @@ outputStage 提供：
 
 `meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。采样峰值来自效果链与输出增益之后的实际采样；RMS 使用 300 ms 窗口，LUFS 使用 K 加权及门限，Momentary / Short-term 分别为 400 ms / 3 s。LFE 不计入 LUFS，但保留独立峰值、RMS 与 True Peak。测量在后台工作线程进行，界面模式或 A/B 切换不重置测量。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
 
-`output.mixer` 使用 `channelMap` target，最小尺寸 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
+`output.mixer` 使用 `channelMixer` target，最小尺寸 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
 
 - `row.surface` → surface：行分割线与背景。
 - `row.source` → label：L、R、C、LFE 等扬声器简称。
@@ -1312,7 +1368,7 @@ outputStage 提供：
 | ID | 类型 | Settings 必需 | 行为或数据 |
 |---|---|---|---|
 | settings.title | label | 否 | 设置标题 |
-| settings.close | textButton | 是 | 关闭 Settings |
+| settings.close | textButton | 否 | 关闭 Settings |
 | settings.audio.heading | label | 否 | Audio / Core Audio 分区标题 |
 | settings.audio.device | comboBox | 是 | 选择 CoreAudio 输出设备 |
 | settings.audio.sampleRate | comboBox | 是 | 选择设备采样率 |
@@ -1951,3 +2007,18 @@ Suggestion: add one visible component node with component "library.add".
 - 不执行任意代码的安全模型。
 
 实现可以从 JUCE Component 重构为其他内部结构，但只要 Skin API 仍为 1，以上契约不会因内部 C++ 类名或布局实现变化而改变。
+
+
+## 自绘视觉与宿主行为边界
+
+Moonwake 自己绘制的视觉通过 Skin API 声明：顶层页面布局、复合组件内的行与槽位布局、控件几何、文字、图标、颜色、轮廓、状态和动效。宿主负责音频、数据、动作、焦点顺序、键盘语义和可访问性名称。视觉槽位的解析结果同时用于绘制、原生控件的点击区域、滚动和拖放。
+
+行布局 `rowLayout`、原生控件度量 `controlStyle` 及下拉框 `combo.*` context 要求应用 `0.5.0` 或更高。
+
+应用 0.5.0 起，`output.mixer` 对应独立的 `channelMixer` target。`channelMap` 表示只读的设备声道映射。第三方 Mixer renderer 和组件索引需使用 `channelMixer`，并将 `minAppVersion` 设为 `0.5.0`。两者均可使用 `rowLayout`，具有不同的槽位目录与默认布局。
+
+Effects 和 Settings 的页面关闭按钮为可选组件。内置皮肤使用顶部入口、工作区切换和 Esc 返回，避免重复导航。作者信息保留在应用元数据，主导航使用产品名称与皮肤绘制的标志。
+
+macOS 文件选择器、系统窗口管理按钮和第三方插件自行绘制的编辑器由各自宿主管理。皮肤不修改这些外部界面。
+
+`combo.popupOpen` 表示原生弹出菜单正在显示，`combo.hasSelection` 表示有有效选项。内置皮肤在菜单显示且有选项时隐藏被覆盖的触发器图层；无选项时菜单出现在触发器下方，触发器保持可见。菜单关闭后恢复触发器及焦点反馈，避免透明圆角露出下面的边框。

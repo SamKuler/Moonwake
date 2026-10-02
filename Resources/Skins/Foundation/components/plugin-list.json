@@ -1,7 +1,133 @@
 {
-  "apiVersion": 1, "target": "pluginList",
+  "apiVersion": 1,
+  "target": "pluginList",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.surfaceRaised" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1, "placement": "inside" } }
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$ref": "colors.surfaceRaised"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.border"
+        },
+        "width": 1,
+        "placement": "inside"
+      }
+    }
   ],
-  "variants": { "focused": { "body.stroke.color": { "$ref": "colors.focus" }, "body.stroke.width": 2 } }
+  "variants": {
+    "focused": {
+      "body.stroke.color": {
+        "$ref": "colors.focus"
+      },
+      "body.stroke.width": 2
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 44,
+    "rowGap": 0,
+    "headerHeight": 32,
+    "slots": {
+      "header.label": {
+        "x": 10,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "layout.headerHeight"
+        }
+      },
+      "empty.message": {
+        "x": 10,
+        "y": {
+          "$expr": "layout.headerHeight + 10"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "max(0, container.height - layout.headerHeight - 20)"
+        }
+      },
+      "row.surface": {
+        "x": 10,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.name": {
+        "x": 10,
+        "y": 2,
+        "width": {
+          "$expr": "max(0, bounds.width - 116)"
+        },
+        "height": 20
+      },
+      "row.manufacturer": {
+        "x": 10,
+        "y": 24,
+        "width": {
+          "$expr": "max(0, bounds.width - 116)"
+        },
+        "height": {
+          "$expr": "max(0, layout.rowHeight - 26)"
+        }
+      },
+      "row.format": {
+        "x": {
+          "$expr": "max(0, bounds.width - 94)"
+        },
+        "y": 0,
+        "width": 84,
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      }
+    },
+    "breakpoints": [
+      {
+        "when": {
+          "minWidth": 420
+        },
+        "slots": {
+          "row.name": {
+            "x": 10,
+            "y": 0,
+            "width": {
+              "$expr": "max(0, bounds.width - 128 - max(72, (bounds.width - 116) / 3))"
+            },
+            "height": {
+              "$expr": "layout.rowHeight"
+            }
+          },
+          "row.manufacturer": {
+            "x": {
+              "$expr": "bounds.width - 106 - max(72, (bounds.width - 116) / 3)"
+            },
+            "y": 0,
+            "width": {
+              "$expr": "max(72, (bounds.width - 116) / 3)"
+            },
+            "height": {
+              "$expr": "layout.rowHeight"
+            }
+          }
+        }
+      }
+    ]
+  }
 }

@@ -25,10 +25,11 @@ class OutputMixerComponent::Row final : public juce::Component
     {
         Switch (Row& ownerToUse, juce::String slotToUse, juce::String label)
             : juce::ToggleButton (std::move (label)), owner (ownerToUse), slot (std::move (slotToUse)) {}
-        void paintButton (juce::Graphics& g, bool, bool) override
+        void paintButton (juce::Graphics& g, bool over, bool down) override
         {
             SkinRenderContext context;
             context.primaryText = getButtonText(); context.state.selected = getToggleState();
+            context.state.hover = over; context.state.pressed = down;
             owner.draw (g, *this, slot, SkinRenderTarget::toggleButton, std::move (context));
         }
         void focusGained (FocusChangeType cause) override
@@ -49,6 +50,7 @@ public:
         gain.setSliderStyle (juce::Slider::LinearHorizontal);
         gain.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
         gain.setDoubleClickReturnValue (true, 0.0);
+        gain.setScrollWheelEnabled (false);
         gain.setTitle (name + " gain"); gain.setTooltip ("Channel gain; double-click to reset to 0 dB");
         mute.setTitle ("Mute " + name); mute.setTooltip ("Mute " + name);
         solo.setTitle ("Solo " + name); solo.setTooltip ("Solo " + name + "; multiple channels may be soloed");
@@ -67,12 +69,18 @@ public:
 
     void update (const OutputChannelMix& state, float peakToUse)
     {
+        if (current == state && juce::exactlyEqual (peak, peakToUse)) return;
         current = state;
         peak = peakToUse;
         gain.setValue (juce::Decibels::gainToDecibels (state.gain, -60.0f), juce::dontSendNotification);
         mute.setToggleState (state.muted, juce::dontSendNotification);
         solo.setToggleState (state.solo, juce::dontSendNotification);
         repaint();
+    }
+
+    void setPeak (float next)
+    {
+        if (! juce::exactlyEqual (peak, next)) { peak = next; repaint(); }
     }
 
     void reveal()
@@ -85,27 +93,31 @@ public:
 
     void resized() override
     {
-        auto top = getLocalBounds().removeFromTop (32);
-        solo.setBounds (top.removeFromRight (32)); top.removeFromRight (4);
-        mute.setBounds (top.removeFromRight (32));
-        gain.setBounds (getLocalBounds().withY (34).withHeight (28));
+        if (auto* adapter = dynamic_cast<JuceSkinAdapter*> (&owner.getLookAndFeel()))
+            adapter->applySlotStyle (gain, owner, SkinRenderTarget::channelMixer, "row.gain");
+        gain.setBounds (slotBounds ("row.gain").getSmallestIntegerContainer());
+        gain.resized();
+        mute.setBounds (slotBounds ("row.mute").getSmallestIntegerContainer());
+        solo.setBounds (slotBounds ("row.solo").getSmallestIntegerContainer());
     }
 
     void paint (juce::Graphics& graphics) override
     {
         SkinRenderContext surface;
-        draw (graphics, *this, "row.surface", SkinRenderTarget::surface, surface);
+        surface.bounds = surface.contentBounds = slotBounds ("row.surface");
+        if (! surface.bounds.isEmpty()) draw (graphics, *this, "row.surface", SkinRenderTarget::surface, surface);
         const auto label = [&] (juce::StringRef slot, const juce::String& value, juce::Rectangle<float> bounds)
         {
+            if (bounds.isEmpty()) return;
             SkinRenderContext context;
             context.bounds = bounds; context.contentBounds = bounds; context.primaryText = value;
             draw (graphics, *this, slot, SkinRenderTarget::label, std::move (context));
         };
-        label ("row.source", name, { 0, 0, 40, 32 });
+        label ("row.source", name, slotBounds ("row.source"));
         label ("row.peak", peak > 0.0f ? juce::String (juce::Decibels::gainToDecibels (peak), 1) + " dBFS" : "-- dBFS",
-               { 40, 0, static_cast<float> (juce::jmax (0, getWidth() - 174)), 32 });
+               slotBounds ("row.peak"));
         label ("row.destination", gain.getValue() <= -60.0 ? "-inf dB" : juce::String (gain.getValue(), 1) + " dB",
-               { static_cast<float> (getWidth() - 132), 0, 60, 32 });
+               slotBounds ("row.destination"));
     }
 
     void draw (juce::Graphics& graphics, const juce::Component& control, juce::StringRef slot,
@@ -117,14 +129,20 @@ public:
         if (context.contentBounds.isEmpty()) context.contentBounds = context.bounds;
         context.state.enabled = control.isEnabled();
         context.state.focused = control.hasKeyboardFocus (false);
-        context.state.hover = control.isMouseOver();
-        context.state.pressed = control.isMouseButtonDown();
-        static_cast<void> (adapter->drawCustomSlot (graphics, owner, SkinRenderTarget::channelMap, slot, target,
+        context.state.hover = context.state.hover || control.isMouseOver();
+        context.state.pressed = context.state.pressed || control.isMouseButtonDown();
+        static_cast<void> (adapter->drawCustomSlot (graphics, owner, SkinRenderTarget::channelMixer, slot, target,
             std::move (context), "mixer:" + name + ":" + juce::String (slot)));
     }
 
     juce::AudioChannelSet::ChannelType speaker;
 private:
+    juce::Rectangle<float> slotBounds (const juce::String& slot) const
+    {
+        const auto found = owner.rowLayout.slots.find (slot);
+        return found != owner.rowLayout.slots.end() ? found->second : juce::Rectangle<float>{};
+    }
+
     void notifyChange()
     {
         if (owner.onChange)
@@ -172,15 +190,38 @@ void OutputMixerComponent::setState (OutputLayout layout, const std::vector<Outp
 void OutputMixerComponent::resized()
 {
     viewport.setBounds (getLocalBounds());
-    const auto height = static_cast<int> (rows.size()) * 72;
-    content.setSize (juce::jmax (0, getWidth() - (height > getHeight() ? viewport.getScrollBarThickness() : 0)), height);
+    if (getLocalBounds().isEmpty()) return;
+    auto* adapter = dynamic_cast<JuceSkinAdapter*> (&getLookAndFeel());
+    if (! adapter) return;
+    SkinRenderContext context;
+    context.bounds = getLocalBounds().toFloat();
+    context.tableRowCount = static_cast<int> (rows.size());
+    const auto layout = adapter->rowLayoutFor (*this, SkinRenderTarget::channelMixer, context);
+    if (! layout) return;
+    const auto rowHeight = juce::jmax (1, juce::roundToInt (layout->rowHeight));
+    const auto rowGap = juce::jmax (0, juce::roundToInt (layout->rowGap));
+    const auto height = static_cast<int> (rows.size()) * (rowHeight + rowGap) - (rows.empty() ? 0 : rowGap);
+    const auto width = juce::jmax (0, getWidth() - (height > getHeight() ? viewport.getScrollBarThickness() : 0));
+    context.bounds.setWidth (static_cast<float> (width));
+    rowLayout = adapter->rowLayoutFor (*this, SkinRenderTarget::channelMixer, context).value_or (*layout);
+    const auto finalHeight = juce::jmax (1, juce::roundToInt (rowLayout.rowHeight));
+    const auto finalGap = juce::jmax (0, juce::roundToInt (rowLayout.rowGap));
+    content.setSize (width, static_cast<int> (rows.size()) * (finalHeight + finalGap) - (rows.empty() ? 0 : finalGap));
     for (size_t index = 0; index < rows.size(); ++index)
-        rows[index]->setBounds (0, static_cast<int> (index) * 72, content.getWidth(), 68);
+    {
+        rows[index]->setBounds (0, static_cast<int> (index) * (finalHeight + finalGap), width, finalHeight);
+        rows[index]->resized();
+    }
 }
 
 void OutputMixerComponent::paint (juce::Graphics& graphics)
 {
     if (auto* adapter = dynamic_cast<JuceSkinAdapter*> (&getLookAndFeel()))
         static_cast<void> (adapter->drawCustomComponent (
-            graphics, *this, SkinRenderTarget::channelMap, {}, "mixer"));
+            graphics, *this, SkinRenderTarget::channelMixer, {}, "mixer"));
+}
+
+void OutputMixerComponent::setPeaks (const std::array<float, maximumOutputChannels>& peaks)
+{
+    for (size_t index = 0; index < rows.size(); ++index) rows[index]->setPeak (peaks[index]);
 }

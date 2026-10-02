@@ -154,7 +154,7 @@
                     "id": "studio-output-mixer",
                     "type": "component",
                     "component": "output.mixer",
-                    "style": "channelMap.mixer",
+                    "style": "channelMixer.mixer",
                     "anchors": {
                       "left": 0,
                       "right": 0,

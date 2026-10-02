@@ -390,7 +390,7 @@ private:
         viewportPointer->setScrollBarsShown (node.scrollVertical,
                                              ! node.scrollVertical);
         viewportPointer->setScrollBarThickness (
-            SkinLayoutEngine::scrollBarThickness);
+            juce::roundToInt (layout.scrollBarWidth));
         contentPointer->setSize (
             juce::jmax (1, juce::roundToInt (node.scrollContentBounds.getWidth())),
             juce::jmax (1, juce::roundToInt (node.scrollContentBounds.getHeight())));
@@ -610,13 +610,7 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
         {
             if (placement.component == nullptr || placement.wrapper == nullptr)
                 throw std::runtime_error ("invalid component placement");
-            if (auto* table = dynamic_cast<SkinTableListBox*> (placement.component))
-            {
-                if (placement.presentation.isEmpty()) table->resetPresentation();
-                else table->setPresentation (placement.presentation);
-            }
             placement.wrapper->addAndMakeVisible (*placement.component);
-            placement.component->setBounds (placement.wrapper->getLocalBounds());
             placement.component->setAlpha (placement.alpha);
             placement.component->setExplicitFocusOrder (placement.focusOrder);
             auto& properties = placement.component->getProperties();
@@ -631,6 +625,12 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
                                 placement.presentation);
             else
                 properties.remove (JuceSkinAdapter::presentationProperty);
+            if (auto* table = dynamic_cast<SkinTableListBox*> (placement.component))
+            {
+                if (placement.presentation.isEmpty()) table->resetPresentation();
+                else table->setPresentation (placement.presentation);
+            }
+            placement.component->setBounds (placement.wrapper->getLocalBounds());
             if (auto* slider = dynamic_cast<juce::Slider*> (placement.component))
             {
                 if (placement.presentation == "rotary")
@@ -644,6 +644,7 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
                 if (auto* adapter = dynamic_cast<JuceSkinAdapter*> (
                         &editor->getLookAndFeel()))
                     adapter->configureTextEditor (*editor);
+            placement.component->resized();
             placement.component->setVisible (placement.visible);
         }
         value.root->toFront (false);
@@ -673,7 +674,7 @@ bool SkinLayoutHost::apply (SkinLayoutEntry entry,
     }
 
     auto resolved = SkinLayoutEngine::resolve (
-        skin->layouts.at (entry), bounds.toFloat(), scaleFactor, report, workspace);
+        skin->layouts.at (entry), bounds.toFloat(), scaleFactor, report, workspace, skin.get());
     if (! resolved) return false;
     captureOriginalStates();
 

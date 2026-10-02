@@ -31,7 +31,7 @@
                 "component": "app.brand.title",
                 "style": "label.listeningBrand",
                 "grow": 1,
-                "height": 28
+                "height": 40
               },
               {
                 "id": "settings-settings-modes",
@@ -104,16 +104,6 @@
                     "style": "label.listeningPageTitle",
                     "grow": 1,
                     "height": 36,
-                    "shrink": 0
-                  },
-                  {
-                    "id": "settings-settings-close",
-                    "type": "component",
-                    "component": "settings.close",
-                    "style": "textButton.listeningIconNeutral",
-                    "width": 44,
-                    "height": 36,
-                    "focusOrder": 50,
                     "shrink": 0
                   }
                 ],
@@ -366,8 +356,8 @@
         "type": "component",
         "component": "app.status",
         "style": "label.listeningNotice",
-        "width": "42%",
-        "height": 84,
+        "width": 360,
+        "height": 56,
         "zIndex": 100,
         "anchors": {
           "top": 80,
@@ -412,7 +402,7 @@
                     "component": "app.brand.title",
                     "style": "label.studioBrand",
                     "grow": 1,
-                    "height": 28
+                    "height": 40
                   },
                   {
                     "id": "themed-settings-themed-settings-modes",
@@ -485,16 +475,6 @@
                         "style": "label.studioPageTitle",
                         "grow": 1,
                         "height": 36,
-                        "shrink": 0
-                      },
-                      {
-                        "id": "themed-settings-themed-settings-close",
-                        "type": "component",
-                        "component": "settings.close",
-                        "style": "textButton.studioIconNeutral",
-                        "width": 44,
-                        "height": 36,
-                        "focusOrder": 50,
                         "shrink": 0
                       }
                     ],
@@ -747,8 +727,8 @@
             "type": "component",
             "component": "app.status",
             "style": "label.studioNotice",
-            "width": "42%",
-            "height": 84,
+            "width": 360,
+            "height": 56,
             "zIndex": 100,
             "anchors": {
               "top": 80,

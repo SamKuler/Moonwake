@@ -13,7 +13,7 @@ enum class SkinComponentKind
 {
     label, textButton, toggleButton, comboBox, textEditor, linearSlider,
     slider, progressBar, table, artwork, effectChain, outputStage,
-    channelMap, pluginList, skinList
+    channelMap, pluginList, skinList, channelMixer
 };
 
 enum class SkinLayoutEntry { studio, listening, effects, settings };

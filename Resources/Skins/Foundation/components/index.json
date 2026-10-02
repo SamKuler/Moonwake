@@ -14,50 +14,127 @@
     "iconNeutral": {
       "renderer": "components/icon-button.json",
       "slots": {
-        "icon.add": "surface.icon", "icon.settings": "surface.icon", "icon.effects": "surface.icon", "icon.close": "surface.icon",
-        "icon.previous": "surface.icon", "icon.play": "surface.icon", "icon.pause": "surface.icon", "icon.next": "surface.icon",
-        "icon.remove": "surface.icon", "icon.moveUp": "surface.icon", "icon.moveDown": "surface.icon", "icon.scan": "surface.icon",
-        "icon.folderSearch": "surface.icon", "icon.import": "surface.icon", "icon.reload": "surface.icon", "icon.preview": "surface.icon"
+        "icon.add": "surface.icon",
+        "icon.settings": "surface.icon",
+        "icon.effects": "surface.icon",
+        "icon.close": "surface.icon",
+        "icon.previous": "surface.icon",
+        "icon.play": "surface.icon",
+        "icon.pause": "surface.icon",
+        "icon.next": "surface.icon",
+        "icon.remove": "surface.icon",
+        "icon.moveUp": "surface.icon",
+        "icon.moveDown": "surface.icon",
+        "icon.scan": "surface.icon",
+        "icon.folderSearch": "surface.icon",
+        "icon.import": "surface.icon",
+        "icon.reload": "surface.icon",
+        "icon.preview": "surface.icon"
       }
     },
     "iconPrimary": {
       "renderer": "components/primary-icon-button.json",
       "slots": {
-        "icon.add": "surface.onPrimaryIcon", "icon.settings": "surface.onPrimaryIcon", "icon.effects": "surface.onPrimaryIcon", "icon.close": "surface.onPrimaryIcon",
-        "icon.previous": "surface.onPrimaryIcon", "icon.play": "surface.onPrimaryIcon", "icon.pause": "surface.onPrimaryIcon", "icon.next": "surface.onPrimaryIcon",
-        "icon.remove": "surface.onPrimaryIcon", "icon.moveUp": "surface.onPrimaryIcon", "icon.moveDown": "surface.onPrimaryIcon", "icon.scan": "surface.onPrimaryIcon",
-        "icon.folderSearch": "surface.onPrimaryIcon", "icon.import": "surface.onPrimaryIcon", "icon.reload": "surface.onPrimaryIcon", "icon.preview": "surface.onPrimaryIcon"
+        "icon.add": "surface.onPrimaryIcon",
+        "icon.settings": "surface.onPrimaryIcon",
+        "icon.effects": "surface.onPrimaryIcon",
+        "icon.close": "surface.onPrimaryIcon",
+        "icon.previous": "surface.onPrimaryIcon",
+        "icon.play": "surface.onPrimaryIcon",
+        "icon.pause": "surface.onPrimaryIcon",
+        "icon.next": "surface.onPrimaryIcon",
+        "icon.remove": "surface.onPrimaryIcon",
+        "icon.moveUp": "surface.onPrimaryIcon",
+        "icon.moveDown": "surface.onPrimaryIcon",
+        "icon.scan": "surface.onPrimaryIcon",
+        "icon.folderSearch": "surface.onPrimaryIcon",
+        "icon.import": "surface.onPrimaryIcon",
+        "icon.reload": "surface.onPrimaryIcon",
+        "icon.preview": "surface.onPrimaryIcon"
       }
     },
     "leadingNeutral": {
       "renderer": "components/leading-button.json",
       "slots": {
-        "icon.add": "surface.icon", "icon.settings": "surface.icon", "icon.effects": "surface.icon", "icon.close": "surface.icon",
-        "icon.previous": "surface.icon", "icon.play": "surface.icon", "icon.pause": "surface.icon", "icon.next": "surface.icon",
-        "icon.remove": "surface.icon", "icon.moveUp": "surface.icon", "icon.moveDown": "surface.icon", "icon.scan": "surface.icon",
-        "icon.folderSearch": "surface.icon", "icon.import": "surface.icon", "icon.reload": "surface.icon", "icon.preview": "surface.icon"
+        "icon.add": "surface.icon",
+        "icon.settings": "surface.icon",
+        "icon.effects": "surface.icon",
+        "icon.close": "surface.icon",
+        "icon.previous": "surface.icon",
+        "icon.play": "surface.icon",
+        "icon.pause": "surface.icon",
+        "icon.next": "surface.icon",
+        "icon.remove": "surface.icon",
+        "icon.moveUp": "surface.icon",
+        "icon.moveDown": "surface.icon",
+        "icon.scan": "surface.icon",
+        "icon.folderSearch": "surface.icon",
+        "icon.import": "surface.icon",
+        "icon.reload": "surface.icon",
+        "icon.preview": "surface.icon"
       }
     },
     "leadingPrimary": {
       "renderer": "components/primary-leading-button.json",
       "slots": {
-        "icon.add": "surface.onPrimaryIcon", "icon.settings": "surface.onPrimaryIcon", "icon.effects": "surface.onPrimaryIcon", "icon.close": "surface.onPrimaryIcon",
-        "icon.previous": "surface.onPrimaryIcon", "icon.play": "surface.onPrimaryIcon", "icon.pause": "surface.onPrimaryIcon", "icon.next": "surface.onPrimaryIcon",
-        "icon.remove": "surface.onPrimaryIcon", "icon.moveUp": "surface.onPrimaryIcon", "icon.moveDown": "surface.onPrimaryIcon", "icon.scan": "surface.onPrimaryIcon",
-        "icon.folderSearch": "surface.onPrimaryIcon", "icon.import": "surface.onPrimaryIcon", "icon.reload": "surface.onPrimaryIcon", "icon.preview": "surface.onPrimaryIcon"
+        "icon.add": "surface.onPrimaryIcon",
+        "icon.settings": "surface.onPrimaryIcon",
+        "icon.effects": "surface.onPrimaryIcon",
+        "icon.close": "surface.onPrimaryIcon",
+        "icon.previous": "surface.onPrimaryIcon",
+        "icon.play": "surface.onPrimaryIcon",
+        "icon.pause": "surface.onPrimaryIcon",
+        "icon.next": "surface.onPrimaryIcon",
+        "icon.remove": "surface.onPrimaryIcon",
+        "icon.moveUp": "surface.onPrimaryIcon",
+        "icon.moveDown": "surface.onPrimaryIcon",
+        "icon.scan": "surface.onPrimaryIcon",
+        "icon.folderSearch": "surface.onPrimaryIcon",
+        "icon.import": "surface.onPrimaryIcon",
+        "icon.reload": "surface.onPrimaryIcon",
+        "icon.preview": "surface.onPrimaryIcon"
       }
     }
   },
-  "toggleButton": { "default": "components/toggle-button.json" },
-  "comboBox": { "default": "components/combo-box.json" },
-  "textEditor": { "default": "components/text-editor.json" },
-  "linearSlider": { "default": "components/linear-slider.json" },
-  "rotarySlider": { "default": "components/rotary-slider.json" },
-  "progressBar": { "default": "components/progress-bar.json" },
-  "scrollBar": { "default": "components/scroll-bar.json" },
-  "popupMenu": { "default": "components/popup-menu.json" },
-  "tooltip": { "default": "components/tooltip.json" },
+  "toggleButton": {
+    "default": "components/toggle-button.json"
+  },
+  "comboBox": {
+    "default": "components/combo-box.json"
+  },
+  "textEditor": {
+    "default": "components/text-editor.json"
+  },
+  "linearSlider": {
+    "default": "components/linear-slider.json"
+  },
+  "rotarySlider": {
+    "default": "components/rotary-slider.json"
+  },
+  "progressBar": {
+    "default": "components/progress-bar.json"
+  },
+  "scrollBar": {
+    "default": "components/scroll-bar.json"
+  },
+  "popupMenu": {
+    "default": "components/popup-menu.json"
+  },
+  "tooltip": {
+    "default": "components/tooltip.json"
+  },
   "table": {
+    "list": {
+      "renderer": "components/table-list.json",
+      "slots": {
+        "header.surface": "surface.listRow",
+        "header.text": "label.default",
+        "row.surface": "surface.listRow",
+        "cell.title": "label.default",
+        "cell.location": "label.default",
+        "cell.duration": "label.default"
+      }
+    },
     "default": {
       "renderer": "components/table.json",
       "slots": {
@@ -103,7 +180,9 @@
       }
     }
   },
-  "outputStage": { "default": "components/output-stage.json" },
+  "outputStage": {
+    "default": "components/output-stage.json"
+  },
   "channelMap": {
     "default": {
       "renderer": "components/channel-map.json",
@@ -111,10 +190,8 @@
         "row.surface": "surface.listRow",
         "row.source": "label.data",
         "row.destination": "label.muted",
-        "row.peak": "label.data",
-        "row.gain": "linearSlider.default",
-        "row.mute": "toggleButton.default",
-        "row.solo": "toggleButton.default"
+        "header.label": "label.data",
+        "empty.message": "label.muted"
       }
     }
   },
@@ -126,7 +203,9 @@
         "row.name": "label.default",
         "row.manufacturer": "label.muted",
         "row.format": "label.data",
-        "row.status": "label.muted"
+        "row.status": "label.muted",
+        "header.label": "label.default",
+        "empty.message": "label.muted"
       }
     }
   },
@@ -138,7 +217,22 @@
         "row.name": "label.default",
         "row.author": "label.muted",
         "row.version": "label.data",
-        "row.status": "label.skinStatus"
+        "row.status": "label.skinStatus",
+        "empty.message": "label.skinStatus"
+      }
+    }
+  },
+  "channelMixer": {
+    "default": {
+      "renderer": "components/channel-mixer.json",
+      "slots": {
+        "row.surface": "surface.listRow",
+        "row.source": "label.data",
+        "row.peak": "label.muted",
+        "row.destination": "label.data",
+        "row.gain": "linearSlider.default",
+        "row.mute": "toggleButton.default",
+        "row.solo": "toggleButton.default"
       }
     }
   }

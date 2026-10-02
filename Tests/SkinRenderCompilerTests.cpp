@@ -1,6 +1,8 @@
 #include "skin/SkinRenderCompiler.h"
 
 #include "skin/SkinSchemaValidator.h"
+#include "skin/SkinRowLayout.h"
+#include "skin/SkinControlStyle.h"
 
 #include <juce_core/juce_core.h>
 
@@ -68,14 +70,14 @@ juce::var renderDocument (const juce::String& target, std::vector<juce::var> lay
     return result;
 }
 
-SkinTokenStore makeTokens()
+SkinTokenStore makeTokens (double radius = 8.0)
 {
     auto tokens = object();
     auto colors = object();
     colors.getDynamicObject()->setProperty ("accent", "#D69762FF");
     tokens.getDynamicObject()->setProperty ("colors", colors);
     auto metrics = object();
-    metrics.getDynamicObject()->setProperty ("radius", 8.0);
+    metrics.getDynamicObject()->setProperty ("radius", radius);
     tokens.getDynamicObject()->setProperty ("metrics", metrics);
     auto durations = object();
     durations.getDynamicObject()->setProperty ("fast", 120);
@@ -136,6 +138,291 @@ public:
     {
         const auto tokens = makeTokens();
 
+        beginTest ("row layouts resolve shared geometry, breakpoints and inherited tokens");
+        {
+            auto raw = renderDocument ("pluginList", { rectLayer ("body") });
+            auto row = object();
+            row.getDynamicObject()->setProperty ("rowHeight", binding ("$expr", "token.metrics.radius * 7"));
+            row.getDynamicObject()->setProperty ("rowGap", binding ("$ref", "metrics.radius"));
+            row.getDynamicObject()->setProperty ("headerHeight", 32);
+            auto slots = object();
+            slots.getDynamicObject()->setProperty ("row.name", explicitFrame (
+                binding ("$expr", "bounds.width - 16"), binding ("$context", "layout.rowHeight")));
+            slots.getDynamicObject()->setProperty ("row.status", explicitFrame (
+                binding ("$context", "container.width"),
+                binding ("$expr", "container.height - layout.headerHeight")));
+            row.getDynamicObject()->setProperty ("slots", slots);
+            auto breakpoint = object();
+            auto when = object();
+            when.getDynamicObject()->setProperty ("minWidth", 400);
+            breakpoint.getDynamicObject()->setProperty ("when", when);
+            breakpoint.getDynamicObject()->setProperty ("rowHeight", 80);
+            row.getDynamicObject()->setProperty ("breakpoints", array ({ breakpoint }));
+            raw.getDynamicObject()->setProperty ("rowLayout", row);
+            SkinValidationReport report;
+            auto program = compile (raw, tokens, report);
+            expect (program.has_value(), report.toText());
+            if (program)
+            {
+                SkinRenderContext context;
+                context.bounds = context.contentBounds = { 0, 0, 200, 500 };
+                auto layout = resolveSkinRowLayout (*program, context, report);
+                expect (layout.has_value(), report.toText());
+                if (layout)
+                {
+                    expectEquals (layout->rowHeight, 56.0f);
+                    expectEquals (layout->rowGap, 8.0f);
+                    expectEquals (layout->headerHeight, 32.0f);
+                    expect (layout->slots.at ("row.name") == juce::Rectangle<float> (0, 0, 184, 56));
+                    expect (layout->slots.at ("row.status") == juce::Rectangle<float> (0, 0, 200, 468));
+                }
+                expect (! program->contextPaths.contains ("layout.rowHeight"),
+                        "Layout-only context does not enter drawing validation.");
+                expect (SkinRenderCompiler::rebindProgramTokens (*program, makeTokens (10), report), report.toText());
+                layout = resolveSkinRowLayout (*program, context, report);
+                expect (layout.has_value(), report.toText());
+                if (layout)
+                {
+                    expectEquals (layout->rowHeight, 70.0f);
+                    expectEquals (layout->rowGap, 10.0f);
+                }
+                context.bounds.setWidth (400);
+                layout = resolveSkinRowLayout (*program, context, report);
+                expect (layout.has_value(), report.toText());
+                if (layout) expectEquals (layout->rowHeight, 80.0f);
+            }
+        }
+
+        beginTest ("row layout schema and compiler reject unsupported slots and invalid dimensions");
+        {
+            for (const auto& json : {
+                R"({"rowHeight":0,"slots":{}})",
+                R"({"rowHeight":40,"slots":{"row.unknown":{"x":0,"y":0,"width":50,"height":20}}})",
+                R"({"rowHeight":40,"slots":{"row.name":{"x":0,"y":0,"width":-1,"height":20}}})",
+                R"({"rowHeight":40,"slots":{},"padding":8})",
+                R"({"rowHeight":40,"slots":{},"breakpoints":[{"when":{"minWidth":400,"maxWidth":200}}]})" })
+            {
+                auto raw = renderDocument ("pluginList", { rectLayer ("body") });
+                raw.getDynamicObject()->setProperty ("rowLayout", juce::JSON::parse (json));
+                SkinValidationReport report;
+                expect (! compile (raw, tokens, report));
+                expect (report.hasErrors());
+            }
+        }
+
+        beginTest ("row layout runtime rejects invalid numeric expressions");
+        {
+            for (const auto& json : {
+                R"({"rowHeight":{"$expr":"bounds.width * 1e308"},"slots":{}})",
+                R"({"rowHeight":40,"slots":{"row.name":{"x":0,"y":0,"width":{"$expr":"bounds.width - 500"},"height":20}}})" })
+            {
+                auto raw = renderDocument ("pluginList", { rectLayer ("body") });
+                raw.getDynamicObject()->setProperty ("rowLayout", juce::JSON::parse (json));
+                SkinValidationReport report;
+                const auto program = compile (raw, tokens, report);
+                expect (program.has_value(), report.toText());
+                if (program)
+                {
+                    SkinRenderContext context;
+                    context.bounds = context.contentBounds = { 0, 0, 220, 300 };
+                    expect (! resolveSkinRowLayout (*program, context, report));
+                    expect (report.hasErrors());
+                }
+            }
+        }
+
+        beginTest ("interactive row layouts keep every action reachable at each breakpoint");
+        {
+            const auto complete = juce::JSON::parse (R"({"rowHeight":40,"slots":{
+              "slot.scope":{"x":0,"y":0,"width":60,"height":28},
+              "slot.bypass":{"x":64,"y":0,"width":80,"height":28},
+              "slot.editor":{"x":148,"y":0,"width":56,"height":28},
+              "slot.remove":{"x":208,"y":0,"width":28,"height":28}
+            }})");
+            for (int scenario = 0; scenario < 4; ++scenario)
+            {
+                auto row = complete.clone();
+                if (scenario == 1)
+                    row.getProperty ("slots", {}).getDynamicObject()->removeProperty ("slot.remove");
+                if (scenario == 2)
+                    row.getProperty ("slots", {}).getProperty ("slot.editor", {})
+                        .getDynamicObject()->setProperty ("height", 20);
+                if (scenario == 3)
+                    row.getDynamicObject()->setProperty ("breakpoints", juce::JSON::parse (
+                        R"([{"when":{"minWidth":240},"slots":{"slot.editor":{"x":148,"y":60,"width":56,"height":28}}}])"));
+                auto raw = renderDocument ("effectChain", { rectLayer ("body") });
+                raw.getDynamicObject()->setProperty ("rowLayout", row);
+                SkinValidationReport report;
+                const auto program = compile (raw, tokens, report);
+                if (scenario != 1) expect (program.has_value(), report.toText());
+                if (program)
+                {
+                    SkinRenderContext context;
+                    context.bounds = context.contentBounds = { 0, 0, 240, 300 };
+                    const auto layout = resolveSkinRowLayout (*program, context, report);
+                    expect (layout.has_value() == (scenario == 0), report.toText());
+                }
+                expect (report.hasErrors() == (scenario != 0));
+            }
+            auto raw = renderDocument ("channelMixer", { rectLayer ("body") });
+            raw.getDynamicObject()->setProperty ("rowLayout", juce::JSON::parse (
+                R"({"rowHeight":56,"slots":{"row.gain":{"x":0,"y":30,"width":240,"height":24}}})"));
+            SkinValidationReport report;
+            const auto program = compile (raw, tokens, report);
+            if (program)
+            {
+                SkinRenderContext context;
+                context.bounds = context.contentBounds = { 0, 0, 240, 300 };
+                expect (! resolveSkinRowLayout (*program, context, report));
+            }
+            expect (report.hasErrors(), "A mixer must retain both Mute and Solo controls.");
+        }
+
+        beginTest ("control styles resolve native geometry and inherited metric tokens");
+        {
+            auto raw = renderDocument ("linearSlider", { rectLayer ("body") });
+            raw.getDynamicObject()->setProperty ("controlStyle", juce::JSON::parse (R"({
+              "trackBounds":{"x":{"$ref":"metrics.radius"},"y":2,
+                "width":{"$expr":"bounds.width - 2 * token.metrics.radius"},"height":24},
+              "thumbRadius":{"$expr":"token.metrics.radius / 2"}
+            })"));
+            SkinValidationReport report;
+            auto program = compile (raw, tokens, report);
+            expect (program.has_value(), report.toText());
+            if (program)
+            {
+                SkinRenderContext context;
+                context.bounds = context.contentBounds = { 0, 0, 200, 30 };
+                auto style = resolveSkinControlStyle (*program, context, report);
+                expect (style.has_value(), report.toText());
+                if (style)
+                {
+                    expect (style->trackBounds == juce::Rectangle<float> (8, 2, 184, 24));
+                    expect (style->thumbRadius == 4.0f);
+                }
+                expect (SkinRenderCompiler::rebindProgramTokens (*program, makeTokens (10), report), report.toText());
+                style = resolveSkinControlStyle (*program, context, report);
+                expect (style.has_value(), report.toText());
+                if (style)
+                {
+                    expect (style->trackBounds == juce::Rectangle<float> (10, 2, 180, 24));
+                    expect (style->thumbRadius == 5.0f);
+                }
+            }
+        }
+
+        beginTest ("scrollbar width is a shared logical metric independent of native control bounds");
+        {
+            for (const auto* expression : { "token.metrics.radius + 2", "bounds.width", "scaleFactor", "state.focused" })
+            {
+                auto raw = renderDocument ("scrollBar", { rectLayer ("body") });
+                auto controls = juce::JSON::parse (R"({"thickness":8,"minThumbLength":18})");
+                auto* binding = new juce::DynamicObject;
+                binding->setProperty ("$expr", expression);
+                controls.getDynamicObject()->setProperty ("thickness", juce::var (binding));
+                raw.getDynamicObject()->setProperty ("controlStyle", controls);
+                SkinValidationReport report;
+                const auto program = compile (raw, tokens, report);
+                if (juce::String (expression).startsWith ("token."))
+                {
+                    expect (program.has_value(), report.toText());
+                    if (program)
+                        for (const auto width : { 0.0f, 1040.0f })
+                        {
+                            SkinRenderContext context;
+                            context.bounds = context.contentBounds = { 0, 0, width, 700 };
+                            context.scaleFactor = 2.0f;
+                            const auto control = resolveSkinControlStyle (*program, context, report);
+                            expect (control && control->thickness == 10.0f, report.toText());
+                        }
+                }
+                else
+                    expect (! program && report.hasErrors(), expression);
+            }
+        }
+
+        beginTest ("native control profiles expose complete typed fields for their targets");
+        {
+            for (const auto& [target, json] : {
+                std::pair { "textButton", R"({"iconBounds":{"x":4,"y":4,"width":20,"height":20}})" },
+                std::pair { "rotarySlider", R"({"trackBounds":{"x":4,"y":4,"width":48,"height":48},"thumbRadius":6})" },
+                std::pair { "tooltip", R"({"maxWidth":360,"offsetX":20,"offsetY":8})" },
+                std::pair { "scrollBar", R"({"thickness":12,"minThumbLength":18})" },
+                std::pair { "textEditor", R"json({"selectionColour":{"$ref":"colors.accent"},"selectedTextColour":"#010203FF","caretColour":{"$expr":"alpha(token.colors.accent, 0.5)"}})json" } })
+            {
+                auto raw = renderDocument (target, { rectLayer ("body") });
+                raw.getDynamicObject()->setProperty ("controlStyle", juce::JSON::parse (json));
+                SkinValidationReport report;
+                const auto program = compile (raw, tokens, report);
+                expect (program.has_value(), report.toText());
+                if (program)
+                {
+                    const auto style = resolveSkinControlStyle (*program, {}, report);
+                    expect (style.has_value(), report.toText());
+                    if (style && juce::String (target) == "textEditor")
+                    {
+                        expect (style->selectionColour == juce::Colour (0xffd69762));
+                        expect (style->selectedTextColour == juce::Colour (0xff010203));
+                        expect (style->caretColour.has_value());
+                        if (style->caretColour)
+                            expectWithinAbsoluteError (style->caretColour->getFloatAlpha(), 0.5f, 0.003f);
+                    }
+                }
+            }
+        }
+
+        beginTest ("control style schema enforces targets, complete fields and numeric types");
+        {
+            for (const auto& [target, json] : {
+                std::pair { "table", R"({})" },
+                std::pair { "tooltip", R"({"maxWidth":300})" },
+                std::pair { "textButton", R"({"iconBounds":{"x":0,"y":0,"height":20}})" },
+                std::pair { "scrollBar", R"({"thickness":0,"minThumbLength":18})" },
+                std::pair { "scrollBar", R"({"thickness":12,"minThumbLength":true})" },
+                std::pair { "linearSlider", R"({"trackBounds":{"x":0,"y":0,"width":-1,"height":28},"thumbRadius":6})" },
+                std::pair { "tooltip", R"({"maxWidth":300,"offsetX":8,"offsetY":8,"padding":4})" } })
+            {
+                auto raw = renderDocument (target, { rectLayer ("body") });
+                raw.getDynamicObject()->setProperty ("controlStyle", juce::JSON::parse (json));
+                SkinValidationReport report;
+                expect (! compile (raw, tokens, report));
+                expect (report.hasErrors());
+            }
+            auto raw = renderDocument ("scrollBar", { rectLayer ("body") });
+            raw.getDynamicObject()->setProperty ("controlStyle", juce::JSON::parse (
+                R"({"thickness":8,"minThumbLength":{"$expr":"bounds.width * 1e308"}})"));
+            SkinValidationReport report;
+            const auto program = compile (raw, tokens, report);
+            expect (program.has_value(), report.toText());
+            if (program)
+            {
+                SkinRenderContext context;
+                context.bounds = context.contentBounds = { 0, 0, 200, 30 };
+                expect (! resolveSkinControlStyle (*program, context, report));
+                expect (report.hasErrors());
+            }
+        }
+
+        beginTest ("legacy renderers and menu metrics share row layout compatibility");
+        {
+            SkinValidationReport report;
+            auto raw = renderDocument ("popupMenu", { rectLayer ("body") });
+            auto program = compile (raw, tokens, report);
+            expect (program.has_value(), report.toText());
+            if (program) expect (! resolveSkinRowLayout (*program, {}, report));
+            expect (! report.hasErrors());
+            raw.getDynamicObject()->setProperty ("rowLayout", juce::JSON::parse (
+                R"({"rowHeight":32,"headerHeight":40,"slots":{}})"));
+            program = compile (raw, tokens, report);
+            expect (program.has_value(), report.toText());
+            if (program)
+            {
+                const auto layout = resolveSkinRowLayout (*program, {}, report);
+                expect (layout.has_value(), report.toText());
+                if (layout) expectEquals (layout->rowHeight, 32.0f);
+            }
+        }
+
         beginTest ("publishes generated renderer schemas and the frozen default table");
         {
             const auto renderSchema = SkinSchemaRegistry::jsonSchema (SkinSchemaDocument::render);
@@ -147,7 +434,7 @@ public:
                           juce::String ("urn:uuid:f37db386-b854-462a-a26f-b281c16b38fb"));
             expectEquals (renderSchema.getProperty ("x-generatedBy", {}).toString(),
                           juce::String ("Moonwake SkinSchemaRegistry"));
-            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 19);
+            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 20);
             expectEquals (static_cast<int> (skinPrimitiveNames().size()), 11);
             expectEquals (static_cast<int> (skinRepeatSourceDescriptors().size()), 3);
 

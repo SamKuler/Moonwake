@@ -23,6 +23,7 @@ juce::String targetFor (SkinComponentKind kind)
         case SkinComponentKind::effectChain: return "effectChain";
         case SkinComponentKind::outputStage: return "outputStage";
         case SkinComponentKind::channelMap: return "channelMap";
+        case SkinComponentKind::channelMixer: return "channelMixer";
         case SkinComponentKind::pluginList: return "pluginList";
         case SkinComponentKind::skinList: return "skinList";
     }
@@ -46,6 +47,7 @@ bool isInteractive (SkinComponentKind kind)
         case SkinComponentKind::slider:
         case SkinComponentKind::table:
         case SkinComponentKind::effectChain:
+        case SkinComponentKind::channelMixer:
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
@@ -192,7 +194,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
                           { "rotary", "rotarySlider" } }),
 
         makeIconDescriptor ("effects.open", "effects"),
-        makeIconDescriptor ("effects.close", "close", { Entry::effects }),
+        makeIconDescriptor ("effects.close", "close"),
         makeLabelDescriptor ("effects.summary"),
         makeLabelDescriptor ("effects.title"),
         makeLabelDescriptor ("effects.filterLabel"),
@@ -211,7 +213,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("effects.outputLayout", Kind::comboBox),
 
         makeDescriptor ("output.stage", Kind::outputStage),
-        makeDescriptor ("output.mixer", Kind::channelMap, {}, {}, {}, {
+        makeDescriptor ("output.mixer", Kind::channelMixer, {}, {}, {}, {
             Slot { "row.surface", "surface" }, Slot { "row.source", "label" },
             Slot { "row.destination", "label" }, Slot { "row.peak", "label" },
             Slot { "row.gain", "linearSlider" }, Slot { "row.mute", "toggleButton" },
@@ -221,7 +223,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("output.reset", Kind::textButton),
 
         makeLabelDescriptor ("settings.title"),
-        makeIconDescriptor ("settings.close", "close", { Entry::settings }),
+        makeIconDescriptor ("settings.close", "close"),
         makeLabelDescriptor ("settings.audio.heading"),
         makeDescriptor ("settings.audio.device", Kind::comboBox, { Entry::settings }),
         makeDescriptor ("settings.audio.sampleRate", Kind::comboBox, { Entry::settings }),
@@ -229,13 +231,15 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("settings.audio.channelLayout", Kind::comboBox, { Entry::settings }),
         makeReadOnlyDescriptor ("settings.audio.channelMap", Kind::channelMap, {
             Slot { "row.surface", "surface" }, Slot { "row.source", "label" },
-            Slot { "row.destination", "label" }
+            Slot { "row.destination", "label" },
+            Slot { "header.label", "label" }, Slot { "empty.message", "label" }
         }),
         makeLabelDescriptor ("settings.plugins.formats"),
         makeDescriptor ("settings.plugins.knownList", Kind::pluginList, {}, {}, {}, {
             Slot { "row.surface", "surface" }, Slot { "row.name", "label" },
             Slot { "row.manufacturer", "label" }, Slot { "row.format", "label" },
-            Slot { "row.status", "label" }
+            Slot { "row.status", "label" }, Slot { "header.label", "label" },
+            Slot { "empty.message", "label" }
         }),
         makeIconDescriptor ("settings.plugins.scanAll", "scan", { Entry::settings }, "leading"),
         makeIconDescriptor ("settings.plugins.scanFolder", "folderSearch", { Entry::settings }, "leading"),
@@ -245,7 +249,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("settings.skins.library", Kind::skinList, { Entry::settings }, {}, {}, {
             Slot { "row.surface", "surface" }, Slot { "row.name", "label" },
             Slot { "row.author", "label" }, Slot { "row.version", "label" },
-            Slot { "row.status", "label" }
+            Slot { "row.status", "label" }, Slot { "empty.message", "label" }
         }),
         makeIconDescriptor ("settings.skins.import", "import", { Entry::settings }, "leading"),
         makeIconDescriptor ("settings.skins.remove", "remove", {}, "leading"),
@@ -312,7 +316,7 @@ SkinComponentDimensions PlayerComponentCatalog::dimensionsForTarget (juce::Strin
     if (target == "artwork") return { 120, 120, 300, 300 };
     if (target == "effectChain") return { 220, 120, 360, 300 };
     if (target == "outputStage") return { 180, 140, 300, 420 };
-    if (target == "channelMap" || target == "pluginList" || target == "skinList")
+    if (target == "channelMixer" || target == "channelMap" || target == "pluginList" || target == "skinList")
         return { 180, 100, 360, 240 };
     return {};
 }
