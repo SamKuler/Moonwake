@@ -7,10 +7,12 @@
 #include <atomic>
 #include <vector>
 
-class EffectGraph
+class EffectGraph : private juce::AudioProcessorListener,
+                    private juce::Timer
 {
 public:
     EffectGraph();
+    ~EffectGraph() override;
 
     void prepareToPlay (double sampleRate,
                         int blockSize,
@@ -54,6 +56,10 @@ private:
                                 juce::AudioProcessor::BusesLayout& busesLayout) const;
     [[nodiscard]] std::vector<SlotNode>::iterator findSlot (int slotId);
     [[nodiscard]] std::vector<SlotNode>::const_iterator findSlot (int slotId) const;
+    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override {}
+    void audioProcessorChanged (juce::AudioProcessor*,
+                                const juce::AudioProcessorListener::ChangeDetails&) override;
+    void timerCallback() override;
 
     juce::AudioProcessorGraph graph;
     juce::AudioProcessorGraph::Node::Ptr inputNode;
@@ -65,4 +71,5 @@ private:
     bool prepared = false;
     std::atomic_bool stateCaptureRequested { false };
     std::atomic<int> activeProcessCallbacks { 0 };
+    std::atomic_bool latencyChanged { false };
 };

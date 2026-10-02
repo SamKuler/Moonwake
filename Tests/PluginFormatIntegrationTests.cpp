@@ -4,6 +4,7 @@
 #include "plugins/PluginManager.h"
 #include "plugins/PluginScanProcess.h"
 #include "app/PlayerController.h"
+#include "app/AutoSaveScheduler.h"
 
 #include <cmath>
 
@@ -255,6 +256,91 @@ public:
                     expectEquals (restored.getEffectPluginForEditor (0)->getTotalNumInputChannels(), 10);
                     expect (restored.setOutputLayout (OutputLayout::stereo).isEmpty());
                     expectEquals (restored.getEffectPluginForEditor (0)->getTotalNumInputChannels(), 2);
+
+                    beginTest ("deleting a pending restored effect prevents its callback from adding an orphan");
+                    PlayerController removed (std::make_unique<ScopeOfflineBackend>());
+                    expect (removed.loadState (stateFile, cacheFile));
+                    expect (removed.getEffectPluginForEditor (0) == nullptr);
+                    expect (removed.removeEffectAtIndex (0));
+                    expect (dispatchScopeUntil ([&] { return removed.getLastStatusMessage().startsWith ("Saved effect chain restored."); }));
+                    expectEquals (removed.getEffectChain().size(), 0);
+                    expect (removed.setOutputLayout (OutputLayout::stereo).isEmpty(),
+                            "A removed LFE-scoped processor must not remain in the audio graph.");
+
+                    beginTest ("a newer restore invalidates callbacks from the previous session");
+                    PlayerController replaced (std::make_unique<ScopeOfflineBackend>());
+                    expect (replaced.loadState (stateFile, cacheFile));
+                    expect (replaced.getEffectPluginForEditor (0) == nullptr);
+                    StateRestoreResult newerSession;
+                    newerSession.state = snapshot;
+                    newerSession.state->effectChain.getSlotById (snapshot.effectChain.getSlot (0)->id)->scope =
+                        { juce::AudioChannelSet::left };
+                    expect (replaced.applyPreparedState (std::move (newerSession)));
+                    expect (dispatchScopeUntil ([&] { return replaced.getEffectPluginForEditor (0) != nullptr; }));
+                    expectEquals (replaced.getEffectChain().size(), 1);
+                    expect (replaced.getEffectChain().getSlot (0)->scope == EffectScope { juce::AudioChannelSet::left });
+                    expect (replaced.setOutputLayout (OutputLayout::stereo).isEmpty());
+
+                    beginTest ("playing autosaves cache opaque plug-in state until pause and explicit save captures latest state");
+                    expect (restored.setEffectBypassedAtIndex (0, false));
+                    auto* statefulPlugin = restored.getEffectPluginForEditor (0);
+                    expect (statefulPlugin != nullptr);
+                    if (statefulPlugin != nullptr)
+                    {
+                        statefulPlugin->setCurrentProgram (0);
+                        statefulPlugin->updateHostDisplay (juce::AudioProcessorListener::ChangeDetails().withProgramChanged (true));
+                        PlayerAppState beforePlayback;
+                        expect (restored.captureStateSnapshot (beforePlayback, error), error);
+                        const auto cachedState = beforePlayback.effectChain.getSlot (0)->serializedState;
+                        const auto audioFile = temporary.directory.getChildFile ("capture.wav");
+                        juce::WavAudioFormat wav;
+                        auto output = std::unique_ptr<juce::OutputStream> (audioFile.createOutputStream());
+                        auto writer = wav.createWriterFor (output, juce::AudioFormatWriterOptions{}
+                            .withSampleRate (48000.0).withNumChannels (2).withBitsPerSample (16));
+                        expect (writer != nullptr);
+                        if (writer != nullptr)
+                        {
+                            juce::AudioBuffer<float> silence (2, 48000);
+                            silence.clear();
+                            expect (writer->writeFromAudioSampleBuffer (silence, 0, silence.getNumSamples()));
+                            writer.reset();
+                            restored.addFiles ({ audioFile });
+                            expect (restored.setPlaying (true));
+                            statefulPlugin->setCurrentProgram (1);
+                            statefulPlugin->updateHostDisplay (juce::AudioProcessorListener::ChangeDetails().withProgramChanged (true));
+                            const auto playingRevision = restored.getStateRevision();
+                            AutoSaveScheduler scheduler;
+                            expect (! scheduler.observe (playingRevision, 0.0));
+                            expect (scheduler.observe (playingRevision, 1.1));
+                            PlayerAppState whilePlaying;
+                            expect (restored.captureStateSnapshot (whilePlaying, error), error);
+                            expect (restored.isPlaying());
+                            expect (whilePlaying.effectChain.getSlot (0)->serializedState == cachedState);
+                            scheduler.acknowledge (playingRevision, 1.1, true);
+                            expect (! scheduler.observe (playingRevision, 2.2));
+                            expect (restored.setPlaying (false));
+                            const auto pausedRevision = restored.getStateRevision();
+                            expect (pausedRevision > playingRevision);
+                            expect (! scheduler.observe (pausedRevision, 3.0));
+                            expect (scheduler.observe (pausedRevision, 4.1));
+                            PlayerAppState afterPause;
+                            expect (restored.captureStateSnapshot (afterPause, error), error);
+                            expect (afterPause.effectChain.getSlot (0)->serializedState != cachedState);
+                            scheduler.acknowledge (pausedRevision, 4.1, true);
+                            expect (! scheduler.observe (pausedRevision, 5.2));
+
+                            expect (restored.setPlaying (true));
+                            statefulPlugin->setCurrentProgram (2);
+                            statefulPlugin->updateHostDisplay (juce::AudioProcessorListener::ChangeDetails().withProgramChanged (true));
+                            expect (restored.saveState (stateFile, cacheFile), restored.getLastStatusMessage());
+                            expect (! restored.isPlaying());
+                            PlayerController saved (std::make_unique<ScopeOfflineBackend>());
+                            expect (saved.loadState (stateFile, cacheFile));
+                            expect (dispatchScopeUntil ([&] { return saved.getEffectPluginForEditor (0) != nullptr; }));
+                            if (auto* savedPlugin = saved.getEffectPluginForEditor (0))
+                                expectEquals (savedPlugin->getCurrentProgram(), 2);
+                        }
+                    }
                 }
             }
         }

@@ -121,6 +121,7 @@ private:
     std::atomic<uint64_t> pluginStateRevision { 0 };
     uint64_t capturedPluginStateRevision = 0;
     bool restoringEffects = false;
+    uint64_t effectRestoreGeneration = 0;
     AudioPlaybackPlan playbackPlan;
     std::unordered_map<uint64_t, juce::String> playbackTrackIds;
     std::unordered_map<uint64_t, uint64_t> failedPlaybackItems;
@@ -141,6 +142,7 @@ private:
         juce::AudioProcessor*,
         const juce::AudioProcessorListener::ChangeDetails&) override;
     [[nodiscard]] bool restoreStateSnapshot (PlayerAppState state);
-    void restoreNextEffect (std::shared_ptr<std::vector<EffectSlotState>> slots, size_t index);
+    void restoreNextEffect (std::shared_ptr<std::vector<EffectSlotState>> slots, size_t index,
+                            uint64_t generation);
     [[nodiscard]] std::vector<int> getAvailableEffectSlotIds() const;
 };

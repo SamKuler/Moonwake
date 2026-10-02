@@ -29,5 +29,7 @@ public:
 
     void getStateInformation (juce::MemoryBlock& destinationData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
-};
 
+private:
+    std::atomic<int> currentProgram { 0 };
+};

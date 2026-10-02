@@ -3,6 +3,8 @@
 
 #include "audio/EffectGraph.h"
 
+#include <thread>
+
 namespace
 {
 class TestEffect final : public juce::AudioProcessor
@@ -30,6 +32,12 @@ public:
         delayPosition = 0;
     }
     void releaseResources() override {}
+    void changeLatency (int samples)
+    {
+        latency = samples;
+        prepareToPlay (0.0, 0);
+        setLatencySamples (samples);
+    }
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
     {
         processingLayoutMatched = processingLayoutMatched && preparedChannels == getTotalNumInputChannels();
@@ -391,6 +399,36 @@ public:
             expectAlignedImpulse (16);
             expect (graph.setProcessorScope (1, { layout.getTypeOfChannel (2), layout.getTypeOfChannel (3) }, error), error);
             expectAlignedImpulse (23);
+        }
+
+        beginTest ("latency notifications rebuild scoped compensation on the message thread");
+        for (const auto& layout : { juce::AudioChannelSet::stereo(), juce::AudioChannelSet::create5point1(),
+                                  juce::AudioChannelSet::create5point1point2(), juce::AudioChannelSet::create7point1point2(),
+                                  juce::AudioChannelSet::create9point1point6() })
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, layout);
+            auto plugin = std::make_unique<TestEffect> (1.0f, true, 0.0f, false, 7);
+            auto* effect = plugin.get();
+            juce::String error;
+            expect (graph.addProcessor (1, std::move (plugin), error,
+                                        { layout.getTypeOfChannel (0) }), error);
+            std::thread change ([&] { effect->changeLatency (11); });
+            change.join();
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (100);
+
+            juce::AudioBuffer<float> buffer (layout.size(), 64);
+            buffer.clear();
+            for (int channel = 0; channel < layout.size(); ++channel)
+                buffer.setSample (channel, 0, 1.0f);
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                for (int sample = 0; sample < 64; ++sample)
+                    expectWithinAbsoluteError (buffer.getSample (channel, sample),
+                        sample == 11 ? 1.0f : 0.0f, 0.0001f);
+            expect (graph.removeProcessor (1));
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (40);
         }
     }
 };

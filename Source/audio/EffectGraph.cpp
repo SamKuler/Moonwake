@@ -19,6 +19,28 @@ EffectGraph::EffectGraph()
         std::nullopt,
         juce::AudioProcessorGraph::UpdateKind::none);
     static_cast<void> (rebuildConnections());
+    startTimerHz (30);
+}
+
+EffectGraph::~EffectGraph()
+{
+    stopTimer();
+    for (const auto& slot : slots)
+        slot.node->getProcessor()->removeListener (this);
+}
+
+void EffectGraph::audioProcessorChanged (
+    juce::AudioProcessor*, const juce::AudioProcessorListener::ChangeDetails& details)
+{
+    if (details.latencyChanged)
+        latencyChanged.store (true, std::memory_order_release);
+}
+
+void EffectGraph::timerCallback()
+{
+    // Plug-ins may notify from their audio callback. Rebuild only on the message thread.
+    if (latencyChanged.exchange (false, std::memory_order_acquire))
+        graph.rebuild();
 }
 
 void EffectGraph::prepareToPlay (double sampleRate,
@@ -130,11 +152,13 @@ bool EffectGraph::addProcessor (int slotId,
         return false;
     }
 
+    node->getProcessor()->addListener (this);
     slots.push_back ({ slotId, node, std::move (scope) });
     if (rebuildConnections())
         return true;
 
     slots.pop_back();
+    node->getProcessor()->removeListener (this);
     graph.removeNode (node->nodeID, juce::AudioProcessorGraph::UpdateKind::none);
     static_cast<void> (rebuildConnections());
     errorMessage = "The effect does not expose a compatible " + juce::String (currentChannelLayout.size())
@@ -159,6 +183,7 @@ bool EffectGraph::removeProcessor (int slotId)
         return false;
     }
 
+    removedSlot.node->getProcessor()->removeListener (this);
     graph.removeNode (removedSlot.node->nodeID,
                       juce::AudioProcessorGraph::UpdateKind::none);
     graph.rebuild();
@@ -180,8 +205,11 @@ bool EffectGraph::clearProcessors()
     }
 
     for (const auto& removed : removedSlots)
+    {
+        removed.node->getProcessor()->removeListener (this);
         graph.removeNode (removed.node->nodeID,
                           juce::AudioProcessorGraph::UpdateKind::none);
+    }
     graph.rebuild();
     return true;
 }

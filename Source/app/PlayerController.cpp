@@ -688,16 +688,22 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
     }
     const auto description = plugins[pluginIndex];
     const auto alive = lifetimeFlag;
+    const auto generation = effectRestoreGeneration;
     pluginManager.createPluginInstanceAsync (
         description,
         44100.0,
         512,
-        [this, alive, description, requestedScope = std::move (scope), completion = std::move (callback)]
+        [this, alive, generation, description, requestedScope = std::move (scope), completion = std::move (callback)]
         (std::unique_ptr<juce::AudioPluginInstance> plugin, const juce::String& creationError) mutable
         {
             if (! alive->load())
                 return;
 
+            if (generation != effectRestoreGeneration)
+            {
+                completion (false, "The session changed before the plug-in was ready.");
+                return;
+            }
             if (restoringEffects)
             {
                 completion (false, "Wait for the saved effect chain to finish restoring.");
@@ -835,6 +841,9 @@ bool PlayerController::saveState (const juce::File& stateFile, const juce::File&
         return false;
     }
 
+    // Explicit saves include the latest plug-in state, including during shutdown.
+    if (audioEngine.isPlaying())
+        static_cast<void> (setPlaying (false));
     juce::String stateError;
     PlayerAppState snapshot;
     const auto stateCaptured = captureStateSnapshot (snapshot, stateError);
@@ -1127,7 +1136,9 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
 
     const auto pluginRevision = pluginStateRevision.load (
         std::memory_order_acquire);
-    if (pluginRevision != capturedPluginStateRevision)
+    // Reuse cached opaque state while playing; pausing/finishing advances the app
+    // revision so autosave captures any deferred plug-in edits afterwards.
+    if (pluginRevision != capturedPluginStateRevision && ! audioEngine.isPlaying())
     {
         if (! audioEngine.beginEffectStateCapture())
         {
@@ -1227,6 +1238,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
         }
     }
 
+    const auto generation = ++effectRestoreGeneration;
     effectChain = {};
     audioEngine.unload();
     playbackCoordinator.loadFailed();
@@ -1291,13 +1303,18 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     if (! restoreDiagnostics.isEmpty())
         lastStatusMessage += " " + restoreDiagnostics.joinIntoString (" ");
     if (restoringEffects)
-        restoreNextEffect (std::move (slots), 0);
+        restoreNextEffect (std::move (slots), 0, generation);
     ++stateRevision;
     return true;
 }
 
-void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlotState>> slots, size_t index)
+void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlotState>> slots, size_t index,
+                                          uint64_t generation)
 {
+    if (generation != effectRestoreGeneration)
+        return;
+    while (index < slots->size() && effectChain.getSlotById ((*slots)[index].id) == nullptr)
+        ++index;
     if (index >= slots->size())
     {
         restoringEffects = false;
@@ -1317,10 +1334,10 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
                                      "Plug-in is not installed or the cache needs to be rescanned.");
         ++effectChainRevision;
         const auto alive = lifetimeFlag;
-        juce::MessageManager::callAsync ([this, alive, restoreSlots = std::move (slots), index]
+        juce::MessageManager::callAsync ([this, alive, restoreSlots = std::move (slots), index, generation]
         {
             if (alive->load())
-                restoreNextEffect (restoreSlots, index + 1);
+                restoreNextEffect (restoreSlots, index + 1, generation);
         });
         return;
     }
@@ -1330,12 +1347,17 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
         *description,
         44100.0,
         512,
-        [this, alive, restoreSlots = std::move (slots), index, savedSlot]
+        [this, alive, restoreSlots = std::move (slots), index, savedSlot, generation]
         (std::unique_ptr<juce::AudioPluginInstance> plugin, const juce::String& creationError) mutable
         {
-            if (! alive->load())
+            if (! alive->load() || generation != effectRestoreGeneration)
                 return;
 
+            if (effectChain.getSlotById (savedSlot.id) == nullptr)
+            {
+                restoreNextEffect (std::move (restoreSlots), index + 1, generation);
+                return;
+            }
             juce::String error = creationError;
             if (plugin != nullptr)
             {
@@ -1348,6 +1370,7 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
                 {
                     static_cast<void> (audioEngine.setEffectBypassed (savedSlot.id, savedSlot.bypassed));
                     effectChain.setAvailability (savedSlot.id, true);
+                    static_cast<void> (audioEngine.setEffectPluginOrder (getAvailableEffectSlotIds()));
                 }
             }
 
@@ -1357,7 +1380,7 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
                                              error.isNotEmpty() ? error : "Plug-in could not be restored.");
 
             ++effectChainRevision;
-            restoreNextEffect (std::move (restoreSlots), index + 1);
+            restoreNextEffect (std::move (restoreSlots), index + 1, generation);
         });
 }
 
