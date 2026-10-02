@@ -182,6 +182,33 @@ public:
             expect (stateFile.deleteFile());
         }
 
+        beginTest ("failed restores cannot be overwritten by a subsequent save");
+        {
+            const auto directory = juce::File::getCurrentWorkingDirectory()
+                .getChildFile ("build").getNonexistentChildFile (
+                    "moonwake-state-preservation", {});
+            expect (directory.createDirectory());
+            const auto stateFile = directory.getChildFile ("state.xml");
+            const juce::StringArray unreadableStates {
+                "<MoonwakeState schemaVersion=\"999\"><Playlist/>"
+                "<EffectChain/></MoonwakeState>",
+                "<MoonwakeState><broken>",
+                "<OtherApplication/>"
+            };
+            for (const auto& contents : unreadableStates)
+            {
+                expect (stateFile.replaceWithText (contents));
+                const auto original = stateFile.loadFileAsString();
+                PlayerAppState restored;
+                juce::String error;
+                expect (! AppStateStore::readFromFile (stateFile, restored, error));
+                expect (! AppStateStore::writeAtomically (restored, stateFile, error));
+                expect (error.isNotEmpty());
+                expectEquals (stateFile.loadFileAsString(), original);
+            }
+            expect (directory.deleteRecursively());
+        }
+
         beginTest ("writes and reads state atomically");
         {
             const auto directory = juce::File::getCurrentWorkingDirectory()
@@ -204,6 +231,10 @@ public:
             error.clear();
             expect (AppStateStore::readFromFile (stateFile, restored, error), error);
             expectEquals (restored.playlist.getTrack (0)->id, juce::String ("atomic-id"));
+            state.volume = 0.25;
+            expect (AppStateStore::writeAtomically (state, stateFile, error), error);
+            expect (AppStateStore::readFromFile (stateFile, restored, error), error);
+            expectWithinAbsoluteError (restored.volume, 0.25, 0.0001);
             expect (stateFile.deleteFile());
         }
 

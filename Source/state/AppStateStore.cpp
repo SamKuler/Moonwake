@@ -79,6 +79,40 @@ double finiteNonNegative (double value)
                ? juce::jmax (0.0, value)
                : 0.0;
 }
+
+bool readStateTree (const juce::File& sourceFile,
+                    juce::ValueTree& tree, juce::String& errorMessage)
+{
+    if (! sourceFile.existsAsFile())
+    {
+        errorMessage = "Player state file not found: " + sourceFile.getFullPathName();
+        return false;
+    }
+
+    auto xml = juce::XmlDocument::parse (sourceFile);
+    if (xml == nullptr)
+    {
+        errorMessage = "Player state file is not valid XML: " + sourceFile.getFullPathName();
+        return false;
+    }
+
+    tree = juce::ValueTree::fromXml (*xml);
+    if (! tree.hasType (appStateType))
+    {
+        errorMessage = "Player state file has an unsupported root element.";
+        return false;
+    }
+
+    const auto schemaVersion = static_cast<int> (
+        tree.getProperty (schemaVersionProperty, 1));
+    if (schemaVersion > currentSchemaVersion)
+    {
+        errorMessage = "Player state file was created by a newer version of Moonwake.";
+        return false;
+    }
+
+    return true;
+}
 } // namespace
 
 juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
@@ -259,6 +293,18 @@ bool AppStateStore::writeAtomically (const PlayerAppState& state,
 {
     errorMessage.clear();
 
+    if (targetFile.existsAsFile())
+    {
+        juce::ValueTree existing;
+        if (! readStateTree (targetFile, existing, errorMessage))
+        {
+            errorMessage = "Existing state was preserved. " + errorMessage
+                + " Move the file aside before saving a new session: "
+                + targetFile.getFullPathName();
+            return false;
+        }
+    }
+
     const auto parentDirectory = targetFile.getParentDirectory();
     if (! parentDirectory.isDirectory() && ! parentDirectory.createDirectory())
     {
@@ -294,34 +340,9 @@ bool AppStateStore::readFromFile (const juce::File& sourceFile,
                                   juce::String& errorMessage)
 {
     errorMessage.clear();
-
-    if (! sourceFile.existsAsFile())
-    {
-        errorMessage = "Player state file not found: " + sourceFile.getFullPathName();
+    juce::ValueTree tree;
+    if (! readStateTree (sourceFile, tree, errorMessage))
         return false;
-    }
-
-    auto xml = juce::XmlDocument::parse (sourceFile);
-    if (xml == nullptr)
-    {
-        errorMessage = "Player state file is not valid XML: " + sourceFile.getFullPathName();
-        return false;
-    }
-
-    const auto tree = juce::ValueTree::fromXml (*xml);
-    if (! tree.hasType (appStateType))
-    {
-        errorMessage = "Player state file has an unsupported root element.";
-        return false;
-    }
-
-    const auto schemaVersion = static_cast<int> (
-        tree.getProperty (schemaVersionProperty, 1));
-    if (schemaVersion > currentSchemaVersion)
-    {
-        errorMessage = "Player state file was created by a newer version of Moonwake.";
-        return false;
-    }
 
     state = fromValueTree (tree);
     return true;
