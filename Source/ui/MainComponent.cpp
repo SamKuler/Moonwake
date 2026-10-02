@@ -211,8 +211,8 @@ public:
 
         dragging = false;
         const auto rackEvent = event.getEventRelativeTo (&owner.effectRackContent);
-        owner.moveEffectFromDrag (index, juce::roundToInt (rackEvent.position.y));
         repaint();
+        owner.moveEffectFromDrag (index, juce::roundToInt (rackEvent.position.y));
     }
 
     void paint (juce::Graphics& g) override
@@ -1137,23 +1137,12 @@ void MainComponent::paintRowBackground (juce::Graphics& graphics,
         duration = juce::String (totalSeconds / 60) + ":"
                  + juce::String (totalSeconds % 60).paddedLeft ('0', 2);
     }
-    const auto firstWidth = playlistTable.getHeader().getColumnWidth (1);
-    const auto secondWidth = playlistTable.getHeader().getColumnWidth (2);
-    const JuceSkinAdapter::ListBoxRowGeometry geometry {
-        { 0.0f, 0.0f, static_cast<float> (firstWidth),
-          static_cast<float> (height) },
-        { static_cast<float> (firstWidth), 0.0f,
-          static_cast<float> (secondWidth), static_cast<float> (height) },
-        { static_cast<float> (firstWidth + secondWidth), 0.0f,
-          static_cast<float> (juce::jmax (0, width - firstWidth - secondWidth)),
-          static_cast<float> (height) }
-    };
     skinAdapter.drawListBoxRow (
         graphics, playlistTable, rowNumber, width, height,
         rowIsSelected || playlistIndex == controller.getPlaylist().getSelectedIndex(),
         track->title + (track->available ? juce::String{} : " (Missing)"),
         track->file.getFullPathName(),
-        duration, geometry,
+        duration, playlistTable.rowGeometry (height),
         false, false, track->available, track->artist, track->album);
 }
 

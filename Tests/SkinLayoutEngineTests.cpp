@@ -198,6 +198,34 @@ public:
             }
         }
 
+        beginTest ("automatic grid placement contributes to auto track sizes");
+        {
+            SkinLayoutNode root;
+            root.nodeType = SkinLayoutNodeType::grid;
+            root.common.id = "grid";
+            SkinGridLayout grid;
+            grid.columns = { SkinLength {} };
+            grid.rows = { SkinLength {} };
+            grid.children.push_back (component ("play", "transport.playPause"));
+            root.payload = std::move (grid);
+            SkinValidationReport report;
+            const auto result = SkinLayoutEngine::resolve (
+                definitionWith (std::move (root)), { 0, 0, 200, 100 }, 1.0f,
+                report);
+            expect (result.has_value(), report.toText());
+            if (result)
+            {
+                const auto* play = child (result->root, "play");
+                expect (play != nullptr);
+                if (play != nullptr)
+                {
+                    expect (play->bounds.getPosition() == juce::Point<float> (0, 0));
+                    expect (play->bounds.getWidth() >= 28.0f);
+                    expect (play->bounds.getHeight() >= 28.0f);
+                }
+            }
+        }
+
         beginTest ("stack anchors, z-order and clipping are deterministic");
         {
             SkinLayoutNode root;

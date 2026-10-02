@@ -112,7 +112,7 @@ public:
                          const juce::String& primaryText,
                          const juce::String& locationText = {},
                          const juce::String& durationText = {},
-                         const ListBoxRowGeometry& geometry = {},
+                         const std::optional<ListBoxRowGeometry>& geometry = std::nullopt,
                          bool hovered = false, bool pressed = false,
                          bool available = true,
                          const juce::String& artist = {},

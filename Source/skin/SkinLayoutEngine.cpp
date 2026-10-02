@@ -460,9 +460,15 @@ private:
         }
     }
 
+    struct GridPlacement
+    {
+        const SkinLayoutNode* node = nullptr;
+        int column = 0, row = 0;
+    };
+
     std::optional<std::vector<float>> resolveTracks (
         const std::vector<SkinLength>& tracks, float extent, float gap,
-        const std::vector<SkinLayoutNode>& children, bool horizontal)
+        const std::vector<GridPlacement>& placements, bool horizontal)
     {
         std::vector<float> sizes (tracks.size(), 0.0f);
         const auto totalGaps = tracks.size() > 1
@@ -479,11 +485,12 @@ private:
             used += sizes[i];
         }
 
-        for (const auto& child : children)
+        for (const auto& placement : placements)
         {
-            const auto start = horizontal ? child.common.gridColumn : child.common.gridRow;
+            const auto& child = *placement.node;
+            const auto start = horizontal ? placement.column : placement.row;
             const auto span = horizontal ? child.common.columnSpan : child.common.rowSpan;
-            if (start <= 0 || span != 1) continue;
+            if (span != 1) continue;
             const auto index = static_cast<size_t> (start - 1);
             if (index < tracks.size() && tracks[index].unit == SkinLength::Unit::automatic)
             {
@@ -496,11 +503,12 @@ private:
             }
         }
 
-        for (const auto& child : children)
+        for (const auto& placement : placements)
         {
-            const auto start = horizontal ? child.common.gridColumn : child.common.gridRow;
+            const auto& child = *placement.node;
+            const auto start = horizontal ? placement.column : placement.row;
             const auto span = horizontal ? child.common.columnSpan : child.common.rowSpan;
-            if (start <= 0 || span <= 1) continue;
+            if (span <= 1) continue;
             const auto begin = static_cast<size_t> (start - 1);
             const auto end = std::min (tracks.size(), begin + static_cast<size_t> (span));
             float current = gap * static_cast<float> (span - 1);
@@ -538,10 +546,26 @@ private:
                       juce::Rectangle<float> clip, std::vector<SkinResolvedNode>& output)
     {
         const auto& layout = std::get<SkinGridLayout> (node.payload);
+        std::vector<GridPlacement> placements;
+        placements.reserve (layout.children.size());
+        int automaticIndex = 0;
+        for (const auto& child : layout.children)
+        {
+            auto column = child.common.gridColumn;
+            auto row = child.common.gridRow;
+            if (column <= 0 || row <= 0)
+            {
+                column = automaticIndex % static_cast<int> (layout.columns.size()) + 1;
+                row = automaticIndex / static_cast<int> (layout.columns.size()) + 1;
+                ++automaticIndex;
+            }
+            row = std::min (row, static_cast<int> (layout.rows.size()));
+            placements.push_back ({ &child, column, row });
+        }
         const auto columns = resolveTracks (layout.columns, content.getWidth(), layout.columnGap,
-                                            layout.children, true);
+                                            placements, true);
         const auto rows = resolveTracks (layout.rows, content.getHeight(), layout.rowGap,
-                                         layout.children, false);
+                                         placements, false);
         if (! columns || ! rows)
         {
             fail ("LAYOUT016", node.common.id, "Grid tracks do not fit their container.");
@@ -562,18 +586,11 @@ private:
             position += size + layout.rowGap;
         }
 
-        int automaticIndex = 0;
-        for (const auto& child : layout.children)
+        for (const auto& placement : placements)
         {
-            auto column = child.common.gridColumn;
-            auto row = child.common.gridRow;
-            if (column <= 0 || row <= 0)
-            {
-                column = automaticIndex % static_cast<int> (columns->size()) + 1;
-                row = automaticIndex / static_cast<int> (columns->size()) + 1;
-                ++automaticIndex;
-            }
-            row = std::min (row, static_cast<int> (rows->size()));
+            const auto& child = *placement.node;
+            const auto column = placement.column;
+            const auto row = placement.row;
             const auto columnEnd = std::min (static_cast<int> (columns->size()),
                                              column + child.common.columnSpan - 1);
             const auto rowEnd = std::min (static_cast<int> (rows->size()),

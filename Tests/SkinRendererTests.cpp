@@ -1247,6 +1247,85 @@ public:
             expect (hugeSink.diagnostics.back().message.containsIgnoreCase ("pixel"));
         }
 
+        beginTest ("table cells follow header reordering visibility and resizing");
+        {
+            std::map<juce::String, SkinRenderStyleEntry> entries;
+            const auto addStyle = [&] (const juce::String& name,
+                                       SkinRenderTarget target, juce::Colour colour)
+            {
+                auto layer = rectangleLayer ("body", {}, colour);
+                for (const auto* property : {
+                         "frame.x", "frame.y", "frame.width", "frame.height" })
+                    layer.properties.erase (property);
+                layer.properties["frame.anchor"] = literalBinding (
+                    SkinPrimitive::rectangle, "frame.anchor", juce::String ("bounds"));
+                entries[name].renderer = simpleProgram (target, std::move (layer));
+            };
+            addStyle ("table.default", SkinRenderTarget::table,
+                      juce::Colours::transparentBlack);
+            addStyle ("surface.default", SkinRenderTarget::surface,
+                      juce::Colours::transparentBlack);
+            addStyle ("label.title", SkinRenderTarget::label, juce::Colours::red);
+            addStyle ("label.location", SkinRenderTarget::label, juce::Colours::green);
+            addStyle ("label.duration", SkinRenderTarget::label, juce::Colours::blue);
+            entries["table.default"].slotStyles = {
+                { "cell.title", "label.title" },
+                { "cell.location", "label.location" },
+                { "cell.duration", "label.duration" }
+            };
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter (
+                [&] (const juce::Component&, SkinRenderTarget target,
+                     const juce::String& style)
+                {
+                    const auto name = style == "default"
+                        ? skinRenderTargetName (target) + ".default" : style;
+                    return JuceSkinAdapter::RuntimeBinding {
+                        &entries.at (name), nullptr, &sink, true
+                    };
+                }, renderer);
+            SkinTableListBox table;
+            table.setSize (180, 60);
+            auto& header = table.getHeader();
+            header.setStretchToFitActive (false);
+            header.addColumn ("Title", 1, 60);
+            header.addColumn ("Location", 2, 80);
+            header.addColumn ("Duration", 3, 40);
+            juce::Image image (juce::Image::ARGB, 180, 20, true);
+            const auto drawRow = [&]
+            {
+                image.clear (image.getBounds(), juce::Colours::transparentBlack);
+                juce::Graphics graphics (image);
+                adapter.drawListBoxRow (
+                    graphics, table, 0, 180, 20, false, "Track", "Folder", "3:12",
+                    table.rowGeometry (20));
+            };
+            drawRow();
+            expect (image.getPixelAt (10, 10) == juce::Colours::red);
+            expect (image.getPixelAt (80, 10) == juce::Colours::green);
+            expect (image.getPixelAt (160, 10) == juce::Colours::blue);
+
+            header.moveColumn (2, 0);
+            drawRow();
+            expect (image.getPixelAt (10, 10) == juce::Colours::green);
+            expect (image.getPixelAt (90, 10) == juce::Colours::red);
+            expect (image.getPixelAt (160, 10) == juce::Colours::blue);
+
+            header.setColumnVisible (2, false);
+            drawRow();
+            expect (image.getPixelAt (10, 10) == juce::Colours::red);
+            expect (image.getPixelAt (80, 10) == juce::Colours::blue);
+            expect (image.getPixelAt (150, 10).isTransparent());
+
+            header.setColumnWidth (1, 90);
+            drawRow();
+            expect (image.getPixelAt (80, 10) == juce::Colours::red);
+            expect (image.getPixelAt (110, 10) == juce::Colours::blue);
+            expect (image.getPixelAt (150, 10).isTransparent());
+            expect (sink.diagnostics.empty());
+        }
+
         beginTest ("JUCE adapter propagates semantic label and table alignment");
         {
             auto alignmentLayer = rectangleLayer (
@@ -1552,6 +1631,17 @@ public:
             expect (image.getPixelAt (65, 10).getAlpha() > 0);
             expect (image.getPixelAt (25, 10).isTransparent());
             expect (image.getPixelAt (55, 10).isTransparent());
+
+            image.clear (image.getBounds(), juce::Colours::transparentBlack);
+            auto hiddenLocation = rowGeometry;
+            hiddenLocation.location = {};
+            adapter.drawListBoxRow (
+                graphics, list, 2, 100, 20, true, "Track", "Folder", "3:12",
+                hiddenLocation, true, false);
+            expect (image.getPixelAt (10, 10).getAlpha() > 0);
+            expect (image.getPixelAt (65, 10).getAlpha() > 0);
+            expect (image.getPixelAt (55, 10).isTransparent(),
+                    "an explicitly empty cell must remain hidden without fallback geometry");
             expect (list.findColour (juce::ListBox::backgroundColourId).isTransparent());
             expect (adapter.isAnimationDriveActive());
 

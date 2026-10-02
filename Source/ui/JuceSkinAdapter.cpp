@@ -827,7 +827,7 @@ void JuceSkinAdapter::drawListBoxRow (
     juce::Graphics& graphics, juce::ListBox& list, int rowNumber,
     int width, int height, bool selected, const juce::String& primaryText,
     const juce::String& locationText, const juce::String& durationText,
-    const ListBoxRowGeometry& geometry, bool hovered, bool pressed,
+    const std::optional<ListBoxRowGeometry>& geometry, bool hovered, bool pressed,
     bool available, const juce::String& artist, const juce::String& album)
 {
     SkinRenderContext context;
@@ -858,61 +858,36 @@ void JuceSkinAdapter::drawListBoxRow (
     const auto surfaceDrawn = drawSlotBinding (
         graphics, list, SkinRenderTarget::table, "row.surface",
         SkinRenderTarget::surface, context, rowKey + ":surface");
-    auto titleContext = context;
-    titleContext.textAlignment = "left";
-    titleContext.bounds = geometry.title.isEmpty()
-        ? juce::Rectangle<float> (0.0f, 0.0f, rowWidth * 0.5f,
-                                  static_cast<float> (height))
-        : geometry.title;
-    titleContext.contentBounds = titleContext.bounds;
-    const auto titleLookup = titleContext.extraLookup;
-    titleContext.extraLookup = [titleLookup] (std::string_view path)
-        -> std::optional<SkinExpressionValue>
+    const auto cells = geometry.value_or (ListBoxRowGeometry {
+        { 0.0f, 0.0f, rowWidth * 0.5f, static_cast<float> (height) },
+        { rowWidth * 0.5f, 0.0f, rowWidth * 0.3f, static_cast<float> (height) },
+        { rowWidth * 0.8f, 0.0f, rowWidth * 0.2f, static_cast<float> (height) }
+    });
+    const auto drawCell = [&] (juce::Rectangle<float> bounds,
+                               const juce::String& columnId,
+                               const juce::String& text,
+                               const juce::String& alignment)
     {
-        if (path == "column.id") return SkinExpressionValue (juce::String ("title"));
-        return titleLookup ? titleLookup (path) : std::nullopt;
+        if (bounds.isEmpty()) return false;
+        auto cellContext = context;
+        cellContext.bounds = bounds;
+        cellContext.contentBounds = bounds;
+        cellContext.primaryText = text;
+        cellContext.textAlignment = alignment;
+        cellContext.extraLookup = [lookup = context.extraLookup, columnId] (
+            std::string_view path) -> std::optional<SkinExpressionValue>
+        {
+            if (path == "column.id") return SkinExpressionValue (columnId);
+            return lookup ? lookup (path) : std::nullopt;
+        };
+        return drawSlotBinding (
+            graphics, list, SkinRenderTarget::table, "cell." + columnId,
+            SkinRenderTarget::label, std::move (cellContext),
+            rowKey + ":" + columnId);
     };
-    const auto titleDrawn = drawSlotBinding (
-        graphics, list, SkinRenderTarget::table, "cell.title", SkinRenderTarget::label,
-        std::move (titleContext), rowKey + ":title");
-    auto locationContext = context;
-    locationContext.textAlignment = "left";
-    locationContext.primaryText = locationText;
-    locationContext.bounds = geometry.location.isEmpty()
-        ? juce::Rectangle<float> (rowWidth * 0.5f, 0.0f, rowWidth * 0.3f,
-                                  static_cast<float> (height))
-        : geometry.location;
-    locationContext.contentBounds = locationContext.bounds;
-    const auto locationLookup = locationContext.extraLookup;
-    locationContext.extraLookup = [locationLookup] (std::string_view path)
-        -> std::optional<SkinExpressionValue>
-    {
-        if (path == "column.id")
-            return SkinExpressionValue (juce::String ("location"));
-        return locationLookup ? locationLookup (path) : std::nullopt;
-    };
-    const auto locationDrawn = drawSlotBinding (
-        graphics, list, SkinRenderTarget::table, "cell.location",
-        SkinRenderTarget::label, std::move (locationContext), rowKey + ":location");
-    auto durationContext = context;
-    durationContext.textAlignment = "right";
-    durationContext.primaryText = durationText;
-    durationContext.bounds = geometry.duration.isEmpty()
-        ? juce::Rectangle<float> (rowWidth * 0.8f, 0.0f, rowWidth * 0.2f,
-                                  static_cast<float> (height))
-        : geometry.duration;
-    durationContext.contentBounds = durationContext.bounds;
-    const auto durationLookup = durationContext.extraLookup;
-    durationContext.extraLookup = [durationLookup] (std::string_view path)
-        -> std::optional<SkinExpressionValue>
-    {
-        if (path == "column.id")
-            return SkinExpressionValue (juce::String ("duration"));
-        return durationLookup ? durationLookup (path) : std::nullopt;
-    };
-    const auto durationDrawn = drawSlotBinding (
-        graphics, list, SkinRenderTarget::table, "cell.duration",
-        SkinRenderTarget::label, std::move (durationContext), rowKey + ":duration");
+    const auto titleDrawn = drawCell (cells.title, "title", primaryText, "left");
+    const auto locationDrawn = drawCell (cells.location, "location", locationText, "left");
+    const auto durationDrawn = drawCell (cells.duration, "duration", durationText, "right");
     if (! surfaceDrawn && ! titleDrawn && ! locationDrawn && ! durationDrawn)
         drawBinding (graphics, list, SkinRenderTarget::table, std::move (context));
 }
