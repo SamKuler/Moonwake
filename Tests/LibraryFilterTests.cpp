@@ -80,6 +80,48 @@ public:
             expectEquals (filter.visibleCount(), 1);
         }
 
+       #if JUCE_MAC
+        beginTest ("matches canonical equivalents with multiple combining marks in both directions");
+        {
+            const auto composed = juce::String::fromUTF8 ("Việt");
+            const auto decomposed = juce::String::fromUTF8 ("Vie\xcc\xa3\xcc\x82t");
+            for (const auto composedTitle : { true, false })
+            {
+                PlaylistModel unicodePlaylist;
+                unicodePlaylist.addTrack (track (
+                    "work.flac", composedTitle ? composed : decomposed,
+                    "Artist", "Album", "FLAC", 2));
+                LibraryFilter filter;
+                filter.setQuery (composedTitle ? decomposed : composed);
+                filter.rebuild (unicodePlaylist);
+                expectEquals (filter.visibleCount(), 1,
+                              composedTitle ? "NFC title with NFD query"
+                                            : "NFD title with NFC query");
+                expectEquals (filter.playlistIndexForRow (0), 0);
+            }
+        }
+       #endif
+
+        beginTest ("folds Latin ligatures and stroked letters in search");
+        {
+            const juce::StringArray titles {
+                juce::String::fromUTF8 ("æther œuvre straße łukasz øresund")
+               #if JUCE_MAC
+                , juce::String::fromUTF8 ("Æther Œuvre Straße Łukasz Øresund")
+               #endif
+            };
+            for (const auto& title : titles)
+            {
+                PlaylistModel latinPlaylist;
+                latinPlaylist.addTrack (track (
+                    "work.flac", title, "Artist", "Album", "FLAC", 2));
+                LibraryFilter filter;
+                filter.setQuery ("aether oeuvre strasse lukasz oresund");
+                filter.rebuild (latinPlaylist);
+                expectEquals (filter.visibleCount(), 1, title);
+            }
+        }
+
         beginTest ("maps rows back to playlist identity after model changes");
         {
             LibraryFilter filter;

@@ -1,8 +1,13 @@
 #include "LibraryFilter.h"
 
-#include <array>
 #include <cstring>
 #include <utility>
+
+#if JUCE_MAC
+ #include <CoreFoundation/CoreFoundation.h>
+#else
+ #include <array>
+#endif
 
 void LibraryFilter::setQuery (juce::String queryToUse)
 {
@@ -144,6 +149,20 @@ void LibraryFilter::removeUnusedCacheEntries (size_t generation)
 juce::String LibraryFilter::normalise (juce::String value)
 {
     value = value.toLowerCase();
+   #if JUCE_MAC
+    const auto original = value.toCFString();
+    const auto folded = CFStringCreateMutableCopy (kCFAllocatorDefault, 0, original);
+    CFRelease (original);
+    if (folded != nullptr)
+    {
+        CFStringNormalize (folded, kCFStringNormalizationFormC);
+        CFStringFold (folded, kCFCompareCaseInsensitive | kCFCompareDiacriticInsensitive,
+                      nullptr);
+        static_cast<void> (CFStringTransform (folded, nullptr, CFSTR ("Latin-ASCII"), false));
+        value = juce::String::fromCFString (folded);
+        CFRelease (folded);
+    }
+   #else
     const std::array<std::pair<const char*, const char*>, 47> folds {{
         { "à", "a" }, { "á", "a" }, { "â", "a" }, { "ã", "a" },
         { "ä", "a" }, { "å", "a" }, { "ā", "a" }, { "ă", "a" },
@@ -161,6 +180,7 @@ juce::String LibraryFilter::normalise (juce::String value)
     for (const auto& [source, replacement] : folds)
         value = value.replace (juce::String::fromUTF8 (source),
                                juce::String::fromUTF8 (replacement));
+   #endif
     juce::String result;
     bool previousWasSeparator = true;
     const auto isCombiningMark = [] (juce::juce_wchar character)
