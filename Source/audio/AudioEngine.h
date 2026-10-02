@@ -4,6 +4,7 @@
 
 #include "audio/ChannelMappedAudioSource.h"
 #include "audio/EffectGraph.h"
+#include "audio/GaplessAudioSource.h"
 #include "audio/OutputLayout.h"
 
 #include <array>
@@ -55,10 +56,28 @@ public:
     explicit AudioEngine (std::unique_ptr<IAudioDeviceBackend>);
     ~AudioEngine();
 
+    // Freezes source consumption while the control thread edits playback state.
+    // Effect processing remains active, including tails from previous input.
+    class ScopedPlaybackEdit final
+    {
+    public:
+        explicit ScopedPlaybackEdit (AudioEngine&);
+        ~ScopedPlaybackEdit();
+        ScopedPlaybackEdit (const ScopedPlaybackEdit&) = delete;
+        ScopedPlaybackEdit& operator= (const ScopedPlaybackEdit&) = delete;
+
+    private:
+        AudioEngine& engine;
+    };
+
     juce::String initialise();
     void shutdown();
 
     bool loadFile (const juce::File& file);
+    bool loadPlaybackPlan (AudioPlaybackPlan plan, double startSeconds = 0.0);
+    bool setUpcomingPlayback (std::vector<AudioPlaybackItem> items, int repeatFrom = -1);
+    [[nodiscard]] AudioPlaybackProgress getPlaybackProgress() const;
+    std::vector<AudioPreparationFailure> drainPreparationFailures();
     void unload();
     void play();
     void pause();
@@ -121,6 +140,8 @@ private:
         [[nodiscard]] juce::AudioPluginInstance* getPlugin (int slotId) const;
         bool beginStateCapture (int timeoutMilliseconds);
         void endStateCapture() noexcept;
+        void beginPlaybackEdit();
+        void endPlaybackEdit();
 
     private:
         juce::AudioTransportSource& transport;
@@ -130,17 +151,20 @@ private:
         std::array<std::atomic<float>, 10>& outputPeakLevels;
         std::atomic<float>& outputGain;
         juce::SmoothedValue<float> smoothedGain;
+        std::atomic_bool playbackEditRequested { false };
+        std::atomic<int> activeTransportCallbacks { 0 };
+        unsigned playbackEditDepth = 0; // Control thread only.
     };
 
     std::unique_ptr<IAudioDeviceBackend> deviceBackend;
     juce::AudioFormatManager formatManager;
     juce::TimeSliceThread readAheadThread { "Audio file read-ahead" };
+    GaplessAudioSource playbackSource { formatManager, readAheadThread };
     juce::AudioSourcePlayer sourcePlayer;
     juce::AudioTransportSource transportSource;
     std::array<std::atomic<float>, 10> outputPeakLevels {};
     std::atomic<float> outputGain { 0.8f };
     EffectProcessingSource effectProcessingSource;
-    std::unique_ptr<ChannelMappedAudioSource> readerSource;
 
     OutputLayout outputLayout = OutputLayout::stereo;
     bool initialised = false;

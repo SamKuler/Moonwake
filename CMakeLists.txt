@@ -141,6 +141,7 @@ set(MOONWAKE_SOURCES
     Source/app/AutoSaveScheduler.cpp
     Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
+    Source/audio/GaplessAudioSource.cpp
     Source/audio/ChannelRouter.cpp
     Source/audio/ChannelMappedAudioSource.cpp
     Source/audio/EffectGraph.cpp
@@ -290,6 +291,7 @@ add_executable(MoonwakeTests
         Source/app/PlaybackCheckpoint.cpp
         Source/app/PlayerController.cpp
         Source/audio/AudioEngine.cpp
+        Source/audio/GaplessAudioSource.cpp
         Source/audio/TrackMetadataReader.cpp
         Source/library/ArtworkExtractor.cpp
         Source/library/ArtworkStore.cpp

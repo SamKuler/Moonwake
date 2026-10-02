@@ -125,12 +125,24 @@ AudioEngine::AudioEngine (std::unique_ptr<IAudioDeviceBackend> backend)
 {
     jassert (deviceBackend != nullptr);
     formatManager.registerBasicFormats();
+    transportSource.setSource (&playbackSource);
     sourcePlayer.setSource (&effectProcessingSource);
 }
 
 AudioEngine::~AudioEngine()
 {
     shutdown();
+}
+
+AudioEngine::ScopedPlaybackEdit::ScopedPlaybackEdit (AudioEngine& engineToUse)
+    : engine (engineToUse)
+{
+    engine.effectProcessingSource.beginPlaybackEdit();
+}
+
+AudioEngine::ScopedPlaybackEdit::~ScopedPlaybackEdit()
+{
+    engine.effectProcessingSource.endPlaybackEdit();
 }
 
 juce::String AudioEngine::initialise()
@@ -164,28 +176,39 @@ void AudioEngine::shutdown()
 
 bool AudioEngine::loadFile (const juce::File& file)
 {
-    std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
-    if (reader == nullptr)
-        return false;
+    return loadPlaybackPlan ({ { { file, 0 } }, -1 });
+}
+
+bool AudioEngine::loadPlaybackPlan (AudioPlaybackPlan plan, double startSeconds)
+{
     if (! readAheadThread.isThreadRunning() && ! readAheadThread.startThread())
         return false;
-
-    const auto sampleRate = reader->sampleRate;
-    auto newSource = std::make_unique<ChannelMappedAudioSource> (std::move (reader),
-                                                                 toAudioChannelSet (outputLayout),
-                                                                 readAheadThread);
     transportSource.stop();
-    transportSource.setSource (newSource.get(), 0, nullptr, sampleRate,
-                               getChannelCount (OutputLayout::sevenOneTwo));
-    readerSource = std::move (newSource);
-    return ! readerSource->hasReadError();
+    const ScopedPlaybackEdit edit (*this);
+    return playbackSource.loadPlan (std::move (plan), startSeconds);
+}
+
+bool AudioEngine::setUpcomingPlayback (std::vector<AudioPlaybackItem> items, int repeatFrom)
+{
+    const ScopedPlaybackEdit edit (*this);
+    return playbackSource.setUpcoming (std::move (items), repeatFrom);
+}
+
+AudioPlaybackProgress AudioEngine::getPlaybackProgress() const
+{
+    return playbackSource.progress();
+}
+
+std::vector<AudioPreparationFailure> AudioEngine::drainPreparationFailures()
+{
+    return playbackSource.drainPreparationFailures();
 }
 
 void AudioEngine::unload()
 {
     transportSource.stop();
-    transportSource.setSource (nullptr);
-    readerSource.reset();
+    const ScopedPlaybackEdit edit (*this);
+    playbackSource.clear();
     for (auto& level : outputPeakLevels)
         level.store (0.0f, std::memory_order_relaxed);
 }
@@ -208,15 +231,8 @@ void AudioEngine::stop()
 
 bool AudioEngine::seekToSeconds (double seconds)
 {
-    if (initialised)
-    {
-        ScopedAudioCallbackPause callbackPause (*deviceBackend, sourcePlayer);
-        transportSource.setPosition (juce::jmax (0.0, seconds));
-        return ! hasReadError();
-    }
-
-    transportSource.setPosition (juce::jmax (0.0, seconds));
-    return ! hasReadError();
+    const ScopedPlaybackEdit edit (*this);
+    return playbackSource.seekToSeconds (juce::jmax (0.0, seconds));
 }
 
 void AudioEngine::setGain (double gainToUse)
@@ -238,8 +254,7 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout)
         if (! effectProcessingSource.setChannelLayout (requestedChannelLayout, graphError))
             return graphError;
 
-        if (readerSource != nullptr)
-            readerSource->setDestinationLayout (requestedChannelLayout);
+        playbackSource.setDestinationLayout (requestedChannelLayout);
         outputLayout = layout;
         return {};
     }
@@ -270,8 +285,7 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout)
         return graphError;
     }
 
-    if (readerSource != nullptr)
-        readerSource->setDestinationLayout (requestedChannelLayout);
+    playbackSource.setDestinationLayout (requestedChannelLayout);
 
     auto deviceError = deviceBackend->setAudioDeviceSetup (requestedSetup, true);
     if (deviceError.isEmpty()
@@ -282,8 +296,7 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout)
         juce::String ignoredGraphError;
         static_cast<void> (effectProcessingSource.setChannelLayout (previousChannelLayout,
                                                                     ignoredGraphError));
-        if (readerSource != nullptr)
-            readerSource->setDestinationLayout (previousChannelLayout);
+        playbackSource.setDestinationLayout (previousChannelLayout);
         const auto rollbackError = deviceBackend->setAudioDeviceSetup (previousSetup, true);
         return setupFailureMessage (requestedChannelLayout.getDescription(),
                                     deviceError, rollbackError);
@@ -410,22 +423,22 @@ bool AudioEngine::isPlaying() const
 
 bool AudioEngine::hasReadError() const
 {
-    return readerSource != nullptr && readerSource->hasReadError();
+    return playbackSource.progress().readError;
 }
 
 bool AudioEngine::hasStreamFinished() const
 {
-    return readerSource != nullptr && transportSource.hasStreamFinished();
+    return playbackSource.progress().finished;
 }
 
 double AudioEngine::getCurrentPositionSeconds() const
 {
-    return transportSource.getCurrentPosition();
+    return playbackSource.progress().positionSeconds;
 }
 
 double AudioEngine::getLengthInSeconds() const
 {
-    return transportSource.getLengthInSeconds();
+    return playbackSource.progress().lengthSeconds;
 }
 
 double AudioEngine::getGain() const
@@ -550,7 +563,14 @@ void AudioEngine::EffectProcessingSource::releaseResources()
 
 void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill)
 {
-    transport.getNextAudioBlock (bufferToFill);
+    bufferToFill.clearActiveBufferRegion();
+    if (! playbackEditRequested.load())
+    {
+        activeTransportCallbacks.fetch_add (1);
+        if (! playbackEditRequested.load())
+            transport.getNextAudioBlock (bufferToFill);
+        activeTransportCallbacks.fetch_sub (1);
+    }
 
     if (bufferToFill.buffer == nullptr || bufferToFill.numSamples <= 0)
         return;
@@ -584,6 +604,23 @@ void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSo
         outputPeakLevels[channel].store (juce::jmax (current, previous * 0.88f),
                                          std::memory_order_relaxed);
     }
+}
+
+void AudioEngine::EffectProcessingSource::beginPlaybackEdit()
+{
+    if (playbackEditDepth++ > 0) return;
+    playbackEditRequested.store (true);
+    // The second callback-side check closes the race with entering this gate.
+    // Only source consumption is awaited; plug-ins continue processing normally.
+    while (activeTransportCallbacks.load() != 0)
+        juce::Thread::sleep (1);
+}
+
+void AudioEngine::EffectProcessingSource::endPlaybackEdit()
+{
+    jassert (playbackEditDepth > 0);
+    if (--playbackEditDepth == 0)
+        playbackEditRequested.store (false);
 }
 
 bool AudioEngine::EffectProcessingSource::addPlugin (int slotId,
