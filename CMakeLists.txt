@@ -245,6 +245,8 @@ target_link_libraries(Moonwake
 add_dependencies(Moonwake MoonwakePluginScanner)
 
 if (APPLE)
+    set_property(TARGET Moonwake APPEND PROPERTY LINK_DEPENDS
+        "$<TARGET_FILE:MoonwakePluginScanner>")
     target_link_libraries(Moonwake PRIVATE
         "-framework AudioToolbox"
         "-framework AppKit"

@@ -2,11 +2,47 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-int main (int argc, char* argv[])
+class PluginScannerApplication final : public juce::JUCEApplication,
+                                       private juce::Thread
 {
-    juce::ScopedJuceInitialiser_GUI initialiser;
+public:
+    PluginScannerApplication() : juce::Thread ("Moonwake plug-in scan")
+    {
+    }
+
+    const juce::String getApplicationName() override { return "MoonwakePluginScanner"; }
+    const juce::String getApplicationVersion() override
+    {
+        return juce::File::getSpecialLocation (
+            juce::File::currentApplicationFile).getVersion();
+    }
+    bool moreThanOneInstanceAllowed() override { return true; }
+
+    void initialise (const juce::String&) override
+    {
+        arguments = getCommandLineParameterArray();
+        if (! startThread())
+        {
+            exitCode = 8;
+            quit();
+        }
+    }
+
+    void shutdown() override
+    {
+        static_cast<void> (waitForThreadToExit (-1));
+        setApplicationReturnValue (exitCode);
+    }
+
+private:
+    void run() override
+    {
+        exitCode = runPluginScannerWorker (arguments);
+        quit();
+    }
+
     juce::StringArray arguments;
-    for (int index = 1; index < argc; ++index)
-        arguments.add (juce::String::fromUTF8 (argv[index]));
-    return runPluginScannerWorker (arguments);
-}
+    int exitCode = 0;
+};
+
+START_JUCE_APPLICATION (PluginScannerApplication)
