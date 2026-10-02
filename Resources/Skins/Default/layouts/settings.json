@@ -8,7 +8,12 @@
       {
         "id": "settings-settings-root-shell",
         "type": "column",
-        "padding": 24,
+        "padding": {
+          "top": 8,
+          "right": 24,
+          "bottom": 24,
+          "left": 24
+        },
         "gap": 16,
         "anchors": {
           "top": 0,
@@ -20,7 +25,7 @@
           {
             "id": "settings-settings-root-navigation",
             "type": "row",
-            "height": 48,
+            "height": 44,
             "shrink": 0,
             "gap": 12,
             "align": "center",
@@ -119,7 +124,7 @@
                     "id": "settings-settings-audio",
                     "type": "column",
                     "padding": 16,
-                    "gap": 9,
+                    "gap": 8,
                     "width": "38%",
                     "style": "surface.listening",
                     "children": [
@@ -128,7 +133,7 @@
                         "type": "component",
                         "component": "settings.audio.heading",
                         "style": "label.listeningSection",
-                        "height": 24,
+                        "height": 32,
                         "shrink": 0
                       },
                       {
@@ -191,12 +196,82 @@
                         "style": "surface.listening",
                         "children": [
                           {
-                            "id": "settings-settings-formats",
-                            "type": "component",
-                            "component": "settings.plugins.formats",
-                            "style": "label.listeningSection",
-                            "height": 24,
-                            "shrink": 0
+                            "id": "settings-settings-formats-row",
+                            "type": "row",
+                            "height": 32,
+                            "shrink": 0,
+                            "gap": 8,
+                            "align": "center",
+                            "children": [
+                              {
+                                "id": "settings-settings-formats",
+                                "type": "component",
+                                "component": "settings.plugins.formats",
+                                "style": "label.listeningSection",
+                                "grow": 1,
+                                "height": 32
+                              },
+                              {
+                                "id": "settings-settings-formats-enableVst3",
+                                "type": "component",
+                                "component": "settings.plugins.enableVst3",
+                                "style": "toggleButton.listening",
+                                "width": 80,
+                                "focusOrder": 180
+                              },
+                              {
+                                "id": "settings-settings-formats-enableAu",
+                                "type": "component",
+                                "component": "settings.plugins.enableAu",
+                                "style": "toggleButton.listening",
+                                "width": 68,
+                                "focusOrder": 182
+                              }
+                            ]
+                          },
+                          {
+                            "id": "settings-settings-formats-filters",
+                            "type": "row",
+                            "height": 36,
+                            "shrink": 0,
+                            "gap": 8,
+                            "children": [
+                              {
+                                "id": "settings-settings-formats-filter",
+                                "type": "component",
+                                "component": "settings.plugins.filter",
+                                "style": "textEditor.listening",
+                                "grow": 1,
+                                "focusOrder": 190
+                              },
+                              {
+                                "id": "settings-settings-formats-typeFilter",
+                                "type": "component",
+                                "component": "settings.plugins.typeFilter",
+                                "style": "comboBox.listening",
+                                "width": 116,
+                                "shrink": 0,
+                                "focusOrder": 192
+                              },
+                              {
+                                "id": "settings-settings-formats-manufacturerFilter",
+                                "type": "component",
+                                "component": "settings.plugins.manufacturerFilter",
+                                "style": "comboBox.listening",
+                                "width": 180,
+                                "shrink": 0,
+                                "focusOrder": 194
+                              },
+                              {
+                                "id": "settings-settings-formats-formatFilter",
+                                "type": "component",
+                                "component": "settings.plugins.formatFilter",
+                                "style": "comboBox.listening",
+                                "width": 132,
+                                "shrink": 0,
+                                "focusOrder": 196
+                              }
+                            ]
                           },
                           {
                             "id": "settings-settings-known-list",
@@ -360,7 +435,7 @@
         "height": 56,
         "zIndex": 100,
         "anchors": {
-          "top": 80,
+          "top": 60,
           "right": 24
         }
       }
@@ -379,7 +454,12 @@
           {
             "id": "themed-settings-themed-settings-root-shell",
             "type": "column",
-            "padding": 24,
+            "padding": {
+              "top": 8,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
             "gap": 16,
             "anchors": {
               "top": 0,
@@ -391,7 +471,7 @@
               {
                 "id": "themed-settings-themed-settings-root-navigation",
                 "type": "row",
-                "height": 48,
+                "height": 44,
                 "shrink": 0,
                 "gap": 12,
                 "align": "center",
@@ -490,7 +570,7 @@
                         "id": "themed-settings-themed-settings-audio",
                         "type": "column",
                         "padding": 16,
-                        "gap": 9,
+                        "gap": 8,
                         "width": "38%",
                         "style": "surface.studio",
                         "children": [
@@ -499,7 +579,7 @@
                             "type": "component",
                             "component": "settings.audio.heading",
                             "style": "label.studioSection",
-                            "height": 24,
+                            "height": 32,
                             "shrink": 0
                           },
                           {
@@ -562,12 +642,82 @@
                             "style": "surface.studio",
                             "children": [
                               {
-                                "id": "themed-settings-themed-settings-formats",
-                                "type": "component",
-                                "component": "settings.plugins.formats",
-                                "style": "label.studioSection",
-                                "height": 24,
-                                "shrink": 0
+                                "id": "themed-settings-themed-settings-formats-row",
+                                "type": "row",
+                                "height": 32,
+                                "shrink": 0,
+                                "gap": 8,
+                                "align": "center",
+                                "children": [
+                                  {
+                                    "id": "themed-settings-themed-settings-formats",
+                                    "type": "component",
+                                    "component": "settings.plugins.formats",
+                                    "style": "label.studioSection",
+                                    "grow": 1,
+                                    "height": 32
+                                  },
+                                  {
+                                    "id": "themed-settings-themed-settings-formats-enableVst3",
+                                    "type": "component",
+                                    "component": "settings.plugins.enableVst3",
+                                    "style": "toggleButton.studio",
+                                    "width": 80,
+                                    "focusOrder": 180
+                                  },
+                                  {
+                                    "id": "themed-settings-themed-settings-formats-enableAu",
+                                    "type": "component",
+                                    "component": "settings.plugins.enableAu",
+                                    "style": "toggleButton.studio",
+                                    "width": 68,
+                                    "focusOrder": 182
+                                  }
+                                ]
+                              },
+                              {
+                                "id": "themed-settings-themed-settings-formats-filters",
+                                "type": "row",
+                                "height": 36,
+                                "shrink": 0,
+                                "gap": 8,
+                                "children": [
+                                  {
+                                    "id": "themed-settings-themed-settings-formats-filter",
+                                    "type": "component",
+                                    "component": "settings.plugins.filter",
+                                    "style": "textEditor.studio",
+                                    "grow": 1,
+                                    "focusOrder": 190
+                                  },
+                                  {
+                                    "id": "themed-settings-themed-settings-formats-typeFilter",
+                                    "type": "component",
+                                    "component": "settings.plugins.typeFilter",
+                                    "style": "comboBox.studio",
+                                    "width": 116,
+                                    "shrink": 0,
+                                    "focusOrder": 192
+                                  },
+                                  {
+                                    "id": "themed-settings-themed-settings-formats-manufacturerFilter",
+                                    "type": "component",
+                                    "component": "settings.plugins.manufacturerFilter",
+                                    "style": "comboBox.studio",
+                                    "width": 180,
+                                    "shrink": 0,
+                                    "focusOrder": 194
+                                  },
+                                  {
+                                    "id": "themed-settings-themed-settings-formats-formatFilter",
+                                    "type": "component",
+                                    "component": "settings.plugins.formatFilter",
+                                    "style": "comboBox.studio",
+                                    "width": 132,
+                                    "shrink": 0,
+                                    "focusOrder": 196
+                                  }
+                                ]
                               },
                               {
                                 "id": "themed-settings-themed-settings-known-list",
@@ -731,7 +881,7 @@
             "height": 56,
             "zIndex": 100,
             "anchors": {
-              "top": 80,
+              "top": 60,
               "right": 24
             }
           }

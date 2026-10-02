@@ -8,7 +8,12 @@
       {
         "id": "listening-listening-root-shell",
         "type": "column",
-        "padding": 24,
+        "padding": {
+          "top": 8,
+          "right": 24,
+          "bottom": 24,
+          "left": 24
+        },
         "gap": 16,
         "anchors": {
           "top": 0,
@@ -20,7 +25,7 @@
           {
             "id": "listening-listening-root-navigation",
             "type": "row",
-            "height": 48,
+            "height": 44,
             "shrink": 0,
             "gap": 12,
             "align": "center",
@@ -384,7 +389,7 @@
         "height": 56,
         "zIndex": 100,
         "anchors": {
-          "top": 80,
+          "top": 60,
           "right": 24
         }
       }

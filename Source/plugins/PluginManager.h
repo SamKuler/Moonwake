@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "PluginScanProcess.h"
+#include "PluginFormatPreferences.h"
 
 #include <functional>
 
@@ -60,6 +61,8 @@ public:
     [[nodiscard]] juce::KnownPluginList& getKnownPluginList();
     [[nodiscard]] const juce::KnownPluginList& getKnownPluginList() const;
     [[nodiscard]] juce::StringArray getRegisteredFormatNames() const;
+    [[nodiscard]] PluginFormatPreferences getFormatPreferences() const noexcept { return formatPreferences; }
+    bool setFormatPreferences (PluginFormatPreferences);
     static juce::Array<juce::PluginDescription> filterInsertEffects (const juce::Array<juce::PluginDescription>& plugins);
     static juce::String getDisplayGroup (const juce::PluginDescription& description);
     static juce::File getDefaultScannerExecutable();
@@ -75,4 +78,6 @@ private:
     mutable juce::CriticalSection knownPluginLock;
     mutable juce::CriticalSection scanStatusLock;
     PluginScanStatus scanStatus;
+    PluginFormatPreferences formatPreferences;
+    PluginFormatPreferences scanFormats;
 };

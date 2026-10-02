@@ -13,7 +13,7 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 9;
+constexpr int currentSchemaVersion = 10;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -119,6 +119,10 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
 {
     juce::ValueTree root (appStateType);
     root.setProperty (schemaVersionProperty, currentSchemaVersion, nullptr);
+    juce::ValueTree formats ("PluginFormats");
+    formats.setProperty ("vst3", state.pluginFormats.vst3, nullptr);
+    formats.setProperty ("audioUnit", state.pluginFormats.audioUnit, nullptr);
+    root.appendChild (formats, nullptr);
     root.setProperty (volumeProperty, state.volume, nullptr);
     root.setProperty (playbackPositionProperty,
                       finiteNonNegative (state.playbackPositionSeconds), nullptr);
@@ -217,6 +221,9 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
         return state;
 
     state.volume = static_cast<double> (tree.getProperty (volumeProperty, state.volume));
+    const auto formats = tree.getChildWithName ("PluginFormats");
+    state.pluginFormats.vst3 = static_cast<bool> (formats.getProperty ("vst3", true));
+    state.pluginFormats.audioUnit = static_cast<bool> (formats.getProperty ("audioUnit", true));
     state.playbackPositionSeconds = finiteNonNegative (static_cast<double> (
         tree.getProperty (playbackPositionProperty,
                           state.playbackPositionSeconds)));

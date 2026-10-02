@@ -477,7 +477,7 @@ MainComponent::MainComponent()
 
     pluginFilterLabel.setText ("Filter", juce::dontSendNotification);
     pluginFilterLabel.setJustificationType (juce::Justification::centredLeft);
-    pluginFilterEditor.setTextToShowWhenEmpty (
+    pluginFilters.search.setTextToShowWhenEmpty (
         "Search plug-ins",
         skinAdapter.findColour (juce::TextEditor::textColourId));
     pluginCombo.setTextWhenNothingSelected ("No matching effects");
@@ -562,7 +562,6 @@ MainComponent::MainComponent()
                                     &moveTrackUpButton,
                                     &moveTrackDownButton,
                                     &pluginFilterLabel,
-                                    &pluginFilterEditor,
                                     &pluginCombo,
                                     &effectScopeBox,
                                     &effectScopeLabel,
@@ -605,6 +604,7 @@ MainComponent::MainComponent()
     statusLabel.setVisible (false);
     skinFallbackDiagnostic.setVisible (! skinReady);
 
+    pluginFilters.addTo (*this);
     audioSettingsPanel.addTo (*this);
     pluginSettingsPanel.addTo (*this);
     skinLibraryPanel.addTo (*this);
@@ -732,7 +732,8 @@ MainComponent::MainComponent()
                 safeThis->refreshEffects();
             }, effectScopeChoices[static_cast<size_t> (effectScopeBox.getSelectedId() - 1)]);
     };
-    pluginFilterEditor.onTextChange = [this] { refreshPlugins(); };
+    pluginFilters.onChange = [this] { refreshPlugins(); };
+    pluginSettingsPanel.onFormatsChanged = [this] { refreshPlugins(); };
     playPauseButton.onClick = [this]
     {
         if (! controller.playOrPause())
@@ -849,7 +850,7 @@ MainComponent::MainComponent()
                                       &audioSettingsPanel.sampleRateControl(),
                                       &audioSettingsPanel.bufferSizeControl(),
                                       &audioSettingsPanel.channelLayoutControl(),
-                                      &pluginFilterEditor, &pluginCombo, &addEffectButton,
+                                      &pluginFilters.search, &pluginCombo, &addEffectButton,
                                       &effectRackViewport };
     int focusIndex = 1;
     for (auto* component : focusOrder)
@@ -1008,7 +1009,6 @@ void MainComponent::bindSkinComponents()
         { "effects.summary", &effectsSummaryLabel },
         { "effects.title", &effectRackTitleLabel },
         { "effects.filterLabel", &pluginFilterLabel },
-        { "effects.filter", &pluginFilterEditor },
         { "effects.catalog", &pluginCombo },
         { "effects.scope", &effectScopeBox },
         { "effects.scopeLabel", &effectScopeLabel },
@@ -1025,6 +1025,7 @@ void MainComponent::bindSkinComponents()
     };
     for (const auto& [id, component] : publicComponents)
         static_cast<void> (skinBindings.bind (id, *component, report));
+    pluginFilters.bind (skinBindings, "effects", report);
     audioSettingsPanel.bind (skinBindings, report);
     pluginSettingsPanel.bind (skinBindings, report);
     skinLibraryPanel.bind (skinBindings, report);
@@ -1081,6 +1082,8 @@ void MainComponent::resized()
                 component->sendLookAndFeelChange();
                 component->resized();
             }
+        if (requestedEntry == SkinLayoutEntry::effects) pluginFilters.clearHiddenFilters();
+        if (requestedEntry == SkinLayoutEntry::settings) pluginSettingsPanel.filters.clearHiddenFilters();
         hasAppliedSkinLayout = true;
         if ((requestedEntry == SkinLayoutEntry::studio || requestedEntry == SkinLayoutEntry::listening)
             && ! librarySearchEditor.isVisible() && librarySearchEditor.getText().isNotEmpty())
@@ -1147,10 +1150,10 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 
     if (key.getModifiers().isCommandDown() && (key.getKeyCode() == 'f' || key.getKeyCode() == 'F'))
     {
-        if (effectsDrawerOpen && pluginFilterEditor.isShowing())
+        if (effectsDrawerOpen && pluginFilters.search.isShowing())
         {
-            pluginFilterEditor.grabKeyboardFocus();
-            pluginFilterEditor.selectAll();
+            pluginFilters.search.grabKeyboardFocus();
+            pluginFilters.search.selectAll();
             return true;
         }
 
@@ -1631,35 +1634,31 @@ void MainComponent::updateEmptyQueueState()
 
 void MainComponent::refreshPlugins()
 {
+    const auto oldIndex = pluginCombo.getSelectedId() - 1;
+    const auto previous = juce::isPositiveAndBelow (oldIndex, catalogPluginIdentifiers.size())
+        ? catalogPluginIdentifiers[oldIndex] : juce::String {};
     pluginCombo.clear (juce::dontSendNotification);
-
+    catalogPluginIdentifiers.clear();
     const auto plugins = controller.getInsertEffectPlugins();
-    const auto filter = pluginFilterEditor.getText().trim();
+    pluginFilters.setPlugins (plugins);
+    const auto filter = pluginFilters.filter();
+    int selectedId = 0;
     for (int i = 0; i < plugins.size(); ++i)
     {
-        const auto searchable = plugins[i].name + " " + plugins[i].manufacturerName
-            + " " + plugins[i].category + " " + plugins[i].pluginFormatName;
-        if (filter.isNotEmpty() && ! searchable.containsIgnoreCase (filter))
-            continue;
-
-        auto manufacturer = plugins[i].manufacturerName.trim();
-        if (manufacturer.isEmpty())
-            manufacturer = "Unknown";
-        pluginCombo.addItem ("[" + plugins[i].pluginFormatName + "] " + plugins[i].name
-                                 + " - " + manufacturer,
-                             i + 1);
+        const auto& plugin = plugins.getReference (i);
+        const auto identifier = plugin.createIdentifierString();
+        catalogPluginIdentifiers.add (identifier);
+        if (! filter.matches (plugin)) continue;
+        const auto format = plugin.pluginFormatName == "AudioUnit" ? "AU" : plugin.pluginFormatName;
+        pluginCombo.addItem ("[" + format + "] " + plugin.name + " - " + PluginFilter::manufacturerName (plugin), i + 1);
+        if (identifier == previous) selectedId = i + 1;
     }
-
-    pluginCombo.setTextWhenNothingSelected (filter.isEmpty()
-        ? "No effect plug-ins available" : "No matching plug-ins");
+    pluginCombo.setTextWhenNothingSelected (plugins.isEmpty()
+        ? "No enabled effect plug-ins" : "No matching plug-ins");
     emptyRackLabel.setText (plugins.isEmpty()
-        ? "No effects yet\nOpen Settings to scan your plug-ins"
-        : "No effects yet\nChoose a plug-in above to add it",
-        juce::dontSendNotification);
-
-    if (pluginCombo.getNumItems() > 0)
-        pluginCombo.setSelectedItemIndex (0);
-
+        ? "No effects yet\nEnable a format and scan plug-ins in Settings"
+        : "No effects yet\nChoose a plug-in above to add it", juce::dontSendNotification);
+    pluginCombo.setSelectedId (selectedId > 0 ? selectedId : pluginCombo.getItemId (0), juce::dontSendNotification);
     addEffectButton.setEnabled (! pluginInsertionInProgress && pluginCombo.getSelectedId() > 0);
 }
 

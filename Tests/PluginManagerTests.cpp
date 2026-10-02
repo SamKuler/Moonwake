@@ -3,6 +3,7 @@
 
 #include "plugins/PluginManager.h"
 #include "plugins/PluginScanProcess.h"
+#include "plugins/PluginFilter.h"
 
 namespace
 {
@@ -68,6 +69,60 @@ public:
 
     void runTest() override
     {
+        beginTest ("plug-in facets combine reported type, manufacturer, format and search terms");
+        {
+            juce::PluginDescription plugin;
+            plugin.name = "Clean Equalizer";
+            plugin.manufacturerName = " Acme Audio ";
+            plugin.pluginFormatName = "VST3";
+            plugin.category = "Fx|EQ";
+            PluginFilter filter { "clean acme", "EQ", "acme audio", "VST3" };
+            expect (filter.matches (plugin));
+            filter.search = "Fx acme"; expect (filter.matches (plugin));
+            filter.search = "clean acme";
+            filter.type = "Dynamics"; expect (! filter.matches (plugin));
+            filter.type = "Effect"; expect (filter.matches (plugin));
+            filter.manufacturer = "Other"; expect (! filter.matches (plugin));
+            filter.manufacturer.clear(); filter.format = "AudioUnit"; expect (! filter.matches (plugin));
+            filter.format.clear(); filter.search = "missing"; expect (! filter.matches (plugin));
+            plugin.pluginFormatName = "AudioUnit"; filter.search = "AU clean"; expect (filter.matches (plugin));
+            plugin.category.clear(); plugin.manufacturerName.clear();
+            filter = { {}, "Uncategorised", "Unknown manufacturer", {} };
+            expect (filter.matches (plugin));
+            plugin.isInstrument = true;
+            expect (PluginFilter::types (plugin).contains ("Instrument"));
+        }
+
+        beginTest ("disabled formats never enter scanner discovery and all-off reports a useful action");
+        {
+            auto configuration = fixtureConfiguration ("success", 2000);
+            juce::StringArray discoveredFormats;
+            configuration.candidateProvider = [&] (const juce::String& name, const juce::FileSearchPath&)
+            {
+                discoveredFormats.add (name);
+                return juce::StringArray {};
+            };
+            PluginManager manager (configuration);
+            expect (manager.setFormatPreferences ({ false, true }));
+            expect (manager.startScan());
+            expect (waitForScanToFinish (manager, 3000));
+            expect (manager.cancelAndWaitForScan());
+            expect (! discoveredFormats.contains ("VST3"));
+           #if JUCE_MAC && JUCE_PLUGINHOST_AU
+            expect (discoveredFormats.contains ("AudioUnit"));
+           #endif
+            expect (manager.setFormatPreferences ({ true, false }));
+            discoveredFormats.clear();
+            expect (manager.startScan());
+            expect (waitForScanToFinish (manager, 3000));
+            expect (manager.cancelAndWaitForScan());
+            expect (discoveredFormats == juce::StringArray { "VST3" });
+            expect (manager.setFormatPreferences ({ false, false }));
+            expect (! manager.startScan());
+            expect (manager.getScanStatus().message.contains ("Enable"));
+            expect (! manager.startScan (configuration.resultDirectory));
+            expect (manager.getScanStatus().message.contains ("VST3"));
+        }
         beginTest ("registers VST3 and AudioUnit formats on macOS");
         {
             PluginManager manager;
@@ -231,6 +286,8 @@ public:
             while (manager.getScanStatus().currentItem.isEmpty()
                    && juce::Time::getMillisecondCounterHiRes() < deadline)
                 juce::Thread::sleep (5);
+            expect (! manager.setFormatPreferences ({ false, false }));
+            expect (manager.getFormatPreferences() == PluginFormatPreferences {});
             const auto cancelStarted = juce::Time::getMillisecondCounterHiRes();
             expect (manager.cancelAndWaitForScan (1500));
             expect (juce::Time::getMillisecondCounterHiRes()

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.5.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.6.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -160,6 +160,7 @@ set(MOONWAKE_SOURCES
     Source/playlist/TrackFileIdentity.cpp
     Source/playlist/PlaylistModel.cpp
     Source/plugins/EffectChainState.cpp
+    Source/plugins/PluginFilter.cpp
     Source/plugins/PluginManager.cpp
     Source/plugins/PluginScanProcess.cpp
     Source/state/AppStateStore.cpp
@@ -194,6 +195,7 @@ set(MOONWAKE_SOURCES
     Source/skin/SkinTokenStore.cpp
     Source/skin/SkinValue.cpp
     Source/ui/EffectRackLayout.cpp
+    Source/ui/PluginFilterControls.cpp
     Source/ui/JuceSkinAdapter.cpp
     Source/ui/SkinEffectChainViewport.cpp
     Source/ui/SkinLayoutHost.cpp
@@ -319,6 +321,7 @@ add_executable(MoonwakeTests
         Source/playlist/TrackFileIdentity.cpp
         Source/playlist/PlaylistModel.cpp
         Source/plugins/EffectChainState.cpp
+        Source/plugins/PluginFilter.cpp
         Source/plugins/PluginManager.cpp
         Source/plugins/PluginScanProcess.cpp
         Source/app/AutoSaveScheduler.cpp
@@ -357,6 +360,7 @@ add_executable(MoonwakeTests
         Source/skin/SkinToolCommands.cpp
         Source/skin/SkinValue.cpp
         Source/ui/EffectRackLayout.cpp
+        Source/ui/PluginFilterControls.cpp
         Source/ui/JuceSkinAdapter.cpp
         Source/ui/SkinEffectChainViewport.cpp
         Source/ui/SkinLayoutHost.cpp

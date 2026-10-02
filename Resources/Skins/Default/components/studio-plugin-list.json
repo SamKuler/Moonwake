@@ -33,7 +33,7 @@
   "rowLayout": {
     "rowHeight": 44,
     "rowGap": 0,
-    "headerHeight": 32,
+    "headerHeight": 0,
     "slots": {
       "header.label": {
         "x": 10,

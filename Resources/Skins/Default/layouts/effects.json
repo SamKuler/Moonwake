@@ -8,7 +8,12 @@
       {
         "id": "effects-effects-root-shell",
         "type": "column",
-        "padding": 24,
+        "padding": {
+          "top": 8,
+          "right": 24,
+          "bottom": 24,
+          "left": 24
+        },
         "gap": 16,
         "anchors": {
           "top": 0,
@@ -20,7 +25,7 @@
           {
             "id": "effects-effects-root-navigation",
             "type": "row",
-            "height": 48,
+            "height": 44,
             "shrink": 0,
             "gap": 12,
             "align": "center",
@@ -118,13 +123,48 @@
                 "shrink": 0
               },
               {
-                "id": "effects-effects-filter",
-                "type": "component",
-                "component": "effects.filter",
-                "style": "textEditor.listening",
-                "height": 38,
-                "focusOrder": 100,
-                "shrink": 0
+                "id": "effects-effects-filter-row",
+                "type": "row",
+                "height": 36,
+                "shrink": 0,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "effects-effects-filter",
+                    "type": "component",
+                    "component": "effects.filter",
+                    "style": "textEditor.listening",
+                    "focusOrder": 100,
+                    "grow": 1
+                  },
+                  {
+                    "id": "effects-effects-filter-typeFilter",
+                    "type": "component",
+                    "component": "effects.typeFilter",
+                    "style": "comboBox.listening",
+                    "width": 116,
+                    "shrink": 0,
+                    "focusOrder": 102
+                  },
+                  {
+                    "id": "effects-effects-filter-manufacturerFilter",
+                    "type": "component",
+                    "component": "effects.manufacturerFilter",
+                    "style": "comboBox.listening",
+                    "width": 180,
+                    "shrink": 0,
+                    "focusOrder": 104
+                  },
+                  {
+                    "id": "effects-effects-filter-formatFilter",
+                    "type": "component",
+                    "component": "effects.formatFilter",
+                    "style": "comboBox.listening",
+                    "width": 132,
+                    "shrink": 0,
+                    "focusOrder": 106
+                  }
+                ]
               },
               {
                 "id": "effects-effects-insert-row",
@@ -230,7 +270,7 @@
         "height": 56,
         "zIndex": 100,
         "anchors": {
-          "top": 80,
+          "top": 60,
           "right": 24
         }
       }
@@ -249,7 +289,12 @@
           {
             "id": "themed-effects-themed-effects-root-shell",
             "type": "column",
-            "padding": 24,
+            "padding": {
+              "top": 8,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
             "gap": 16,
             "anchors": {
               "top": 0,
@@ -261,7 +306,7 @@
               {
                 "id": "themed-effects-themed-effects-root-navigation",
                 "type": "row",
-                "height": 48,
+                "height": 44,
                 "shrink": 0,
                 "gap": 12,
                 "align": "center",
@@ -359,13 +404,48 @@
                     "shrink": 0
                   },
                   {
-                    "id": "themed-effects-themed-effects-filter",
-                    "type": "component",
-                    "component": "effects.filter",
-                    "style": "textEditor.studio",
-                    "height": 38,
-                    "focusOrder": 100,
-                    "shrink": 0
+                    "id": "themed-effects-themed-effects-filter-row",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "themed-effects-themed-effects-filter",
+                        "type": "component",
+                        "component": "effects.filter",
+                        "style": "textEditor.studio",
+                        "focusOrder": 100,
+                        "grow": 1
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-filter-typeFilter",
+                        "type": "component",
+                        "component": "effects.typeFilter",
+                        "style": "comboBox.studio",
+                        "width": 116,
+                        "shrink": 0,
+                        "focusOrder": 102
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-filter-manufacturerFilter",
+                        "type": "component",
+                        "component": "effects.manufacturerFilter",
+                        "style": "comboBox.studio",
+                        "width": 180,
+                        "shrink": 0,
+                        "focusOrder": 104
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-filter-formatFilter",
+                        "type": "component",
+                        "component": "effects.formatFilter",
+                        "style": "comboBox.studio",
+                        "width": 132,
+                        "shrink": 0,
+                        "focusOrder": 106
+                      }
+                    ]
                   },
                   {
                     "id": "themed-effects-themed-effects-insert-row",
@@ -471,7 +551,7 @@
             "height": 56,
             "zIndex": 100,
             "anchors": {
-              "top": 80,
+              "top": 60,
               "right": 24
             }
           }

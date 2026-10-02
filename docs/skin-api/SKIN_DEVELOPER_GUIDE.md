@@ -1293,11 +1293,14 @@ transport.seek 仅允许 linearHorizontal。皮肤不能改变值域或步进。
 | ID | 类型 | 必需位置 | 行为或数据 |
 |---|---|---|---|
 | effects.open | textButton | 可选 | 打开 Effects 工作面板 |
-| effects.close | textButton | Effects 必需 | 关闭 Effects 并返回当前工作区 |
+| effects.close | textButton | 可选 | 关闭 Effects 并返回当前工作区 |
 | effects.summary | label | 可选 | 当前效果链摘要 |
 | effects.title | label | 可选 | 面板标题 |
 | effects.filterLabel | label | 可选 | 筛选标签 |
-| effects.filter | textEditor | Effects 必需 | 插件名称筛选 |
+| effects.filter | textEditor | Effects 必需 | 名称、厂商、类型和格式的文字搜索 |
+| effects.typeFilter | comboBox | 可选 | 按插件上报类型筛选，0.6.0 起 |
+| effects.manufacturerFilter | comboBox | 可选 | 按厂商筛选，0.6.0 起 |
+| effects.formatFilter | comboBox | 可选 | 按 AU/VST3 格式筛选，0.6.0 起 |
 | effects.scope | comboBox | 可选 | 为新增效果器选择完整总线、单声道或声道对；0.4.0 起 |
 | effects.scopeLabel | label | 可选 | 效果器作用范围标题；0.4.0 起 |
 | effects.catalog | comboBox | Effects 必需 | 可插入插件目录 |
@@ -1375,7 +1378,13 @@ outputStage 提供：
 | settings.audio.bufferSize | comboBox | 是 | 选择缓冲区 |
 | settings.audio.channelLayout | comboBox | 是 | 选择受支持的扬声器布局，受实际设备输出能力约束 |
 | settings.audio.channelMap | channelMap | 否 | 只读查看逻辑声道到当前设备实际启用端口的映射；优先使用设备端口名，缺失时显示物理编号 Output N；端口不可在皮肤内重排 |
-| settings.plugins.formats | label | 否 | VST3 与 AU 支持摘要 |
+| settings.plugins.formats | label | 否 | 插件分区标题 |
+| settings.plugins.enableVst3 | toggleButton | 否 | 启用 VST3 扫描和新增插件，0.6.0 起 |
+| settings.plugins.enableAu | toggleButton | 否 | 启用 Audio Unit 扫描和新增插件，0.6.0 起 |
+| settings.plugins.filter | textEditor | 否 | 搜索插件清单，0.6.0 起 |
+| settings.plugins.typeFilter | comboBox | 否 | 按插件上报类型筛选，0.6.0 起 |
+| settings.plugins.manufacturerFilter | comboBox | 否 | 按厂商筛选，0.6.0 起 |
+| settings.plugins.formatFilter | comboBox | 否 | 按 AU/VST3 格式筛选，0.6.0 起 |
 | settings.plugins.knownList | pluginList | 否 | 已发现插件 |
 | settings.plugins.scanAll | textButton | 是 | 扫描标准 VST3/AU 位置 |
 | settings.plugins.scanFolder | textButton | 是 | 选择额外 VST3 文件夹 |
@@ -1389,6 +1398,10 @@ outputStage 提供：
 | settings.skins.apply | textButton | 是 | 应用预览皮肤 |
 | settings.skins.cancelPreview | textButton | 是 | 恢复预览前皮肤；未预览时 disabled |
 | settings.skins.reload | textButton | 否 | 开发目录 Reload |
+
+插件筛选维度采用交集；文字搜索按空白拆分，所有词均需命中名称、厂商、类型或格式。类型来自插件元数据，VST3 的 `Fx` 显示为 `Effect`；缺失类型显示 `Uncategorised`，缺失厂商显示 `Unknown manufacturer`。Effects 只提供已启用格式的非乐器插件；Settings 保留全部已扫描记录，关闭格式的条目通过 `plugin.enabled: false` 和 `state.enabled: false` 交给皮肤绘制。
+
+格式开关使用 `state.selected` 显示当前偏好，扫描期间 disabled；开关关闭后不再扫描该格式，也不能新增该格式的插件。偏好随会话保存，旧会话默认启用 AU 和 VST3。已加载效果继续处理音频，已保存效果链恢复时仍允许载入原有实例。关闭两种格式后扫描入口 disabled，额外文件夹扫描只在 VST3 启用时可用。筛选组件采用标准 comboBox/textEditor 的最小尺寸和焦点行为；内置 Effects 筛选焦点顺序为搜索、类型、厂商、格式、插件目录，Settings 为格式开关、筛选、清单和扫描动作。皮肤预览保留可见筛选控件的值，进入缺少相应控件的旧布局时清除不可操作的条件。
 
 内置皮肤的 remove 始终 disabled。音频设备选项由 CoreAudio 提供；皮肤不能添加虚假设备或改变设备配置值。
 

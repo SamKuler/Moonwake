@@ -93,12 +93,88 @@
             "style": "surface.card",
             "children": [
               {
+                "id": "plugins-card-formats",
+                "type": "row",
+                "height": 32,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "settings-plugins-enableVst3",
+                    "type": "component",
+                    "component": "settings.plugins.enableVst3",
+                    "style": "toggleButton.default",
+                    "grow": 1,
+                    "focusOrder": 180
+                  },
+                  {
+                    "id": "settings-plugins-enableAu",
+                    "type": "component",
+                    "component": "settings.plugins.enableAu",
+                    "style": "toggleButton.default",
+                    "grow": 1,
+                    "focusOrder": 182
+                  }
+                ]
+              },
+              {
+                "id": "settings-plugins-filter",
+                "type": "component",
+                "component": "settings.plugins.filter",
+                "style": "textEditor.default",
+                "height": 32,
+                "focusOrder": 190
+              },
+              {
+                "id": "settings-plugins-filters",
+                "type": "column",
+                "height": 112,
+                "shrink": 0,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "settings-plugins-typeFilter",
+                    "type": "component",
+                    "component": "settings.plugins.typeFilter",
+                    "style": "comboBox.default",
+                    "focusOrder": 192,
+                    "height": 32,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "settings-plugins-manufacturerFilter",
+                    "type": "component",
+                    "component": "settings.plugins.manufacturerFilter",
+                    "style": "comboBox.default",
+                    "focusOrder": 194,
+                    "height": 32,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "settings-plugins-formatFilter",
+                    "type": "component",
+                    "component": "settings.plugins.formatFilter",
+                    "style": "comboBox.default",
+                    "focusOrder": 196,
+                    "height": 32,
+                    "shrink": 0
+                  }
+                ]
+              },
+              {
+                "id": "settings-plugins-knownList",
+                "type": "component",
+                "component": "settings.plugins.knownList",
+                "style": "pluginList.default",
+                "grow": 1,
+                "focusOrder": 200
+              },
+              {
                 "id": "plugins-scan-all",
                 "type": "component",
                 "component": "settings.plugins.scanAll",
                 "style": "textButton.primary",
                 "height": 34,
-                "focusOrder": 60
+                "focusOrder": 210
               },
               {
                 "id": "plugins-scan-folder",
@@ -106,7 +182,7 @@
                 "component": "settings.plugins.scanFolder",
                 "style": "textButton.neutral",
                 "height": 34,
-                "focusOrder": 70
+                "focusOrder": 220
               },
               {
                 "id": "plugins-cancel",
@@ -114,7 +190,7 @@
                 "component": "settings.plugins.cancel",
                 "style": "textButton.neutral",
                 "height": 34,
-                "focusOrder": 80
+                "focusOrder": 230
               },
               {
                 "id": "plugins-progress",
@@ -138,7 +214,7 @@
                 "type": "component",
                 "component": "settings.skins.library",
                 "grow": 1,
-                "focusOrder": 90
+                "focusOrder": 300
               },
               {
                 "id": "skins-import",
@@ -146,7 +222,7 @@
                 "component": "settings.skins.import",
                 "style": "textButton.primary",
                 "height": 34,
-                "focusOrder": 100
+                "focusOrder": 310
               },
               {
                 "id": "skins-apply",
@@ -154,7 +230,7 @@
                 "component": "settings.skins.apply",
                 "style": "textButton.primary",
                 "height": 34,
-                "focusOrder": 110
+                "focusOrder": 350
               },
               {
                 "id": "skins-cancel-preview",
@@ -162,7 +238,7 @@
                 "component": "settings.skins.cancelPreview",
                 "style": "textButton.neutral",
                 "height": 34,
-                "focusOrder": 120
+                "focusOrder": 360
               }
             ]
           }
@@ -268,12 +344,88 @@
                 "style": "surface.studio",
                 "children": [
                   {
+                    "id": "plugins-card-studio-formats",
+                    "type": "row",
+                    "height": 32,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "branch1-settings-plugins-enableVst3",
+                        "type": "component",
+                        "component": "settings.plugins.enableVst3",
+                        "style": "toggleButton.default",
+                        "grow": 1,
+                        "focusOrder": 180
+                      },
+                      {
+                        "id": "branch1-settings-plugins-enableAu",
+                        "type": "component",
+                        "component": "settings.plugins.enableAu",
+                        "style": "toggleButton.default",
+                        "grow": 1,
+                        "focusOrder": 182
+                      }
+                    ]
+                  },
+                  {
+                    "id": "branch1-settings-plugins-filter",
+                    "type": "component",
+                    "component": "settings.plugins.filter",
+                    "style": "textEditor.default",
+                    "height": 32,
+                    "focusOrder": 190
+                  },
+                  {
+                    "id": "branch1-settings-plugins-filters",
+                    "type": "column",
+                    "height": 112,
+                    "shrink": 0,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "branch1-settings-plugins-typeFilter",
+                        "type": "component",
+                        "component": "settings.plugins.typeFilter",
+                        "style": "comboBox.default",
+                        "focusOrder": 192,
+                        "height": 32,
+                        "shrink": 0
+                      },
+                      {
+                        "id": "branch1-settings-plugins-manufacturerFilter",
+                        "type": "component",
+                        "component": "settings.plugins.manufacturerFilter",
+                        "style": "comboBox.default",
+                        "focusOrder": 194,
+                        "height": 32,
+                        "shrink": 0
+                      },
+                      {
+                        "id": "branch1-settings-plugins-formatFilter",
+                        "type": "component",
+                        "component": "settings.plugins.formatFilter",
+                        "style": "comboBox.default",
+                        "focusOrder": 196,
+                        "height": 32,
+                        "shrink": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "branch1-settings-plugins-knownList",
+                    "type": "component",
+                    "component": "settings.plugins.knownList",
+                    "style": "pluginList.default",
+                    "grow": 1,
+                    "focusOrder": 200
+                  },
+                  {
                     "id": "plugins-scan-all-studio",
                     "type": "component",
                     "component": "settings.plugins.scanAll",
                     "style": "textButton.primary",
                     "height": 34,
-                    "focusOrder": 60
+                    "focusOrder": 210
                   },
                   {
                     "id": "plugins-scan-folder-studio",
@@ -281,7 +433,7 @@
                     "component": "settings.plugins.scanFolder",
                     "style": "textButton.neutral",
                     "height": 34,
-                    "focusOrder": 70
+                    "focusOrder": 220
                   },
                   {
                     "id": "plugins-cancel-studio",
@@ -289,7 +441,7 @@
                     "component": "settings.plugins.cancel",
                     "style": "textButton.neutral",
                     "height": 34,
-                    "focusOrder": 80
+                    "focusOrder": 230
                   },
                   {
                     "id": "plugins-progress-studio",
@@ -313,7 +465,7 @@
                     "type": "component",
                     "component": "settings.skins.library",
                     "grow": 1,
-                    "focusOrder": 90
+                    "focusOrder": 300
                   },
                   {
                     "id": "skins-import-studio",
@@ -321,7 +473,7 @@
                     "component": "settings.skins.import",
                     "style": "textButton.primary",
                     "height": 34,
-                    "focusOrder": 100
+                    "focusOrder": 310
                   },
                   {
                     "id": "skins-apply-studio",
@@ -329,7 +481,7 @@
                     "component": "settings.skins.apply",
                     "style": "textButton.primary",
                     "height": 34,
-                    "focusOrder": 110
+                    "focusOrder": 350
                   },
                   {
                     "id": "skins-cancel-preview-studio",
@@ -337,7 +489,7 @@
                     "component": "settings.skins.cancelPreview",
                     "style": "textButton.neutral",
                     "height": 34,
-                    "focusOrder": 120
+                    "focusOrder": 360
                   }
                 ]
               }

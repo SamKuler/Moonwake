@@ -29,8 +29,12 @@ public:
 
     ~PluginListView() override { setModel (nullptr); }
 
-    void setPlugins (juce::Array<juce::PluginDescription> pluginsToUse)
+    void setPlugins (juce::Array<juce::PluginDescription> pluginsToUse,
+                     PluginFormatPreferences preferencesToUse, bool filtered)
     {
+        preferences = preferencesToUse;
+        emptyMessage = filtered ? "No matching plug-ins.\nChange the filters or search."
+            : "No plug-ins found.\nEnable a format and scan to get started.";
         plugins = std::move (pluginsToUse);
         firstVisibleRow = 0;
         resized();
@@ -88,7 +92,7 @@ public:
         if (plugins.isEmpty())
             if (const auto layout = rowLayout (getWidth()))
                 drawTextSlot (graphics, *layout, "empty.message",
-                    "No plug-ins found.\nScan VST3 and Audio Unit locations to get started.", "empty");
+                    emptyMessage, "empty");
     }
 
     void mouseWheelMove (const juce::MouseEvent&,
@@ -145,7 +149,7 @@ private:
         const auto manufacturer = plugin.manufacturerName.isNotEmpty()
                                     ? plugin.manufacturerName : "Unknown";
         return plugin.name + ", " + manufacturer + ", "
-             + plugin.pluginFormatName;
+             + plugin.pluginFormatName + (preferences.allows (plugin.pluginFormatName) ? "" : ", format disabled");
     }
 
     void paintListBoxItem (int rowNumber, juce::Graphics& graphics,
@@ -162,15 +166,15 @@ private:
         SkinRenderContext rowContext;
         rowContext.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
         rowContext.contentBounds = rowContext.bounds;
-        rowContext.state.enabled = true;
+        rowContext.state.enabled = preferences.allows (plugin.pluginFormatName);
         rowContext.extraLookup = [rowNumber,
                                   name = plugin.name, manufacturer,
-                                  format = plugin.pluginFormatName]
+                                  format = plugin.pluginFormatName, enabled = rowContext.state.enabled]
                                  (std::string_view path)
             -> std::optional<SkinExpressionValue>
         {
             return SettingsSkinContext::pluginListValue (
-                path, rowNumber, name, manufacturer, format, true);
+                path, rowNumber, name, manufacturer, format, enabled);
         };
         const auto rowKey = "plugin:" + juce::String (rowNumber);
         if (const auto surface = layout->slots.find ("row.surface"); surface != layout->slots.end())
@@ -187,7 +191,8 @@ private:
         drawTextSlot (graphics, *layout, "row.manufacturer",
                       manufacturer, rowKey, &rowContext);
         drawTextSlot (graphics, *layout, "row.format",
-                      plugin.pluginFormatName, rowKey, &rowContext);
+                      (plugin.pluginFormatName == "AudioUnit" ? "AU" : plugin.pluginFormatName)
+                          + (rowContext.state.enabled ? "" : " · off"), rowKey, &rowContext);
     }
 
     void listWasScrolled() override
@@ -242,7 +247,10 @@ private:
         context.primaryText = text;
         context.state.enabled = true;
         if (ownerContext != nullptr)
+        {
             context.extraLookup = ownerContext->extraLookup;
+            context.state.enabled = context.state.enabled && ownerContext->state.enabled;
+        }
         if (adapter != nullptr)
             static_cast<void> (adapter->drawCustomSlot (
                 graphics, *this, SkinRenderTarget::pluginList,
@@ -251,6 +259,8 @@ private:
     }
 
     JuceSkinAdapter* adapter = nullptr;
+    PluginFormatPreferences preferences;
+    juce::String emptyMessage;
     juce::Array<juce::PluginDescription> plugins;
     int firstVisibleRow = 0;
 };
@@ -263,6 +273,14 @@ PluginSettingsPanel::PluginSettingsPanel (PlayerController& controllerToUse,
     formatsLabel.setName ("Plug-in formats");
     formatsLabel.setTitle ("Supported plug-in formats");
     formatsLabel.setJustificationType (juce::Justification::centredLeft);
+    vst3Enabled.setTitle ("Enable VST3 scanning and new effects");
+    auEnabled.setTitle ("Enable Audio Unit scanning and new effects");
+    for (auto* control : { &vst3Enabled, &auEnabled })
+    {
+        control->setTooltip ("Scan and add this plug-in format. Existing effects remain available.");
+        control->onClick = [this] { changeFormats(); };
+    }
+    filters.onChange = [this] { refreshFilteredPlugins(); };
     scanAllButton.setButtonText ("Scan plug-ins");
     scanFolderButton.setButtonText ("Add folder");
     cancelButton.setButtonText ("Cancel scan");
@@ -307,10 +325,11 @@ void PluginSettingsPanel::setScanFolderCallback (ActionCallback callback)
 
 void PluginSettingsPanel::addTo (juce::Component& parent)
 {
-    for (auto* component : std::array<juce::Component*, 6> {
+    for (auto* component : std::array<juce::Component*, 8> {
              &formatsLabel, knownList.get(), &scanAllButton, &scanFolderButton,
-             &cancelButton, &progressBar })
+             &cancelButton, &progressBar, &vst3Enabled, &auEnabled })
         parent.addAndMakeVisible (component);
+    filters.addTo (parent);
 }
 
 void PluginSettingsPanel::bind (SkinComponentBindings& bindings,
@@ -322,6 +341,9 @@ void PluginSettingsPanel::bind (SkinComponentBindings& bindings,
     static_cast<void> (bindings.bind ("settings.plugins.scanFolder", scanFolderButton, report));
     static_cast<void> (bindings.bind ("settings.plugins.cancel", cancelButton, report));
     static_cast<void> (bindings.bind ("settings.plugins.progress", progressBar, report));
+    static_cast<void> (bindings.bind ("settings.plugins.enableVst3", vst3Enabled, report));
+    static_cast<void> (bindings.bind ("settings.plugins.enableAu", auEnabled, report));
+    filters.bind (bindings, "settings.plugins", report);
 }
 
 void PluginSettingsPanel::setVisible (bool shouldBeVisible)
@@ -332,19 +354,38 @@ void PluginSettingsPanel::setVisible (bool shouldBeVisible)
     scanFolderButton.setVisible (shouldBeVisible);
     cancelButton.setVisible (shouldBeVisible);
     progressBar.setVisible (shouldBeVisible);
+    for (auto* control : std::array<juce::Component*, 6> {
+             &vst3Enabled, &auEnabled, &filters.search, &filters.type, &filters.manufacturer, &filters.format })
+        control->setVisible (shouldBeVisible);
 }
 
 void PluginSettingsPanel::refreshInventory()
 {
-    auto formats = controller.getRegisteredPluginFormats();
-    for (auto& format : formats)
-        if (format.containsIgnoreCase ("AudioUnit"))
-            format = "AU";
-    formatsLabel.setText (
-        "Plug-ins  /  " + (formats.isEmpty() ? juce::String ("VST3 + AU")
-                                             : formats.joinIntoString (" + ")),
-        juce::dontSendNotification);
-    knownList->setPlugins (controller.getKnownPlugins());
+    formatsLabel.setText ("Plug-ins", juce::dontSendNotification);
+    const auto preferences = controller.getPluginFormatPreferences();
+    vst3Enabled.setToggleState (preferences.vst3, juce::dontSendNotification);
+    auEnabled.setToggleState (preferences.audioUnit, juce::dontSendNotification);
+    inventory = controller.getKnownPlugins();
+    filters.setPlugins (inventory);
+    refreshFilteredPlugins();
+}
+
+void PluginSettingsPanel::refreshFilteredPlugins()
+{
+    const auto filter = filters.filter();
+    auto visible = inventory;
+    visible.removeIf ([&] (const auto& plugin) { return ! filter.matches (plugin); });
+    knownList->setPlugins (std::move (visible), controller.getPluginFormatPreferences(),
+        filter.search.isNotEmpty() || filter.type.isNotEmpty() || filter.manufacturer.isNotEmpty() || filter.format.isNotEmpty());
+}
+
+void PluginSettingsPanel::changeFormats()
+{
+    if (! controller.setPluginFormatPreferences ({ vst3Enabled.getToggleState(), auEnabled.getToggleState() }) && statusCallback)
+        statusCallback (controller.getLastStatusMessage(), true);
+    refreshInventory();
+    refreshScanState();
+    if (onFormatsChanged) onFormatsChanged();
 }
 
 bool PluginSettingsPanel::refreshScanState()
@@ -353,8 +394,12 @@ bool PluginSettingsPanel::refreshScanState()
     progress = state.progress;
     progressBar.setTooltip (state.message);
     progressBar.repaint();
-    scanAllButton.setEnabled (! state.scanning);
-    scanFolderButton.setEnabled (! state.scanning);
+    const auto preferences = controller.getPluginFormatPreferences();
+    const auto formats = controller.getRegisteredPluginFormats();
+    vst3Enabled.setEnabled (! state.scanning && formats.contains ("VST3"));
+    auEnabled.setEnabled (! state.scanning && formats.contains ("AudioUnit"));
+    scanAllButton.setEnabled (! state.scanning && (preferences.vst3 || preferences.audioUnit));
+    scanFolderButton.setEnabled (! state.scanning && preferences.vst3);
     cancelButton.setEnabled (state.scanning);
 
     const auto justFinished = wasScanning && ! state.scanning;

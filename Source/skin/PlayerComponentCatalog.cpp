@@ -199,6 +199,9 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeLabelDescriptor ("effects.title"),
         makeLabelDescriptor ("effects.filterLabel"),
         makeDescriptor ("effects.filter", Kind::textEditor, { Entry::effects }),
+        makeDescriptor ("effects.typeFilter", Kind::comboBox),
+        makeDescriptor ("effects.manufacturerFilter", Kind::comboBox),
+        makeDescriptor ("effects.formatFilter", Kind::comboBox),
         makeDescriptor ("effects.catalog", Kind::comboBox, { Entry::effects }),
         makeDescriptor ("effects.scope", Kind::comboBox),
         makeLabelDescriptor ("effects.scopeLabel"),
@@ -235,6 +238,12 @@ const std::vector<SkinComponentDescriptor>& catalog()
             Slot { "header.label", "label" }, Slot { "empty.message", "label" }
         }),
         makeLabelDescriptor ("settings.plugins.formats"),
+        makeDescriptor ("settings.plugins.enableVst3", Kind::toggleButton),
+        makeDescriptor ("settings.plugins.enableAu", Kind::toggleButton),
+        makeDescriptor ("settings.plugins.filter", Kind::textEditor),
+        makeDescriptor ("settings.plugins.typeFilter", Kind::comboBox),
+        makeDescriptor ("settings.plugins.manufacturerFilter", Kind::comboBox),
+        makeDescriptor ("settings.plugins.formatFilter", Kind::comboBox),
         makeDescriptor ("settings.plugins.knownList", Kind::pluginList, {}, {}, {}, {
             Slot { "row.surface", "surface" }, Slot { "row.name", "label" },
             Slot { "row.manufacturer", "label" }, Slot { "row.format", "label" },

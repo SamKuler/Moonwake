@@ -709,6 +709,11 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
                 completion (false, "Wait for the saved effect chain to finish restoring.");
                 return;
             }
+            if (! pluginManager.getFormatPreferences().allows (description.pluginFormatName))
+            {
+                completion (false, "This plug-in format was disabled before the plug-in was ready.");
+                return;
+            }
             if (plugin == nullptr)
             {
                 completion (false,
@@ -923,7 +928,27 @@ juce::Array<juce::PluginDescription> PlayerController::getKnownPlugins() const
 
 juce::Array<juce::PluginDescription> PlayerController::getInsertEffectPlugins() const
 {
-    return PluginManager::filterInsertEffects (pluginManager.getKnownPlugins());
+    auto plugins = PluginManager::filterInsertEffects (pluginManager.getKnownPlugins());
+    const auto preferences = pluginManager.getFormatPreferences();
+    plugins.removeIf ([&] (const auto& plugin) { return ! preferences.allows (plugin.pluginFormatName); });
+    return plugins;
+}
+
+PluginFormatPreferences PlayerController::getPluginFormatPreferences() const
+{
+    return pluginManager.getFormatPreferences();
+}
+
+bool PlayerController::setPluginFormatPreferences (PluginFormatPreferences preferences)
+{
+    if (preferences == pluginManager.getFormatPreferences()) return true;
+    if (! pluginManager.setFormatPreferences (preferences))
+    {
+        lastStatusMessage = "Finish or cancel the current scan before changing plug-in formats.";
+        return false;
+    }
+    ++stateRevision;
+    return true;
 }
 
 juce::StringArray PlayerController::getRegisteredPluginFormats() const
@@ -1133,6 +1158,7 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     state = {};
     state.playlist = playlist;
     state.effectChain = effectChain;
+    state.pluginFormats = pluginManager.getFormatPreferences();
 
     const auto pluginRevision = pluginStateRevision.load (
         std::memory_order_acquire);
@@ -1215,12 +1241,19 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
 
 bool PlayerController::restoreStateSnapshot (PlayerAppState state)
 {
+    const auto previousFormats = pluginManager.getFormatPreferences();
+    if (! pluginManager.setFormatPreferences (state.pluginFormats))
+    {
+        lastStatusMessage = "Finish or cancel the current scan before restoring a session.";
+        return false;
+    }
     if (audioEngine.getEffectPluginCount() > 0)
     {
         if (! audioEngine.beginEffectStateCapture())
         {
             lastStatusMessage =
                 "Timed out while preparing the existing effect chain for restore.";
+            static_cast<void> (pluginManager.setFormatPreferences (previousFormats));
             return false;
         }
 
@@ -1234,6 +1267,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
         {
             lastStatusMessage =
                 "Could not clear the existing effect chain during restore.";
+            static_cast<void> (pluginManager.setFormatPreferences (previousFormats));
             return false;
         }
     }

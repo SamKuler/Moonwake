@@ -15,6 +15,20 @@ public:
 
     void runTest() override
     {
+        beginTest ("plug-in format preferences persist and older sessions enable both formats");
+        {
+            PlayerAppState state;
+            for (const auto preferences : { PluginFormatPreferences { true, false },
+                                           PluginFormatPreferences { false, true },
+                                           PluginFormatPreferences { false, false } })
+            {
+                state.pluginFormats = preferences;
+                expect (AppStateStore::fromValueTree (AppStateStore::toValueTree (state)).pluginFormats == preferences);
+            }
+            juce::ValueTree legacy ("MoonwakeState");
+            legacy.setProperty ("schemaVersion", 9, nullptr);
+            expect (AppStateStore::fromValueTree (legacy).pluginFormats == PluginFormatPreferences {});
+        }
         beginTest ("round-trips playback, playlist, layout, and effect-chain state");
         {
             PlayerAppState state;
@@ -62,7 +76,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 9);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 10);
             expectEquals (restored.playlist.size(), 2);
             expectEquals (restored.playlist.getSelectedIndex(), 1);
             expectEquals (restored.playlist.getTrack (0)->file.getFullPathName(),

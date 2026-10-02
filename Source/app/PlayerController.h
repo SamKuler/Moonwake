@@ -85,6 +85,8 @@ public:
     [[nodiscard]] juce::Array<juce::PluginDescription> getKnownPlugins() const;
     [[nodiscard]] juce::Array<juce::PluginDescription> getInsertEffectPlugins() const;
     [[nodiscard]] juce::StringArray getRegisteredPluginFormats() const;
+    [[nodiscard]] PluginFormatPreferences getPluginFormatPreferences() const;
+    bool setPluginFormatPreferences (PluginFormatPreferences);
     [[nodiscard]] juce::AudioPluginInstance* getEffectPluginForEditor (int effectIndex) const;
     [[nodiscard]] uint64_t getEffectChainRevision() const;
     [[nodiscard]] double getPlaybackRatio() const;

@@ -7,6 +7,7 @@
 #include "app/WorkspaceMode.h"
 #include "playlist/PlaylistModel.h"
 #include "plugins/EffectChainState.h"
+#include "plugins/PluginFormatPreferences.h"
 
 struct AudioDevicePreferences
 {
@@ -19,6 +20,7 @@ struct PlayerAppState
 {
     PlaylistModel playlist;
     EffectChainState effectChain;
+    PluginFormatPreferences pluginFormats;
     double volume = 0.8;
     double playbackPositionSeconds = 0.0;
     OutputLayout outputLayout = OutputLayout::stereo;

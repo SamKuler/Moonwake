@@ -3,7 +3,12 @@
   "root": {
     "id": "effects-root",
     "type": "column",
-    "padding": 18,
+    "padding": {
+      "top": 8,
+      "right": 18,
+      "bottom": 18,
+      "left": 18
+    },
     "gap": 10,
     "style": "surface.canvas",
     "children": [
@@ -31,12 +36,48 @@
         "height": 22
       },
       {
-        "id": "effects-filter",
-        "type": "component",
-        "component": "effects.filter",
-        "style": "textEditor.default",
+        "id": "effects-filter-row",
+        "type": "row",
         "height": 36,
-        "focusOrder": 20
+        "shrink": 0,
+        "gap": 8,
+        "children": [
+          {
+            "id": "effects-filter",
+            "type": "component",
+            "component": "effects.filter",
+            "style": "textEditor.default",
+            "focusOrder": 100,
+            "grow": 1
+          },
+          {
+            "id": "effects-filter-typeFilter",
+            "type": "component",
+            "component": "effects.typeFilter",
+            "style": "comboBox.default",
+            "width": 116,
+            "shrink": 0,
+            "focusOrder": 102
+          },
+          {
+            "id": "effects-filter-manufacturerFilter",
+            "type": "component",
+            "component": "effects.manufacturerFilter",
+            "style": "comboBox.default",
+            "width": 180,
+            "shrink": 0,
+            "focusOrder": 104
+          },
+          {
+            "id": "effects-filter-formatFilter",
+            "type": "component",
+            "component": "effects.formatFilter",
+            "style": "comboBox.default",
+            "width": 132,
+            "shrink": 0,
+            "focusOrder": 106
+          }
+        ]
       },
       {
         "id": "effects-insert-row",
@@ -50,7 +91,7 @@
             "component": "effects.catalog",
             "style": "comboBox.default",
             "grow": 1,
-            "focusOrder": 30
+            "focusOrder": 110
           },
           {
             "id": "effects-add",
@@ -58,7 +99,7 @@
             "component": "effects.add",
             "style": "textButton.iconPrimary",
             "width": 36,
-            "focusOrder": 40,
+            "focusOrder": 120,
             "height": 36,
             "shrink": 0
           }
@@ -70,7 +111,7 @@
         "component": "effects.chain",
         "style": "effectChain.default",
         "grow": 1,
-        "focusOrder": 50
+        "focusOrder": 130
       }
     ]
   }

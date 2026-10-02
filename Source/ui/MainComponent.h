@@ -128,7 +128,8 @@ private:
     juce::TextButton moveTrackUpButton { "Move Up" };
     juce::TextButton moveTrackDownButton { "Move Down" };
     juce::Label pluginFilterLabel;
-    juce::TextEditor pluginFilterEditor;
+    PluginFilterControls pluginFilters;
+    juce::StringArray catalogPluginIdentifiers;
     juce::ComboBox pluginCombo;
     juce::ComboBox effectScopeBox;
     juce::Label effectScopeLabel;

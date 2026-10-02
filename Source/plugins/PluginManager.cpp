@@ -60,6 +60,18 @@ bool PluginManager::startScan (const juce::File& customVst3Directory)
     if (isThreadRunning())
         return false;
 
+    if ((! formatPreferences.vst3 && ! formatPreferences.audioUnit)
+        || (customVst3Directory != juce::File() && ! formatPreferences.vst3))
+    {
+        updateScanStatus ([&] (auto& status)
+        {
+            status.message = customVst3Directory != juce::File()
+                ? "Enable VST3 to scan a plug-in folder."
+                : "Enable a plug-in format before scanning.";
+        });
+        return false;
+    }
+
     if (! scannerConfiguration.executable.existsAsFile())
     {
         updateScanStatus ([this] (auto& status)
@@ -75,6 +87,7 @@ bool PluginManager::startScan (const juce::File& customVst3Directory)
         return false;
 
     customScanDirectory = customVst3Directory;
+    scanFormats = formatPreferences;
     updateScanStatus ([] (auto& status)
     {
         status.scanning = true;
@@ -247,6 +260,13 @@ juce::StringArray PluginManager::getRegisteredFormatNames() const
     return names;
 }
 
+bool PluginManager::setFormatPreferences (PluginFormatPreferences next)
+{
+    if (isThreadRunning()) return false;
+    formatPreferences = next;
+    return true;
+}
+
 juce::Array<juce::PluginDescription> PluginManager::filterInsertEffects (const juce::Array<juce::PluginDescription>& plugins)
 {
     juce::Array<juce::PluginDescription> effects;
@@ -317,6 +337,7 @@ void PluginManager::run()
     {
         auto* format = formatManager.getFormat (index);
         if (format == nullptr || ! format->canScanForPlugins()
+            || ! scanFormats.allows (format->getName())
             || (useCustomVst3Path && format->getName() != "VST3"))
             continue;
 

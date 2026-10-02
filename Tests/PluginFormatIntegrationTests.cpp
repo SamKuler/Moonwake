@@ -202,6 +202,25 @@ public:
             {
                 juce::KnownPluginList known;
                 known.addType (descriptions[0]);
+                {
+                    PlayerController pending (std::make_unique<ScopeOfflineBackend>());
+                    StateRestoreResult initialPending;
+                    initialPending.state.emplace();
+                    initialPending.pluginCache = known.createXml();
+                    expect (pending.applyPreparedState (std::move (initialPending)));
+                    bool finished = false, accepted = false;
+                    pending.addPluginByIndexAsync (0, [&] (bool ok, const juce::String& message)
+                    {
+                        finished = true;
+                        accepted = ok;
+                        error = message;
+                    });
+                    expect (! finished);
+                    expect (pending.setPluginFormatPreferences ({ false, false }));
+                    expect (dispatchScopeUntil ([&] { return finished; }));
+                    expect (! accepted && error.contains ("disabled"), error);
+                    expectEquals (pending.getEffectChain().size(), 0);
+                }
                 PlayerController controller (std::make_unique<ScopeOfflineBackend>());
                 StateRestoreResult initial;
                 initial.state.emplace();
@@ -237,7 +256,12 @@ public:
                     expect (controller.getEffectPluginForEditor (0)->getBusesLayout().getMainInputChannelSet() == juce::AudioChannelSet::mono());
                     expect (controller.getEffectChain().getSlot (0)->bypassed);
                     PlayerAppState snapshot;
+                    expect (controller.setPluginFormatPreferences ({ false, true }));
+                    expect (controller.getInsertEffectPlugins().isEmpty());
+                    expect (controller.getEffectPluginForEditor (0) == instance,
+                            "Disabling new VST3 effects must retain the existing instance.");
                     expect (controller.captureStateSnapshot (snapshot, error), error);
+                    expect (! snapshot.pluginFormats.vst3);
                     expect (snapshot.effectChain.getSlot (0)->scope == mono);
                     ScopedTemporaryDirectory temporary { juce::File::getSpecialLocation (juce::File::tempDirectory)
                         .getNonexistentChildFile ("moonwake-scope-roundtrip", {}) };
@@ -247,6 +271,7 @@ public:
                     expect (controller.saveState (stateFile, cacheFile), controller.getLastStatusMessage());
                     PlayerController restored (std::make_unique<ScopeOfflineBackend>());
                     expect (restored.loadState (stateFile, cacheFile), restored.getLastStatusMessage());
+                    expect (! restored.getPluginFormatPreferences().vst3);
                     expect (dispatchScopeUntil ([&] { return restored.getEffectPluginForEditor (0) != nullptr; }));
                     expect (restored.getEffectChain().getSlot (0)->scope == mono);
                     expect (restored.getEffectChain().getSlot (0)->bypassed);

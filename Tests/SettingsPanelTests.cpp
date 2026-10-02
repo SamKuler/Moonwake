@@ -284,6 +284,7 @@ public:
                     { "row.format", "data" }, { "row.author", "detail" },
                     { "row.version", "data" }, { "row.status", "status" }
                 };
+                entry.renderer.rowLayout->base.headerHeight = rowMetric ("headerHeight", 32);
             }
             SkinRenderer renderer;
             JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target,
@@ -694,13 +695,89 @@ public:
             PluginSettingsPanel panel (controller, &foundationSkin.adapter);
             panel.refreshInventory();
             panel.refreshScanState();
-            expect (panel.formatsControl().getText().containsIgnoreCase ("VST3"));
-            expect (panel.formatsControl().getText().containsIgnoreCase ("AudioUnit")
-                    || panel.formatsControl().getText().containsIgnoreCase ("AU"));
+            expectEquals (panel.formatsControl().getText(), juce::String ("Plug-ins"));
+            expect (panel.vst3Enabled.getToggleState() && panel.auEnabled.getToggleState());
             expect (panel.scanAllControl().isEnabled());
             expect (panel.scanFolderControl().isEnabled());
             expect (! panel.cancelControl().isEnabled());
             expectEquals (panel.knownPluginCount(), controller.getKnownPlugins().size());
+        }
+
+        beginTest ("plug-in filters compose and format preferences survive a controller restart");
+        {
+            const auto root = freshPanelDirectory ("plugin-filters");
+            const auto cache = root.getChildFile ("plugins.xml");
+            const auto stateFile = root.getChildFile ("state.xml");
+            PluginManager writer;
+            for (int index = 0; index < 4; ++index)
+            {
+                juce::PluginDescription plugin;
+                plugin.name = index < 2 ? "Clean EQ" : index == 2 ? "Glass Delay" : "Keys Synth";
+                plugin.manufacturerName = index < 2 ? "Acme Audio" : "Other";
+                plugin.pluginFormatName = index == 1 ? "AudioUnit" : "VST3";
+                plugin.category = index < 2 ? "Fx|EQ" : index == 2 ? "Fx|Delay" : "Instrument|Synth";
+                plugin.isInstrument = index == 3;
+                plugin.fileOrIdentifier = "filter-fixture-" + juce::String (index);
+                plugin.uniqueId = 700 + index;
+                writer.getKnownPluginList().addType (plugin);
+            }
+            juce::String error;
+            expect (writer.writeKnownPluginCacheAtomically (cache, error), error);
+            expect (AppStateStore::writeAtomically ({}, stateFile, error), error);
+            PlayerController controller (std::make_unique<PanelAudioBackend>());
+            expect (controller.loadState (stateFile, cache));
+            PluginSettingsPanel panel (controller, &foundationSkin.adapter);
+            const auto select = [this] (juce::ComboBox& box, const juce::String& label)
+            {
+                for (int i = 0; i < box.getNumItems(); ++i)
+                    if (box.getItemText (i) == label)
+                    {
+                        box.setSelectedItemIndex (i, juce::sendNotificationSync);
+                        return;
+                    }
+                expect (false, "Missing filter choice: " + label);
+            };
+            expectEquals (panel.knownPluginCount(), 4);
+            select (panel.filters.type, "EQ");
+            expectEquals (panel.knownPluginCount(), 2);
+            select (panel.filters.manufacturer, "Other");
+            expectEquals (panel.knownPluginCount(), 0);
+            select (panel.filters.manufacturer, "Acme Audio");
+            select (panel.filters.format, "AU");
+            expectEquals (panel.knownPluginCount(), 1);
+            panel.refreshInventory();
+            expectEquals (panel.knownPluginCount(), 1);
+            expectEquals (panel.filters.type.getText(), juce::String ("EQ"));
+            panel.auEnabled.setToggleState (false, juce::sendNotificationSync);
+            expectEquals (controller.getKnownPlugins().size(), 4);
+            expectEquals (controller.getInsertEffectPlugins().size(), 2);
+            auto* list = dynamic_cast<juce::ListBox*> (&panel.knownListControl());
+            expect (list && list->getListBoxModel()->getNameForRow (0).contains ("format disabled"));
+            panel.vst3Enabled.setToggleState (false, juce::sendNotificationSync);
+            expect (! panel.scanAllControl().isEnabled() && ! panel.scanFolderControl().isEnabled());
+            expect (controller.getInsertEffectPlugins().isEmpty());
+            expect (controller.saveState (stateFile, cache));
+            PlayerController reopened (std::make_unique<PanelAudioBackend>());
+            expect (reopened.loadState (stateFile, cache));
+            expect (reopened.getPluginFormatPreferences() == PluginFormatPreferences { false, false });
+            expectEquals (reopened.getKnownPlugins().size(), 4);
+            expect (reopened.getInsertEffectPlugins().isEmpty());
+            expect (reopened.setPluginFormatPreferences ({ false, true }));
+            expectEquals (reopened.getInsertEffectPlugins().size(), 1);
+            panel.filters.search.setVisible (true);
+            panel.filters.search.setText ("Clean", false);
+            for (auto* box : { &panel.filters.type, &panel.filters.manufacturer, &panel.filters.format })
+                box->setVisible (false);
+            panel.filters.clearHiddenFilters();
+            expectEquals (panel.filters.search.getText(), juce::String ("Clean"));
+            expectEquals (panel.knownPluginCount(), 2);
+            expectEquals (panel.filters.type.getSelectedId(), 1);
+            expectEquals (panel.filters.manufacturer.getSelectedId(), 1);
+            expectEquals (panel.filters.format.getSelectedId(), 1);
+            panel.filters.search.setVisible (false);
+            panel.filters.clearHiddenFilters();
+            expectEquals (panel.knownPluginCount(), 4);
+            static_cast<void> (root.deleteRecursively());
         }
 
         beginTest ("Long plug-in inventories support keyboard paging and visible scroll state");

@@ -3,6 +3,7 @@
 #include "app/PlayerController.h"
 #include "skin/SkinComponentBindings.h"
 #include "ui/JuceSkinAdapter.h"
+#include "ui/PluginFilterControls.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -34,6 +35,9 @@ public:
     [[nodiscard]] juce::ProgressBar& progressControl() noexcept;
     [[nodiscard]] int knownPluginCount() const noexcept;
     [[nodiscard]] int knownListScrollPosition() const noexcept;
+    PluginFilterControls filters;
+    juce::ToggleButton vst3Enabled { "VST3" }, auEnabled { "AU" };
+    ActionCallback onFormatsChanged;
 
 private:
     class PluginListView;
@@ -50,4 +54,7 @@ private:
     juce::ProgressBar progressBar { progress };
     bool wasScanning = false;
     uint64_t lastRevision = 0;
+    juce::Array<juce::PluginDescription> inventory;
+    void refreshFilteredPlugins();
+    void changeFormats();
 };
