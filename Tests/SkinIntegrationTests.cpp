@@ -552,6 +552,21 @@ juce::Colour renderCentreWithContext (const SkinRenderStyleEntry& style,
     return image.getPixelAt (80, 18);
 }
 
+juce::Colour renderPixelWithContext (const SkinRenderStyleEntry& style,
+                                     SkinRenderContext context,
+                                     int width, int height, int x, int y)
+{
+    juce::Image image (juce::Image::ARGB, width, height, true);
+    juce::Graphics graphics (image);
+    context.bounds = image.getBounds().toFloat();
+    context.contentBounds = context.bounds;
+    context.state.enabled = true;
+    SkinRenderer renderer (style.assets);
+    SilentFaultSink sink;
+    renderer.draw (graphics, style.renderer, context, true, sink);
+    return image.getPixelAt (x, y);
+}
+
 template <typename Callback>
 void visitLayoutComponents (const SkinLayoutNode& node,
                             const juce::String& parentId,
@@ -1092,8 +1107,6 @@ public:
                                   "colors.listening.control" },
                      std::tuple { "textEditor.listening", "body", "fill",
                                   "colors.listening.surface" },
-                     std::tuple { "table.listening", "body", "fill",
-                                  "colors.listening.surface" },
                      std::tuple { "popupMenu.default", "body", "fill",
                                   "colors.listening.surface" } })
             {
@@ -1122,6 +1135,56 @@ public:
                 expect (! renderCentreWithContext (popup, normalItem).isTransparent(),
                         "A hovered popup item must draw a single highlight.");
             }
+
+            SkinRenderContext focusedTable;
+            focusedTable.state.focused = true;
+            for (const auto& [skin, style] : {
+                     std::pair { defaultSkin.get(), "table.studio" },
+                     std::pair { defaultSkin.get(), "table.listening" },
+                     std::pair { foundation.get(), "table.default" } })
+                expect (renderPixelWithContext (
+                            skin->renderers.at (style), focusedTable,
+                            160, 36, 4, 18).getAlpha() <= 0x10,
+                        juce::String (style)
+                            + " must not draw a nested or fragmented focus card.");
+
+            SkinRenderContext selectedRow;
+            selectedRow.state.focused = true;
+            selectedRow.state.selected = true;
+            for (const auto& [skin, style] : {
+                     std::pair { defaultSkin.get(), "surface.studioListRow" },
+                     std::pair { defaultSkin.get(), "surface.listeningListRow" },
+                     std::pair { defaultSkin.get(), "surface.listeningSkinCard" },
+                     std::pair { foundation.get(), "surface.listRow" },
+                     std::pair { foundation.get(), "surface.skinRow" } })
+                expect (! renderPixelWithContext (
+                             skin->renderers.at (style), selectedRow,
+                             160, 36, 2, 18).isTransparent(),
+                        juce::String (style)
+                            + " must use one flat full-width selection surface.");
+
+            const auto artworkPixel = [&] (const juce::String& iconName)
+            {
+                SkinRenderContext artwork;
+                artwork.iconName = iconName;
+                artwork.extraLookup = [hasTrack = iconName == "track"] (
+                    std::string_view path)
+                    -> std::optional<SkinExpressionValue>
+                {
+                    if (path == "artwork.hasTrack")
+                        return SkinExpressionValue (hasTrack);
+                    if (path == "artwork.hasImage")
+                        return SkinExpressionValue (false);
+                    if (path == "artwork.aspectRatio")
+                        return SkinExpressionValue (1.0);
+                    return std::nullopt;
+                };
+                return renderPixelWithContext (
+                    defaultSkin->renderers.at ("artwork.listening"), artwork,
+                    160, 160, 80, 80);
+            };
+            expect (artworkPixel ("track") != artworkPixel ("empty"),
+                    "A selected track without embedded art must not render the no-track state.");
         }
 
         beginTest ("full pipeline preserves inherited exact styles and composite slot tables");

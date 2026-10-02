@@ -36,10 +36,12 @@ void AlbumArtworkComponent::paint (juce::Graphics& graphics)
                                ? static_cast<double> (artwork.getWidth())
                                    / artwork.getHeight()
                                : 1.0;
-    context.extraLookup = [hasImage = artwork.isValid(), aspectRatio] (
+    context.extraLookup = [hasTrack = stableId.isNotEmpty(),
+                           hasImage = artwork.isValid(), aspectRatio] (
                               std::string_view path)
         -> std::optional<SkinExpressionValue>
     {
+        if (path == "artwork.hasTrack") return SkinExpressionValue (hasTrack);
         if (path == "artwork.hasImage") return SkinExpressionValue (hasImage);
         if (path == "artwork.aspectRatio") return SkinExpressionValue (aspectRatio);
         return std::nullopt;

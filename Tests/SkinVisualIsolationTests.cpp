@@ -72,6 +72,18 @@ public:
             expect (! text.contains (oldLayoutType),
                     file.getRelativePathFrom (root));
         }
+
+        beginTest ("JUCE UI copy never relies on implicit non-ASCII narrow strings");
+        juce::MemoryBlock mainSource;
+        expect (root.getChildFile ("Source/ui/MainComponent.cpp")
+                    .loadFileAsData (mainSource));
+        const auto* bytes = static_cast<const unsigned char*> (mainSource.getData());
+        bool containsNonAsciiByte = false;
+        for (size_t index = 0; index < mainSource.getSize(); ++index)
+            containsNonAsciiByte = containsNonAsciiByte || bytes[index] > 0x7f;
+        expect (! containsNonAsciiByte,
+                "MainComponent.cpp UI literals must remain ASCII; use an explicit "
+                "JUCE Unicode conversion when a non-ASCII glyph is required.");
     }
 };
 

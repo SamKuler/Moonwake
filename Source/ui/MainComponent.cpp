@@ -22,6 +22,11 @@ void appendReport (SkinValidationReport& destination,
     }
 }
 
+juce::String workCountText (int count)
+{
+    return juce::String (count) + (count == 1 ? " WORK" : " WORKS");
+}
+
 class RackIconButton final : public juce::Button
 {
 public:
@@ -173,7 +178,8 @@ public:
                                              bool over, bool down)
         {
             return drawSlot (graphics, removeButton, "slot.remove",
-                             SkinRenderTarget::textButton, "×", "remove",
+                             SkinRenderTarget::textButton,
+                             juce::String::charToString (0x00d7), "remove",
                              over, down, false);
         });
 
@@ -429,13 +435,13 @@ MainComponent::MainComponent()
     playlistTable.setHeaderHeight (24);
     playlistTable.getHeader().addColumn ("WORK", 1, 240, 120, 500);
     playlistTable.getHeader().addColumn ("LOCATION", 2, 360, 180, 800);
-    playlistTable.getHeader().addColumn ("Duration", 3, 90, 70, 120);
+    playlistTable.getHeader().addColumn ("DURATION", 3, 90, 70, 120);
     skinAdapter.configureListBox (playlistTable);
 
     librarySearchEditor.setName ("Search works");
     librarySearchEditor.setTitle ("Search title, artist, album, format, or channel count");
     librarySearchEditor.setTextToShowWhenEmpty (
-        "Search title, artist, album, format…",
+        "Search title, artist, album, format...",
         skinAdapter.findColour (juce::TextEditor::textColourId).withAlpha (0.58f));
     librarySearchEditor.onTextChange = [this]
     {
@@ -568,7 +574,7 @@ MainComponent::MainComponent()
         if (libraryImportService.isRunning())
         {
             addFilesButton.setEnabled (false);
-            statusLabel.setText ("Cancelling music import…",
+            statusLabel.setText ("Cancelling music import...",
                                  juce::dontSendNotification);
             libraryImportService.cancel();
         }
@@ -1240,7 +1246,7 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
                     return;
                 if (progress.stage == LibraryImportProgress::Stage::discovering)
                     safeThis->statusLabel.setText (
-                        "Discovering music…", juce::dontSendNotification);
+                        "Discovering music...", juce::dontSendNotification);
                 else
                     safeThis->statusLabel.setText (
                         "Reading " + juce::String (progress.processed + 1)
@@ -1394,7 +1400,7 @@ void MainComponent::refreshPlaylist()
         playlistTable.deselectAllRows();
     queueCountLabel.setText (
         libraryFilter.query().isEmpty()
-            ? juce::String (controller.getPlaylist().size()) + " WORKS"
+            ? workCountText (controller.getPlaylist().size())
             : juce::String (libraryFilter.visibleCount()) + " / "
                 + juce::String (controller.getPlaylist().size()),
         juce::dontSendNotification);
@@ -1534,7 +1540,7 @@ void MainComponent::updateTransportState()
                 + (track->channelCount == 1 ? " CHANNEL" : " CHANNELS");
             const auto workByline = track->artist.isNotEmpty() || track->album.isNotEmpty()
                 ? (track->artist.isNotEmpty() ? track->artist : "Unknown Artist")
-                    + (track->album.isNotEmpty() ? "  —  " + track->album : juce::String{})
+                    + (track->album.isNotEmpty() ? "  /  " + track->album : juce::String{})
                 : track->file.getParentDirectory().getFileName();
             trackMetaLabel.setText (workspaceMode == WorkspaceMode::studio
                                         ? (state.isPlaying ? "PLAYING  /  " : "READY  /  ") + technical
@@ -1554,7 +1560,7 @@ void MainComponent::updateTransportState()
     }
 
     if (libraryFilter.query().isEmpty())
-        queueCountLabel.setText (juce::String (state.playlistSize) + " WORKS",
+        queueCountLabel.setText (workCountText (state.playlistSize),
                                  juce::dontSendNotification);
 
     const auto gain = static_cast<float> (state.volume);

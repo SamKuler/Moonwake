@@ -2,8 +2,8 @@
   "apiVersion": 1,
   "target": "surface",
   "layers": [
-    { "id": "selection", "type": "roundedRect", "visible": { "$context": "state.selected" }, "frame": { "anchor": "bounds", "inset": { "top": 2, "right": 4, "bottom": 2, "left": 4 } }, "radius": 7, "fill": "#B85C3818" },
-    { "id": "accent", "type": "roundedRect", "visible": { "$context": "state.selected" }, "frame": { "x": 4, "y": 9, "width": 3, "height": { "$expr": "max(0, bounds.height - 18)" } }, "radius": 1.5, "fill": { "$ref": "colors.listening.active" } },
+    { "id": "selection", "type": "rect", "visible": { "$context": "state.selected" }, "frame": { "anchor": "bounds" }, "fill": "#B85C3818" },
     { "id": "divider", "type": "rect", "frame": { "x": 14, "y": { "$expr": "bounds.height - 1" }, "width": { "$expr": "max(0, bounds.width - 28)" }, "height": 1 }, "fill": { "$ref": "colors.listening.border" } }
-  ]
+  ],
+  "variants": { "focused": { "selection.fill": "#B85C382C" } }
 }

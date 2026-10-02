@@ -395,7 +395,8 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
                                   { "table.columnCount", Type::number } });
             break;
         case SkinRenderTarget::artwork:
-            addContext (result, { { "artwork.hasImage", Type::boolean },
+            addContext (result, { { "artwork.hasTrack", Type::boolean },
+                                  { "artwork.hasImage", Type::boolean },
                                   { "artwork.aspectRatio", Type::number } });
             break;
         case SkinRenderTarget::effectChain:
@@ -459,6 +460,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
             break;
         case SkinRenderTarget::artwork:
             addContext (result, {
+                { "artwork.hasTrack", Type::boolean },
                 { "artwork.hasImage", Type::boolean },
                 { "artwork.aspectRatio", Type::number }
             });

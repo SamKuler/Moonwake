@@ -551,7 +551,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | tooltip | 每个原生 tooltip 一次 | text.primary、text.align | 无 |
 | surface | 每个 container 或 visual 节点一次 | bounds.* | 无 |
 | table | 表主体一次 | table.rowCount、table.columnCount | header.surface、header.text、row.surface、cell.title、cell.location、cell.duration |
-| artwork | 封面组件一次 | artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
+| artwork | 封面组件一次 | artwork.hasTrack、artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
 | effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
 | channelMap | 主体一次；每个只读通道映射调用 slots | slots：channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected | row.surface、row.source、row.destination |

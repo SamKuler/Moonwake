@@ -1887,7 +1887,7 @@ public:
 
             entries[SkinRenderTarget::artwork].renderer = makeConditionalProgram (
                 SkinRenderTarget::artwork,
-                "artwork.hasImage and artwork.aspectRatio == 1");
+                "artwork.hasTrack and artwork.hasImage and artwork.aspectRatio == 1");
             const auto channels = toAudioChannelSet (OutputLayout::fiveOneTwo)
                                       .getChannelTypes();
             const auto lfeIndex = channels.indexOf (juce::AudioChannelSet::LFE);
@@ -1928,7 +1928,7 @@ public:
                 artwork.paint (graphics);
             }
             expect (image.getPixelAt (10, 10).getAlpha() > 0,
-                    "artwork.hasImage and aspectRatio were not populated");
+                    "artwork.hasTrack, hasImage and aspectRatio were not populated");
 
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
             OutputStageComponent output;
