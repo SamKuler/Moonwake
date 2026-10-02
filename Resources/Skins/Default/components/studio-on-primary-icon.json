@@ -1,7 +1,47 @@
 {
-  "apiVersion": 1, "target": "surface",
+  "apiVersion": 1,
+  "target": "surface",
   "layers": [
-    { "id": "icon", "type": "path", "data": { "$context": "icon.path" }, "fill": "#00000000", "stroke": { "color": { "$ref": "colors.studio.onActive" }, "width": 2.4, "cap": "round" }, "transform": { "pivotX": 0, "pivotY": 0, "scaleX": { "$expr": "bounds.width / 24" }, "scaleY": { "$expr": "bounds.height / 24" }, "translateX": { "$context": "bounds.x" }, "translateY": { "$context": "bounds.y" } } }
+    {
+      "id": "icon",
+      "type": "path",
+      "data": {
+        "$context": "icon.path"
+      },
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.onActive"
+        },
+        "width": 2.4,
+        "cap": "round"
+      },
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "scaleX": {
+          "$expr": "bounds.width / 24"
+        },
+        "scaleY": {
+          "$expr": "bounds.height / 24"
+        },
+        "translateX": {
+          "$context": "bounds.x"
+        },
+        "translateY": {
+          "$context": "bounds.y"
+        }
+      }
+    }
   ],
-  "variants": { "pressed": { "icon.transform.translateY": { "$expr": "bounds.y + 1" } }, "disabled": { "icon.opacity": 0.55 } }
+  "variants": {
+    "pressed": {
+      "icon.transform.translateY": {
+        "$expr": "bounds.y + 1"
+      }
+    },
+    "disabled": {
+      "icon.opacity": 0.55
+    }
+  }
 }

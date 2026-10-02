@@ -1,8 +1,11 @@
 #pragma once
 
+#include "app/WorkspaceMode.h"
+
 #include <juce_core/juce_core.h>
 
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <variant>
@@ -112,9 +115,13 @@ struct SkinLayoutDefinition
     struct Breakpoint
     {
         InclusiveRange widths, heights, scaleFactors;
+        std::optional<WorkspaceMode> workspace;
         SkinLayoutNode root;
+        std::map<juce::String, juce::String> ancillaryStyles;
     };
 
     SkinLayoutNode base;
     std::vector<Breakpoint> breakpoints;
+    WorkspaceMode defaultWorkspace = WorkspaceMode::listening;
+    std::map<juce::String, juce::String> ancillaryStyles;
 };

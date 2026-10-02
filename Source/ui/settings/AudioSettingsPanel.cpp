@@ -46,6 +46,7 @@ public:
         setMouseClickGrabsKeyboardFocus (false);
         setInterceptsMouseClicks (false, false);
         setModel (this);
+        setOutlineThickness (0);
         setRowHeight (rowHeight);
         setColour (juce::ListBox::backgroundColourId,
                    juce::Colour {});
@@ -102,8 +103,8 @@ private:
         explicit Header (ChannelMapView& ownerToUse) : owner (ownerToUse) {}
         void paint (juce::Graphics& graphics) override
         {
-            owner.drawTextSlot (graphics, getLocalBounds(), "row.source",
-                                "OUTPUT MAP  /  READ ONLY", "heading");
+            owner.drawTextSlot (graphics, getLocalBounds().reduced (10, 0), "row.source",
+                                "Output channels", "heading");
         }
 
         std::unique_ptr<juce::AccessibilityHandler>
@@ -159,8 +160,8 @@ private:
 
         auto sourceBounds = row.removeFromLeft (
             juce::jmax (52, row.getWidth() / 3));
-        auto destinationBounds = row.removeFromRight (
-            juce::jmax (72, row.getWidth() / 2));
+        row.removeFromLeft (12);
+        auto destinationBounds = row;
         drawTextSlot (graphics, sourceBounds, "row.source", sourceLabel,
                       rowKey, &rowContext);
         drawTextSlot (graphics, destinationBounds, "row.destination", deviceLabel,
@@ -197,7 +198,7 @@ private:
     JuceSkinAdapter* adapter = nullptr;
     juce::StringArray names;
     int availableChannelCount = 0;
-    static constexpr int headerHeight = 28;
+    static constexpr int headerHeight = 32;
     static constexpr int rowHeight = 36;
 };
 
@@ -206,7 +207,7 @@ AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,
     : controller (controllerToUse),
       channelMap (std::make_unique<ChannelMapView> (adapter))
 {
-    headingLabel.setText ("AUDIO  /  CORE AUDIO", juce::dontSendNotification);
+    headingLabel.setText ("Audio", juce::dontSendNotification);
     headingLabel.setName ("Audio settings");
     headingLabel.setTitle ("Audio and CoreAudio settings");
     headingLabel.setJustificationType (juce::Justification::centredLeft);
@@ -320,7 +321,8 @@ void AudioSettingsPanel::applyDeviceSelection()
         return;
     const auto error = controller.selectOutputDevice (availableDevices[index]);
     refresh();
-    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage());
+    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
+                  error.isNotEmpty());
 }
 
 void AudioSettingsPanel::applySampleRateSelection()
@@ -332,7 +334,8 @@ void AudioSettingsPanel::applySampleRateSelection()
         return;
     const auto error = controller.setAudioSampleRate (availableSampleRates[index]);
     refresh();
-    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage());
+    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
+                  error.isNotEmpty());
 }
 
 void AudioSettingsPanel::applyBufferSizeSelection()
@@ -344,7 +347,8 @@ void AudioSettingsPanel::applyBufferSizeSelection()
         return;
     const auto error = controller.setAudioBufferSize (availableBufferSizes[index]);
     refresh();
-    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage());
+    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
+                  error.isNotEmpty());
 }
 
 void AudioSettingsPanel::applyChannelLayoutSelection()
@@ -360,13 +364,14 @@ void AudioSettingsPanel::applyChannelLayoutSelection()
         default: error = controller.setOutputLayout (OutputLayout::stereo); break;
     }
     refresh();
-    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage());
+    reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
+                  error.isNotEmpty());
 }
 
-void AudioSettingsPanel::reportStatus (const juce::String& message)
+void AudioSettingsPanel::reportStatus (const juce::String& message, bool isError)
 {
     if (statusCallback)
-        statusCallback (message);
+        statusCallback (message, isError);
 }
 
 juce::ComboBox& AudioSettingsPanel::deviceControl() noexcept { return deviceBox; }

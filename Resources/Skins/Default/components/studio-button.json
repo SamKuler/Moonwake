@@ -1,10 +1,108 @@
 {
-  "apiVersion": 1, "target": "textButton",
+  "apiVersion": 1,
+  "target": "textButton",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": { "$ref": "colors.studio.control" }, "stroke": { "color": { "$ref": "colors.studio.border" }, "width": 1 } },
-    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 10, "right": 10, "bottom": 1 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 12.5, "color": { "$ref": "colors.studio.text" }, "align": "center", "maxLines": 1, "overflow": "ellipsis" },
-    { "id": "focus", "type": "roundedRect", "visible": { "$context": "state.focused" }, "frame": { "anchor": "bounds", "inset": 1.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": "#00000000", "stroke": { "color": { "$ref": "colors.studio.focus" }, "width": 2 } }
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.studioControlRadius"
+      },
+      "fill": {
+        "$ref": "colors.studio.control"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.border"
+        },
+        "width": 1
+      }
+    },
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 10,
+          "right": 10
+        }
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceMedium"
+      },
+      "fontSize": {
+        "$ref": "metrics.textControl"
+      },
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "center",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 1.5
+      },
+      "radius": {
+        "$ref": "metrics.studioControlRadius"
+      },
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.focus"
+        },
+        "width": 2
+      }
+    }
   ],
-  "variants": { "selected": { "body.fill": { "$ref": "colors.studio.active" }, "label.color": { "$ref": "colors.studio.onActive" } }, "hover": { "body.opacity": 0.9 }, "pressed": { "body.opacity": 0.76, "label.transform.translateY": 1 }, "disabled": { "body.opacity": 0.4, "label.opacity": 0.55 } },
-  "transitions": { "hover": { "durationMs": { "$ref": "durations.workspaceFast" }, "easing": "easeOut", "properties": ["body.opacity"] } }
+  "variants": {
+    "selected": {
+      "body.fill": {
+        "$ref": "colors.studio.active"
+      },
+      "label.color": {
+        "$ref": "colors.studio.onActive"
+      }
+    },
+    "hover": {
+      "body.opacity": 0.9
+    },
+    "pressed": {
+      "body.opacity": 0.76,
+      "label.transform.translateY": 1
+    },
+    "disabled": {
+      "body.opacity": 0.4,
+      "label.opacity": 0.55
+    },
+    "focused": {
+      "body.stroke.width": 0
+    }
+  },
+  "transitions": {
+    "hover": {
+      "durationMs": {
+        "$ref": "durations.workspaceFast"
+      },
+      "easing": "easeOut",
+      "properties": [
+        "body.opacity"
+      ]
+    }
+  }
 }

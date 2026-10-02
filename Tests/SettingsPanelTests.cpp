@@ -35,7 +35,7 @@ public:
         setup.outputChannels.setRange (0, 2, true);
     }
 
-    juce::String initialiseWithDefaultDevices (int, int) override { return {}; }
+    juce::String initialiseWithDefaultDevices (int, int) override { return initialisationError; }
     juce::StringArray getOutputDeviceNames() const override
     {
         return { "Built-in Output", "Aggregate 10ch" };
@@ -82,6 +82,7 @@ public:
 
     juce::AudioDeviceManager::AudioDeviceSetup setup;
     juce::String nextError;
+    juce::String initialisationError;
 
 private:
     std::map<juce::String, Capability> capabilities;
@@ -150,6 +151,40 @@ juce::MouseEvent wheelEventFor (juce::Component& component)
              &component, &component, now, { 1.0f, 1.0f }, now, 1, false };
 }
 
+SkinRenderStyleEntry geometrySlot (juce::Colour colour)
+{
+    SkinRenderStyleEntry entry;
+    entry.renderer.target = SkinRenderTarget::label;
+    entry.renderer.worstCaseOperations = 1;
+    SkinRenderLayer layer;
+    layer.id = "geometry";
+    layer.primitive = SkinPrimitive::rectangle;
+    const auto property = [&] (const juce::String& name, SkinCompiledRenderValue value)
+    {
+        const auto* descriptor = skinRenderPropertyDescriptor (layer.primitive, name);
+        layer.properties[name] = { std::move (value), descriptor->fallback,
+                                    descriptor, false, {}, {}, 0, {} };
+    };
+    property ("frame.anchor", juce::String ("bounds"));
+    property ("visible", true);
+    property ("opacity", 1.0);
+    property ("transform.scaleX", 1.0);
+    property ("transform.scaleY", 1.0);
+    property ("fill", colour);
+    entry.renderer.baseLayers.push_back (std::move (layer));
+    return entry;
+}
+
+juce::Rectangle<int> colourBounds (const juce::Image& image, juce::Colour colour)
+{
+    juce::Rectangle<int> result;
+    for (int y = 0; y < image.getHeight(); ++y)
+        for (int x = 0; x < image.getWidth(); ++x)
+            if (image.getPixelAt (x, y) == colour)
+                result = result.getUnion ({ x, y, 1, 1 });
+    return result;
+}
+
 class SettingsPanelTests final : public juce::UnitTest
 {
 public:
@@ -186,6 +221,135 @@ public:
             expect (row->getTitle().containsIgnoreCase (expectedFirstRowText));
             expect (row->getCurrentState().isSelected() == firstRowSelected);
         };
+
+        beginTest ("settings text slots keep insets, column gaps and separated metadata lines");
+        {
+            std::map<juce::String, SkinRenderStyleEntry> slots {
+                { "name", geometrySlot (juce::Colours::red) },
+                { "detail", geometrySlot (juce::Colours::green) },
+                { "data", geometrySlot (juce::Colours::blue) },
+                { "status", geometrySlot (juce::Colours::yellow) }
+            };
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> owners;
+            for (const auto target : { SkinRenderTarget::channelMap,
+                                       SkinRenderTarget::pluginList, SkinRenderTarget::skinList })
+            {
+                auto& entry = owners[target];
+                entry.renderer.target = target;
+                entry.slotStyles = {
+                    { "row.source", "name" }, { "row.destination", "data" },
+                    { "row.name", "name" }, { "row.manufacturer", "detail" },
+                    { "row.format", "data" }, { "row.author", "detail" },
+                    { "row.version", "data" }, { "row.status", "status" }
+                };
+            }
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target,
+                                          const juce::String& style)
+            {
+                if (target == SkinRenderTarget::label)
+                {
+                    const auto found = slots.find (style);
+                    return JuceSkinAdapter::RuntimeBinding {
+                        found != slots.end() ? &found->second : nullptr };
+                }
+                const auto found = owners.find (target);
+                return JuceSkinAdapter::RuntimeBinding {
+                    found != owners.end() ? &found->second : nullptr };
+            }, renderer);
+            PlayerController controller (std::make_unique<PanelAudioBackend>());
+            juce::KnownPluginList plugins;
+            juce::PluginDescription description;
+            description.name = "Concert Hall Reverb";
+            description.manufacturerName = "Example Audio";
+            description.pluginFormatName = "AudioUnit";
+            description.fileOrIdentifier = "test:concert-hall";
+            plugins.addType (description);
+            StateRestoreResult restored;
+            restored.pluginCache = plugins.createXml();
+            expect (controller.applyPreparedState (std::move (restored)));
+            AudioSettingsPanel audio (controller, &adapter);
+            PluginSettingsPanel effects (controller, &adapter);
+            const auto paintRow = [&] (juce::Component& component, int width)
+            {
+                auto* list = dynamic_cast<juce::ListBox*> (&component);
+                expect (list != nullptr);
+                juce::Image image (juce::Image::ARGB, width, list->getRowHeight(), true);
+                juce::Graphics graphics (image);
+                list->getListBoxModel()->paintListBoxItem (0, graphics, width, list->getRowHeight(), false);
+                return image;
+            };
+            for (auto* component : { &audio.channelMapControl(), &effects.knownListControl() })
+            {
+                component->setBounds (0, 0, 520, 160);
+                auto* list = dynamic_cast<juce::ListBox*> (component);
+                expect (list != nullptr);
+                if (list == nullptr) continue;
+                expectEquals (list->getOutlineThickness(), 0);
+                const auto row = paintRow (*component, 520);
+                auto* header = list->getHeaderComponent();
+                const auto image = header->createComponentSnapshot (header->getLocalBounds());
+                expectEquals (colourBounds (image, juce::Colours::red).getX(), 10);
+                expectEquals (colourBounds (row, juce::Colours::red).getX(), 10);
+            }
+            for (const auto width : { 180, 320, 520 })
+            {
+                const auto image = paintRow (effects.knownListControl(), width);
+                const auto name = colourBounds (image, juce::Colours::red);
+                const auto maker = colourBounds (image, juce::Colours::green);
+                const auto format = colourBounds (image, juce::Colours::blue);
+                expect (! name.isEmpty() && ! maker.isEmpty() && ! format.isEmpty());
+                expect (! name.intersects (maker) && ! name.intersects (format)
+                        && ! maker.intersects (format));
+                expect (format.getX() - juce::jmax (name.getRight(), maker.getRight()) >= 12);
+                if (width < 420)
+                {
+                    expect (maker.getY() - name.getBottom() >= 2);
+                    expect (maker.getHeight() >= 15);
+                }
+                else expect (maker.getX() - name.getRight() >= 12);
+                expectEquals (format.getRight(), width - 10);
+            }
+
+            const auto root = freshPanelDirectory ("text-geometry");
+            SkinManager manager;
+            SkinValidationReport report;
+            expect (manager.initialise (root.getChildFile ("installed"), report), report.toText());
+            SkinLibraryPanel skins (manager, &adapter);
+            skins.libraryControl().setBounds (0, 0, 520, 112);
+            if (auto* list = dynamic_cast<juce::ListBox*> (&skins.libraryControl()))
+            {
+                expectEquals (skins.skinCount(), 2);
+                expectEquals (list->getOutlineThickness(), 0);
+                expectEquals (list->getRowHeight(), 56);
+                expectEquals (list->getViewport()->getMaximumVisibleHeight(), 112);
+                expectEquals (list->getRowPosition (1, true).getBottom(), 112);
+                expect (! list->getVerticalScrollBar().isVisible());
+                expect (! list->getHorizontalScrollBar().isVisible());
+            }
+            else
+            {
+                expect (false, "Skin library must remain a native ListBox.");
+            }
+            for (const auto width : { 180, 320, 520 })
+            {
+                const auto image = paintRow (skins.libraryControl(), width);
+                const auto name = colourBounds (image, juce::Colours::red);
+                const auto author = colourBounds (image, juce::Colours::green);
+                const auto version = colourBounds (image, juce::Colours::blue);
+                const auto status = colourBounds (image, juce::Colours::yellow);
+                expect (! name.isEmpty() && ! author.isEmpty());
+                expect (author.getY() - name.getBottom() >= 2);
+                expect (version.getX() - name.getRight() >= 8);
+                expect (status.getX() - version.getRight() >= 8);
+                expect (status.getRight() <= width - 14);
+            }
+            expectEquals (effects.scanAllControl().getButtonText(), juce::String ("Scan plug-ins"));
+            expectEquals (effects.scanFolderControl().getButtonText(), juce::String ("Add folder"));
+            expectEquals (skins.importControl().getButtonText(), juce::String ("Import skin"));
+            expectEquals (skins.applyControl().getButtonText(), juce::String ("Apply"));
+            static_cast<void> (root.deleteRecursively());
+        }
 
         beginTest ("custom settings targets expose every frozen third-party context field");
         {
@@ -239,12 +403,33 @@ public:
             expect (! skin ("skin.builtIn").has_value());
         }
 
+        beginTest ("Controller exposes only actual device initialisation failures");
+        {
+            PlayerController ready (std::make_unique<PanelAudioBackend>());
+            expect (ready.getAudioInitialisationError().isEmpty());
+            auto backend = std::make_unique<PanelAudioBackend>();
+            backend->initialisationError = "CoreAudio could not open the output device.";
+            PlayerController failed (std::move (backend));
+            expectEquals (failed.getAudioInitialisationError(),
+                          juce::String ("CoreAudio could not open the output device."));
+            failed.clearPlaylist();
+            expect (failed.getAudioInitialisationError().isNotEmpty(),
+                    "Unrelated status messages do not overwrite the startup diagnostic.");
+        }
+
         beginTest ("Audio controls mirror capabilities and roll back rejected changes");
         {
             auto backend = std::make_unique<PanelAudioBackend>();
             auto* fake = backend.get();
             PlayerController controller (std::move (backend));
             AudioSettingsPanel panel (controller);
+            std::vector<std::pair<juce::String, bool>> notices;
+            panel.setStatusCallback ([&] (const juce::String& message, bool isError)
+            {
+                notices.emplace_back (message, isError);
+            });
+            panel.refresh();
+            expect (notices.empty(), "Refreshing capabilities does not announce an operation.");
 
             expectEquals (panel.deviceControl().getNumItems(), 2);
             expect (panel.deviceControl().getText().contains ("Built-in Output"));
@@ -254,6 +439,8 @@ public:
 
             panel.deviceControl().setSelectedItemIndex (1, juce::sendNotificationSync);
             expect (panel.deviceControl().getText().contains ("Aggregate 10ch"));
+            expect (! notices.empty() && ! notices.back().second,
+                    "A successful user device change is informational.");
             expectEquals (panel.sampleRateControl().getNumItems(), 2);
             expectEquals (panel.bufferSizeControl().getNumItems(), 3);
 
@@ -276,6 +463,9 @@ public:
             const auto previousRate = panel.sampleRateControl().getSelectedId();
             panel.sampleRateControl().setSelectedItemIndex (0, juce::sendNotificationSync);
             expectEquals (panel.sampleRateControl().getSelectedId(), previousRate);
+            expect (! notices.empty() && notices.back().second,
+                    "A rejected device change carries an explicit error flag.");
+            expect (notices.back().first.contains ("CoreAudio rejected the rate."));
             expectWithinAbsoluteError (controller.getAudioDeviceSettings().currentSampleRate,
                                        96000.0, 0.01);
         }
@@ -373,7 +563,27 @@ public:
             expectEquals (panel.knownListScrollPosition(), 1);
             if (auto* list = dynamic_cast<juce::ListBox*> (
                     &panel.knownListControl()))
-                expectEquals (list->getViewport()->getViewPositionY(), 32);
+            {
+                expectEquals (list->getViewport()->getViewPositionY(), 44);
+                auto* viewport = list->getViewport();
+                for (const auto height : { 132, 232, 280 })
+                {
+                    list->setSize (360, height);
+                    const auto visibleHeight = viewport->getMaximumVisibleHeight();
+                    expectEquals (visibleHeight % list->getRowHeight(), 0,
+                                  "Only complete plugin rows may occupy the viewport");
+                    expect (visibleHeight > 0);
+                    list->keyPressed (juce::KeyPress (juce::KeyPress::endKey));
+                    expectEquals (viewport->getViewPositionY() + visibleHeight,
+                                  panel.knownPluginCount() * list->getRowHeight(),
+                                  "The final plugin must remain fully reachable");
+                    viewport->setViewPosition (0, 53);
+                    expectEquals (viewport->getViewPositionY() % list->getRowHeight(), 0,
+                                  "Dragging the scroll bar must retain complete rows");
+                }
+                list->keyPressed (juce::KeyPress (juce::KeyPress::homeKey));
+                list->keyPressed (juce::KeyPress (juce::KeyPress::downKey));
+            }
             else
                 expect (false, "Known plug-in control must remain a native ListBox.");
             expect (panel.knownListControl().keyPressed (
@@ -430,7 +640,16 @@ public:
                 expect (! imported->builtIn);
             }
             SkinLibraryPanel panel (manager);
+            std::vector<std::pair<juce::String, bool>> notices;
+            panel.setStatusCallback ([&] (const juce::String& message, bool isError)
+            {
+                notices.emplace_back (message, isError);
+            });
             panel.refresh();
+            expect (notices.empty(), "Refreshing installed skins does not announce an operation.");
+            panel.importFile (root.getChildFile ("missing.moonwake-skin"));
+            expect (! notices.empty() && notices.back().second,
+                    "Skin import failures carry an explicit error flag.");
             expect (panel.skinCount() >= 10);
             panel.libraryControl().setBounds (0, 0, 320, 170);
             expect (panel.libraryControl().keyPressed (
@@ -478,6 +697,8 @@ public:
             expect (panel.previewControl().isEnabled());
             panel.previewControl().onClick();
             expect (manager.isPreviewing());
+            expect (! notices.empty() && ! notices.back().second,
+                    "Successful skin preview is distinguishable from a validation error.");
             expect (panel.applyControl().isEnabled());
             expect (panel.cancelPreviewControl().isEnabled());
             panel.cancelPreviewControl().onClick();
@@ -517,6 +738,11 @@ public:
             juce::Component root;
             juce::Label title;
             juce::TextButton close { "Close" };
+            juce::Label brand, status;
+            juce::TextButton studio, listening, effects, settings;
+            for (auto* component : std::array<juce::Component*, 6> {
+                     &brand, &status, &studio, &listening, &effects, &settings })
+                root.addAndMakeVisible (component);
             root.addAndMakeVisible (title);
             root.addAndMakeVisible (close);
             audio.addTo (root);
@@ -526,6 +752,12 @@ public:
             SkinComponentBindings bindings;
             expect (bindings.bind ("settings.title", title, report));
             expect (bindings.bind ("settings.close", close, report));
+            expect (bindings.bind ("app.brand.title", brand, report));
+            expect (bindings.bind ("app.status", status, report));
+            expect (bindings.bind ("workspace.studio", studio, report));
+            expect (bindings.bind ("workspace.listening", listening, report));
+            expect (bindings.bind ("effects.open", effects, report));
+            expect (bindings.bind ("settings.open", settings, report));
             audio.bind (bindings, report);
             plugins.bind (bindings, report);
             skins.bind (bindings, report);

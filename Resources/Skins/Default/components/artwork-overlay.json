@@ -1,7 +1,5 @@
 {
   "apiVersion": 1,
   "target": "surface",
-  "layers": [
-    { "id": "overlay", "type": "rect", "frame": { "anchor": "bounds" }, "fill": "#00000000" }
-  ]
+  "layers": []
 }

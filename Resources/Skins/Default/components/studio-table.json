@@ -1,7 +1,19 @@
 {
-  "apiVersion": 1, "target": "table",
+  "apiVersion": 1,
+  "target": "table",
   "layers": [
-    { "id": "body", "type": "rect", "frame": { "anchor": "bounds" }, "fill": "#00000000" }
+    {
+      "id": "body",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000000"
+    }
   ],
-  "variants": { "focused": { "body.fill": "#D697620A" } }
+  "variants": {
+    "focused": {
+      "body.fill": "#9CCBD80A"
+    }
+  }
 }

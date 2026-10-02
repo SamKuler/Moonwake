@@ -4,12 +4,28 @@
     "neutral": "components/button-neutral.json"
   },
   "surface": {
-    "card": "components/surface-card.json"
+    "card": "components/surface-card.json",
+    "studio": "components/surface-studio.json"
   },
   "linearSlider": {
     "seek": "components/seek-slider.json"
   },
   "rotarySlider": {
     "default": "components/volume-knob.json"
+  },
+  "artwork": {
+    "default": "components/artwork.json"
+  },
+  "popupMenu": {
+    "studio": "components/popup-menu-studio.json"
+  },
+  "tooltip": {
+    "studio": "components/tooltip-studio.json"
+  },
+  "scrollBar": {
+    "studio": "components/scroll-bar-studio.json"
+  },
+  "outputStage": {
+    "default": "components/output-stage.json"
   }
 }

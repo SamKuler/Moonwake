@@ -2,6 +2,7 @@
 #include "skin/SkinManager.h"
 #include "ui/JuceSkinAdapter.h"
 #include "ui/SkinLayoutHost.h"
+#include "ui/SkinTableListBox.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -151,6 +152,25 @@ juce::Rectangle<int> rootBoundsFor (juce::Component& root,
     return root.getLocalArea (&child, child.getLocalBounds());
 }
 
+void suffixLayoutIds (juce::var node)
+{
+    if (! node.isObject()) return;
+    node.getDynamicObject()->setProperty ("id", node.getProperty ("id", {}).toString() + "-studio");
+    if (const auto* children = node.getProperty ("children", {}).getArray())
+        for (const auto& child : *children) suffixLayoutIds (child);
+    suffixLayoutIds (node.getProperty ("child", {}));
+}
+
+void setQueuePresentation (juce::var node, const juce::String& presentation)
+{
+    if (! node.isObject()) return;
+    if (node.getProperty ("component", {}).toString() == "queue.table")
+        node.getDynamicObject()->setProperty ("presentation", presentation);
+    if (const auto* children = node.getProperty ("children", {}).getArray())
+        for (const auto& child : *children) setQueuePresentation (child, presentation);
+    setQueuePresentation (node.getProperty ("child", {}), presentation);
+}
+
 juce::Viewport* ancestorViewport (juce::Component& component)
 {
     for (auto* current = component.getParentComponent(); current != nullptr;
@@ -167,6 +187,154 @@ public:
 
     void runTest() override
     {
+        beginTest ("workspace context switches the resolved tree without changing the layout entry");
+        {
+            const auto storage = freshHostDirectory();
+            const auto source = writeScrollableHostSkin (storage);
+            const auto file = source.getChildFile ("layouts/listening.json");
+            auto document = juce::JSON::parse (file);
+            auto baseStyles = juce::var (new juce::DynamicObject());
+            baseStyles.getDynamicObject()->setProperty ("popupMenu", "popupMenu.default");
+            document.getDynamicObject()->setProperty ("ancillaryStyles", baseStyles);
+            auto themedRoot = document.getProperty ("root", {}).clone();
+            suffixLayoutIds (themedRoot);
+            themedRoot.getDynamicObject()->setProperty ("padding", 20);
+            auto condition = juce::var (new juce::DynamicObject());
+            condition.getDynamicObject()->setProperty ("workspace", "studio");
+            auto breakpoint = juce::var (new juce::DynamicObject());
+            breakpoint.getDynamicObject()->setProperty ("when", condition);
+            breakpoint.getDynamicObject()->setProperty ("root", themedRoot);
+            auto themedStyles = juce::var (new juce::DynamicObject());
+            themedStyles.getDynamicObject()->setProperty ("tooltip", "tooltip.default");
+            breakpoint.getDynamicObject()->setProperty ("ancillaryStyles", themedStyles);
+            document.getDynamicObject()->setProperty ("breakpoints", juce::Array<juce::var> { breakpoint });
+            expect (file.replaceWithText (juce::JSON::toString (document, true)));
+            SkinValidationReport report;
+            SkinManager manager;
+            expect (manager.initialise (storage.getChildFile ("installs"), report), report.toText());
+            const auto imported = manager.importSkin (source);
+            expect (! imported.hasErrors(), imported.toText());
+            expect (manager.preview ({ "com.example.scroll-host", "1.0.0" }, report), report.toText());
+            juce::Component root;
+            root.setBounds (0, 0, 1240, 800);
+            SkinComponentBindings bindings;
+            std::vector<std::unique_ptr<juce::Component>> components;
+            for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+                if (descriptor.requiredIn.contains (SkinLayoutEntry::listening))
+                {
+                    auto component = componentFor (descriptor.id);
+                    root.addAndMakeVisible (*component);
+                    expect (bindings.bind (descriptor.id, *component, report), report.toText());
+                    components.push_back (std::move (component));
+                }
+            SkinLayoutHost host (manager, bindings);
+            auto* queue = bindings.find ("queue.table");
+            expect (queue != nullptr);
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            const auto original = rootBoundsFor (root, *queue);
+            expectEquals (host.ancillaryStyleFor (SkinRenderTarget::popupMenu), juce::String ("popupMenu.default"));
+            expect (host.ancillaryStyleFor (SkinRenderTarget::tooltip).isEmpty());
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f,
+                                report, WorkspaceMode::studio), report.toText());
+            expect (rootBoundsFor (root, *queue) != original);
+            expectEquals (host.ancillaryStyleFor (SkinRenderTarget::popupMenu), juce::String ("popupMenu.default"));
+            expectEquals (host.ancillaryStyleFor (SkinRenderTarget::tooltip), juce::String ("tooltip.default"));
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            expect (rootBoundsFor (root, *queue) == original);
+            expect (host.ancillaryStyleFor (SkinRenderTarget::tooltip).isEmpty());
+            host.clear();
+            expect (host.ancillaryStyleFor (SkinRenderTarget::popupMenu).isEmpty());
+            storage.deleteRecursively();
+        }
+
+        beginTest ("host table and list transitions preserve user columns from initially empty bounds");
+        {
+            const auto storage = freshHostDirectory();
+            const auto source = writeScrollableHostSkin (storage);
+            const auto file = source.getChildFile ("layouts/listening.json");
+            auto document = juce::JSON::parse (file);
+            auto tableRoot = document.getProperty ("root", {});
+            setQueuePresentation (tableRoot, "table");
+            auto listRoot = tableRoot.clone();
+            suffixLayoutIds (listRoot);
+            setQueuePresentation (listRoot, "list");
+            auto condition = juce::var (new juce::DynamicObject());
+            condition.getDynamicObject()->setProperty ("workspace", "studio");
+            auto breakpoint = juce::var (new juce::DynamicObject());
+            breakpoint.getDynamicObject()->setProperty ("when", condition);
+            breakpoint.getDynamicObject()->setProperty ("root", listRoot);
+            document.getDynamicObject()->setProperty ("breakpoints", juce::Array<juce::var> { breakpoint });
+            expect (file.replaceWithText (juce::JSON::toString (document, true)));
+            SkinValidationReport report;
+            SkinManager manager;
+            expect (manager.initialise (storage.getChildFile ("installs"), report), report.toText());
+            const auto imported = manager.importSkin (source);
+            expect (! imported.hasErrors(), imported.toText());
+            expect (manager.preview ({ "com.example.scroll-host", "1.0.0" }, report), report.toText());
+            juce::Component root;
+            root.setBounds (0, 0, 1240, 800);
+            SkinComponentBindings bindings;
+            std::vector<std::unique_ptr<juce::Component>> components;
+            SkinTableListBox queue;
+            queue.setOutlineThickness (0);
+            queue.setRowHeight (32);
+            queue.setHeaderHeight (24);
+            auto& header = queue.getHeader();
+            header.addColumn ("Title", 1, 240, 80, -1);
+            header.addColumn ("Artist / album", 2, 360, 100, -1);
+            header.addColumn ("Duration", 3, 90, 40, 120);
+            root.addAndMakeVisible (queue);
+            expect (bindings.bind ("queue.table", queue, report), report.toText());
+            for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+                if (descriptor.id != "queue.table" && descriptor.requiredIn.contains (SkinLayoutEntry::listening))
+                {
+                    auto component = componentFor (descriptor.id);
+                    root.addAndMakeVisible (*component);
+                    expect (bindings.bind (descriptor.id, *component, report), report.toText());
+                    components.push_back (std::move (component));
+                }
+            expect (queue.getBounds().isEmpty());
+            SkinLayoutHost host (manager, bindings);
+            const auto apply = [&] (WorkspaceMode workspace, int width)
+            {
+                expect (host.apply (SkinLayoutEntry::listening, { 0, 0, width, 800 },
+                                    1.0f, report, workspace), report.toText());
+            };
+            apply (WorkspaceMode::listening, 1240);
+            header.setColumnWidth (1, 220);
+            header.setColumnWidth (3, 88);
+            header.setColumnWidth (2, queue.getVisibleContentWidth() - 220 - 88);
+            header.moveColumn (3, 0);
+            header.setSortColumnId (3, false);
+            const auto customised = header.toString();
+            const auto titleRatio = 220.0 / (queue.getVisibleContentWidth() - 88);
+            apply (WorkspaceMode::listening, 1240);
+            expectEquals (header.toString(), customised);
+            apply (WorkspaceMode::studio, 1240);
+            expectEquals (queue.getHeaderHeight(), 0);
+            expectEquals (header.getColumnWidth (3), 56);
+            apply (WorkspaceMode::listening, 1240);
+            expectEquals (header.toString(), customised);
+            for (const auto width : { 1040, 1240 })
+            {
+                apply (WorkspaceMode::listening, width);
+                expectEquals (header.getColumnWidth (3), 88);
+                expectEquals (header.getColumnIdOfIndex (0, true), 3);
+                expectEquals (header.getSortColumnId(), 3);
+                expectWithinAbsoluteError (static_cast<double> (header.getColumnWidth (1)),
+                    titleRatio * (queue.getVisibleContentWidth() - 88), 1.0);
+                const auto resizedColumns = header.toString();
+                apply (WorkspaceMode::studio, width);
+                apply (WorkspaceMode::listening, width);
+                expectEquals (header.toString(), resizedColumns);
+            }
+            host.clear();
+            expect (queue.getBounds().isEmpty());
+            expectEquals (queue.getRowHeight(), 32);
+            expectEquals (queue.getHeaderHeight(), 24);
+            storage.deleteRecursively();
+        }
+
         beginTest ("active Listening layout positions and styles real bound components");
         {
             const auto storage = freshHostDirectory();
@@ -180,17 +348,24 @@ public:
             root.setVisible (true);
             SkinComponentBindings bindings;
             std::map<juce::String, std::unique_ptr<juce::Component>> components;
-            const juce::StringArray ids {
-                "app.brand.title", "app.status", "workspace.studio",
-                "workspace.listening", "settings.open", "library.add",
-                "library.search", "queue.title", "queue.count", "queue.table",
-                "queue.empty",
-                "artwork.cover", "artwork.metadata", "nowPlaying.title",
-                "nowPlaying.metadata",
-                "transport.previous", "transport.playPause", "transport.next",
-                "transport.seek", "transport.time", "transport.volume",
-                "effects.open"
+            const auto session = manager.activeSession();
+            expect (session != nullptr);
+            const auto skin = session != nullptr ? session->compiledSkin() : nullptr;
+            expect (skin != nullptr);
+            if (skin == nullptr) return;
+            const juce::Rectangle<int> appliedBounds (37, 23, 1160, 740);
+            const auto expected = SkinLayoutEngine::resolve (
+                skin->layouts.at (SkinLayoutEntry::listening),
+                appliedBounds.toFloat(), 1.25f, report);
+            expect (expected.has_value(), report.toText());
+            if (! expected) return;
+            juce::StringArray ids;
+            const auto collectComponents = [&] (const auto& self, const SkinResolvedNode& node) -> void
+            {
+                if (node.componentId.isNotEmpty()) ids.addIfNotAlreadyThere (node.componentId);
+                for (const auto& child : node.children) self (self, child);
             };
+            collectComponents (collectComponents, expected->root);
             for (const auto& id : ids)
             {
                 auto component = componentFor (id);
@@ -205,42 +380,29 @@ public:
             }
 
             SkinLayoutHost host (manager, bindings);
-            const juce::Rectangle<int> appliedBounds (37, 23, 1160, 740);
             expect (host.apply (SkinLayoutEntry::listening, appliedBounds,
                                 1.25f, report), report.toText());
 
-            const auto session = manager.activeSession();
-            expect (session != nullptr);
-            const auto skin = session != nullptr ? session->compiledSkin() : nullptr;
-            expect (skin != nullptr);
-            if (skin != nullptr)
-            {
-                auto expected = SkinLayoutEngine::resolve (
-                    skin->layouts.at (SkinLayoutEntry::listening),
-                    appliedBounds.toFloat(), 1.25f, report);
-                expect (expected.has_value(), report.toText());
-                if (expected)
-                    for (const auto& id : ids)
-                        if (const auto* node = expected->component (id))
-                        {
-                            auto& component = *components.at (id);
-                            expect (rootBoundsFor (root, component)
-                                        == node->bounds.getSmallestIntegerContainer(),
-                                    id);
-                            expectEquals (
-                                component.getProperties().getWithDefault (
-                                    JuceSkinAdapter::styleProperty, {}).toString(),
-                                node->style, id);
-                            expectEquals (component.getExplicitFocusOrder(),
-                                          node->focusOrder, id);
-                            expect (component.isVisible() == node->visible, id);
-                            expectWithinAbsoluteError (
-                                static_cast<double> (component.getProperties()
-                                    .getWithDefault (
-                                        JuceSkinAdapter::scaleFactorProperty, 0.0)),
-                                1.25, 0.0001, id);
-                        }
-            }
+            for (const auto& id : ids)
+                if (const auto* node = expected->component (id))
+                {
+                    auto& component = *components.at (id);
+                    expect (rootBoundsFor (root, component)
+                                == node->bounds.getSmallestIntegerContainer(),
+                            id);
+                    expectEquals (
+                        component.getProperties().getWithDefault (
+                            JuceSkinAdapter::styleProperty, {}).toString(),
+                        node->style, id);
+                    expectEquals (component.getExplicitFocusOrder(),
+                                  node->focusOrder, id);
+                    expect (component.isVisible() == node->visible, id);
+                    expectWithinAbsoluteError (
+                        static_cast<double> (component.getProperties()
+                            .getWithDefault (
+                                JuceSkinAdapter::scaleFactorProperty, 0.0)),
+                        1.25, 0.0001, id);
+                }
 
             juce::Image rendered (juce::Image::ARGB, 1240, 800, true);
             {
@@ -252,23 +414,33 @@ public:
             auto* volume = dynamic_cast<juce::Slider*> (
                 components.at ("transport.volume").get());
             expect (volume != nullptr);
-            if (volume != nullptr)
-                expect (volume->getSliderStyle()
-                        == juce::Slider::RotaryHorizontalVerticalDrag);
+            const auto* volumeNode = expected->component ("transport.volume");
+            expect (volumeNode != nullptr);
+            if (volume != nullptr && volumeNode != nullptr)
+                expect (volume->getSliderStyle() == (volumeNode->presentation == "rotary"
+                    ? juce::Slider::RotaryHorizontalVerticalDrag : juce::Slider::LinearHorizontal));
             expect (components.at ("queue.title")->isVisible());
 
             const auto previousBounds = rootBoundsFor (
                 root, *components.at ("transport.playPause"));
             auto* previousParent = components.at ("transport.playPause")
                                        ->getParentComponent();
+            SkinComponentBindings missingVolume;
+            for (const auto& [id, component] : components)
+                if (id != "transport.volume")
+                    expect (missingVolume.bind (id, *component, report), report.toText());
+            bindings = std::move (missingVolume);
             SkinValidationReport failure;
-            expect (! host.apply (SkinLayoutEntry::studio, appliedBounds,
+            expect (! host.apply (SkinLayoutEntry::listening, appliedBounds,
                                   1.25f, failure));
+            expect (failure.hasCode ("COMPONENT007"), failure.toText());
             expect (rootBoundsFor (root, *components.at ("transport.playPause"))
                     == previousBounds);
             expect (components.at ("transport.playPause")->getParentComponent()
                     == previousParent);
 
+            expect (bindings.bind ("transport.volume", *components.at ("transport.volume"), report),
+                    report.toText());
             failure = {};
             expect (! host.apply (SkinLayoutEntry::listening,
                                   { 0, 0, 100, 100 }, 1.0f, failure));

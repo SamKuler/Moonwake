@@ -43,12 +43,12 @@ public:
     bool previousTrack();
     bool handlePlaybackFinished();
     bool handlePlaybackReadError();
-    bool synchronizePlayback (bool finishQueue = true);
+    bool synchronizePlayback (bool finishQueue = true, bool* preparationFailed = nullptr);
     bool removeTrack (int index);
     bool moveTrack (int fromIndex, int toIndex);
     void clearPlaylist();
-    void seekToRatio (double ratio);
-    void seekToSeconds (double seconds);
+    bool seekToRatio (double ratio);
+    bool seekToSeconds (double seconds);
     void checkpointPlaybackPosition();
     void setShuffleEnabled (bool shouldShuffle);
     void setRepeatMode (RepeatMode mode);
@@ -73,6 +73,8 @@ public:
     bool loadState (const juce::File& stateFile, const juce::File& pluginListFile);
     bool applyPreparedState (StateRestoreResult result);
 
+    [[nodiscard]] const juce::String& getAudioInitialisationError() const noexcept { return audioInitialisationError; }
+    [[nodiscard]] const juce::StringArray& getRestoreDiagnostics() const noexcept { return restoreDiagnostics; }
     [[nodiscard]] const PlaylistModel& getPlaylist() const;
     [[nodiscard]] const EffectChainState& getEffectChain() const;
     [[nodiscard]] juce::Array<juce::PluginDescription> getKnownPlugins() const;
@@ -105,6 +107,7 @@ private:
     AudioDevicePreferences audioDevicePreferences;
     OutputLayout preferredOutputLayout = OutputLayout::stereo;
     juce::String lastStatusMessage;
+    juce::String audioInitialisationError;
     std::shared_ptr<std::atomic_bool> lifetimeFlag { std::make_shared<std::atomic_bool> (true) };
     uint64_t effectChainRevision = 0;
     uint64_t stateRevision = 0;

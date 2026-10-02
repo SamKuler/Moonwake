@@ -11,12 +11,31 @@ void AlbumArtworkComponent::setTrack (juce::String stableIdToUse,
         && artworkPath == nextPath)
         return;
 
+    const auto artworkChanged = stableId != stableIdToUse || artworkPath != nextPath;
     stableId = std::move (stableIdToUse);
     title = std::move (titleToUse);
     artworkPath = nextPath;
-    artwork = artworkFile.existsAsFile()
-                  ? juce::ImageFileFormat::loadFrom (artworkFile)
-                  : juce::Image{};
+    if (artworkChanged)
+    {
+        artwork = artworkFile.existsAsFile()
+                      ? juce::ImageFileFormat::loadFrom (artworkFile)
+                      : juce::Image{};
+        ambience = {};
+        if (artwork.isValid())
+        {
+            constexpr int maximumDimension = 64;
+            const auto scale = juce::jmin (1.0, static_cast<double> (maximumDimension)
+                / juce::jmax (artwork.getWidth(), artwork.getHeight()));
+            const auto source = artwork.rescaled (
+                juce::jmax (1, juce::roundToInt (artwork.getWidth() * scale)),
+                juce::jmax (1, juce::roundToInt (artwork.getHeight() * scale)),
+                juce::Graphics::highResamplingQuality).convertedToFormat (juce::Image::ARGB);
+            ambience = juce::Image (juce::Image::ARGB, source.getWidth(), source.getHeight(), true);
+            juce::ImageConvolutionKernel blur (33);
+            blur.createGaussianBlur (8.0f);
+            blur.applyToImage (ambience, source, source.getBounds());
+        }
+    }
     repaint();
 }
 
@@ -49,6 +68,21 @@ void AlbumArtworkComponent::paint (juce::Graphics& graphics)
     static_cast<void> (adapter->drawCustomSlot (
         graphics, *this, SkinRenderTarget::artwork, "frame.background",
         SkinRenderTarget::surface, context, "cover:background"));
+    if (ambience.isValid())
+    {
+        if (const auto style = adapter->artworkAmbienceStyleFor (*this, context);
+            style && style->visible && style->opacity > 0.0f)
+        {
+            juce::Graphics::ScopedSaveState savedState (graphics);
+            juce::Path clipPath;
+            clipPath.addRoundedRectangle (style->bounds, style->cornerRadius);
+            graphics.reduceClipRegion (clipPath);
+            graphics.setOpacity (style->opacity);
+            graphics.drawImageTransformed (ambience,
+                juce::RectanglePlacement (juce::RectanglePlacement::fillDestination)
+                    .getTransformToFit (ambience.getBounds().toFloat(), style->bounds), false);
+        }
+    }
     static_cast<void> (adapter->drawCustomComponent (
         graphics, *this, SkinRenderTarget::artwork, context, "cover"));
 

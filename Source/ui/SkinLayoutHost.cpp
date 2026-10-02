@@ -1,6 +1,7 @@
 #include "SkinLayoutHost.h"
 
 #include "JuceSkinAdapter.h"
+#include "SkinTableListBox.h"
 #include "skin/SkinRenderer.h"
 
 #include <algorithm>
@@ -506,7 +507,7 @@ void SkinLayoutHost::captureOriginalStates()
     }
 }
 
-void SkinLayoutHost::restoreOriginalStates()
+void SkinLayoutHost::restoreOriginalStates (const Runtime* next)
 {
     for (const auto& [component, state] : originalStates)
     {
@@ -532,7 +533,19 @@ void SkinLayoutHost::restoreOriginalStates()
     {
         if (state->parent != nullptr)
             state->parent->addChildComponent (component, state->childIndex);
-        component->setBounds (state->bounds);
+        bool keepsPresentation = false;
+        if (auto* table = dynamic_cast<SkinTableListBox*> (component))
+        {
+            keepsPresentation = next != nullptr
+                && std::any_of (next->placements.begin(), next->placements.end(),
+                                [component] (const auto& placement)
+                                {
+                                    return placement.component == component
+                                        && placement.presentation.isNotEmpty();
+                                });
+            if (! keepsPresentation) table->resetPresentation();
+        }
+        if (! keepsPresentation) component->setBounds (state->bounds);
         component->setAlpha (state->alpha);
         component->setExplicitFocusOrder (state->focusOrder);
         auto& properties = component->getProperties();
@@ -589,7 +602,7 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
         value.root->setBounds (0, 0, value.bounds.getWidth(), value.bounds.getHeight());
         scene->addAndMakeVisible (*value.root);
 
-        restoreOriginalStates();
+        restoreOriginalStates (&value);
         for (const auto& id : bindings.ids())
             if (auto* component = bindings.find (id)) component->setVisible (false);
 
@@ -597,6 +610,11 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
         {
             if (placement.component == nullptr || placement.wrapper == nullptr)
                 throw std::runtime_error ("invalid component placement");
+            if (auto* table = dynamic_cast<SkinTableListBox*> (placement.component))
+            {
+                if (placement.presentation.isEmpty()) table->resetPresentation();
+                else table->setPresentation (placement.presentation);
+            }
             placement.wrapper->addAndMakeVisible (*placement.component);
             placement.component->setBounds (placement.wrapper->getLocalBounds());
             placement.component->setAlpha (placement.alpha);
@@ -642,7 +660,8 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
 bool SkinLayoutHost::apply (SkinLayoutEntry entry,
                             juce::Rectangle<int> bounds,
                             float scaleFactor,
-                            SkinValidationReport& report)
+                            SkinValidationReport& report,
+                            std::optional<WorkspaceMode> workspace)
 {
     const auto session = manager.activeSession();
     const auto skin = session != nullptr ? session->compiledSkin() : nullptr;
@@ -654,7 +673,7 @@ bool SkinLayoutHost::apply (SkinLayoutEntry entry,
     }
 
     auto resolved = SkinLayoutEngine::resolve (
-        skin->layouts.at (entry), bounds.toFloat(), scaleFactor, report);
+        skin->layouts.at (entry), bounds.toFloat(), scaleFactor, report, workspace);
     if (! resolved) return false;
     captureOriginalStates();
 
@@ -722,6 +741,14 @@ bool SkinLayoutHost::apply (SkinLayoutEntry entry,
             scene->getParentComponent()->removeChildComponent (scene.get());
     }
     return false;
+}
+
+juce::String SkinLayoutHost::ancillaryStyleFor (SkinRenderTarget target) const
+{
+    if (runtime == nullptr) return {};
+    const auto& styles = runtime->layout.ancillaryStyles;
+    const auto found = styles.find (skinRenderTargetName (target));
+    return found != styles.end() ? found->second : juce::String{};
 }
 
 void SkinLayoutHost::clear()

@@ -2,10 +2,164 @@
   "apiVersion": 1,
   "target": "label",
   "layers": [
-    { "id": "fallback", "type": "text", "visible": { "$expr": "row.artist == '' and row.album == ''" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 12, "color": { "$ref": "colors.listening.muted" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
-    { "id": "artist-only", "type": "text", "visible": { "$expr": "row.artist != '' and row.album == ''" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "row.artist" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 13, "color": { "$ref": "colors.listening.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
-    { "id": "album-only", "type": "text", "visible": { "$expr": "row.artist == '' and row.album != ''" }, "frame": { "anchor": "contentBounds", "inset": { "left": 8, "right": 8 } }, "text": { "$context": "row.album" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 13, "color": { "$ref": "colors.listening.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" },
-    { "id": "artist", "type": "text", "visible": { "$expr": "row.artist != '' and row.album != ''" }, "frame": { "x": 8, "y": 0, "width": { "$expr": "max(0, bounds.width - 16)" }, "height": { "$expr": "bounds.height * 0.52" } }, "text": { "$context": "row.artist" }, "font": { "$ref": "fonts.workspaceMedium" }, "fontSize": 11.5, "color": { "$ref": "colors.listening.text" }, "align": "bottomLeft", "maxLines": 1, "overflow": "ellipsis" },
-    { "id": "album", "type": "text", "visible": { "$expr": "row.artist != '' and row.album != ''" }, "frame": { "x": 8, "y": { "$expr": "bounds.height * 0.48" }, "width": { "$expr": "max(0, bounds.width - 16)" }, "height": { "$expr": "bounds.height * 0.52" } }, "text": { "$context": "row.album" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 10.5, "color": { "$ref": "colors.listening.muted" }, "align": "topLeft", "maxLines": 1, "overflow": "ellipsis" }
+    {
+      "id": "fallback",
+      "type": "text",
+      "visible": {
+        "$expr": "row.artist == '' and row.album == ''"
+      },
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 8,
+          "right": 8
+        }
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textSecondary"
+      },
+      "color": {
+        "$ref": "colors.listening.muted"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "artist-only",
+      "type": "text",
+      "visible": {
+        "$expr": "row.artist != '' and row.album == ''"
+      },
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 8,
+          "right": 8
+        }
+      },
+      "text": {
+        "$context": "row.artist"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textControl"
+      },
+      "color": {
+        "$ref": "colors.listening.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "album-only",
+      "type": "text",
+      "visible": {
+        "$expr": "row.artist == '' and row.album != ''"
+      },
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 8,
+          "right": 8
+        }
+      },
+      "text": {
+        "$context": "row.album"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textControl"
+      },
+      "color": {
+        "$ref": "colors.listening.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "artist",
+      "type": "text",
+      "visible": {
+        "$expr": "row.artist != '' and row.album != ''"
+      },
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 8"
+        },
+        "y": {
+          "$expr": "bounds.y + 2"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 16)"
+        },
+        "height": {
+          "$expr": "bounds.height * 0.5 - 2"
+        }
+      },
+      "text": {
+        "$context": "row.artist"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textControl"
+      },
+      "color": {
+        "$ref": "colors.listening.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "album",
+      "type": "text",
+      "visible": {
+        "$expr": "row.artist != '' and row.album != ''"
+      },
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 8"
+        },
+        "y": {
+          "$expr": "bounds.y + bounds.height * 0.5"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 16)"
+        },
+        "height": {
+          "$expr": "bounds.height * 0.5 - 2"
+        }
+      },
+      "text": {
+        "$context": "row.album"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textSecondary"
+      },
+      "color": {
+        "$ref": "colors.listening.muted"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    }
   ]
 }

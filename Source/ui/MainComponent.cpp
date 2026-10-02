@@ -24,7 +24,7 @@ void appendReport (SkinValidationReport& destination,
 
 juce::String workCountText (int count)
 {
-    return juce::String (count) + (count == 1 ? " WORK" : " WORKS");
+    return juce::String (count) + (count == 1 ? " track" : " tracks");
 }
 
 class RackIconButton final : public juce::Button
@@ -319,7 +319,8 @@ MainComponent::MainComponent()
                       break;
                   }
           return JuceSkinAdapter::RuntimeBinding {
-              skin->resolveStyle (target, style), &session->animations(),
+              skin->resolveStyle (target, style == "default"
+                  ? skinLayoutHost.ancillaryStyleFor (target) : style), &session->animations(),
               session.get(), required
           };
       }, skinRenderer),
@@ -333,6 +334,7 @@ MainComponent::MainComponent()
     const auto skinReady = skinManager.initialise (
         ProductPaths::installedSkinsRoot(), skinReport);
     setLookAndFeel (&skinAdapter);
+    tooltipWindow.setOpaque (false);
     if (skinReady)
     {
         skinManager.setPersistenceCallback ([this] (const SkinSelection& selection)
@@ -354,7 +356,7 @@ MainComponent::MainComponent()
         skinFallbackDiagnostic.setMessage (skinReport.toText());
     }
 
-    appEyebrowLabel.setText ("MACOS AUDIO PLAYER", juce::dontSendNotification);
+    appEyebrowLabel.setText ("Music for macOS", juce::dontSendNotification);
     appEyebrowLabel.setJustificationType (juce::Justification::centredLeft);
 
     titleLabel.setText (juce::String::fromUTF8 (MoonwakeIdentity::displayCredit),
@@ -362,42 +364,47 @@ MainComponent::MainComponent()
     titleLabel.setTitle (juce::String::fromUTF8 (MoonwakeIdentity::displayCredit));
     titleLabel.setJustificationType (juce::Justification::centredLeft);
 
-    nowPlayingEyebrowLabel.setText ("NOW PLAYING", juce::dontSendNotification);
+    nowPlayingEyebrowLabel.setText ("Now playing", juce::dontSendNotification);
     nowPlayingEyebrowLabel.setJustificationType (juce::Justification::centredLeft);
 
-    queueTitleLabel.setText ("LISTENING QUEUE", juce::dontSendNotification);
+    queueTitleLabel.setText ("Up next", juce::dontSendNotification);
     queueTitleLabel.setJustificationType (juce::Justification::centredLeft);
     queueCountLabel.setJustificationType (juce::Justification::centredRight);
-    emptyQueueLabel.setText ("No matching works\nDrop music or folders here, or use + Music",
+    emptyQueueLabel.setText ("No matching tracks\nDrop music or folders here, or use + Music",
                              juce::dontSendNotification);
     emptyQueueLabel.setJustificationType (juce::Justification::centred);
 
-    effectRackTitleLabel.setText ("INSERT CHAIN", juce::dontSendNotification);
+    effectRackTitleLabel.setText ("Effects", juce::dontSendNotification);
     effectRackTitleLabel.setJustificationType (juce::Justification::centredLeft);
-    emptyRackLabel.setText ("No effects in this chain\nOpen Settings to scan VST3 or Audio Units",
+    emptyRackLabel.setText ("No effects yet\nChoose a plug-in above to add it",
                             juce::dontSendNotification);
     emptyRackLabel.setJustificationType (juce::Justification::centred);
 
     settingsTitleLabel.setJustificationType (juce::Justification::centredLeft);
 
-    statusLabel.setText ("Ready", juce::dontSendNotification);
+    statusLabel.setName ("Notification");
+    statusLabel.addMouseListener (this, false);
     statusLabel.setJustificationType (juce::Justification::centredLeft);
     nowPlayingLabel.setText ("No track loaded", juce::dontSendNotification);
     nowPlayingLabel.setJustificationType (juce::Justification::centredLeft);
-    trackMetaLabel.setText ("SELECT A TRACK TO BEGIN", juce::dontSendNotification);
+    trackMetaLabel.setText ("Select a track to begin", juce::dontSendNotification);
     trackMetaLabel.setJustificationType (juce::Justification::centredLeft);
     artworkMetaLabel.setJustificationType (juce::Justification::centred);
     effectsSummaryLabel.setJustificationType (juce::Justification::centredLeft);
     deviceStatusLabel.setJustificationType (juce::Justification::centredRight);
-    volumeLabel.setText ("VOLUME", juce::dontSendNotification);
+    volumeLabel.setText ("Volume", juce::dontSendNotification);
+    volumeSlider.setName ("Volume");
+    volumeSlider.setTooltip ("Output volume");
+    seekSlider.setName ("Playback position");
+    seekSlider.setTooltip ("Seek within the current track");
     volumeLabel.setJustificationType (juce::Justification::centredRight);
     volumeValueLabel.setJustificationType (juce::Justification::centredRight);
     timeLabel.setText ("0:00 / 0:00", juce::dontSendNotification);
     timeLabel.setJustificationType (juce::Justification::centred);
 
-    repeatModeBox.addItem ("Repeat Off", 1);
-    repeatModeBox.addItem ("Repeat All", 2);
-    repeatModeBox.addItem ("Repeat One", 3);
+    repeatModeBox.addItem ("Repeat off", 1);
+    repeatModeBox.addItem ("Repeat all", 2);
+    repeatModeBox.addItem ("Repeat one", 3);
     repeatModeBox.setSelectedId (1);
 
     outputLayoutBox.addItem ("Stereo", 1);
@@ -410,15 +417,15 @@ MainComponent::MainComponent()
     playlistTable.setOutlineThickness (0);
     playlistTable.setRowHeight (32);
     playlistTable.setHeaderHeight (24);
-    playlistTable.getHeader().addColumn ("WORK", 1, 240, 120, 500);
-    playlistTable.getHeader().addColumn ("LOCATION", 2, 360, 180, 800);
-    playlistTable.getHeader().addColumn ("DURATION", 3, 90, 70, 120);
+    playlistTable.getHeader().addColumn ("Track", 1, 240, 80, -1);
+    playlistTable.getHeader().addColumn ("Artist / album", 2, 360, 100, -1);
+    playlistTable.getHeader().addColumn ("Time", 3, 90, 40, 120);
     skinAdapter.configureListBox (playlistTable);
 
     librarySearchEditor.setName ("Search works");
     librarySearchEditor.setTitle ("Search title, artist, album, format, or channel count");
     librarySearchEditor.setTextToShowWhenEmpty (
-        "Search title, artist, album, format...",
+        "Search music",
         skinAdapter.findColour (juce::TextEditor::textColourId).withAlpha (0.58f));
     librarySearchEditor.onTextChange = [this]
     {
@@ -434,7 +441,7 @@ MainComponent::MainComponent()
     pluginFilterLabel.setText ("Filter", juce::dontSendNotification);
     pluginFilterLabel.setJustificationType (juce::Justification::centredLeft);
     pluginFilterEditor.setTextToShowWhenEmpty (
-        "Search by plug-in name, maker, or format",
+        "Search plug-ins",
         skinAdapter.findColour (juce::TextEditor::textColourId));
     pluginCombo.setTextWhenNothingSelected ("No matching effects");
     effectRackViewport.setViewedComponent (&effectRackContent, false);
@@ -527,21 +534,25 @@ MainComponent::MainComponent()
 
     for (auto* child : children)
         addAndMakeVisible (child);
+    statusLabel.setVisible (false);
     skinFallbackDiagnostic.setVisible (! skinReady);
 
     audioSettingsPanel.addTo (*this);
     pluginSettingsPanel.addTo (*this);
     skinLibraryPanel.addTo (*this);
 
-    const auto showStatus = [this] (const juce::String& message)
+    const auto reportStatus = [this] (const juce::String& message, bool isError)
     {
-        statusLabel.setText (message, juce::dontSendNotification);
+        showStatus (message, isError);
         updateTransportState();
     };
-    audioSettingsPanel.setStatusCallback (showStatus);
-    pluginSettingsPanel.setStatusCallback (showStatus);
+    audioSettingsPanel.setStatusCallback (reportStatus);
+    pluginSettingsPanel.setStatusCallback (reportStatus);
     pluginSettingsPanel.setScanFolderCallback ([this] { choosePluginDirectory(); });
-    skinLibraryPanel.setStatusCallback (showStatus);
+    skinLibraryPanel.setStatusCallback ([this] (const juce::String& message, bool isError)
+    {
+        if (isError) showStatus (message, true);
+    });
     skinLibraryPanel.setImportCallback ([this] { chooseSkinArchive(); });
     skinLibraryPanel.setChooseDeveloperDirectoryCallback (
         [this] { chooseDeveloperSkinDirectory(); });
@@ -551,8 +562,7 @@ MainComponent::MainComponent()
         if (libraryImportService.isRunning())
         {
             addFilesButton.setEnabled (false);
-            statusLabel.setText ("Cancelling music import...",
-                                 juce::dontSendNotification);
+            showStatus ("Cancelling music import...");
             libraryImportService.cancel();
         }
         else
@@ -601,9 +611,9 @@ MainComponent::MainComponent()
         const auto index = libraryFilter.playlistIndexForRow (
             playlistTable.getSelectedRow());
         if (! controller.removeTrack (index))
-            statusLabel.setText ("Select a track to remove.", juce::dontSendNotification);
+            showStatus ("Select a track to remove.", true);
         else
-            statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+            showStatus (controller.getLastStatusMessage());
 
         refreshPlaylist();
         updateTransportState();
@@ -612,7 +622,7 @@ MainComponent::MainComponent()
     {
         controller.clearPlaylist();
         refreshPlaylist();
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+        showStatus (controller.getLastStatusMessage());
         updateTransportState();
     };
     moveTrackUpButton.onClick = [this]
@@ -622,7 +632,7 @@ MainComponent::MainComponent()
         if (controller.moveTrack (index, index - 1))
         {
             refreshPlaylist();
-            statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+            showStatus (controller.getLastStatusMessage());
         }
     };
     moveTrackDownButton.onClick = [this]
@@ -632,7 +642,7 @@ MainComponent::MainComponent()
         if (controller.moveTrack (index, index + 1))
         {
             refreshPlaylist();
-            statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+            showStatus (controller.getLastStatusMessage());
         }
     };
     addEffectButton.onClick = [this]
@@ -642,40 +652,40 @@ MainComponent::MainComponent()
 
         pluginInsertionInProgress = true;
         addEffectButton.setEnabled (false);
-        statusLabel.setText ("Loading plug-in...", juce::dontSendNotification);
+        showStatus ("Loading plug-in...");
         controller.addPluginByIndexAsync (
             pluginCombo.getSelectedId() - 1,
             [safeThis = juce::Component::SafePointer<MainComponent> (this)]
-            (bool, const juce::String& message)
+            (bool inserted, const juce::String& message)
             {
                 if (safeThis == nullptr)
                     return;
 
                 safeThis->pluginInsertionInProgress = false;
                 safeThis->addEffectButton.setEnabled (safeThis->pluginCombo.getSelectedId() > 0);
-                safeThis->statusLabel.setText (message, juce::dontSendNotification);
+                safeThis->showStatus (message, ! inserted);
                 safeThis->refreshEffects();
             });
     };
     pluginFilterEditor.onTextChange = [this] { refreshPlugins(); };
     playPauseButton.onClick = [this]
     {
-        controller.playOrPause();
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+        if (! controller.playOrPause())
+            showStatus (controller.getLastStatusMessage(), true);
         updateTransportState();
     };
     nextButton.onClick = [this]
     {
-        controller.nextTrack();
+        if (! controller.nextTrack())
+            showStatus (controller.getLastStatusMessage(), true);
         refreshPlaylist();
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
         updateTransportState();
     };
     previousButton.onClick = [this]
     {
-        controller.previousTrack();
+        if (! controller.previousTrack())
+            showStatus (controller.getLastStatusMessage(), true);
         refreshPlaylist();
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
         updateTransportState();
     };
     shuffleButton.onClick = [this]
@@ -704,8 +714,8 @@ MainComponent::MainComponent()
             default: error = controller.setOutputLayout (OutputLayout::stereo); break;
         }
 
-        statusLabel.setText (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
-                             juce::dontSendNotification);
+        showStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
+                    error.isNotEmpty());
         audioSettingsPanel.refresh();
         updateTransportState();
     };
@@ -715,8 +725,8 @@ MainComponent::MainComponent()
     };
     seekSlider.onDragEnd = [this]
     {
-        controller.seekToRatio (seekSlider.getValue());
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+        if (! controller.seekToRatio (seekSlider.getValue()))
+            showStatus (controller.getLastStatusMessage(), true);
         updateTransportState();
     };
 
@@ -742,10 +752,13 @@ MainComponent::MainComponent()
     bindSkinComponents();
     applyWorkspaceVisuals();
     updateTransportState();
-    statusLabel.setText (
-        SkinFallbackDiagnostic::makeStartupStatusText (
-            skinReport, controller.getLastStatusMessage()),
-        juce::dontSendNotification);
+    juce::StringArray startupErrors;
+    if (controller.getAudioInitialisationError().isNotEmpty())
+        startupErrors.add ("Audio device error: " + controller.getAudioInitialisationError());
+    if (skinReport.hasErrors())
+        startupErrors.add (skinReport.toText());
+    if (! startupErrors.isEmpty())
+        showStatus (startupErrors.joinIntoString (" "), true);
     startTimerHz (5);
     setWantsKeyboardFocus (true);
     setFocusContainerType (juce::Component::FocusContainerType::keyboardFocusContainer);
@@ -769,7 +782,7 @@ MainComponent::MainComponent()
 
     setSize (1240, 800);
     setRestoreControlsEnabled (false);
-    statusLabel.setText ("Restoring library...", juce::dontSendNotification);
+
     const juce::Component::SafePointer<MainComponent> safeThis (this);
     if (! stateRestoreService.start (getStateFile(), getPluginListFile(),
             [safeThis] (StateRestoreResult result) mutable
@@ -781,8 +794,7 @@ MainComponent::MainComponent()
         restoreStatus = RestoreStatus::failed;
         setRestoreControlsEnabled (true);
         updateTransportState();
-        statusLabel.setText ("Could not start restoring the saved library. Saved data was preserved.",
-                             juce::dontSendNotification);
+        showStatus ("Could not start restoring the saved library. Saved data was preserved.", true);
     }
 }
 
@@ -858,11 +870,12 @@ void MainComponent::finishStateRestore (StateRestoreResult result)
     applyWorkspaceVisuals();
     resized();
     updateTransportState();
-    statusLabel.setText (SkinFallbackDiagnostic::makeStartupStatusText (
-                            skinReport, controller.getLastStatusMessage())
-                            + (restoredState ? juce::String{}
-                                : " Changes will not be saved until the saved session can be restored."),
-                         juce::dontSendNotification);
+    if (! restoredState)
+        showStatus (controller.getLastStatusMessage()
+                    + " Changes will not be saved until the saved session can be restored.", true);
+    else if (! controller.getRestoreDiagnostics().isEmpty() || skinReport.hasErrors())
+        showStatus (controller.getRestoreDiagnostics().joinIntoString (" ")
+                    + (skinReport.hasErrors() ? " " + skinReport.toText() : juce::String{}), true);
     startLibraryImport ({});
     dispatchQueuedTransportCommands();
 }
@@ -934,7 +947,7 @@ void MainComponent::bindSkinComponents()
     pluginSettingsPanel.bind (skinBindings, report);
     skinLibraryPanel.bind (skinBindings, report);
     if (report.hasErrors())
-        statusLabel.setText (report.toText(), juce::dontSendNotification);
+        showStatus (report.toText(), true);
     jassert (! report.hasErrors());
 }
 
@@ -974,17 +987,22 @@ void MainComponent::resized()
                                                 : SkinLayoutEntry::listening));
     SkinValidationReport report;
     if (skinLayoutHost.apply (requestedEntry, getLocalBounds(),
-                              1.0f, report))
+                              1.0f, report, workspaceMode))
     {
         activeSkinLayoutEntry = requestedEntry;
+        const auto sessionChanged = appliedSkinSession != skinManager.activeSession();
         appliedSkinSession = skinManager.activeSession();
+        if (sessionChanged)
+            for (const auto& id : skinBindings.ids())
+                if (auto* editor = dynamic_cast<juce::TextEditor*> (skinBindings.find (id)))
+                    skinAdapter.configureTextEditor (*editor);
         hasAppliedSkinLayout = true;
     }
     else
     {
         if (hasAppliedSkinLayout)
         {
-            statusLabel.setText (report.toText(), juce::dontSendNotification);
+            showStatus (report.toText(), true);
         }
         else
         {
@@ -998,6 +1016,8 @@ void MainComponent::resized()
             skinFallbackDiagnostic.toFront (false);
         }
     }
+    statusLabel.setVisible (statusVisibleUntil > juce::Time::getMillisecondCounterHiRes() / 1000.0);
+    if (statusLabel.isVisible()) statusLabel.toFront (false);
     updateEmptyQueueState();
     refreshEffects();
     repaint();
@@ -1005,6 +1025,15 @@ void MainComponent::resized()
 
 bool MainComponent::keyPressed (const juce::KeyPress& key)
 {
+    if (key == juce::KeyPress::escapeKey && statusLabel.isVisible())
+    {
+        for (auto* focused = juce::Component::getCurrentlyFocusedComponent();
+             focused != nullptr; focused = focused->getParentComponent())
+            if (dynamic_cast<juce::TextEditor*> (focused) != nullptr)
+                return false;
+        showStatus ({});
+        return true;
+    }
     if (key == juce::KeyPress::spaceKey)
     {
         if (shouldDeferTransportCommands())
@@ -1075,11 +1104,11 @@ void MainComponent::applyWorkspaceVisuals()
     listeningModeButton.setToggleState (! isStudio, juce::dontSendNotification);
     settingsButton.setToggleState (settingsDrawerOpen, juce::dontSendNotification);
     effectsButton.setToggleState (effectsDrawerOpen, juce::dontSendNotification);
-    queueTitleLabel.setText (isStudio ? "WORKS  /  PROGRAM" : "WORKS  /  UP NEXT",
+    queueTitleLabel.setText (isStudio ? "Library" : "Up next",
                              juce::dontSendNotification);
     effectRackTitleLabel.setText ("Effects", juce::dontSendNotification);
     settingsTitleLabel.setText ("Settings", juce::dontSendNotification);
-    pluginFilterLabel.setText ("FILTER PLUG-INS", juce::dontSendNotification);
+    pluginFilterLabel.setText ("Find a plug-in", juce::dontSendNotification);
     repaint();
 }
 
@@ -1089,18 +1118,38 @@ void MainComponent::closeDrawers()
     settingsDrawerOpen = false;
 }
 
+void MainComponent::showStatus (const juce::String& message, bool isError)
+{
+    statusLabel.setText (message, juce::dontSendNotification);
+    statusLabel.setTooltip (message.isEmpty() ? juce::String{} : message + "\nClick to dismiss.");
+    statusVisibleUntil = message.isEmpty() ? 0.0
+        : juce::Time::getMillisecondCounterHiRes() / 1000.0 + (isError ? 14.0 : 7.0);
+    statusLabel.setVisible (message.isNotEmpty());
+    if (statusLabel.isVisible()) statusLabel.toFront (false);
+}
+
+void MainComponent::mouseUp (const juce::MouseEvent& event)
+{
+    if (event.originalComponent == &statusLabel) showStatus ({});
+}
+
 void MainComponent::timerCallback()
 {
+    if (statusVisibleUntil > 0.0
+        && juce::Time::getMillisecondCounterHiRes() / 1000.0 >= statusVisibleUntil)
+        showStatus ({});
+
     if (restoreStatus == RestoreStatus::loading)
         return;
 
-    const auto playbackChanged = controller.synchronizePlayback();
+    bool preparationFailed = false;
+    const auto playbackChanged = controller.synchronizePlayback (true, &preparationFailed);
     const auto readFailed = controller.handlePlaybackReadError();
     if (playbackChanged || readFailed)
-    {
         refreshPlaylist();
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
-    }
+    if (preparationFailed || readFailed)
+        showStatus ((readFailed ? "Could not read an audio file. " : juce::String{})
+                    + controller.getLastStatusMessage(), true);
 
     controller.checkpointPlaybackPosition();
     if (pluginSettingsPanel.refreshScanState())
@@ -1161,14 +1210,12 @@ void MainComponent::handleAutoSaveCompletion (
         const auto detail = errorMessage.isNotEmpty()
                                 ? errorMessage
                                 : "Unknown write error.";
-        statusLabel.setText ("Could not autosave Moonwake state: " + detail,
-                             juce::dontSendNotification);
+        showStatus ("Could not autosave Moonwake state: " + detail, true);
     }
     else if (autoSaveFailureVisible)
     {
         autoSaveFailureVisible = false;
-        statusLabel.setText ("Autosave recovered.",
-                             juce::dontSendNotification);
+        showStatus ("Autosave recovered.");
     }
 }
 
@@ -1211,13 +1258,25 @@ void MainComponent::paintCell (juce::Graphics&, int, int, int, int, bool)
     // paintRowBackground so composite slot styling stays atomic.
 }
 
+juce::String MainComponent::getCellTooltip (int rowNumber, int)
+{
+    const auto* track = controller.getPlaylist().getTrack (
+        libraryFilter.playlistIndexForRow (rowNumber));
+    if (track == nullptr)
+        return {};
+    juce::StringArray lines { track->title, track->artist, track->album };
+    lines.removeEmptyStrings();
+    lines.removeDuplicates (false);
+    return lines.joinIntoString ("\n");
+}
+
 void MainComponent::selectedRowsChanged (int lastRowSelected)
 {
     if (refreshingPlaylist)
         return;
     const auto playlistIndex = libraryFilter.playlistIndexForRow (lastRowSelected);
     if (! controller.selectTrack (playlistIndex) && playlistIndex >= 0)
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+        showStatus (controller.getLastStatusMessage(), true);
 
     refreshPlaylist();
     updateTransportState();
@@ -1280,11 +1339,9 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
     if (restoreStatus == RestoreStatus::loading || libraryImportService.isRunning())
     {
         if (! files.isEmpty())
-            statusLabel.setText (
-                juce::String (files.size())
-                    + (files.size() == 1 ? " import item queued."
-                                         : " import items queued."),
-                juce::dontSendNotification);
+            showStatus (juce::String (files.size())
+                        + (files.size() == 1 ? " import item queued."
+                                             : " import items queued."));
         return;
     }
 
@@ -1298,14 +1355,12 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
                 if (safeThis == nullptr)
                     return;
                 if (progress.stage == LibraryImportProgress::Stage::discovering)
-                    safeThis->statusLabel.setText (
-                        "Discovering music...", juce::dontSendNotification);
+                    safeThis->addFilesButton.setTooltip ("Discovering music...");
                 else
-                    safeThis->statusLabel.setText (
+                    safeThis->addFilesButton.setTooltip (
                         "Reading " + juce::String (progress.processed + 1)
                             + " / " + juce::String (progress.total)
-                            + "  " + progress.currentFile,
-                        juce::dontSendNotification);
+                            + "  " + progress.currentFile);
             },
             [safeThis] (LibraryImportResult result) mutable
             {
@@ -1314,8 +1369,7 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
                 safeThis->setLibraryImportRunning (false);
                 if (result.cancelled)
                 {
-                    safeThis->statusLabel.setText (
-                        "Music import cancelled.", juce::dontSendNotification);
+                    safeThis->showStatus ("Music import cancelled.");
                 }
                 else
                 {
@@ -1329,8 +1383,8 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
                         message += " " + juce::String (result.artworkWarnings.size())
                                  + (result.artworkWarnings.size() == 1
                                         ? " artwork warning." : " artwork warnings.");
-                    safeThis->statusLabel.setText (
-                        message, juce::dontSendNotification);
+                    safeThis->showStatus (message, ! result.skippedPaths.isEmpty()
+                                                    || ! result.artworkWarnings.isEmpty());
                     safeThis->refreshPlaylist();
                     safeThis->updateTransportState();
                 }
@@ -1346,8 +1400,7 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
             }))
     {
         setLibraryImportRunning (false);
-        statusLabel.setText ("Could not start the music import.",
-                             juce::dontSendNotification);
+        showStatus ("Could not start the music import.", true);
         dispatchQueuedTransportCommands();
     }
     else
@@ -1388,8 +1441,7 @@ void MainComponent::choosePluginDirectory()
                                       return;
 
                                   if (! safeThis->controller.startPluginScan (directory))
-                                      safeThis->statusLabel.setText (safeThis->controller.getLastStatusMessage(),
-                                                                    juce::dontSendNotification);
+                                      safeThis->showStatus (safeThis->controller.getLastStatusMessage(), true);
                               });
 }
 
@@ -1463,8 +1515,8 @@ void MainComponent::updateEmptyQueueState()
     const auto hasNoVisibleWorks = libraryFilter.visibleCount() == 0;
     emptyQueueLabel.setText (
         libraryFilter.query().isEmpty()
-            ? "No works yet\nDrop music or folders here, or use + Music"
-            : "No matching works\nTry another search",
+            ? "No tracks yet\nDrop music or folders here, or use + Music"
+            : "No matching tracks\nTry another search",
         juce::dontSendNotification);
     emptyQueueLabel.setVisible (placedBySkin && playlistTable.isVisible()
                                 && hasNoVisibleWorks);
@@ -1490,6 +1542,13 @@ void MainComponent::refreshPlugins()
                                  + " - " + manufacturer,
                              i + 1);
     }
+
+    pluginCombo.setTextWhenNothingSelected (filter.isEmpty()
+        ? "No effect plug-ins available" : "No matching plug-ins");
+    emptyRackLabel.setText (plugins.isEmpty()
+        ? "No effects yet\nOpen Settings to scan your plug-ins"
+        : "No effects yet\nChoose a plug-in above to add it",
+        juce::dontSendNotification);
 
     if (pluginCombo.getNumItems() > 0)
         pluginCombo.setSelectedItemIndex (0);
@@ -1580,23 +1639,27 @@ void MainComponent::updateTransportState()
             const auto sampleRateText = track->sampleRate > 0.0
                                             ? juce::String (track->sampleRate / 1000.0, 1) + " kHz"
                                             : juce::String ("-- kHz");
-            const auto format = track->formatName.isNotEmpty()
-                                    ? track->formatName.toUpperCase() : "AUDIO";
+            const auto extension = track->file.getFileExtension().substring (1).toUpperCase();
+            const auto format = extension.isNotEmpty() ? extension : track->formatName;
+            const auto separator = juce::String::fromUTF8 (" \xc2\xb7 ");
             const auto bitDepth = track->bitDepth > 0
-                                      ? juce::String (track->bitDepth) + "-BIT  /  "
+                                      ? juce::String (track->bitDepth) + "-bit" + separator
                                       : juce::String{};
-            const auto technical = format + "  /  " + bitDepth + sampleRateText
-                + "  /  " + juce::String (track->channelCount)
-                + (track->channelCount == 1 ? " CHANNEL" : " CHANNELS");
+            const auto technical = format + separator + bitDepth + sampleRateText
+                + separator + juce::String (track->channelCount)
+                + (track->channelCount == 1 ? " channel" : " channels");
             const auto workByline = track->artist.isNotEmpty() || track->album.isNotEmpty()
-                ? (track->artist.isNotEmpty() ? track->artist : "Unknown Artist")
-                    + (track->album.isNotEmpty() ? "  /  " + track->album : juce::String{})
+                ? (track->artist.isNotEmpty() ? track->artist : "Unknown artist")
+                    + (track->album.isNotEmpty() && track->album != track->title
+                           ? separator + track->album : juce::String{})
                 : track->file.getParentDirectory().getFileName();
             trackMetaLabel.setText (workspaceMode == WorkspaceMode::studio
-                                        ? (state.isPlaying ? "PLAYING  /  " : "READY  /  ") + technical
+                                        ? technical
                                         : workByline,
                                     juce::dontSendNotification);
-            artworkMetaLabel.setText (technical.toUpperCase(), juce::dontSendNotification);
+            artworkMetaLabel.setText (technical, juce::dontSendNotification);
+            nowPlayingLabel.setTooltip (track->title);
+            trackMetaLabel.setTooltip (workByline + "\n" + technical);
             albumArtwork.setTrack (track->id, track->title,
                                    juce::File (state.selectedTrackArtworkPath));
         }
@@ -1605,7 +1668,7 @@ void MainComponent::updateTransportState()
     {
         nowPlayingLabel.setText ("No track loaded", juce::dontSendNotification);
         trackMetaLabel.setText ("Use + Music to add audio and begin", juce::dontSendNotification);
-        artworkMetaLabel.setText ("LOCAL AUDIO  /  VST3 + AU", juce::dontSendNotification);
+        artworkMetaLabel.setText ("Local audio / VST3 + AU", juce::dontSendNotification);
         albumArtwork.setTrack ({}, {});
     }
 
@@ -1627,7 +1690,7 @@ void MainComponent::updateTransportState()
                                                  : activeEffects.joinIntoString ("  /  ");
     if (chainSummary.length() > 46)
         chainSummary = chainSummary.substring (0, 43) + "...";
-    effectsSummaryLabel.setText ("LISTENING CHAIN\n" + chainSummary, juce::dontSendNotification);
+    effectsSummaryLabel.setText ("Effects\n" + chainSummary, juce::dontSendNotification);
     effectsButton.setButtonText ("Effects  " + juce::String (chain.size()));
 
     const auto deviceName = state.audioDeviceName.isNotEmpty() ? state.audioDeviceName : "No audio device";
@@ -1674,32 +1737,32 @@ void MainComponent::handleRemoteTransportCommand (
         dispatchQueuedTransportCommands();
         return;
     }
+    bool succeeded = true;
     switch (command.type)
     {
         case RemoteTransportCommandType::play:
-            controller.setPlaying (true);
+            succeeded = controller.setPlaying (true);
             break;
         case RemoteTransportCommandType::pause:
-            controller.setPlaying (false);
+            succeeded = controller.setPlaying (false);
             break;
         case RemoteTransportCommandType::togglePlayPause:
-            controller.playOrPause();
+            succeeded = controller.playOrPause();
             break;
         case RemoteTransportCommandType::next:
-            controller.nextTrack();
+            succeeded = controller.nextTrack();
             refreshPlaylist();
             break;
         case RemoteTransportCommandType::previous:
-            controller.previousTrack();
+            succeeded = controller.previousTrack();
             refreshPlaylist();
             break;
         case RemoteTransportCommandType::seekToSeconds:
-            controller.seekToSeconds (command.positionSeconds);
+            succeeded = controller.seekToSeconds (command.positionSeconds);
             break;
     }
 
-    statusLabel.setText (controller.getLastStatusMessage(),
-                         juce::dontSendNotification);
+    if (! succeeded) showStatus (controller.getLastStatusMessage(), true);
     updateTransportState();
 }
 
@@ -1708,8 +1771,7 @@ void MainComponent::openPluginEditor (int effectIndex)
     const auto* slot = controller.getEffectChain().getSlot (effectIndex);
     if (slot == nullptr || ! slot->available)
     {
-        statusLabel.setText (slot != nullptr ? slot->errorMessage : "No effect selected.",
-                             juce::dontSendNotification);
+        showStatus (slot != nullptr ? slot->errorMessage : "No effect selected.", true);
         return;
     }
 
@@ -1726,7 +1788,7 @@ void MainComponent::openPluginEditor (int effectIndex)
 
     if (plugin == nullptr)
     {
-        statusLabel.setText ("No effect selected.", juce::dontSendNotification);
+        showStatus ("No effect selected.", true);
         return;
     }
 
@@ -1736,7 +1798,7 @@ void MainComponent::openPluginEditor (int effectIndex)
 
     if (editor == nullptr)
     {
-        statusLabel.setText ("This plugin has no editor.", juce::dontSendNotification);
+        showStatus ("This plug-in has no editor.");
         return;
     }
 
@@ -1748,7 +1810,7 @@ void MainComponent::removeEffect (int effectIndex)
     closePluginEditors();
 
     if (! controller.removeEffectAtIndex (effectIndex))
-        statusLabel.setText ("Could not remove effect.", juce::dontSendNotification);
+        showStatus ("Could not remove effect.", true);
 
     refreshEffects();
 }
@@ -1766,11 +1828,11 @@ void MainComponent::moveEffectFromDrag (int fromIndex, int yInRackContent)
 
     if (! controller.moveEffect (fromIndex, toIndex))
     {
-        statusLabel.setText ("Could not reorder effect.", juce::dontSendNotification);
+        showStatus ("Could not reorder effect.", true);
         return;
     }
 
-    statusLabel.setText ("Effect reordered.", juce::dontSendNotification);
+    showStatus ("Effect reordered.");
     refreshEffects();
 }
 

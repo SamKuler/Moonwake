@@ -1,0 +1,16 @@
+{
+  "apiVersion": 1,
+  "target": "surface",
+  "layers": [
+    {
+      "id": "surface",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0
+      },
+      "radius": 22,
+      "fill": "#00000000"
+    }
+  ]
+}

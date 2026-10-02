@@ -1,0 +1,93 @@
+{
+  "apiVersion": 1,
+  "target": "comboBox",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.studioControlRadius"
+      },
+      "fill": {
+        "$ref": "colors.studio.control"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.border"
+        },
+        "width": 0,
+        "placement": "inside"
+      }
+    },
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 12,
+          "right": 34
+        }
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceMedium"
+      },
+      "fontSize": {
+        "$ref": "metrics.textControl"
+      },
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "chevron",
+      "type": "path",
+      "data": "M 0 0 L 4 4 L 8 0",
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.muted"
+        },
+        "width": 1.5,
+        "cap": "round"
+      },
+      "transform": {
+        "translateX": {
+          "$expr": "bounds.x + bounds.width - 22"
+        },
+        "translateY": {
+          "$expr": "bounds.y + bounds.height * 0.5 - 2"
+        }
+      }
+    }
+  ],
+  "variants": {
+    "hover": {
+      "body.opacity": 0.9
+    },
+    "pressed": {
+      "body.opacity": 0.76
+    },
+    "focused": {
+      "body.stroke.color": {
+        "$ref": "colors.studio.focus"
+      },
+      "body.stroke.width": 1.5
+    },
+    "disabled": {
+      "body.opacity": 0.4,
+      "label.opacity": 0.7,
+      "chevron.opacity": 0.55
+    }
+  }
+}

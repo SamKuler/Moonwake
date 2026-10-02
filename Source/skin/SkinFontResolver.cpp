@@ -144,16 +144,28 @@ SkinResolvedFontFace resolve (const SkinFontValue& value,
         return result;
     }
 
-    if (safeFamilies.isEmpty())
+    auto firstFallback = safeFamilies.size();
+    juce::StringArray styles;
+    for (int index = 0; index < safeFamilies.size(); ++index)
+    {
+        const auto family = resolveGenericFamily (safeFamilies[index]);
+        auto available = juce::Font::findAllTypefaceStyles (family);
+        const auto generic = family == juce::Font::getDefaultSansSerifFontName()
+                          || family == juce::Font::getDefaultSerifFontName()
+                          || family == juce::Font::getDefaultMonospacedFontName();
+        if (available.isEmpty() && ! generic) continue;
+        result.family = family;
+        styles = std::move (available);
+        firstFallback = index + 1;
+        break;
+    }
+    if (result.family.isEmpty())
+    {
         result.family = juce::Font::getDefaultSansSerifFontName();
-    else
-        result.family = resolveGenericFamily (safeFamilies[0]);
-    result.fallbacks = resolveFallbacks (safeFamilies, 1);
-
-    auto probe = juce::Font (juce::FontOptions (
-        result.family, 12.0f, result.fallbackStyleFlags));
-    result.style = chooseClosestStyle (
-        probe.getAvailableStyles(), value.weight, value.italic);
+        styles = juce::Font::findAllTypefaceStyles (result.family);
+    }
+    result.fallbacks = resolveFallbacks (safeFamilies, firstFallback);
+    result.style = chooseClosestStyle (styles, value.weight, value.italic);
 
     const auto options = result.style.isNotEmpty()
         ? juce::FontOptions (result.family, result.style, 12.0f)
@@ -178,15 +190,6 @@ juce::Font makeFont (const SkinResolvedFontFace& face, float height)
 
 juce::Font makeFallbackFont (const SkinFontValue& value, float height)
 {
-    SkinResolvedFontFace face;
-    face.requested = value;
-    face.fallbackStyleFlags = styleFlagsFor (value);
-    if (value.families.isEmpty())
-        face.family = juce::Font::getDefaultSansSerifFontName();
-    else
-        face.family = resolveGenericFamily (value.families[0]);
-    face.fallbacks = resolveFallbacks (value.families, 1);
-    return makeFontFromOptions (
-        juce::FontOptions (face.family, height, face.fallbackStyleFlags), face);
+    return makeFont (resolve (value, {}, value.families), height);
 }
 } // namespace SkinFontResolver

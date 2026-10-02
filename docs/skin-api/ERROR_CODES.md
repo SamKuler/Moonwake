@@ -100,10 +100,10 @@
 | LAYOUT007 | error | grid track、位置或 span 非法 |
 | LAYOUT008 | error | stack anchors 过约束 |
 | LAYOUT009 | error | scroll child 或 direction 非法 |
-| LAYOUT010 | error | breakpoint 条件非法或不可达 |
+| LAYOUT010 | error | breakpoint 范围非法，或在匹配的全部工作区中被先前分支完整覆盖 |
 | LAYOUT011 | error | required component 静态隐藏、透明或零尺寸 |
 | LAYOUT012 | error | focusOrder 缺失或重复 |
-| LAYOUT013 | error | style 不存在或 target 不匹配 |
+| LAYOUT013 | error | Component、容器或 ancillaryStyles 引用不存在或 target 不匹配 |
 | LAYOUT014 | error | component presentation 非法 |
 | LAYOUT015 | error | 任一交互 Component Node 的点击区域小于 28 × 28 |
 | LAYOUT016 | error | min constraint 无法放入最低窗口 |

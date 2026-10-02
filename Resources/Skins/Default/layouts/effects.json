@@ -1,25 +1,444 @@
 {
   "apiVersion": 1,
   "root": {
-    "id": "effects-root", "type": "column", "padding": 16, "gap": 12, "style": "surface.listeningCanvas",
+    "id": "effects-effects-root",
+    "type": "stack",
+    "style": "surface.listeningCanvas",
     "children": [
       {
-        "id": "effects-header", "type": "row", "height": 44, "gap": 10, "align": "center",
+        "id": "effects-effects-root-shell",
+        "type": "column",
+        "padding": 24,
+        "gap": 16,
+        "anchors": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
         "children": [
-          { "id": "effects-title", "type": "component", "component": "effects.title", "style": "label.listeningTitle", "grow": 1 },
-          { "id": "effects-close", "type": "component", "component": "effects.close", "style": "textButton.listeningIconNeutral", "width": 44, "height": 36, "focusOrder": 10 }
+          {
+            "id": "effects-effects-root-navigation",
+            "type": "row",
+            "height": 48,
+            "shrink": 0,
+            "gap": 12,
+            "align": "center",
+            "children": [
+              {
+                "id": "effects-app-brand-title",
+                "type": "component",
+                "component": "app.brand.title",
+                "style": "label.listeningBrand",
+                "grow": 1,
+                "height": 28
+              },
+              {
+                "id": "effects-effects-modes",
+                "type": "row",
+                "style": "surface.listeningSwitcher",
+                "width": 248,
+                "height": 44,
+                "shrink": 0,
+                "padding": 4,
+                "gap": 4,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "effects-workspace-studio",
+                    "type": "component",
+                    "component": "workspace.studio",
+                    "style": "textButton.listeningMode",
+                    "width": 118,
+                    "height": 36,
+                    "focusOrder": 10
+                  },
+                  {
+                    "id": "effects-workspace-listening",
+                    "type": "component",
+                    "component": "workspace.listening",
+                    "style": "textButton.listeningMode",
+                    "width": 118,
+                    "height": 36,
+                    "focusOrder": 20
+                  }
+                ]
+              },
+              {
+                "id": "effects-effects-open",
+                "type": "component",
+                "component": "effects.open",
+                "style": "textButton.listeningIconNeutral",
+                "width": 44,
+                "height": 44,
+                "focusOrder": 30
+              },
+              {
+                "id": "effects-settings-open",
+                "type": "component",
+                "component": "settings.open",
+                "style": "textButton.listeningIconNeutral",
+                "width": 44,
+                "height": 44,
+                "focusOrder": 40
+              }
+            ]
+          },
+          {
+            "id": "effects-effects-page",
+            "type": "column",
+            "grow": 1,
+            "gap": 16,
+            "children": [
+              {
+                "id": "effects-effects-page-heading",
+                "type": "row",
+                "height": 40,
+                "gap": 10,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "effects-effects-title",
+                    "type": "component",
+                    "component": "effects.title",
+                    "style": "label.listeningPageTitle",
+                    "grow": 1,
+                    "height": 36,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "effects-effects-close",
+                    "type": "component",
+                    "component": "effects.close",
+                    "style": "textButton.listeningIconNeutral",
+                    "width": 44,
+                    "height": 36,
+                    "focusOrder": 50,
+                    "shrink": 0
+                  }
+                ],
+                "shrink": 0
+              },
+              {
+                "id": "effects-effects-filter-label",
+                "type": "component",
+                "component": "effects.filterLabel",
+                "style": "label.listeningSection",
+                "height": 24,
+                "shrink": 0
+              },
+              {
+                "id": "effects-effects-filter",
+                "type": "component",
+                "component": "effects.filter",
+                "style": "textEditor.listening",
+                "height": 38,
+                "focusOrder": 100,
+                "shrink": 0
+              },
+              {
+                "id": "effects-effects-insert-row",
+                "type": "row",
+                "height": 38,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "effects-effects-catalog",
+                    "type": "component",
+                    "component": "effects.catalog",
+                    "style": "comboBox.listening",
+                    "grow": 1,
+                    "focusOrder": 110
+                  },
+                  {
+                    "id": "effects-effects-add",
+                    "type": "component",
+                    "component": "effects.add",
+                    "style": "textButton.listeningIconPrimary",
+                    "width": 44,
+                    "focusOrder": 120
+                  }
+                ],
+                "shrink": 0
+              },
+              {
+                "id": "effects-effects-chain-area",
+                "type": "stack",
+                "grow": 1,
+                "children": [
+                  {
+                    "id": "effects-effects-chain",
+                    "type": "component",
+                    "component": "effects.chain",
+                    "style": "effectChain.listening",
+                    "focusOrder": 130,
+                    "anchors": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    }
+                  },
+                  {
+                    "id": "effects-effects-empty",
+                    "type": "component",
+                    "component": "effects.empty",
+                    "style": "label.listeningMuted",
+                    "anchors": {
+                      "top": 24,
+                      "right": 24,
+                      "bottom": 24,
+                      "left": 24
+                    }
+                  }
+                ]
+              }
+            ]
+          }
         ]
       },
-      { "id": "effects-filter-label", "type": "component", "component": "effects.filterLabel", "style": "label.listeningSection", "height": 24 },
-      { "id": "effects-filter", "type": "component", "component": "effects.filter", "style": "textEditor.listening", "height": 38, "focusOrder": 20 },
       {
-        "id": "effects-insert-row", "type": "row", "height": 38, "gap": 8,
+        "id": "effects-app-status",
+        "type": "component",
+        "component": "app.status",
+        "style": "label.listeningNotice",
+        "width": "42%",
+        "height": 84,
+        "zIndex": 100,
+        "anchors": {
+          "top": 80,
+          "right": 24
+        }
+      }
+    ]
+  },
+  "breakpoints": [
+    {
+      "when": {
+        "workspace": "studio"
+      },
+      "root": {
+        "id": "themed-effects-themed-effects-root",
+        "type": "stack",
+        "style": "surface.studioCanvas",
         "children": [
-          { "id": "effects-catalog", "type": "component", "component": "effects.catalog", "style": "comboBox.listening", "grow": 1, "focusOrder": 30 },
-          { "id": "effects-add", "type": "component", "component": "effects.add", "style": "textButton.listeningIconPrimary", "width": 44, "focusOrder": 40 }
+          {
+            "id": "themed-effects-themed-effects-root-shell",
+            "type": "column",
+            "padding": 24,
+            "gap": 16,
+            "anchors": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "children": [
+              {
+                "id": "themed-effects-themed-effects-root-navigation",
+                "type": "row",
+                "height": 48,
+                "shrink": 0,
+                "gap": 12,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "themed-effects-app-brand-title",
+                    "type": "component",
+                    "component": "app.brand.title",
+                    "style": "label.studioBrand",
+                    "grow": 1,
+                    "height": 28
+                  },
+                  {
+                    "id": "themed-effects-themed-effects-modes",
+                    "type": "row",
+                    "style": "surface.studioSwitcher",
+                    "width": 248,
+                    "height": 44,
+                    "shrink": 0,
+                    "padding": 4,
+                    "gap": 4,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "themed-effects-workspace-studio",
+                        "type": "component",
+                        "component": "workspace.studio",
+                        "style": "textButton.studioMode",
+                        "width": 118,
+                        "height": 36,
+                        "focusOrder": 10
+                      },
+                      {
+                        "id": "themed-effects-workspace-listening",
+                        "type": "component",
+                        "component": "workspace.listening",
+                        "style": "textButton.studioMode",
+                        "width": 118,
+                        "height": 36,
+                        "focusOrder": 20
+                      }
+                    ]
+                  },
+                  {
+                    "id": "themed-effects-effects-open",
+                    "type": "component",
+                    "component": "effects.open",
+                    "style": "textButton.studioIconNeutral",
+                    "width": 44,
+                    "height": 44,
+                    "focusOrder": 30
+                  },
+                  {
+                    "id": "themed-effects-settings-open",
+                    "type": "component",
+                    "component": "settings.open",
+                    "style": "textButton.studioIconNeutral",
+                    "width": 44,
+                    "height": 44,
+                    "focusOrder": 40
+                  }
+                ]
+              },
+              {
+                "id": "themed-effects-themed-effects-page",
+                "type": "column",
+                "grow": 1,
+                "gap": 16,
+                "children": [
+                  {
+                    "id": "themed-effects-themed-effects-page-heading",
+                    "type": "row",
+                    "height": 40,
+                    "gap": 10,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "themed-effects-themed-effects-title",
+                        "type": "component",
+                        "component": "effects.title",
+                        "style": "label.studioPageTitle",
+                        "grow": 1,
+                        "height": 36,
+                        "shrink": 0
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-close",
+                        "type": "component",
+                        "component": "effects.close",
+                        "style": "textButton.studioIconNeutral",
+                        "width": 44,
+                        "height": 36,
+                        "focusOrder": 50,
+                        "shrink": 0
+                      }
+                    ],
+                    "shrink": 0
+                  },
+                  {
+                    "id": "themed-effects-themed-effects-filter-label",
+                    "type": "component",
+                    "component": "effects.filterLabel",
+                    "style": "label.studioSection",
+                    "height": 24,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "themed-effects-themed-effects-filter",
+                    "type": "component",
+                    "component": "effects.filter",
+                    "style": "textEditor.studio",
+                    "height": 38,
+                    "focusOrder": 100,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "themed-effects-themed-effects-insert-row",
+                    "type": "row",
+                    "height": 38,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "themed-effects-themed-effects-catalog",
+                        "type": "component",
+                        "component": "effects.catalog",
+                        "style": "comboBox.studio",
+                        "grow": 1,
+                        "focusOrder": 110
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-add",
+                        "type": "component",
+                        "component": "effects.add",
+                        "style": "textButton.studioIconPrimary",
+                        "width": 44,
+                        "focusOrder": 120
+                      }
+                    ],
+                    "shrink": 0
+                  },
+                  {
+                    "id": "themed-effects-themed-effects-chain-area",
+                    "type": "stack",
+                    "grow": 1,
+                    "children": [
+                      {
+                        "id": "themed-effects-themed-effects-chain",
+                        "type": "component",
+                        "component": "effects.chain",
+                        "style": "effectChain.studio",
+                        "focusOrder": 130,
+                        "anchors": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        }
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-empty",
+                        "type": "component",
+                        "component": "effects.empty",
+                        "style": "label.studioMuted",
+                        "anchors": {
+                          "top": 24,
+                          "right": 24,
+                          "bottom": 24,
+                          "left": 24
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "themed-effects-app-status",
+            "type": "component",
+            "component": "app.status",
+            "style": "label.studioNotice",
+            "width": "42%",
+            "height": 84,
+            "zIndex": 100,
+            "anchors": {
+              "top": 80,
+              "right": 24
+            }
+          }
         ]
       },
-      { "id": "effects-chain", "type": "component", "component": "effects.chain", "style": "effectChain.listening", "grow": 1, "focusOrder": 50 }
-    ]
+      "ancillaryStyles": {
+        "popupMenu": "popupMenu.studio",
+        "tooltip": "tooltip.studio",
+        "scrollBar": "scrollBar.studio"
+      }
+    }
+  ],
+  "ancillaryStyles": {
+    "popupMenu": "popupMenu.listening",
+    "tooltip": "tooltip.listening",
+    "scrollBar": "scrollBar.listening"
   }
 }

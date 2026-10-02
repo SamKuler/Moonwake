@@ -325,7 +325,7 @@ manifest 声明了某项 capability，但未提供相应入口或内容时产生
 }
 ~~~
 
-如果 source 字体成功加载，该文件中的具体 typeface 优先；如果加载失败，按 `families` 顺序回退。`sans-serif`、`serif` 和 `monospace` 是三个大小写不敏感的精确逻辑别名，分别映射到 JUCE 在当前平台上的默认无衬线、衬线和等宽字体。它们不是名为这些字符串的物理字体，也不会进行前缀或模糊匹配。
+如果 source 字体成功加载，该文件中的具体 typeface 优先；如果未声明 source 或加载失败，按 `families` 顺序选择第一个在当前平台可用的字体族，再匹配该字体族的字重与斜体样式。未安装的字体族会被跳过，例如 `SF Mono` 不可用时，`["SF Mono", "Menlo", "monospace"]` 会继续选择可用的 `Menlo`；后续字体族仍可用于缺失字形回退。`sans-serif`、`serif` 和 `monospace` 是三个大小写不敏感的精确逻辑别名，分别映射到 JUCE 在当前平台上的默认无衬线、衬线和等宽字体。它们不是名为这些字符串的物理字体，也不会进行前缀或模糊匹配。
 
 `weight` 是数值字重请求，不是简单的 regular/bold 开关。播放器读取候选系统字体的真实 style 名称，把常见名称归一为下列权重，并选择与请求值距离最近且斜体状态一致的样式：
 
@@ -541,7 +541,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | label | 每个 Label 一次 | text.primary、text.secondary、text.align | 无 |
 | textButton | 每个按钮主体一次；显式绑定时再调用 icon slot | text.primary、text.align、icon.name、icon.path、state.* | 该组件声明的 icon.&lt;semantic&gt; surface slot；playPause 同时声明 icon.play 与 icon.pause |
 | toggleButton | 每个开关一次 | text.primary、text.align、state.selected | 无 |
-| comboBox | 主体一次；弹出菜单固定交给 popupMenu.default | text.primary、text.align、state.* | 无 |
+| comboBox | 主体一次；弹出菜单使用当前布局解析出的 popupMenu 样式 | text.primary、text.align、state.* | 无 |
 | textEditor | 主体一次 | text.primary、text.align、state.focused | 无 |
 | linearSlider | 每帧一次 | value.*、state.dragging | 无 |
 | rotarySlider | 每帧一次 | value.*、state.dragging | 无 |
@@ -560,9 +560,13 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 复合 entry 与简单 entry 使用同一规范查找顺序：当前皮肤精确 style → 父皮肤同名精确 style → 当前皮肤 target.default → 父皮肤 target.default → builtin.foundation target.default。component 省略 style 时从当前皮肤 target.default 开始。某个 slot 未显式绑定时从该 slot 类型的当前皮肤 target.default 开始。缺少 builtin.foundation 默认 renderer 属于应用构建错误。
 
-scrollBar、popupMenu 和 tooltip 是 JuceSkinAdapter 使用的 ancillary target，不对应可放进 layout 的 Component ID。Skin API 1 对这三个 target 只允许名为 `default` 的 style；声明其他 variant 会拒绝导入。每个皮肤可以覆盖 scrollBar.default、popupMenu.default 和 tooltip.default；builtin.foundation 必须提供三者，从而保证 Viewport、菜单和提示不回落到平台默认深色绘制。ComboBox 的自身 variant 不传播给 popup；所有 ComboBox 以及非 ComboBox 打开的菜单都使用当前皮肤解析后的 popupMenu.default。
+scrollBar、popupMenu 和 tooltip 是 JuceSkinAdapter 使用的 ancillary target，不对应可放进 layout 的 Component ID。它们与其他 renderer target 使用相同的命名样式规则，可以在 components/index.json 注册 `studio`、`listening` 等样式，并通过布局的 `ancillaryStyles` 选择。每个完整皮肤仍必须提供或继承 scrollBar.default、popupMenu.default 和 tooltip.default；builtin.foundation 提供三者，确保未指定映射的 Viewport、菜单和提示使用稳定回退。ComboBox 的自身 style 不传播给 popup；ComboBox 与其他来源的菜单均使用当前布局解析出的 popupMenu 样式。使用这些命名附属样式及布局映射的皮肤要求应用 `0.3.0` 或更高。
 
 scroll.orientation 为 `horizontal` 或 `vertical`；scroll.thumbStart 与 scroll.thumbSize 是 target 本地轴上的逻辑像素；scroll.part 为 `bar`、`buttonStart` 或 `buttonEnd`。`bar` 一次绘制轨道与 thumb，两个 button part 分别绘制可选箭头。menu.part 为 `background`、`item`、`separator` 或 `sectionHeader`；普通 item 的 menu.itemIndex 是当次菜单绘制中从 0 开始、跳过 separator 与 sectionHeader 的稳定视觉序号，非 item 调用固定为 -1。table 的 row.surface 接收整行 bounds，cell.title、cell.location 与 cell.duration 分别接收其实际列 bounds；不要假定三个 cell slot 共享整行几何。tooltip 使用应用提供的 text.primary，皮肤不能替换其可访问性内容。
+
+原生 textEditor 的编辑内容、选区和光标由应用拥有。renderer 中 ID 为 `label` 的 text 层提供它们的 `font`、`fontSize`、`color`、`opacity`、`visible`、`frame` 和 `align`；这些值按当前状态 variants 和控件 bounds 解析。原生编辑区域采用该 frame 的控件坐标矩形及对齐方式，窗口改变尺寸或皮肤预览切换后会重新同步。`label` 应使用未变换的控件坐标；layer/group 的 transform 仍只影响声明式绘制，不改变原生编辑坐标。`maxLines`、`overflow` 不会更改应用决定的单行、多行、编辑或滚动行为。
+
+textEditor 的占位文字仍由应用设置。空内容且未聚焦时，该文字通过 `text.primary` 交给同一 `label` 层绘制；已有输入或获得焦点时，主体 renderer 的 `text.primary` 为空，由原生文字层负责内容。应用关闭原生占位文字的第二次绘制，字号、颜色与目标矩形均遵循上述 label 配置。popupMenu 和 tooltip 的原生尺寸测量也使用其 `label` 字体及 frame 内边距，tooltip 的可用行数遵循 `maxLines`。
 
 ## 8. Render Definition
 
@@ -668,6 +672,8 @@ scroll.orientation 为 `horizontal` 或 `vertical`；scroll.thumbStart 与 scrol
 
 Text 的 `align` 支持九个字面枚举，也支持 `{ "$context": "text.align" }`。字面值始终优先表达皮肤作者的固定设计；只有显式绑定上下文时，组件目录的语义对齐才会生效。
 
+Text 的 `maxLines` 是实际显示的最大行数，显式换行与自动换行都计入上限。`overflow: "clip"` 与 `"ellipsis"` 保持声明的 `fontSize` 和字宽；多行空间不足时减少显示行数，不自动缩字。clip 隐去超出内容，ellipsis 在最后可见行标记被省略的内容，包括被行数上限截断的后续段落。只有 `overflow: "shrink"` 可以缩小字号或横向压缩字形；其结果仍受 maxLines 和 frame 限制。Unicode 字形、组合字符、字体回退和双向文字交由 JUCE 排版。
+
 path.data 使用 SVG 1.1 path-data 子集 M/m、L/l、H/h、V/v、C/c、S/s、Q/q、T/t、A/a、Z/z；只允许有限十进制数，不允许 CSS、变量或 URL。它可以直接写字符串，也可以用 `$ref` 引用 strings token。默认 fill rule 为 non-zero。单个 path 最多 65536 UTF-8 bytes，命令数计入全包 250000 path-command 预算。
 
 transform 的 pivotX/pivotY 使用 layer 本地逻辑像素；省略时为 layer frame 中心。固定顺序为先围绕 pivot scale，再 rotation，最后 translate，即矩阵 translate × pivot × rotate × scale × inverse-pivot。rotation 使用度。
@@ -760,9 +766,9 @@ repeat 只允许白名单数据源。输出仪表可以使用 meter.channels：
     "type": "roundedRect",
     "frame": {
       "x": { "$expr": "item.index * 18" },
-      "y": { "$expr": "bounds.height * (1 - item.peak)" },
+      "y": { "$expr": "bounds.height * (1 - clamp((item.peakDb + 60) / 60, 0, 1))" },
       "width": 12,
-      "height": { "$expr": "bounds.height * item.peak" }
+      "height": { "$expr": "bounds.height * clamp((item.peakDb + 60) / 60, 0, 1)" }
     },
     "radius": 3,
     "fill": { "$ref": "colors.control.active" }
@@ -837,7 +843,31 @@ repeat.template 不能包含 repeat，即使藏在 group 子树中也不允许�
 
 系统按声明顺序选择第一个匹配 breakpoint；没有匹配时使用 root。每个 breakpoint 提供完整 root，不执行隐式树补丁，因此结构变化明确且可独立验证。
 
-when 支持 minWidth、maxWidth、minHeight、maxHeight、minScaleFactor 和 maxScaleFactor；边界比较均为包含。宽高使用逻辑像素，scale factor 只参与断点选择和最终绘制，不把布局数字重复放大。
+when 支持 minWidth、maxWidth、minHeight、maxHeight、minScaleFactor、maxScaleFactor，以及可选的 `workspace`。尺寸与 scale factor 的边界比较均为包含；所有已声明条件同时成立时才匹配。宽高使用逻辑像素，scale factor 只参与断点选择和最终绘制，不把布局数字重复放大。
+
+`workspace` 仅接受 `studio` 或 `listening`，省略时匹配两个工作区。它可以独立作为条件，也可以与尺寸条件组合：
+
+```json
+{ "workspace": "studio", "maxWidth": 1099 }
+```
+
+四个布局入口保持为 Studio、Listening、Effects 和 Settings。应用把当前工作区传给共享的 Effects、Settings 布局，因此它们可以通过完整 breakpoint root 选择相应样式与结构。未显式提供工作区的解析器调用和 Skin Tool 预览，从 Studio 入口推导 `studio`；其余入口默认 `listening`。没有 `workspace` 条件的既有皮肤保持原来的匹配行为，未匹配时仍使用 root。
+
+不可达检查也包含工作区：相同尺寸下的 Studio 和 Listening 分支可以并列；若某分支在它匹配的每个工作区中，尺寸与 scale factor 范围都被先前分支完整覆盖，则报 `LAYOUT010`。不同分支部分重叠仍遵循声明顺序。`workspace` 的未知枚举值报 `SCHEMA003`，字段类型和其他 Schema 限制沿用现有错误码。使用工作区条件的皮肤必须设置 `minAppVersion` 为 `0.3.0` 或更高。
+
+共享面板的完整双工作区示例见 `examples/CompleteThirdParty/layouts/effects.json` 和 `layouts/settings.json`。
+
+布局文件与每个 breakpoint 还可声明可选的 `ancillaryStyles`，用于没有独立 Component Node 的 popup menu、tooltip 和 scroll bar：
+
+```json
+{
+  "popupMenu": "popupMenu.studio",
+  "tooltip": "tooltip.studio",
+  "scrollBar": "scrollBar.studio"
+}
+```
+
+该对象只允许 `popupMenu`、`tooltip`、`scrollBar` 三个键，每个值是已注册的完整 `target.style` 名称。选中 breakpoint 的映射逐键覆盖布局文件的映射；省略的键继承文件级映射，最终没有映射的 target 保持 `target.default`。该映射只替换相应附属控件的默认样式请求，不修改显式指定的 Component style 或 renderer slot。未知键报 `SCHEMA001`；target 不匹配或引用不存在报 `LAYOUT013`。使用 `ancillaryStyles` 的皮肤要求应用 `0.3.0` 或更高。完整示例在 Effects 与 Settings 的 Studio 分支中同时声明三个映射。
 
 ### 9.2 节点通用字段
 
@@ -1015,7 +1045,7 @@ auto 与固有尺寸：
 - component 的 auto 尺寸来自 PlayerComponentCatalog 的稳定 preferred size，不从当前文本测量，因此曲名、语言和动态状态不会改变布局。
 - visual 的 auto preferred size 为 0 × 0。
 - row、column、grid、stack 的 auto size 是子节点最小贡献、margin、padding 与 gap 的确定性合计。
-- scroll 的 viewport 由父布局确定；滚动轴 content extent 取 child 的测量尺寸。仅当主轴确实溢出时，运行时会在交叉轴内部预留固定 8 个逻辑像素的滚动条 gutter，并把 child 交叉轴约束到剩余可视区域；因此单轴滚动不会把末端内容压在滚动条下面，也不会暗中开启第二个滚动方向。皮肤通过 `scrollBar.default` 绘制这条 8 px gutter，不应依赖平台默认宽度。
+- scroll 的 viewport 由父布局确定；滚动轴 content extent 取 child 的测量尺寸。仅当主轴确实溢出时，运行时会在交叉轴内部预留固定 8 个逻辑像素的滚动条 gutter，并把 child 交叉轴约束到剩余可视区域；因此单轴滚动不会把末端内容压在滚动条下面，也不会暗中开启第二个滚动方向。皮肤通过当前布局解析出的 scrollBar 样式绘制这条 8 px gutter；未映射时使用 `scrollBar.default`，不应依赖平台默认宽度。
 
 Component Catalog 的 Skin API 1 默认尺寸：
 
@@ -1116,6 +1146,8 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 | queue.moveUp | textButton | 可选 | 上移选中曲目 |
 | queue.moveDown | textButton | 可选 | 下移选中曲目 |
 
+`queue.table` 可设置 `presentation: "table"` 或 `presentation: "list"`，两者继续使用同一队列、选择、行状态与 renderer target。table 展示标题、位置和时长列；list 使用无表头的较高行，仅展示标题和时长。省略 presentation 时保留应用的原始表格配置，离开指定 presentation 的布局时恢复原始列宽、顺序、可见性与行高。该选项要求 `minAppVersion` 为 `0.3.0` 或更高。
+
 queue.table 的公开行上下文：
 
 - row.index：整数。
@@ -1142,7 +1174,7 @@ queue.table 的公开行上下文：
 | nowPlaying.title | label | 可选 | 当前曲目标题 |
 | nowPlaying.metadata | label | 可选 | 当前曲目来源或状态 |
 
-artwork renderer 可装饰 frame、background 和 overlay，但实际封面内容由组件提供，皮肤不能替换当前曲目的业务数据。`presentation: "contain"` 保留完整图片，`presentation: "cover"` 填满目标矩形并允许裁切。绘制顺序固定为 frame.background、artwork renderer、实际图片、frame.overlay；overlay 只负责图片之上的描边或装饰，不会反向裁切已经绘制的图片。
+artwork renderer 可装饰 frame、background 和 overlay，但实际封面内容由组件提供，皮肤不能替换当前曲目的业务数据。`presentation: "contain"` 保留完整图片，`presentation: "cover"` 填满目标矩形并允许裁切。绘制顺序固定为 frame.background、可选封面氛围、artwork renderer、实际图片、frame.overlay；overlay 只负责图片之上的描边或装饰，不会反向裁切已经绘制的图片。
 
 若要声明实际图片的目标矩形和圆角裁切，artwork renderer 可提供一个顶层 `roundedRect` layer，ID 固定为 `image-clip`：
 
@@ -1162,6 +1194,22 @@ artwork renderer 可装饰 frame、background 和 overlay，但实际封面内�
 - `frame` 与 `radius` 可使用该 artwork renderer 原本允许的 token、bounds 表达式和 artwork 上下文；编译器继续按标准 roundedRect Schema 校验类型、引用和表达式。
 - 该层仍属于 artwork renderer，因此 `fill` 通常应为透明色。overlay 仍只用于图片之后的视觉装饰。
 - 既有 Skin API 1 皮肤若没有 `image-clip`，继续使用完整组件 bounds 且不额外裁切；这保证外部 JSON 皮肤向后兼容。Foundation 与 Default 都声明该层，确保 fallback 和内置皮肤的圆角意图一致。
+
+artwork renderer 还可声明一个顶层 `roundedRect` layer，ID 为 `image-ambience`，把当前封面的低分辨率模糊图作为背景：
+
+```json
+{
+  "id": "image-ambience",
+  "type": "roundedRect",
+  "frame": { "anchor": "bounds", "inset": 8 },
+  "radius": { "$ref": "metrics.panelRadius" },
+  "fill": "#00000000",
+  "opacity": 0.18,
+  "visible": { "$expr": "artwork.hasImage" }
+}
+```
+
+`frame` 指定氛围图片的目标矩形，图片按 cover 填充并始终按 `radius` 裁切；`opacity` 与 `visible` 控制强度和显示。它们支持既有 token、bounds/artwork 上下文表达式及状态 variants。应用仅在封面改变时生成模糊缓存；标题等文本更新不触发重新生成。皮肤不提供封面路径，不读取用户文件。缺少此层或没有有效封面时不绘制氛围图，既有第三方皮肤与 Foundation 保持原行为。该层的 shadow 仍由标准 renderer 绘制，不改变 `image-clip` 的实际图片裁切契约。完整配置见 `examples/CompleteThirdParty/components/artwork.json`。
 
 ### 10.5 播放控制
 
@@ -1225,9 +1273,12 @@ outputStage 提供：
 - meter.channelCount。
 - meter.channels[n].index。
 - meter.channels[n].label。
-- meter.channels[n].peak，0 至 1。
+- meter.channels[n].peak：线性采样峰值，0 为静音，1 为 0 dBFS；超出满刻度时可大于 1。
+- meter.channels[n].peakDb：同一采样峰值的 dBFS 值（20 × log10(peak)），显示下限为 -60；大于 0 的读数保留。
 - meter.channels[n].isLfe。
 - output.layout：stereo、5.1、5.1.2 或 7.1.2。
+
+`meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。峰值来自效果链与输出增益之后的实际采样，并沿用应用的峰值衰减显示；它不是 True Peak、RMS 或 LUFS。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
 
 ### 10.8 Settings
 
@@ -1826,7 +1877,12 @@ Suggestion: add one visible component node with component "library.add".
 
 生成快照：
 
-    ./build/MoonwakeSkinTool snapshot MyFirstSkin/ --workspace listening --size 1240x800 --output preview.png [--state representative|normal|hover|pressed|selected|focused|disabled] [--force]
+    ./build/MoonwakeSkinTool snapshot MyFirstSkin/ --workspace listening --size 1240x800 --output preview.png [--theme studio|listening] [--state representative|normal|hover|pressed|selected|focused|disabled] [--force]
+    ./build/MoonwakeSkinTool layout MyFirstSkin/ --workspace effects --size 1240x800 --theme studio
+    ./build/MoonwakeSkinTool snapshot MyFirstSkin/ --workspace settings --size 1240x800 --theme listening --output settings-listening.png
+
+`layout` 与 `snapshot` 的 `--workspace` 选择四个布局入口，`--theme studio|listening` 选择断点匹配的当前工作区。`--theme` 可省略，默认按入口推导；也可在两个主入口上显式覆盖，便于检查条件分支。未知值、重复参数或其他命令使用此参数均报 `TOOL001`，缺少参数值报 `TOOL002`。
+
 
 导出当前应用的规范 Schema：
 

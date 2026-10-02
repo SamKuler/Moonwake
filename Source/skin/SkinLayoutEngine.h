@@ -22,6 +22,7 @@ struct SkinResolvedNode
 struct SkinResolvedLayout
 {
     SkinResolvedNode root;
+    std::map<juce::String, juce::String> ancillaryStyles;
     [[nodiscard]] const SkinResolvedNode* component (const juce::String&) const;
 };
 
@@ -34,5 +35,6 @@ public:
         const SkinLayoutDefinition&,
         juce::Rectangle<float> bounds,
         float scaleFactor,
-        SkinValidationReport&);
+        SkinValidationReport&,
+        std::optional<WorkspaceMode> workspace = {});
 };

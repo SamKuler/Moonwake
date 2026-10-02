@@ -1,0 +1,55 @@
+{
+  "apiVersion": 1,
+  "target": "effectChain",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.studioSurfaceRadius"
+      },
+      "fill": {
+        "$ref": "colors.studio.surface"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.border"
+        },
+        "width": 1
+      }
+    },
+    {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 1.5
+      },
+      "radius": {
+        "$ref": "metrics.studioSurfaceRadius"
+      },
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.focus"
+        },
+        "width": 2
+      }
+    }
+  ],
+  "variants": {
+    "disabled": {
+      "body.opacity": 0.45
+    },
+    "focused": {
+      "body.stroke.width": 0
+    }
+  }
+}

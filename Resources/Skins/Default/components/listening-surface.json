@@ -1,8 +1,24 @@
 {
-  "apiVersion": 1, "target": "surface",
-  "layers": [{ "id": "surface", "type": "roundedRect", "frame": { "anchor": "bounds" }, "radius": { "$ref": "metrics.workspaceRadius" }, "fill": { "$ref": "colors.listening.surface" }, "stroke": { "color": { "$ref": "colors.listening.border" }, "width": 1 } }],
-  "variants": {
-    "selected": { "surface.fill": { "$ref": "colors.listening.control" }, "surface.stroke.color": { "$ref": "colors.listening.active" } },
-    "hover": { "surface.opacity": 0.9 }
-  }
+  "apiVersion": 1,
+  "target": "surface",
+  "layers": [
+    {
+      "id": "surface",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": 18,
+      "fill": {
+        "$ref": "colors.listening.surface"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.border"
+        },
+        "width": 0.6
+      }
+    }
+  ]
 }

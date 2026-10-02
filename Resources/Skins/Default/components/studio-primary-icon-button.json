@@ -1,9 +1,71 @@
 {
-  "apiVersion": 1, "target": "textButton",
+  "apiVersion": 1,
+  "target": "textButton",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": { "$ref": "colors.studio.active" }, "stroke": { "color": { "$ref": "colors.studio.focus" }, "width": 1 } },
-    { "id": "focus", "type": "roundedRect", "visible": { "$context": "state.focused" }, "frame": { "anchor": "bounds", "inset": 1.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": "#00000000", "stroke": { "color": { "$ref": "colors.studio.focus" }, "width": 2 } }
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": 28,
+      "fill": {
+        "$ref": "colors.studio.active"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.focus"
+        },
+        "width": 0
+      }
+    },
+    {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 1.5
+      },
+      "radius": 28,
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.focus"
+        },
+        "width": 2
+      }
+    }
   ],
-  "variants": { "selected": { "body.opacity": 0.86 }, "hover": { "body.opacity": 0.9 }, "pressed": { "body.opacity": 0.76 }, "disabled": { "body.opacity": 0.4 } },
-  "transitions": { "hover": { "durationMs": { "$ref": "durations.workspaceFast" }, "easing": "easeOut", "properties": ["body.opacity"] } }
+  "variants": {
+    "selected": {
+      "body.opacity": 0.86
+    },
+    "hover": {
+      "body.opacity": 0.9
+    },
+    "pressed": {
+      "body.opacity": 0.76
+    },
+    "disabled": {
+      "body.opacity": 0.4
+    },
+    "focused": {
+      "body.stroke.width": 0
+    }
+  },
+  "transitions": {
+    "hover": {
+      "durationMs": {
+        "$ref": "durations.workspaceFast"
+      },
+      "easing": "easeOut",
+      "properties": [
+        "body.opacity"
+      ]
+    }
+  }
 }

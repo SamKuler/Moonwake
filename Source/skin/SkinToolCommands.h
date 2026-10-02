@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PlayerComponentCatalog.h"
+#include "app/WorkspaceMode.h"
 
 #include <juce_core/juce_core.h>
 
@@ -39,6 +40,7 @@ struct Options
     juce::File guide;
     juce::File example;
     std::optional<SkinLayoutEntry> workspace;
+    std::optional<WorkspaceMode> theme;
     SnapshotState snapshotState = SnapshotState::representative;
     int width = 0;
     int height = 0;

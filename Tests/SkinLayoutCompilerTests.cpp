@@ -68,6 +68,21 @@ juce::var layoutDocument (juce::var root)
     return document;
 }
 
+juce::var entryRoot (SkinLayoutEntry entry, const juce::String& prefix)
+{
+    auto root = object();
+    root.getDynamicObject()->setProperty ("id", prefix + "root");
+    root.getDynamicObject()->setProperty ("type", "column");
+    std::vector<juce::var> children;
+    int focus = 1;
+    for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+        if (descriptor.requiredIn.contains (entry))
+            children.push_back (componentNode (prefix + descriptor.id.replace (".", "-"),
+                                               descriptor.id, descriptor.interactive ? focus++ : 0));
+    root.getDynamicObject()->setProperty ("children", array (std::move (children)));
+    return root;
+}
+
 juce::var visualNode (const juce::String& id)
 {
     auto node = object();
@@ -105,6 +120,29 @@ public:
 
     void runTest() override
     {
+        beginTest ("every catalog presentation passes the public layout schema and compiler");
+        for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+            for (const auto& presentation : descriptor.presentations)
+            {
+                auto root = workspaceRoot ("presentation-");
+                auto* component = directComponent (root, descriptor.id);
+                if (component == nullptr)
+                {
+                    root.getProperty ("children", {}).getArray()->add (
+                        componentNode ("presentation-extra", descriptor.id, 200));
+                    component = directComponent (root, descriptor.id);
+                }
+                component->getDynamicObject()->setProperty ("presentation", presentation);
+                const auto target = descriptor.rendererTargetByPresentation.find (presentation);
+                component->getDynamicObject()->setProperty ("style",
+                    (target != descriptor.rendererTargetByPresentation.end()
+                         ? target->second : descriptor.defaultRendererTarget) + ".default");
+                SkinValidationReport report;
+                expect (compileLayout (layoutDocument (std::move (root)),
+                                       SkinLayoutEntry::listening, report).has_value(),
+                        descriptor.id + " / " + presentation + ": " + report.toText());
+            }
+
         beginTest ("parses all seven node types and typed percent/fr lengths");
         {
             auto root = workspaceRoot ("base-");
@@ -322,6 +360,97 @@ public:
             SkinValidationReport report;
             expect (! compileLayout (document, SkinLayoutEntry::studio, report));
             expect (report.hasCode ("COMPONENT004"));
+        }
+
+        beginTest ("workspace conditions are disjoint and defaults follow the layout entry");
+        for (const auto entry : { SkinLayoutEntry::studio, SkinLayoutEntry::listening,
+                                  SkinLayoutEntry::effects, SkinLayoutEntry::settings })
+        {
+            auto document = layoutDocument (entryRoot (entry, "base-"));
+            std::vector<juce::var> breakpoints;
+            for (const auto* workspace : { "studio", "listening" })
+            {
+                auto condition = object();
+                condition.getDynamicObject()->setProperty ("workspace", workspace);
+                condition.getDynamicObject()->setProperty ("maxWidth", 1240);
+                auto breakpoint = object();
+                breakpoint.getDynamicObject()->setProperty ("when", condition);
+                breakpoint.getDynamicObject()->setProperty ("root", entryRoot (entry, workspace));
+                breakpoints.push_back (breakpoint);
+            }
+            document.getDynamicObject()->setProperty ("breakpoints", array (breakpoints));
+            SkinValidationReport report;
+            const auto compiled = compileLayout (document, entry, report);
+            expect (compiled.has_value(), report.toText());
+            if (compiled)
+            {
+                expect (compiled->defaultWorkspace == (entry == SkinLayoutEntry::studio
+                    ? WorkspaceMode::studio : WorkspaceMode::listening));
+                expect (compiled->breakpoints[0].workspace == WorkspaceMode::studio);
+                expect (compiled->breakpoints[1].workspace == WorkspaceMode::listening);
+            }
+            auto broad = object();
+            auto condition = object();
+            condition.getDynamicObject()->setProperty ("maxWidth", 1200);
+            broad.getDynamicObject()->setProperty ("when", condition);
+            broad.getDynamicObject()->setProperty ("root", entryRoot (entry, "unreachable-"));
+            breakpoints.push_back (broad);
+            document.getDynamicObject()->setProperty ("breakpoints", array (breakpoints));
+            SkinValidationReport coveredReport;
+            expect (! compileLayout (document, entry, coveredReport));
+            expect (coveredReport.hasCode ("LAYOUT010"), coveredReport.toText());
+
+            breakpoints.erase (breakpoints.begin() + 1);
+            document.getDynamicObject()->setProperty ("breakpoints", array (breakpoints));
+            SkinValidationReport partialReport;
+            expect (compileLayout (document, entry, partialReport).has_value(), partialReport.toText());
+        }
+
+        beginTest ("workspace values are validated and wildcard conditions shadow themed ranges");
+        {
+            auto document = layoutDocument (workspaceRoot ("base-"));
+            auto themed = object();
+            auto condition = object();
+            condition.getDynamicObject()->setProperty ("workspace", "effects");
+            themed.getDynamicObject()->setProperty ("when", condition);
+            themed.getDynamicObject()->setProperty ("root", workspaceRoot ("themed-"));
+            document.getDynamicObject()->setProperty ("breakpoints", array ({ themed }));
+            SkinValidationReport invalidReport;
+            expect (! compileLayout (document, SkinLayoutEntry::listening, invalidReport));
+            expect (invalidReport.hasCode ("SCHEMA003"), invalidReport.toText());
+            condition.getDynamicObject()->setProperty ("workspace", "studio");
+            condition.getDynamicObject()->setProperty ("maxWidth", 1100);
+            auto broad = object();
+            auto broadCondition = object();
+            broadCondition.getDynamicObject()->setProperty ("maxWidth", 1200);
+            broad.getDynamicObject()->setProperty ("when", broadCondition);
+            broad.getDynamicObject()->setProperty ("root", workspaceRoot ("broad-"));
+            document.getDynamicObject()->setProperty ("breakpoints", array ({ broad, themed }));
+            SkinValidationReport coveredReport;
+            expect (! compileLayout (document, SkinLayoutEntry::listening, coveredReport));
+            expect (coveredReport.hasCode ("LAYOUT010"), coveredReport.toText());
+        }
+
+        beginTest ("ancillary styles are closed to supported targets and retain qualified names");
+        {
+            auto document = layoutDocument (workspaceRoot ("base-"));
+            auto styles = object();
+            styles.getDynamicObject()->setProperty ("popupMenu", "popupMenu.studio");
+            styles.getDynamicObject()->setProperty ("tooltip", "tooltip.default");
+            document.getDynamicObject()->setProperty ("ancillaryStyles", styles);
+            SkinValidationReport report;
+            const auto compiled = compileLayout (document, SkinLayoutEntry::studio, report);
+            expect (compiled.has_value(), report.toText());
+            if (compiled) expectEquals (compiled->ancillaryStyles.at ("popupMenu"), juce::String ("popupMenu.studio"));
+            styles.getDynamicObject()->setProperty ("popupMenu", "tooltip.studio");
+            SkinValidationReport targetReport;
+            expect (! compileLayout (document, SkinLayoutEntry::studio, targetReport));
+            expect (targetReport.hasCode ("LAYOUT013"), targetReport.toText());
+            styles.getDynamicObject()->setProperty ("popupMenu", "popupMenu.studio");
+            styles.getDynamicObject()->setProperty ("label", "label.default");
+            SkinValidationReport unknownReport;
+            expect (! compileLayout (document, SkinLayoutEntry::studio, unknownReport));
+            expect (unknownReport.hasCode ("SCHEMA001"), unknownReport.toText());
         }
 
         beginTest ("enforces Component singletons, required visibility, targets and focus order");

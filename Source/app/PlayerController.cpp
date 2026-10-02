@@ -32,18 +32,20 @@ private:
 PlayerController::PlayerController()
     : artworkStore (ProductPaths::artworkCacheRoot())
 {
-    const auto error = audioEngine.initialise();
+    audioInitialisationError = audioEngine.initialise();
     rememberAudioDeviceSettings();
-    lastStatusMessage = error.isEmpty() ? "Ready" : "Audio device error: " + error;
+    lastStatusMessage = audioInitialisationError.isEmpty()
+        ? "Ready" : "Audio device error: " + audioInitialisationError;
 }
 
 PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend)
     : audioEngine (std::move (backend)),
       artworkStore (ProductPaths::artworkCacheRoot())
 {
-    const auto error = audioEngine.initialise();
+    audioInitialisationError = audioEngine.initialise();
     rememberAudioDeviceSettings();
-    lastStatusMessage = error.isEmpty() ? "Ready" : "Audio device error: " + error;
+    lastStatusMessage = audioInitialisationError.isEmpty()
+        ? "Ready" : "Audio device error: " + audioInitialisationError;
 }
 
 PlayerController::~PlayerController()
@@ -294,14 +296,16 @@ bool PlayerController::refreshUpcomingPlayback()
     return true;
 }
 
-bool PlayerController::synchronizePlayback (bool finishQueue)
+bool PlayerController::synchronizePlayback (bool finishQueue, bool* preparationFailed)
 {
+    if (preparationFailed != nullptr) *preparationFailed = false;
     const auto progress = audioEngine.getPlaybackProgress();
     bool changed = false;
     juce::StringArray failures;
     for (const auto& failure : audioEngine.drainPreparationFailures())
     {
         if (failure.generation != playbackGeneration) continue;
+        if (preparationFailed != nullptr) *preparationFailed = true;
         const auto firstUnplayed = failure.sequence + (failure.hadBufferedAudio ? 1u : 0u);
         const auto [position, inserted] = failedPlaybackItems.emplace (failure.token, firstUnplayed);
         if (! inserted) position->second = std::min (position->second, firstUnplayed);
@@ -419,30 +423,35 @@ void PlayerController::clearPlaylist()
     lastStatusMessage = "Queue cleared.";
 }
 
-void PlayerController::seekToRatio (double ratio)
+bool PlayerController::seekToRatio (double ratio)
 {
-    seekToSeconds (juce::jlimit (0.0, 1.0, ratio)
-                   * audioEngine.getLengthInSeconds());
+    return seekToSeconds (juce::jlimit (0.0, 1.0, ratio)
+                          * audioEngine.getLengthInSeconds());
 }
 
-void PlayerController::seekToSeconds (double seconds)
+bool PlayerController::seekToSeconds (double seconds)
 {
     synchronizePlayback();
     const auto length = audioEngine.getLengthInSeconds();
     if (! std::isfinite (seconds) || length <= 0.0)
-        return;
+    {
+        lastStatusMessage = length <= 0.0 ? "No seekable audio is loaded."
+                                         : "The requested playback position is invalid.";
+        return false;
+    }
 
     const auto position = juce::jlimit (0.0, length, seconds);
     if (std::abs (position - audioEngine.getCurrentPositionSeconds()) < 0.01)
-        return;
+        return true;
 
     if (! audioEngine.seekToSeconds (position))
     {
         handlePlaybackReadError();
-        return;
+        return false;
     }
     playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(), position);
     ++stateRevision;
+    return true;
 }
 
 void PlayerController::checkpointPlaybackPosition()

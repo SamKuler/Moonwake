@@ -459,6 +459,28 @@ bool validateLayoutStyles (const CompiledSkin& skin, SkinValidationReport& repor
     for (const auto& [entry, definition] : skin.layouts)
     {
         juce::ignoreUnused (entry);
+        const auto validateAncillary = [&] (const auto& styles, const juce::String& pointer)
+        {
+            for (const auto& [targetName, styleName] : styles)
+            {
+                const auto target = skinRenderTargetFromName (targetName);
+                const auto found = skin.renderers.find (styleName);
+                const auto* style = target && found != skin.renderers.end()
+                    && found->second.renderer.target == *target ? &found->second : nullptr;
+                if (style == nullptr)
+                {
+                    report.addError ("LAYOUT013", "layout.json", pointer + "/" + targetName,
+                                     "Ancillary style cannot be resolved for its declared target.");
+                    ok = false;
+                }
+                else
+                    validateDirectContext (*style, pointer + "/" + targetName);
+            }
+        };
+        validateAncillary (definition.ancillaryStyles, "/ancillaryStyles");
+        for (size_t index = 0; index < definition.breakpoints.size(); ++index)
+            validateAncillary (definition.breakpoints[index].ancillaryStyles,
+                               "/breakpoints/" + juce::String (static_cast<int> (index)) + "/ancillaryStyles");
         const auto validateRoot = [&] (const SkinLayoutNode& root)
         {
             visitLayoutNode (root, [&] (const SkinLayoutNode& node)
@@ -719,7 +741,8 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
         juce::ignoreUnused (entry);
         for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
                                    juce::Rectangle<float> (0, 0, 1240, 800) })
-            if (! SkinLayoutEngine::resolve (layout, bounds, 1.0f, report)) return {};
+            for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+                if (! SkinLayoutEngine::resolve (layout, bounds, 1.0f, report, workspace)) return {};
     }
 
     std::set<juce::String> referencedAssets;

@@ -14,4 +14,5 @@ private:
     juce::String title;
     juce::String artworkPath;
     juce::Image artwork;
+    juce::Image ambience;
 };

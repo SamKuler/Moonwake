@@ -1380,8 +1380,7 @@ std::map<juce::String, SkinRenderStyleEntry> SkinRenderCompiler::compileIndex (
         {
             const auto styleName = styleProperties.getName (styleIndex).toString();
             const auto pointer = "/" + targetName + "/" + escapePointer (styleName);
-            if (styleName.isEmpty() || styleName.length() > 80
-                || (skinRenderIsAncillaryTarget (*target) && styleName != "default"))
+            if (styleName.isEmpty() || styleName.length() > 80)
             {
                 report.addError ("RENDER004", "components/index.json", pointer,
                                  "Style name is invalid for this renderer target.");

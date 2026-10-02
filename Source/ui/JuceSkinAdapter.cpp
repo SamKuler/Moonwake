@@ -88,6 +88,34 @@ juce::Rectangle<float> iconBoundsFor (const juce::Button& button,
     return { bounds.getCentreX() - size * 0.5f, y, size, size };
 }
 
+juce::Justification justificationForAlignment (const juce::String& name)
+{
+    for (const auto flags : { juce::Justification::topLeft, juce::Justification::centredTop,
+                             juce::Justification::topRight, juce::Justification::centredLeft,
+                             juce::Justification::centred, juce::Justification::centredRight,
+                             juce::Justification::bottomLeft, juce::Justification::centredBottom,
+                             juce::Justification::bottomRight })
+        if (alignmentNameFor (flags) == name) return flags;
+    return juce::Justification::centredLeft;
+}
+
+SkinRenderLayer layerWithVariants (const SkinRenderProgram& program,
+                                   const SkinRenderLayer& source, const SkinControlState& state)
+{
+    auto layer = source;
+    const std::array activeVariants {
+        state.selected, state.hover, state.pressed,
+        state.dragging, state.focused, ! state.enabled
+    };
+    const auto prefix = layer.id + ".";
+    for (size_t index = 0; index < activeVariants.size(); ++index)
+        if (activeVariants[index])
+            for (const auto& [path, property] : program.variants[index].properties)
+                if (path.startsWith (prefix))
+                    layer.properties.insert_or_assign (path.substring (prefix.length()), property);
+    return layer;
+}
+
 const SkinRenderLayer* findLayer (
     const std::vector<SkinRenderLayer>& layers, juce::StringRef id)
 {
@@ -212,6 +240,7 @@ JuceSkinAdapter::JuceSkinAdapter (StyleProvider provider, SkinRenderer& renderer
     : styleProvider (std::move (provider)), renderer (rendererToUse)
 {
     ancillaryProxy.setName ("Skin ancillary renderer proxy");
+    setColour (juce::PopupMenu::backgroundColourId, juce::Colours::transparentBlack);
 }
 
 JuceSkinAdapter::RuntimeBinding JuceSkinAdapter::bindingFor (
@@ -448,8 +477,14 @@ void JuceSkinAdapter::drawComboBox (
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
     context.contentBounds = context.bounds;
     context.state = stateFor (box, box.isMouseOver (true), down);
-    context.primaryText = box.getText();
+    context.primaryText = box.getText().isNotEmpty() ? box.getText() : box.getTextWhenNothingSelected();
     drawBinding (graphics, box, SkinRenderTarget::comboBox, std::move (context));
+}
+
+void JuceSkinAdapter::drawComboBoxTextWhenNothingSelected (
+    juce::Graphics&, juce::ComboBox&, juce::Label&)
+{
+    // The comboBox renderer owns both selected text and the empty-selection prompt.
 }
 
 void JuceSkinAdapter::positionComboBoxText (juce::ComboBox& box, juce::Label& label)
@@ -465,58 +500,74 @@ void JuceSkinAdapter::positionComboBoxText (juce::ComboBox& box, juce::Label& la
 void JuceSkinAdapter::fillTextEditorBackground (
     juce::Graphics& graphics, int width, int height, juce::TextEditor& editor)
 {
+    configureTextEditor (editor);
     SkinRenderContext context;
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
     context.contentBounds = context.bounds;
     context.state = stateFor (editor, editor.isMouseOver (true), false);
-    // Editable text, selection and the caret remain native JUCE content. The
-    // declarative renderer owns only the editor chrome.
-    context.primaryText = {};
+    // The renderer draws the empty prompt; editable text, selection and caret
+    // share its label geometry through the native editor viewport.
+    if (editor.isEmpty() && ! editor.hasKeyboardFocus (false))
+        context.primaryText = editor.getTextToShowWhenEmpty();
     drawBinding (graphics, editor, SkinRenderTarget::textEditor, std::move (context));
+}
+
+std::optional<JuceSkinAdapter::TextStyle> JuceSkinAdapter::textStyleFor (
+    const juce::Component& component, SkinRenderTarget target, SkinRenderContext context) const
+{
+    RuntimeBinding binding;
+    try { binding = bindingFor (component, target); }
+    catch (...) { return std::nullopt; }
+    if (binding.styleEntry == nullptr) return std::nullopt;
+    const auto* found = findLayer (binding.styleEntry->renderer.baseLayers, "label");
+    if (found == nullptr) return std::nullopt;
+    if (context.bounds.isEmpty()) context.bounds = component.getLocalBounds().toFloat();
+    if (context.contentBounds.isEmpty()) context.contentBounds = context.bounds;
+    context.scaleFactor = juce::jmax (0.01f, renderingScaleFactorFor (component));
+    const auto layer = layerWithVariants (binding.styleEntry->renderer, *found, context.state);
+    const auto expressionContext = expressionContextFor (context);
+    const auto bounds = resolvedFrameFor (layer, context, expressionContext);
+    const auto fontValue = resolvedProperty<SkinFontValue> (layer, "font", expressionContext, bounds);
+    const auto fontSize = resolvedProperty<double> (layer, "fontSize", expressionContext, bounds);
+    const auto colour = resolvedProperty<juce::Colour> (layer, "color", expressionContext, bounds);
+    if (! fontValue || ! fontSize || *fontSize <= 0.0 || ! colour) return std::nullopt;
+    const auto fontBinding = layer.properties.find ("font");
+    const auto assets = fontBinding != layer.properties.end() && fontBinding->second.assets != nullptr
+        ? fontBinding->second.assets : binding.styleEntry->assets;
+    const auto font = assets != nullptr ? assets->makeFont (*fontValue, static_cast<float> (*fontSize))
+                                       : SkinFontResolver::makeFallbackFont (*fontValue, static_cast<float> (*fontSize));
+    const auto opacity = resolvedProperty<bool> (layer, "visible", expressionContext, bounds).value_or (true)
+        ? juce::jlimit (0.0, 1.0, resolvedProperty<double> (layer, "opacity", expressionContext, bounds).value_or (1.0))
+        : 0.0;
+    return TextStyle { font, colour->withMultipliedAlpha (static_cast<float> (opacity)), bounds,
+        justificationForAlignment (resolvedProperty<juce::String> (layer, "align", expressionContext, bounds).value_or ("left")),
+        juce::jlimit (1, 32, juce::roundToInt (resolvedProperty<double> (layer, "maxLines", expressionContext, bounds).value_or (1.0))) };
 }
 
 void JuceSkinAdapter::configureTextEditor (juce::TextEditor& editor) const
 {
-    RuntimeBinding binding;
-    try
+    SkinRenderContext context;
+    context.state = stateFor (editor, editor.isMouseOver (true), false);
+    context.primaryText = editor.getText();
+    const auto style = textStyleFor (editor, SkinRenderTarget::textEditor, std::move (context));
+    if (! style) return;
+    if (editor.findColour (juce::TextEditor::textColourId) != style->colour)
+        editor.applyColourToAllText (style->colour, true);
+    for (const auto& [id, colour] : {
+             std::pair<int, juce::Colour> { juce::TextEditor::highlightColourId, style->colour.withMultipliedAlpha (0.18f) },
+             { juce::TextEditor::highlightedTextColourId, style->colour },
+             { juce::CaretComponent::caretColourId, style->colour } })
+        if (editor.findColour (id) != colour) editor.setColour (id, colour);
+    editor.setTextToShowWhenEmpty (editor.getTextToShowWhenEmpty(), juce::Colours::transparentBlack);
+    if (editor.getFont() != style->font) editor.applyFontToAllText (style->font, true);
+    if (! editor.getLocalBounds().isEmpty())
     {
-        binding = bindingFor (editor, SkinRenderTarget::textEditor);
-    }
-    catch (...)
-    {
-        return;
-    }
-    if (binding.styleEntry == nullptr)
-        return;
-
-    const auto* label = findLayer (
-        binding.styleEntry->renderer.baseLayers, "label");
-    if (label == nullptr)
-        return;
-    const auto colour = literalProperty<juce::Colour> (*label, "color");
-    if (colour)
-    {
-        editor.setColour (juce::TextEditor::textColourId, *colour);
-        editor.setColour (juce::TextEditor::highlightColourId,
-                          colour->withAlpha (0.18f));
-        editor.setColour (juce::TextEditor::highlightedTextColourId, *colour);
-        editor.setColour (juce::CaretComponent::caretColourId, *colour);
-        editor.setTextToShowWhenEmpty (
-            editor.getTextToShowWhenEmpty(), colour->withAlpha (0.58f));
-        editor.applyColourToAllText (*colour, true);
-    }
-
-    const auto fontValue = literalProperty<SkinFontValue> (*label, "font");
-    const auto fontSize = literalProperty<double> (*label, "fontSize");
-    if (fontValue && fontSize && *fontSize > 0.0)
-    {
-        auto font = binding.styleEntry->assets != nullptr
-                      ? binding.styleEntry->assets->makeFont (
-                            *fontValue, static_cast<float> (*fontSize))
-                      : SkinFontResolver::makeFallbackFont (
-                            *fontValue, static_cast<float> (*fontSize));
-        editor.setFont (font);
-        editor.applyFontToAllText (font, true);
+        const auto frame = style->bounds.getSmallestIntegerContainer().getIntersection (editor.getLocalBounds());
+        const juce::BorderSize<int> border (frame.getY(), frame.getX(),
+            editor.getHeight() - frame.getBottom(), editor.getWidth() - frame.getRight());
+        if (editor.getBorder() != border) editor.setBorder (border);
+        editor.setIndents (0, 0);
+        editor.setJustification (style->alignment);
     }
 }
 
@@ -528,7 +579,7 @@ void JuceSkinAdapter::drawTextEditorOutline (
 
 void JuceSkinAdapter::drawLinearSlider (
     juce::Graphics& graphics, int x, int y, int width, int height,
-    float sliderPos, float minSliderPos, float maxSliderPos,
+    float, float, float,
     juce::Slider::SliderStyle, juce::Slider& slider)
 {
     SkinRenderContext context;
@@ -538,10 +589,7 @@ void JuceSkinAdapter::drawLinearSlider (
     context.state = stateFor (slider, slider.isMouseOver (true), slider.isMouseButtonDown());
     context.minimum = slider.getMinimum();
     context.maximum = slider.getMaximum();
-    context.normalisedValue = std::abs (maxSliderPos - minSliderPos) > 1.0e-6f
-        ? juce::jlimit (0.0, 1.0,
-            static_cast<double> ((sliderPos - minSliderPos) / (maxSliderPos - minSliderPos)))
-        : 0.0;
+    context.normalisedValue = slider.valueToProportionOfLength (slider.getValue());
     context.displayValue = slider.getTextFromValue (slider.getValue());
     drawBinding (graphics, slider, SkinRenderTarget::linearSlider, std::move (context));
 }
@@ -608,6 +656,68 @@ void JuceSkinAdapter::drawScrollbarButton (
     drawBinding (graphics, scrollBar, SkinRenderTarget::scrollBar,
                  std::move (context), "default",
                  "button:" + juce::String (buttonDirection));
+}
+
+int JuceSkinAdapter::getPopupMenuBorderSize()
+{
+    // Menu outlines belong to the skin, including menus embedded in a parent.
+    return 0;
+}
+
+juce::Font JuceSkinAdapter::getPopupMenuFont()
+{
+    SkinRenderContext context;
+    context.menuPart = "item";
+    if (const auto style = textStyleFor (ancillaryProxy, SkinRenderTarget::popupMenu, std::move (context)))
+        return style->font;
+    return juce::LookAndFeel_V4::getPopupMenuFont();
+}
+
+void JuceSkinAdapter::getIdealPopupMenuItemSize (const juce::String& text, bool separator,
+                                                int standardHeight, int& width, int& height)
+{
+    juce::LookAndFeel_V4::getIdealPopupMenuItemSize (text, separator, standardHeight, width, height);
+    if (separator) return;
+    SkinRenderContext context;
+    context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
+    context.contentBounds = context.bounds;
+    context.menuPart = "item";
+    context.primaryText = text;
+    if (const auto style = textStyleFor (ancillaryProxy, SkinRenderTarget::popupMenu, context))
+    {
+        width = juce::jmax (width, static_cast<int> (std::ceil (juce::GlyphArrangement::getStringWidth (style->font, text)
+            + context.bounds.getWidth() - style->bounds.getWidth())));
+        height = juce::jmax (height, static_cast<int> (std::ceil (style->font.getHeight()
+            + context.bounds.getHeight() - style->bounds.getHeight())));
+    }
+}
+
+juce::Rectangle<int> JuceSkinAdapter::getTooltipBounds (
+    const juce::String& text, juce::Point<int> screenPosition, juce::Rectangle<int> parentArea)
+{
+    const auto fallback = juce::LookAndFeel_V4::getTooltipBounds (text, screenPosition, parentArea);
+    SkinRenderContext context;
+    context.bounds = fallback.withPosition (0, 0).toFloat();
+    context.contentBounds = context.bounds;
+    context.primaryText = text;
+    const auto style = textStyleFor (ancillaryProxy, SkinRenderTarget::tooltip, context);
+    if (! style) return fallback;
+    const auto horizontalInset = juce::jmax (0.0f, context.bounds.getWidth() - style->bounds.getWidth());
+    const auto verticalInset = juce::jmax (0.0f, context.bounds.getHeight() - style->bounds.getHeight());
+    const auto textWidth = juce::jmax (1.0f, juce::jmin (400.0f,
+        static_cast<float> (parentArea.getWidth()) - horizontalInset));
+    juce::AttributedString attributed;
+    attributed.append (text, style->font, style->colour);
+    juce::TextLayout layout;
+    layout.createLayout (attributed, textWidth);
+    const auto width = static_cast<int> (std::ceil (layout.getWidth() + horizontalInset));
+    const auto height = static_cast<int> (std::ceil (
+        juce::jmin (juce::jmax (style->font.getHeight(), layout.getHeight()),
+                    style->font.getHeight() * static_cast<float> (style->maxLines)) + verticalInset));
+    return juce::Rectangle<int> (
+        screenPosition.x > parentArea.getCentreX() ? screenPosition.x - width - 12 : screenPosition.x + 24,
+        screenPosition.y > parentArea.getCentreY() ? screenPosition.y - height - 6 : screenPosition.y + 6,
+        width, height).constrainedWithin (parentArea);
 }
 
 void JuceSkinAdapter::drawPopupMenuBackground (
@@ -807,6 +917,7 @@ bool JuceSkinAdapter::drawCustomSlot (
 
 void JuceSkinAdapter::configureListBox (juce::ListBox& list) const
 {
+    list.setOutlineThickness (0);
     list.setColour (juce::ListBox::backgroundColourId, juce::Colours::transparentBlack);
     list.setColour (juce::ListBox::outlineColourId, juce::Colours::transparentBlack);
 }
@@ -896,6 +1007,20 @@ std::optional<JuceSkinAdapter::ArtworkImageStyle>
 JuceSkinAdapter::artworkImageStyleFor (
     const juce::Component& component, SkinRenderContext context) const
 {
+    return artworkLayerStyleFor (component, std::move (context), "image-clip");
+}
+
+std::optional<JuceSkinAdapter::ArtworkImageStyle>
+JuceSkinAdapter::artworkAmbienceStyleFor (
+    const juce::Component& component, SkinRenderContext context) const
+{
+    return artworkLayerStyleFor (component, std::move (context), "image-ambience");
+}
+
+std::optional<JuceSkinAdapter::ArtworkImageStyle>
+JuceSkinAdapter::artworkLayerStyleFor (
+    const juce::Component& component, SkinRenderContext context, juce::StringRef layerId) const
+{
     RuntimeBinding binding;
     try
     {
@@ -911,7 +1036,7 @@ JuceSkinAdapter::artworkImageStyleFor (
     const auto found = std::find_if (
         binding.styleEntry->renderer.baseLayers.begin(),
         binding.styleEntry->renderer.baseLayers.end(),
-        [] (const SkinRenderLayer& layer) { return layer.id == "image-clip"; });
+        [layerId] (const SkinRenderLayer& layer) { return layer.id == layerId; });
     if (found == binding.styleEntry->renderer.baseLayers.end()
         || found->primitive != SkinPrimitive::roundedRectangle)
         return std::nullopt;
@@ -921,15 +1046,20 @@ JuceSkinAdapter::artworkImageStyleFor (
     if (context.contentBounds.isEmpty())
         context.contentBounds = context.bounds;
     context.scaleFactor = juce::jmax (0.01f, renderingScaleFactorFor (component));
+    auto state = stateFor (component, component.isMouseOver (true),
+                           component.isMouseButtonDown(), context.state.selected);
+    state.dragging = context.state.dragging || state.dragging;
+    context.state = state;
+    const auto layer = layerWithVariants (binding.styleEntry->renderer, *found, state);
     const auto expressionContext = expressionContextFor (context);
-    auto bounds = resolvedFrameFor (*found, context, expressionContext);
+    auto bounds = resolvedFrameFor (layer, context, expressionContext);
     if (! std::isfinite (bounds.getX()) || ! std::isfinite (bounds.getY())
         || ! std::isfinite (bounds.getWidth()) || ! std::isfinite (bounds.getHeight())
         || bounds.isEmpty())
         return std::nullopt;
 
     auto radius = static_cast<float> (resolvedProperty<double> (
-        *found, "radius", expressionContext, bounds).value_or (0.0));
+        layer, "radius", expressionContext, bounds).value_or (0.0));
     if (! std::isfinite (radius))
         return std::nullopt;
     radius = juce::jlimit (0.0f,
@@ -937,7 +1067,9 @@ JuceSkinAdapter::artworkImageStyleFor (
                            radius);
     return ArtworkImageStyle {
         bounds, radius,
-        resolvedProperty<bool> (*found, "clip", expressionContext, bounds)
-            .value_or (false)
+        resolvedProperty<bool> (layer, "clip", expressionContext, bounds).value_or (false),
+        static_cast<float> (juce::jlimit (0.0, 1.0,
+            resolvedProperty<double> (layer, "opacity", expressionContext, bounds).value_or (1.0))),
+        resolvedProperty<bool> (layer, "visible", expressionContext, bounds).value_or (true)
     };
 }

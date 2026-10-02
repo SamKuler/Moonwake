@@ -1,4 +1,28 @@
 {
-  "apiVersion": 1, "target": "label",
-  "layers": [{ "id": "label", "type": "text", "frame": { "anchor": "contentBounds" }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceTitle" }, "fontSize": 22, "color": { "$ref": "colors.studio.text" }, "align": { "$context": "text.align" }, "maxLines": 1, "overflow": "ellipsis" }]
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds"
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceTitle"
+      },
+      "fontSize": {
+        "$ref": "metrics.textStudioTitle"
+      },
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    }
+  ]
 }

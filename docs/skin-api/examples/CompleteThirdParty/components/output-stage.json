@@ -1,0 +1,29 @@
+{
+  "apiVersion": 1,
+  "target": "outputStage",
+  "layers": [
+    {
+      "id": "channels",
+      "type": "repeat",
+      "source": "meter.channels",
+      "limit": 10,
+      "template": {
+        "id": "peak",
+        "type": "rect",
+        "frame": {
+          "x": {
+            "$expr": "item.index * min(24, bounds.width / max(1, meter.channelCount))"
+          },
+          "y": {
+            "$expr": "bounds.height * (1 - clamp((item.peakDb + 60) / 60, 0, 1))"
+          },
+          "width": 12,
+          "height": {
+            "$expr": "bounds.height * clamp((item.peakDb + 60) / 60, 0, 1)"
+          }
+        },
+        "fill": "#8DC8D9FF"
+      }
+    }
+  ]
+}

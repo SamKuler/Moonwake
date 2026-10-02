@@ -67,6 +67,15 @@ void offsetFocusOrders (juce::var node, int offset)
     offsetFocusOrders (node.getProperty ("child", {}), offset);
 }
 
+void suffixNodeIds (juce::var node, const juce::String& suffix)
+{
+    if (! node.isObject()) return;
+    node.getDynamicObject()->setProperty ("id", node.getProperty ("id", {}).toString() + suffix);
+    if (const auto* children = node.getProperty ("children", {}).getArray())
+        for (const auto& child : *children) suffixNodeIds (child, suffix);
+    suffixNodeIds (node.getProperty ("child", {}), suffix);
+}
+
 bool wrapComponentInHiddenParent (juce::var node,
                                   const juce::String& componentId,
                                   int hiddenFocusOrder)
@@ -135,6 +144,14 @@ public:
                                  "--size", "1240x800" }).exitCode, 2);
             expectEquals (run ({ "layout", "skin", "--workspace", "listening",
                                  "--size", "12-by-8" }).exitCode, 2);
+            expectEquals (run ({ "layout", "skin", "--workspace", "effects",
+                                 "--size", "1240x800", "--theme", "effects" }).exitCode, 2);
+            expectEquals (run ({ "layout", "skin", "--workspace", "effects",
+                                 "--size", "1240x800", "--theme" }).exitCode, 2);
+            expectEquals (run ({ "layout", "skin", "--workspace", "effects",
+                                 "--size", "1240x800", "--theme", "studio",
+                                 "--theme", "listening" }).exitCode, 2);
+            expectEquals (run ({ "validate", "skin", "--theme", "studio" }).exitCode, 2);
             expectEquals (run ({ "snapshot", "skin", "--workspace", "listening",
                                  "--size", "1240x800" }).exitCode, 2);
             expectEquals (run ({ "snapshot", "skin", "--workspace", "listening",
@@ -233,6 +250,54 @@ public:
             expectEquals (writeFailure.exitCode, 1);
             expect (writeFailure.standardError.contains ("TOOL004"),
                     writeFailure.standardError);
+        }
+
+        beginTest ("shared-panel layout and snapshot select the requested workspace theme");
+        {
+            TemporaryDirectory temporary;
+            const auto skin = temporary.directory.getChildFile ("themed-skin");
+            expect (fixture().copyDirectoryTo (skin));
+            const auto file = skin.getChildFile ("layouts/effects.json");
+            auto document = juce::JSON::parse (file);
+            auto root = document.getProperty ("root", {}).clone();
+            suffixNodeIds (root, "-studio");
+            root.getDynamicObject()->setProperty ("padding", 28);
+            auto condition = juce::var (new juce::DynamicObject());
+            condition.getDynamicObject()->setProperty ("workspace", "studio");
+            auto breakpoint = juce::var (new juce::DynamicObject());
+            breakpoint.getDynamicObject()->setProperty ("when", condition);
+            breakpoint.getDynamicObject()->setProperty ("root", root);
+            document.getDynamicObject()->setProperty ("breakpoints", juce::Array<juce::var> { breakpoint });
+            expect (file.replaceWithText (juce::JSON::toString (document, true)));
+            const auto path = skin.getFullPathName();
+            const auto base = run ({ "layout", path.toRawUTF8(), "--workspace", "effects", "--size", "1240x800" });
+            const auto listening = run ({ "layout", path.toRawUTF8(), "--workspace", "effects", "--size", "1240x800",
+                                         "--theme", "listening" });
+            const auto studio = run ({ "layout", path.toRawUTF8(), "--workspace", "effects", "--size", "1240x800",
+                                      "--theme", "studio" });
+            expectEquals (base.exitCode, 0, base.standardError);
+            expectEquals (listening.exitCode, 0, listening.standardError);
+            expectEquals (studio.exitCode, 0, studio.standardError);
+            expectEquals (base.standardOutput, listening.standardOutput);
+            expect (studio.standardOutput != listening.standardOutput);
+            juce::MemoryBlock images[2];
+            int index = 0;
+            for (const auto* theme : { "studio", "listening" })
+            {
+                const auto output = temporary.directory.getChildFile (juce::String (theme) + ".png");
+                const auto snapshot = run ({ "snapshot", path.toRawUTF8(), "--workspace", "effects", "--size", "1240x800",
+                                            "--theme", theme, "--output", output.getFullPathName().toRawUTF8() });
+                expectEquals (snapshot.exitCode, 0, snapshot.standardError);
+                expect (output.loadFileAsData (images[index++]));
+            }
+            expect (images[0] != images[1]);
+            auto styles = juce::var (new juce::DynamicObject());
+            styles.getDynamicObject()->setProperty ("popupMenu", "popupMenu.missing");
+            document.getDynamicObject()->setProperty ("ancillaryStyles", styles);
+            expect (file.replaceWithText (juce::JSON::toString (document, true)));
+            const auto missingStyle = run ({ "validate", path.toRawUTF8() });
+            expectEquals (missingStyle.exitCode, 1, missingStyle.standardError);
+            expect (missingStyle.standardError.contains ("LAYOUT013"), missingStyle.standardError);
         }
 
         beginTest ("snapshot renders a deterministic-size PNG without an audio backend");

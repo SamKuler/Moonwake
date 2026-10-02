@@ -1,9 +1,80 @@
 {
-  "apiVersion": 1, "target": "rotarySlider",
+  "apiVersion": 1,
+  "target": "rotarySlider",
   "layers": [
-    { "id": "dial", "type": "ellipse", "frame": { "anchor": "bounds", "inset": 7 }, "fill": { "$ref": "colors.listening.control" }, "stroke": { "color": { "$ref": "colors.listening.border" }, "width": 1 } },
-    { "id": "arc", "type": "arc", "center": { "x": { "$expr": "bounds.width * 0.5" }, "y": { "$expr": "bounds.height * 0.5" } }, "radiusX": { "$expr": "min(bounds.width, bounds.height) * 0.42" }, "radiusY": { "$expr": "min(bounds.width, bounds.height) * 0.42" }, "startAngle": 135, "endAngle": { "$expr": "135 + value.normalized * 270" }, "stroke": { "color": { "$ref": "colors.listening.active" }, "width": 3, "cap": "round" } },
-    { "id": "focus", "type": "ellipse", "visible": { "$context": "state.focused" }, "frame": { "anchor": "bounds", "inset": 2 }, "fill": "#00000000", "stroke": { "color": { "$ref": "colors.listening.focus" }, "width": 2 } }
+    {
+      "id": "dial",
+      "type": "ellipse",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 7
+      },
+      "fill": {
+        "$ref": "colors.listening.control"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.border"
+        },
+        "width": 1
+      }
+    },
+    {
+      "id": "arc",
+      "type": "arc",
+      "center": {
+        "x": {
+          "$expr": "bounds.width * 0.5"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.5"
+        }
+      },
+      "radiusX": {
+        "$expr": "min(bounds.width, bounds.height) * 0.42"
+      },
+      "radiusY": {
+        "$expr": "min(bounds.width, bounds.height) * 0.42"
+      },
+      "startAngle": 135,
+      "endAngle": {
+        "$expr": "135 + value.normalized * 270"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.active"
+        },
+        "width": 3,
+        "cap": "round"
+      }
+    },
+    {
+      "id": "focus",
+      "type": "ellipse",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 2
+      },
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.focus"
+        },
+        "width": 2
+      }
+    }
   ],
-  "variants": { "disabled": { "dial.opacity": 0.4, "arc.opacity": 0.4 } }
+  "variants": {
+    "disabled": {
+      "dial.opacity": 0.4,
+      "arc.opacity": 0.4
+    },
+    "focused": {
+      "dial.stroke.width": 0,
+      "arc.stroke.width": 0
+    }
+  }
 }

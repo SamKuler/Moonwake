@@ -1,0 +1,26 @@
+{
+  "apiVersion": 1,
+  "target": "surface",
+  "layers": [
+    {
+      "id": "card",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0
+      },
+      "radius": {
+        "$ref": "metrics.example.surfaceRadius"
+      },
+      "fill": {
+        "$ref": "colors.example.studioSurface"
+      },
+      "shadow": {
+        "color": "#00000028",
+        "radius": 10,
+        "offsetX": 0,
+        "offsetY": 4
+      }
+    }
+  ]
+}

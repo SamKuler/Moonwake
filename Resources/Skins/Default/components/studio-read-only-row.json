@@ -1,0 +1,30 @@
+{
+  "apiVersion": 1,
+  "target": "surface",
+  "layers": [
+    {
+      "id": "divider",
+      "type": "rect",
+      "frame": {
+        "x": {
+          "$context": "bounds.x"
+        },
+        "y": {
+          "$expr": "bounds.height - 1"
+        },
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": 1
+      },
+      "fill": {
+        "$ref": "colors.studio.border"
+      }
+    }
+  ],
+  "variants": {
+    "disabled": {
+      "divider.opacity": 0.55
+    }
+  }
+}

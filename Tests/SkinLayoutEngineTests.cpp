@@ -365,6 +365,54 @@ public:
             }
         }
 
+        beginTest ("workspace predicates combine with dimensions and preserve legacy defaults");
+        {
+            auto definition = definitionWith (visual ("base"));
+            definition.ancillaryStyles = { { "popupMenu", "popupMenu.default" },
+                                            { "tooltip", "tooltip.default" } };
+            for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+            {
+                SkinLayoutDefinition::Breakpoint breakpoint;
+                breakpoint.workspace = workspace;
+                breakpoint.widths.maximum = 1240;
+                breakpoint.heights.minimum = 700;
+                breakpoint.scaleFactors.maximum = 2;
+                breakpoint.root = visual (toString (workspace));
+                if (workspace == WorkspaceMode::studio)
+                    breakpoint.ancillaryStyles = { { "popupMenu", "popupMenu.studio" },
+                                                    { "scrollBar", "scrollBar.studio" } };
+                definition.breakpoints.push_back (std::move (breakpoint));
+            }
+            for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+            {
+                SkinValidationReport report;
+                const auto result = SkinLayoutEngine::resolve (definition, { 0, 0, 1240, 700 },
+                                                               2.0f, report, workspace);
+                expect (result.has_value(), report.toText());
+                if (result)
+                {
+                    expectEquals (result->root.nodeId, toString (workspace));
+                    expectEquals (result->ancillaryStyles.at ("tooltip"), juce::String ("tooltip.default"));
+                    expectEquals (result->ancillaryStyles.at ("popupMenu"), juce::String (
+                        workspace == WorkspaceMode::studio ? "popupMenu.studio" : "popupMenu.default"));
+                    expect (result->ancillaryStyles.contains ("scrollBar") == (workspace == WorkspaceMode::studio));
+                }
+                const auto outside = SkinLayoutEngine::resolve (definition, { 0, 0, 1241, 700 },
+                                                                2.0f, report, workspace);
+                expect (outside.has_value(), report.toText());
+                if (outside)
+                {
+                    expectEquals (outside->root.nodeId, juce::String ("base"));
+                    expect (outside->ancillaryStyles == definition.ancillaryStyles);
+                }
+                definition.defaultWorkspace = workspace;
+                const auto inferred = SkinLayoutEngine::resolve (definition, { 0, 0, 1240, 700 },
+                                                                 2.0f, report);
+                expect (inferred.has_value(), report.toText());
+                if (inferred) expectEquals (inferred->root.nodeId, toString (workspace));
+            }
+        }
+
         beginTest ("rejects non-finite bounds, impossible minimums and sub-28 interactive controls");
         {
             SkinValidationReport report;

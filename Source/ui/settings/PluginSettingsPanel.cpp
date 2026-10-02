@@ -16,6 +16,7 @@ public:
         setTitle ("Known VST3 and Audio Unit plug-ins");
         setWantsKeyboardFocus (true);
         setModel (this);
+        setOutlineThickness (0);
         setRowHeight (rowHeight);
         setColour (juce::ListBox::backgroundColourId,
                    juce::Colour {});
@@ -42,6 +43,16 @@ public:
     [[nodiscard]] int count() const noexcept { return plugins.size(); }
     [[nodiscard]] int scrollPosition() const noexcept { return firstVisibleRow; }
 
+    void resized() override
+    {
+        juce::ListBox::resized();
+        auto* viewport = getViewport();
+        const auto bounds = viewport->getBounds();
+        const auto completeRowsHeight = bounds.getHeight() / rowHeight * rowHeight;
+        viewport->setBounds (bounds.withHeight (completeRowsHeight));
+        setFirstVisibleRow (firstVisibleRow);
+    }
+
     void paint (juce::Graphics& graphics) override
     {
         SkinRenderContext background;
@@ -57,12 +68,12 @@ public:
 
         if (plugins.isEmpty())
         {
-            auto emptyBounds = contentBounds();
+            auto emptyBounds = getLocalBounds().reduced (10, 0);
             emptyBounds.removeFromTop (headerHeight);
             SkinRenderContext emptyContext;
-            emptyContext.bounds = emptyBounds.toFloat().reduced (8.0f);
+            emptyContext.bounds = emptyBounds.toFloat().reduced (0.0f, 10.0f);
             emptyContext.contentBounds = emptyContext.bounds;
-            emptyContext.primaryText = "No plug-ins discovered yet. Scan the standard VST3 and Audio Unit locations.";
+            emptyContext.primaryText = "No plug-ins found.\nScan VST3 and Audio Unit locations to get started.";
             emptyContext.state.enabled = true;
             if (adapter != nullptr)
                 static_cast<void> (adapter->drawCustomSlot (
@@ -102,8 +113,8 @@ private:
         explicit Header (PluginListView& ownerToUse) : owner (ownerToUse) {}
         void paint (juce::Graphics& graphics) override
         {
-            owner.drawTextSlot (graphics, getLocalBounds(), "row.name",
-                                "KNOWN PLUG-INS", "heading");
+            owner.drawTextSlot (graphics, getLocalBounds().reduced (10, 0), "row.name",
+                                "Known plug-ins", "heading");
         }
 
         std::unique_ptr<juce::AccessibilityHandler>
@@ -158,10 +169,23 @@ private:
                 graphics, *this, SkinRenderTarget::pluginList,
                 "row.surface", SkinRenderTarget::surface, rowContext, rowKey));
 
-        auto formatBounds = row.removeFromRight (72);
-        auto makerBounds = row.removeFromRight (
-            juce::jmax (86, row.getWidth() / 3));
-        drawTextSlot (graphics, row, "row.name", plugin.name, rowKey,
+        auto formatBounds = row.removeFromRight (84);
+        row.removeFromRight (12);
+        juce::Rectangle<int> nameBounds, makerBounds;
+        if (width < 420)
+        {
+            row.reduce (0, 2);
+            nameBounds = row.removeFromTop (20);
+            row.removeFromTop (2);
+            makerBounds = row;
+        }
+        else
+        {
+            makerBounds = row.removeFromRight (juce::jmax (72, row.getWidth() / 3));
+            row.removeFromRight (12);
+            nameBounds = row;
+        }
+        drawTextSlot (graphics, nameBounds, "row.name", plugin.name, rowKey,
                       &rowContext);
         drawTextSlot (graphics, makerBounds, "row.manufacturer",
                       manufacturer, rowKey, &rowContext);
@@ -171,20 +195,19 @@ private:
 
     void listWasScrolled() override
     {
-        if (const auto* viewport = getViewport())
+        if (auto* viewport = getViewport())
+        {
             firstVisibleRow = juce::jmax (
                 0, viewport->getViewPositionY() / rowHeight);
-    }
-
-    [[nodiscard]] juce::Rectangle<int> contentBounds() const
-    {
-        return getLocalBounds().reduced (10, 8);
+            const auto alignedY = firstVisibleRow * rowHeight;
+            if (viewport->getViewPositionY() != alignedY)
+                viewport->setViewPosition (viewport->getViewPositionX(), alignedY);
+        }
     }
 
     [[nodiscard]] int visibleRowCount() const
     {
-        return juce::jmax (1, (contentBounds().getHeight() - headerHeight)
-                                  / rowHeight);
+        return juce::jmax (1, getViewport()->getMaximumVisibleHeight() / rowHeight);
     }
 
     bool setFirstVisibleRow (int requested)
@@ -221,8 +244,8 @@ private:
     JuceSkinAdapter* adapter = nullptr;
     juce::Array<juce::PluginDescription> plugins;
     int firstVisibleRow = 0;
-    static constexpr int headerHeight = 28;
-    static constexpr int rowHeight = 32;
+    static constexpr int headerHeight = 32;
+    static constexpr int rowHeight = 44;
 };
 
 PluginSettingsPanel::PluginSettingsPanel (PlayerController& controllerToUse,
@@ -233,6 +256,9 @@ PluginSettingsPanel::PluginSettingsPanel (PlayerController& controllerToUse,
     formatsLabel.setName ("Plug-in formats");
     formatsLabel.setTitle ("Supported plug-in formats");
     formatsLabel.setJustificationType (juce::Justification::centredLeft);
+    scanAllButton.setButtonText ("Scan plug-ins");
+    scanFolderButton.setButtonText ("Add folder");
+    cancelButton.setButtonText ("Cancel scan");
     scanAllButton.setTitle ("Scan standard VST3 and Audio Unit locations");
     scanFolderButton.setTitle ("Scan an additional VST3 folder");
     cancelButton.setTitle ("Cancel the active plug-in scan");
@@ -243,7 +269,7 @@ PluginSettingsPanel::PluginSettingsPanel (PlayerController& controllerToUse,
     scanAllButton.onClick = [this]
     {
         if (! controller.startPluginScan() && statusCallback)
-            statusCallback (controller.getLastStatusMessage());
+            statusCallback (controller.getLastStatusMessage(), true);
         refreshScanState();
     };
     scanFolderButton.onClick = [this]
@@ -308,7 +334,7 @@ void PluginSettingsPanel::refreshInventory()
         if (format.containsIgnoreCase ("AudioUnit"))
             format = "AU";
     formatsLabel.setText (
-        "PLUG-INS  /  " + (formats.isEmpty() ? juce::String ("VST3 + AU")
+        "Plug-ins  /  " + (formats.isEmpty() ? juce::String ("VST3 + AU")
                                              : formats.joinIntoString (" + ")),
         juce::dontSendNotification);
     knownList->setPlugins (controller.getKnownPlugins());
@@ -318,6 +344,7 @@ bool PluginSettingsPanel::refreshScanState()
 {
     const auto state = controller.getPluginScanStatus();
     progress = state.progress;
+    progressBar.setTooltip (state.message);
     progressBar.repaint();
     scanAllButton.setEnabled (! state.scanning);
     scanFolderButton.setEnabled (! state.scanning);
@@ -328,8 +355,8 @@ bool PluginSettingsPanel::refreshScanState()
     if (state.revision != lastRevision)
     {
         lastRevision = state.revision;
-        if (statusCallback && state.message.isNotEmpty())
-            statusCallback (state.message);
+        if (statusCallback && ! state.scanning && state.message.isNotEmpty())
+            statusCallback (state.message, state.failed > 0);
     }
     if (justFinished)
         refreshInventory();

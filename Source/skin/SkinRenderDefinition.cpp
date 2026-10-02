@@ -412,6 +412,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
                 result.emplace (prefix + "index", Type::number);
                 result.emplace (prefix + "label", Type::string);
                 result.emplace (prefix + "peak", Type::number);
+                result.emplace (prefix + "peakDb", Type::number);
                 result.emplace (prefix + "isLfe", Type::boolean);
             }
             break;
@@ -425,7 +426,8 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
 
     if (repeatSource == "meter.channels")
         addContext (result, { { "item.index", Type::number }, { "item.label", Type::string },
-                              { "item.peak", Type::number }, { "item.isLfe", Type::boolean } });
+                              { "item.peak", Type::number }, { "item.peakDb", Type::number },
+                              { "item.isLfe", Type::boolean } });
     else if (repeatSource == "table.visibleColumns")
         addContext (result, { { "item.index", Type::number }, { "item.label", Type::string } });
     else if (repeatSource == "output.channelLabels")

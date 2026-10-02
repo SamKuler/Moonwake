@@ -154,7 +154,8 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("library.search", Kind::textEditor),
         makeLabelDescriptor ("queue.title"),
         makeLabelDescriptor ("queue.count", "right"),
-        makeDescriptor ("queue.table", Kind::table, workspaces(), {}, {}, {
+        makeDescriptor ("queue.table", Kind::table, workspaces(), { "table", "list" },
+                        { { "table", "table" }, { "list", "table" } }, {
             Slot { "header.surface", "surface" }, Slot { "header.text", "label" },
             Slot { "row.surface", "surface" }, Slot { "cell.title", "label" },
             Slot { "cell.location", "label" }, Slot { "cell.duration", "label" }

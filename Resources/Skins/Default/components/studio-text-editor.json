@@ -1,8 +1,65 @@
 {
-  "apiVersion": 1, "target": "textEditor",
+  "apiVersion": 1,
+  "target": "textEditor",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.controlRadius" }, "fill": { "$ref": "colors.studio.control" }, "stroke": { "color": { "$ref": "colors.studio.border" }, "width": 1, "placement": "inside" } },
-    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 10, "right": 10 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.workspaceBody" }, "fontSize": 13, "color": { "$ref": "colors.studio.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" }
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.studioControlRadius"
+      },
+      "fill": {
+        "$ref": "colors.studio.control"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.border"
+        },
+        "width": 1,
+        "placement": "inside"
+      }
+    },
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 10,
+          "right": 10
+        }
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textBody"
+      },
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    }
   ],
-  "variants": { "focused": { "body.stroke.color": { "$ref": "colors.studio.focus" }, "body.stroke.width": 2 }, "disabled": { "body.opacity": 0.4, "label.opacity": 0.55 } }
+  "variants": {
+    "focused": {
+      "body.stroke.color": {
+        "$ref": "colors.studio.focus"
+      },
+      "body.stroke.width": 2
+    },
+    "disabled": {
+      "body.opacity": 0.4,
+      "label.opacity": 0.55
+    }
+  }
 }

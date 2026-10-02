@@ -14,7 +14,15 @@
     "listeningSection": "components/listening-section-label.json",
     "listeningSkinStatus": "components/listening-skin-status.json",
     "listeningTable": "components/listening-table-label.json",
-    "listeningTableMetadata": "components/listening-table-metadata-label.json"
+    "listeningTableMetadata": "components/listening-table-metadata-label.json",
+    "studioSection": "components/studio-section-label.json",
+    "studioMuted": "components/studio-muted-label.json",
+    "studioSkinStatus": "components/studio-skin-status.json",
+    "listeningQueueTitle": "components/listening-queue-title.json",
+    "studioPageTitle": "components/studio-page-title.json",
+    "listeningPageTitle": "components/listening-page-title.json",
+    "studioNotice": "components/studio-notice.json",
+    "listeningNotice": "components/listening-notice.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -23,27 +31,43 @@
     "studioIconNeutral": {
       "renderer": "components/studio-icon-button.json",
       "slots": {
-        "icon.add": "surface.studioIcon", "icon.settings": "surface.studioIcon",
-        "icon.effects": "surface.studioIcon", "icon.close": "surface.studioIcon",
-        "icon.previous": "surface.studioIcon", "icon.play": "surface.studioIcon",
-        "icon.pause": "surface.studioIcon", "icon.next": "surface.studioIcon",
-        "icon.remove": "surface.studioIcon", "icon.moveUp": "surface.studioIcon",
-        "icon.moveDown": "surface.studioIcon", "icon.scan": "surface.studioIcon",
-        "icon.folderSearch": "surface.studioIcon", "icon.import": "surface.studioIcon",
-        "icon.reload": "surface.studioIcon", "icon.preview": "surface.studioIcon"
+        "icon.add": "surface.studioIcon",
+        "icon.settings": "surface.studioIcon",
+        "icon.effects": "surface.studioIcon",
+        "icon.close": "surface.studioIcon",
+        "icon.previous": "surface.studioIcon",
+        "icon.play": "surface.studioIcon",
+        "icon.pause": "surface.studioIcon",
+        "icon.next": "surface.studioIcon",
+        "icon.remove": "surface.studioIcon",
+        "icon.moveUp": "surface.studioIcon",
+        "icon.moveDown": "surface.studioIcon",
+        "icon.scan": "surface.studioIcon",
+        "icon.folderSearch": "surface.studioIcon",
+        "icon.import": "surface.studioIcon",
+        "icon.reload": "surface.studioIcon",
+        "icon.preview": "surface.studioIcon"
       }
     },
     "studioIconPrimary": {
       "renderer": "components/studio-primary-icon-button.json",
       "slots": {
-        "icon.add": "surface.studioOnPrimaryIcon", "icon.settings": "surface.studioOnPrimaryIcon",
-        "icon.effects": "surface.studioOnPrimaryIcon", "icon.close": "surface.studioOnPrimaryIcon",
-        "icon.previous": "surface.studioOnPrimaryIcon", "icon.play": "surface.studioOnPrimaryIcon",
-        "icon.pause": "surface.studioOnPrimaryIcon", "icon.next": "surface.studioOnPrimaryIcon",
-        "icon.remove": "surface.studioOnPrimaryIcon", "icon.moveUp": "surface.studioOnPrimaryIcon",
-        "icon.moveDown": "surface.studioOnPrimaryIcon", "icon.scan": "surface.studioOnPrimaryIcon",
-        "icon.folderSearch": "surface.studioOnPrimaryIcon", "icon.import": "surface.studioOnPrimaryIcon",
-        "icon.reload": "surface.studioOnPrimaryIcon", "icon.preview": "surface.studioOnPrimaryIcon"
+        "icon.add": "surface.studioOnPrimaryIcon",
+        "icon.settings": "surface.studioOnPrimaryIcon",
+        "icon.effects": "surface.studioOnPrimaryIcon",
+        "icon.close": "surface.studioOnPrimaryIcon",
+        "icon.previous": "surface.studioOnPrimaryIcon",
+        "icon.play": "surface.studioOnPrimaryIcon",
+        "icon.pause": "surface.studioOnPrimaryIcon",
+        "icon.next": "surface.studioOnPrimaryIcon",
+        "icon.remove": "surface.studioOnPrimaryIcon",
+        "icon.moveUp": "surface.studioOnPrimaryIcon",
+        "icon.moveDown": "surface.studioOnPrimaryIcon",
+        "icon.scan": "surface.studioOnPrimaryIcon",
+        "icon.folderSearch": "surface.studioOnPrimaryIcon",
+        "icon.import": "surface.studioOnPrimaryIcon",
+        "icon.reload": "surface.studioOnPrimaryIcon",
+        "icon.preview": "surface.studioOnPrimaryIcon"
       }
     },
     "listening": "components/listening-button.json",
@@ -52,61 +76,139 @@
     "listeningIconNeutral": {
       "renderer": "components/listening-icon-button.json",
       "slots": {
-        "icon.add": "surface.listeningIcon", "icon.settings": "surface.listeningIcon",
-        "icon.effects": "surface.listeningIcon", "icon.close": "surface.listeningIcon",
-        "icon.previous": "surface.listeningIcon", "icon.play": "surface.listeningIcon",
-        "icon.pause": "surface.listeningIcon", "icon.next": "surface.listeningIcon",
-        "icon.remove": "surface.listeningIcon", "icon.moveUp": "surface.listeningIcon",
-        "icon.moveDown": "surface.listeningIcon", "icon.scan": "surface.listeningIcon",
-        "icon.folderSearch": "surface.listeningIcon", "icon.import": "surface.listeningIcon",
-        "icon.reload": "surface.listeningIcon", "icon.preview": "surface.listeningIcon"
+        "icon.add": "surface.listeningIcon",
+        "icon.settings": "surface.listeningIcon",
+        "icon.effects": "surface.listeningIcon",
+        "icon.close": "surface.listeningIcon",
+        "icon.previous": "surface.listeningIcon",
+        "icon.play": "surface.listeningIcon",
+        "icon.pause": "surface.listeningIcon",
+        "icon.next": "surface.listeningIcon",
+        "icon.remove": "surface.listeningIcon",
+        "icon.moveUp": "surface.listeningIcon",
+        "icon.moveDown": "surface.listeningIcon",
+        "icon.scan": "surface.listeningIcon",
+        "icon.folderSearch": "surface.listeningIcon",
+        "icon.import": "surface.listeningIcon",
+        "icon.reload": "surface.listeningIcon",
+        "icon.preview": "surface.listeningIcon"
       }
     },
     "listeningIconPrimary": {
       "renderer": "components/listening-primary-icon-button.json",
       "slots": {
-        "icon.add": "surface.listeningOnPrimaryIcon", "icon.settings": "surface.listeningOnPrimaryIcon",
-        "icon.effects": "surface.listeningOnPrimaryIcon", "icon.close": "surface.listeningOnPrimaryIcon",
-        "icon.previous": "surface.listeningOnPrimaryIcon", "icon.play": "surface.listeningOnPrimaryIcon",
-        "icon.pause": "surface.listeningOnPrimaryIcon", "icon.next": "surface.listeningOnPrimaryIcon",
-        "icon.remove": "surface.listeningOnPrimaryIcon", "icon.moveUp": "surface.listeningOnPrimaryIcon",
-        "icon.moveDown": "surface.listeningOnPrimaryIcon", "icon.scan": "surface.listeningOnPrimaryIcon",
-        "icon.folderSearch": "surface.listeningOnPrimaryIcon", "icon.import": "surface.listeningOnPrimaryIcon",
-        "icon.reload": "surface.listeningOnPrimaryIcon", "icon.preview": "surface.listeningOnPrimaryIcon"
+        "icon.add": "surface.listeningOnPrimaryIcon",
+        "icon.settings": "surface.listeningOnPrimaryIcon",
+        "icon.effects": "surface.listeningOnPrimaryIcon",
+        "icon.close": "surface.listeningOnPrimaryIcon",
+        "icon.previous": "surface.listeningOnPrimaryIcon",
+        "icon.play": "surface.listeningOnPrimaryIcon",
+        "icon.pause": "surface.listeningOnPrimaryIcon",
+        "icon.next": "surface.listeningOnPrimaryIcon",
+        "icon.remove": "surface.listeningOnPrimaryIcon",
+        "icon.moveUp": "surface.listeningOnPrimaryIcon",
+        "icon.moveDown": "surface.listeningOnPrimaryIcon",
+        "icon.scan": "surface.listeningOnPrimaryIcon",
+        "icon.folderSearch": "surface.listeningOnPrimaryIcon",
+        "icon.import": "surface.listeningOnPrimaryIcon",
+        "icon.reload": "surface.listeningOnPrimaryIcon",
+        "icon.preview": "surface.listeningOnPrimaryIcon"
       }
     },
     "listeningLeadingNeutral": {
       "renderer": "components/listening-leading-button.json",
       "slots": {
-        "icon.add": "surface.listeningIcon", "icon.settings": "surface.listeningIcon",
-        "icon.effects": "surface.listeningIcon", "icon.close": "surface.listeningIcon",
-        "icon.previous": "surface.listeningIcon", "icon.play": "surface.listeningIcon",
-        "icon.pause": "surface.listeningIcon", "icon.next": "surface.listeningIcon",
-        "icon.remove": "surface.listeningIcon", "icon.moveUp": "surface.listeningIcon",
-        "icon.moveDown": "surface.listeningIcon", "icon.scan": "surface.listeningIcon",
-        "icon.folderSearch": "surface.listeningIcon", "icon.import": "surface.listeningIcon",
-        "icon.reload": "surface.listeningIcon", "icon.preview": "surface.listeningIcon"
+        "icon.add": "surface.listeningIcon",
+        "icon.settings": "surface.listeningIcon",
+        "icon.effects": "surface.listeningIcon",
+        "icon.close": "surface.listeningIcon",
+        "icon.previous": "surface.listeningIcon",
+        "icon.play": "surface.listeningIcon",
+        "icon.pause": "surface.listeningIcon",
+        "icon.next": "surface.listeningIcon",
+        "icon.remove": "surface.listeningIcon",
+        "icon.moveUp": "surface.listeningIcon",
+        "icon.moveDown": "surface.listeningIcon",
+        "icon.scan": "surface.listeningIcon",
+        "icon.folderSearch": "surface.listeningIcon",
+        "icon.import": "surface.listeningIcon",
+        "icon.reload": "surface.listeningIcon",
+        "icon.preview": "surface.listeningIcon"
       }
     },
     "listeningLeadingPrimary": {
       "renderer": "components/listening-primary-leading-button.json",
       "slots": {
-        "icon.add": "surface.listeningOnPrimaryIcon", "icon.settings": "surface.listeningOnPrimaryIcon",
-        "icon.effects": "surface.listeningOnPrimaryIcon", "icon.close": "surface.listeningOnPrimaryIcon",
-        "icon.previous": "surface.listeningOnPrimaryIcon", "icon.play": "surface.listeningOnPrimaryIcon",
-        "icon.pause": "surface.listeningOnPrimaryIcon", "icon.next": "surface.listeningOnPrimaryIcon",
-        "icon.remove": "surface.listeningOnPrimaryIcon", "icon.moveUp": "surface.listeningOnPrimaryIcon",
-        "icon.moveDown": "surface.listeningOnPrimaryIcon", "icon.scan": "surface.listeningOnPrimaryIcon",
-        "icon.folderSearch": "surface.listeningOnPrimaryIcon", "icon.import": "surface.listeningOnPrimaryIcon",
-        "icon.reload": "surface.listeningOnPrimaryIcon", "icon.preview": "surface.listeningOnPrimaryIcon"
+        "icon.add": "surface.listeningOnPrimaryIcon",
+        "icon.settings": "surface.listeningOnPrimaryIcon",
+        "icon.effects": "surface.listeningOnPrimaryIcon",
+        "icon.close": "surface.listeningOnPrimaryIcon",
+        "icon.previous": "surface.listeningOnPrimaryIcon",
+        "icon.play": "surface.listeningOnPrimaryIcon",
+        "icon.pause": "surface.listeningOnPrimaryIcon",
+        "icon.next": "surface.listeningOnPrimaryIcon",
+        "icon.remove": "surface.listeningOnPrimaryIcon",
+        "icon.moveUp": "surface.listeningOnPrimaryIcon",
+        "icon.moveDown": "surface.listeningOnPrimaryIcon",
+        "icon.scan": "surface.listeningOnPrimaryIcon",
+        "icon.folderSearch": "surface.listeningOnPrimaryIcon",
+        "icon.import": "surface.listeningOnPrimaryIcon",
+        "icon.reload": "surface.listeningOnPrimaryIcon",
+        "icon.preview": "surface.listeningOnPrimaryIcon"
+      }
+    },
+    "studioMode": "components/studio-mode-button.json",
+    "listeningMode": "components/listening-mode-button.json",
+    "studioLeadingNeutral": {
+      "renderer": "components/studio-leading-button.json",
+      "slots": {
+        "icon.add": "surface.studioIcon",
+        "icon.settings": "surface.studioIcon",
+        "icon.effects": "surface.studioIcon",
+        "icon.close": "surface.studioIcon",
+        "icon.previous": "surface.studioIcon",
+        "icon.play": "surface.studioIcon",
+        "icon.pause": "surface.studioIcon",
+        "icon.next": "surface.studioIcon",
+        "icon.remove": "surface.studioIcon",
+        "icon.moveUp": "surface.studioIcon",
+        "icon.moveDown": "surface.studioIcon",
+        "icon.scan": "surface.studioIcon",
+        "icon.folderSearch": "surface.studioIcon",
+        "icon.import": "surface.studioIcon",
+        "icon.reload": "surface.studioIcon",
+        "icon.preview": "surface.studioIcon"
+      }
+    },
+    "studioLeadingPrimary": {
+      "renderer": "components/studio-primary-leading-button.json",
+      "slots": {
+        "icon.add": "surface.studioOnPrimaryIcon",
+        "icon.settings": "surface.studioOnPrimaryIcon",
+        "icon.effects": "surface.studioOnPrimaryIcon",
+        "icon.close": "surface.studioOnPrimaryIcon",
+        "icon.previous": "surface.studioOnPrimaryIcon",
+        "icon.play": "surface.studioOnPrimaryIcon",
+        "icon.pause": "surface.studioOnPrimaryIcon",
+        "icon.next": "surface.studioOnPrimaryIcon",
+        "icon.remove": "surface.studioOnPrimaryIcon",
+        "icon.moveUp": "surface.studioOnPrimaryIcon",
+        "icon.moveDown": "surface.studioOnPrimaryIcon",
+        "icon.scan": "surface.studioOnPrimaryIcon",
+        "icon.folderSearch": "surface.studioOnPrimaryIcon",
+        "icon.import": "surface.studioOnPrimaryIcon",
+        "icon.reload": "surface.studioOnPrimaryIcon",
+        "icon.preview": "surface.studioOnPrimaryIcon"
       }
     }
   },
   "toggleButton": {
-    "listening": "components/listening-toggle-button.json"
+    "listening": "components/listening-toggle-button.json",
+    "studio": "components/studio-toggle-button.json"
   },
   "comboBox": {
-    "listening": "components/listening-combo-box.json"
+    "listening": "components/listening-combo-box.json",
+    "studio": "components/studio-combo-box.json"
   },
   "textEditor": {
     "studio": "components/studio-text-editor.json",
@@ -114,22 +216,31 @@
   },
   "linearSlider": {
     "studio": "components/studio-linear-slider.json",
-    "listening": "components/listening-linear-slider.json"
+    "listening": "components/listening-linear-slider.json",
+    "studioGain": "components/studio-gain-slider.json",
+    "listeningGain": "components/listening-gain-slider.json"
   },
   "rotarySlider": {
     "listening": "components/listening-rotary-slider.json"
   },
   "progressBar": {
-    "listening": "components/listening-progress-bar.json"
+    "listening": "components/listening-progress-bar.json",
+    "studio": "components/studio-progress-bar.json"
   },
   "scrollBar": {
-    "default": "components/listening-scroll-bar.json"
+    "default": "components/listening-scroll-bar.json",
+    "listening": "components/listening-scroll-bar.json",
+    "studio": "components/studio-scroll-bar.json"
   },
   "popupMenu": {
-    "default": "components/listening-popup-menu.json"
+    "default": "components/listening-popup-menu.json",
+    "listening": "components/listening-popup-menu.json",
+    "studio": "components/studio-popup-menu.json"
   },
   "tooltip": {
-    "default": "components/listening-tooltip.json"
+    "default": "components/listening-tooltip.json",
+    "listening": "components/listening-tooltip.json",
+    "studio": "components/studio-tooltip.json"
   },
   "table": {
     "studio": {
@@ -149,7 +260,7 @@
         "header.surface": "surface.listeningListRow",
         "header.text": "label.listeningTable",
         "row.surface": "surface.listeningListRow",
-        "cell.title": "label.listeningTable",
+        "cell.title": "label.listeningQueueTitle",
         "cell.location": "label.listeningTableMetadata",
         "cell.duration": "label.listeningTable"
       }
@@ -168,13 +279,19 @@
     "studioOnPrimaryIcon": "components/studio-on-primary-icon.json",
     "listeningIcon": "components/listening-icon.json",
     "listeningOnPrimaryIcon": "components/listening-on-primary-icon.json",
-    "artworkOverlay": "components/artwork-overlay.json"
+    "artworkOverlay": "components/artwork-overlay.json",
+    "studioPlain": "components/studio-plain.json",
+    "studioSwitcher": "components/studio-switcher.json",
+    "listeningPlain": "components/listening-plain.json",
+    "listeningSwitcher": "components/listening-switcher.json",
+    "studioSkinCard": "components/studio-skin-card.json",
+    "studioReadOnlyRow": "components/studio-read-only-row.json"
   },
   "artwork": {
     "listening": {
       "renderer": "components/listening-artwork.json",
       "slots": {
-        "frame.background": "surface.listening",
+        "frame.background": "surface.listeningPlain",
         "frame.overlay": "surface.artworkOverlay"
       }
     }
@@ -190,6 +307,17 @@
         "slot.remove": "textButton.listeningNeutral",
         "slot.dragIndicator": "surface.listeningReadOnlyRow"
       }
+    },
+    "studio": {
+      "renderer": "components/studio-effect-chain.json",
+      "slots": {
+        "slot.surface": "surface.studio",
+        "slot.name": "label.studio",
+        "slot.bypass": "textButton.studioNeutral",
+        "slot.editor": "textButton.studioNeutral",
+        "slot.remove": "textButton.studioNeutral",
+        "slot.dragIndicator": "surface.studioReadOnlyRow"
+      }
     }
   },
   "outputStage": {
@@ -201,7 +329,15 @@
       "slots": {
         "row.surface": "surface.listeningReadOnlyRow",
         "row.source": "label.listeningData",
-        "row.destination": "label.listeningMuted"
+        "row.destination": "label.listeningData"
+      }
+    },
+    "studio": {
+      "renderer": "components/studio-channel-map.json",
+      "slots": {
+        "row.surface": "surface.studioReadOnlyRow",
+        "row.source": "label.studioData",
+        "row.destination": "label.studioData"
       }
     }
   },
@@ -211,9 +347,19 @@
       "slots": {
         "row.surface": "surface.listeningListRow",
         "row.name": "label.listening",
-        "row.manufacturer": "label.listeningMuted",
-        "row.format": "label.listeningMuted",
+        "row.manufacturer": "label.listeningData",
+        "row.format": "label.listeningData",
         "row.status": "label.listeningMuted"
+      }
+    },
+    "studio": {
+      "renderer": "components/studio-plugin-list.json",
+      "slots": {
+        "row.surface": "surface.studioListRow",
+        "row.name": "label.studio",
+        "row.manufacturer": "label.studioData",
+        "row.format": "label.studioData",
+        "row.status": "label.studioMuted"
       }
     }
   },
@@ -223,9 +369,19 @@
       "slots": {
         "row.surface": "surface.listeningSkinCard",
         "row.name": "label.listening",
-        "row.author": "label.listeningMuted",
+        "row.author": "label.listeningData",
         "row.version": "label.listeningData",
         "row.status": "label.listeningSkinStatus"
+      }
+    },
+    "studio": {
+      "renderer": "components/studio-skin-list.json",
+      "slots": {
+        "row.surface": "surface.studioSkinCard",
+        "row.name": "label.studio",
+        "row.author": "label.studioData",
+        "row.version": "label.studioData",
+        "row.status": "label.studioSkinStatus"
       }
     }
   }

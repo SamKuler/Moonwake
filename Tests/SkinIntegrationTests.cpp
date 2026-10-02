@@ -2,6 +2,7 @@
 #include "skin/SkinCompiler.h"
 #include "skin/SkinLayoutEngine.h"
 #include "skin/SkinRenderer.h"
+#include "ui/JuceSkinAdapter.h"
 
 #include <juce_core/juce_core.h>
 
@@ -640,32 +641,6 @@ std::optional<double> numberProperty (
     return std::nullopt;
 }
 
-std::map<juce::String, juce::String> componentStyles (
-    const SkinLayoutDefinition& layout)
-{
-    std::map<juce::String, juce::String> result;
-    const std::function<void (const SkinLayoutNode&)> visit = [&] (const auto& node)
-    {
-        if (const auto* component = std::get_if<SkinComponentLayout> (&node.payload))
-            result.emplace (component->componentId, node.common.style);
-
-        const auto visitChildren = [&] (const auto& children)
-        {
-            for (const auto& child : children) visit (child);
-        };
-        if (const auto* flex = std::get_if<SkinFlexLayout> (&node.payload))
-            visitChildren (flex->children);
-        else if (const auto* grid = std::get_if<SkinGridLayout> (&node.payload))
-            visitChildren (grid->children);
-        else if (const auto* stack = std::get_if<SkinStackLayout> (&node.payload))
-            visitChildren (stack->children);
-        else if (const auto* scroll = std::get_if<SkinScrollLayout> (&node.payload))
-            if (scroll->child != nullptr) visit (*scroll->child);
-    };
-    visit (layout.base);
-    return result;
-}
-
 std::optional<double> variantNumber (
     const SkinRenderStyleEntry& style, juce::StringRef variantName,
     juce::StringRef property)
@@ -740,249 +715,361 @@ public:
                                                "tooltip.default")
                     == &defaultSkin->renderers.at ("tooltip.default"));
             expectEquals (defaultSkin->layouts.at (SkinLayoutEntry::listening).base.common.id,
-                          juce::String ("listening-root"));
-            expectWithinAbsoluteError (
-                defaultSkin->layouts.at (SkinLayoutEntry::listening).base.common.padding.left.value,
-                0.0f, 0.001f);
+                          juce::String ("listening-listening-root"));
         }
 
-        beginTest ("built-in typography roles and optical placement are frozen");
+        beginTest ("complete packages compile named ancillary styles and require default fallbacks");
+        if (foundation)
+        {
+            SkinValidationReport report;
+            auto index = juce::JSON::parse (foundationPackage.readText ("components/index.json", report));
+            auto layout = juce::JSON::parse (foundationPackage.readText ("layouts/effects.json", report));
+            auto manifest = juce::JSON::parse (foundationPackage.readText ("manifest.json", report));
+            manifest.getDynamicObject()->setProperty ("id", "com.example.ancillary-variants");
+            auto listeningStyles = juce::var (new juce::DynamicObject());
+            auto studioStyles = juce::var (new juce::DynamicObject());
+            for (const auto* target : { "popupMenu", "tooltip", "scrollBar" })
+            {
+                auto group = index.getProperty (target, {});
+                group.getDynamicObject()->setProperty ("studio", group.getProperty ("default", {}));
+                group.getDynamicObject()->setProperty ("listening", group.getProperty ("default", {}));
+                listeningStyles.getDynamicObject()->setProperty (target, juce::String (target) + ".listening");
+                studioStyles.getDynamicObject()->setProperty (target, juce::String (target) + ".studio");
+            }
+            layout.getDynamicObject()->setProperty ("ancillaryStyles", listeningStyles);
+            auto studioRoot = layout.getProperty ("root", {}).clone();
+            const auto suffixIds = [&] (const auto& self, juce::var node) -> void
+            {
+                if (! node.isObject()) return;
+                node.getDynamicObject()->setProperty ("id", node.getProperty ("id", {}).toString() + "-studio");
+                if (const auto* children = node.getProperty ("children", {}).getArray())
+                    for (const auto& child : *children) self (self, child);
+                self (self, node.getProperty ("child", {}));
+            };
+            suffixIds (suffixIds, studioRoot);
+            auto condition = juce::var (new juce::DynamicObject());
+            condition.getDynamicObject()->setProperty ("workspace", "studio");
+            auto breakpoint = juce::var (new juce::DynamicObject());
+            breakpoint.getDynamicObject()->setProperty ("when", condition);
+            breakpoint.getDynamicObject()->setProperty ("root", studioRoot);
+            breakpoint.getDynamicObject()->setProperty ("ancillaryStyles", studioStyles);
+            layout.getDynamicObject()->setProperty ("breakpoints", juce::Array<juce::var> { breakpoint });
+            std::vector<SkinPackage::EmbeddedFile> files;
+            for (const auto& path : foundationPackage.listFiles())
+            {
+                if (path == "manifest.json") files.push_back ({ path, bytes (juce::JSON::toString (manifest, true)) });
+                else if (path == "components/index.json") files.push_back ({ path, bytes (juce::JSON::toString (index, true)) });
+                else if (path == "layouts/effects.json") files.push_back ({ path, bytes (juce::JSON::toString (layout, true)) });
+                else files.push_back ({ path, foundationPackage.readBinary (path, report) });
+            }
+            const auto package = embedded ("ancillary-variants", files, report);
+            const auto skin = package ? SkinCompiler::compile (*package, {}, report) : nullptr;
+            expect (skin != nullptr, report.toText());
+            if (skin)
+                for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+                {
+                    const auto resolved = SkinLayoutEngine::resolve (skin->layouts.at (SkinLayoutEntry::effects),
+                        { 0, 0, 1240, 800 }, 1.0f, report, workspace);
+                    expect (resolved.has_value(), report.toText());
+                    if (! resolved) continue;
+                    for (const auto target : { SkinRenderTarget::popupMenu, SkinRenderTarget::tooltip,
+                                               SkinRenderTarget::scrollBar })
+                    {
+                        const auto name = skinRenderTargetName (target);
+                        const auto requested = resolved->ancillaryStyles.at (name);
+                        expectEquals (requested, name + "." + toString (workspace));
+                        expect (skin->resolveStyle (target, requested) == &skin->renderers.at (requested));
+                        expect (skin->resolveStyle (target, {}) == &skin->renderers.at (name + ".default"));
+                    }
+                }
+            for (const auto* target : { "popupMenu", "tooltip", "scrollBar" })
+            {
+                auto missingDefault = index.clone();
+                missingDefault.getProperty (target, {}).getDynamicObject()->removeProperty ("default");
+                auto incompleteFiles = files;
+                for (auto& file : incompleteFiles)
+                    if (file.path == "components/index.json")
+                        file.bytes = bytes (juce::JSON::toString (missingDefault, true));
+                SkinValidationReport missingReport;
+                const auto incomplete = embedded ("ancillary-without-default", std::move (incompleteFiles), missingReport);
+                expect (incomplete && ! SkinCompiler::compile (*incomplete, {}, missingReport));
+                expect (missingReport.hasCode ("RENDER004"), missingReport.toText());
+            }
+        }
+
+        beginTest ("built-in typography retains semantic roles and renderer ownership");
         if (foundation && defaultSkin)
         {
-            const auto* foundationBody = foundation->tokens.find<SkinFontValue> (
-                "fonts.body");
-            const auto* foundationTitle = foundation->tokens.find<SkinFontValue> (
-                "fonts.title");
+            const auto* foundationBody = foundation->tokens.find<SkinFontValue> ("fonts.body");
+            const auto* foundationTitle = foundation->tokens.find<SkinFontValue> ("fonts.title");
             expect (foundationBody != nullptr && foundationBody->weight == 400
-                    && foundationBody->families
-                        == juce::StringArray ({ "Helvetica Neue", "Arial",
-                                                "sans-serif" }));
+                    && foundationBody->families == juce::StringArray ({ "Helvetica Neue", "Arial", "sans-serif" }));
             expect (foundationTitle != nullptr && foundationTitle->weight == 600
-                    && foundationTitle->families
-                        == juce::StringArray ({ "Avenir Next", "Helvetica Neue",
-                                                "sans-serif" }));
-
-            const auto* body = defaultSkin->tokens.find<SkinFontValue> (
-                "fonts.workspaceBody");
-            const auto* medium = defaultSkin->tokens.find<SkinFontValue> (
-                "fonts.workspaceMedium");
-            const auto* title = defaultSkin->tokens.find<SkinFontValue> (
-                "fonts.workspaceTitle");
-            const auto* data = defaultSkin->tokens.find<SkinFontValue> (
-                "fonts.workspaceData");
-            expect (body != nullptr && body->weight == 400
-                    && body->families == juce::StringArray ({
-                        "Avenir Next", "Helvetica Neue", "sans-serif" }));
-            expect (medium != nullptr && medium->weight == 600
-                    && medium->families == juce::StringArray ({
-                        "Avenir Next", "Helvetica Neue", "sans-serif" }));
-            expect (title != nullptr && title->weight == 600
-                    && title->families == juce::StringArray ({
-                        "Avenir Next", "Helvetica Neue", "sans-serif" }));
-            expect (data != nullptr && data->weight == 500
-                    && data->families == juce::StringArray ({
-                        "SF Mono", "Menlo", "monospace" })
-                    && std::abs (data->tracking - 0.015f) < 0.0001f);
-
-            for (const auto* styleName : {
-                     "label.studioData", "label.studioTable",
-                     "label.studioTableMetadata", "label.listeningData",
-                     "label.listeningTable", "label.listeningTableMetadata" })
+                    && foundationTitle->families == juce::StringArray ({ "Avenir Next", "Helvetica Neue", "sans-serif" }));
+            const auto* body = defaultSkin->tokens.find<SkinFontValue> ("fonts.workspaceBody");
+            const auto* medium = defaultSkin->tokens.find<SkinFontValue> ("fonts.workspaceMedium");
+            const auto* title = defaultSkin->tokens.find<SkinFontValue> ("fonts.workspaceTitle");
+            const auto* data = defaultSkin->tokens.find<SkinFontValue> ("fonts.workspaceData");
+            expect (body && medium && title && data);
+            if (body && medium && title && data)
             {
-                const auto found = defaultSkin->renderers.find (styleName);
-                expect (found != defaultSkin->renderers.end(), styleName);
-                if (found != defaultSkin->renderers.end())
-                    expect (defaultSkin->resolveStyle (
-                                SkinRenderTarget::label, styleName) == &found->second,
-                            styleName);
+                expect (body->families.contains ("sans-serif") && medium->families.contains ("sans-serif")
+                        && title->families.contains ("sans-serif"));
+                expect (body->weight < medium->weight && body->weight < title->weight);
+                expect (data->families.contains ("monospace"));
             }
-
-            for (const auto& [tableName, labelName] : {
-                     std::pair { "table.studio", "label.studioTable" },
-                     std::pair { "table.listening", "label.listeningTable" } })
-                for (const auto* slot : { "header.text", "cell.title",
-                                          "cell.duration" })
-                    expectEquals (defaultSkin->renderers.at (tableName)
-                                      .slotStyles.at (slot),
-                                  juce::String (labelName));
-            expectEquals (defaultSkin->renderers.at ("table.studio")
-                              .slotStyles.at ("cell.location"),
-                          juce::String ("label.studioTableMetadata"));
-            expectEquals (defaultSkin->renderers.at ("table.listening")
-                              .slotStyles.at ("cell.location"),
-                          juce::String ("label.listeningTableMetadata"));
-            for (const auto* styleName : { "label.studioTableMetadata",
-                                           "label.listeningTableMetadata" })
+            for (const auto& theme : { juce::String ("studio"), juce::String ("listening") })
             {
-                const auto& paths = defaultSkin->renderers.at (styleName)
-                                        .renderer.contextPaths;
-                expect (paths.contains ("row.artist"), styleName);
-                expect (paths.contains ("row.album"), styleName);
-                expect (paths.contains ("text.primary"), styleName);
+                const auto& table = defaultSkin->renderers.at ("table." + theme);
+                for (const auto* slot : { "header.text", "cell.title", "cell.location", "cell.duration" })
+                {
+                    expect (table.slotStyles.contains (slot), theme + ":" + slot);
+                    if (! table.slotStyles.contains (slot)) continue;
+                    const auto style = table.slotStyles.at (slot);
+                    expect (style.startsWith ("label." + theme), style);
+                    expect (defaultSkin->resolveSlotStyle (table, slot, SkinRenderTarget::label)
+                            == &defaultSkin->renderers.at (style), style);
+                }
+                const auto& metadata = defaultSkin->renderers.at (table.slotStyles.at ("cell.location"));
+                for (const auto* context : { "row.artist", "row.album", "text.primary" })
+                    expect (metadata.renderer.contextPaths.contains (context), theme + ":" + context);
+                const auto titleSize = numberProperty (defaultSkin->renderers.at ("label." + theme + "Title"),
+                                                      "label", "fontSize").value_or (0.0);
+                const auto bodySize = numberProperty (defaultSkin->renderers.at ("label." + theme),
+                                                     "label", "fontSize").value_or (0.0);
+                expect (bodySize > 0.0 && titleSize > bodySize, theme + " must distinguish title and body roles");
+                for (const auto* suffix : { "", "Data", "Table" })
+                {
+                    const auto style = "label." + theme + suffix;
+                    expect (defaultSkin->renderers.at (style).renderer.contextPaths.contains ("text.align"), style);
+                }
+                const auto icon = "surface." + theme + "OnPrimaryIcon";
+                expect (defaultSkin->renderers.at (icon).renderer.contextPaths.contains ("icon.path"));
+                expectEquals (defaultSkin->renderers.at ("textButton." + theme + "IconPrimary")
+                                  .slotStyles.at ("icon.play"), icon);
+                const auto& skinList = defaultSkin->renderers.at ("skinList." + theme);
+                for (const auto* slot : { "row.surface", "row.name", "row.author", "row.version", "row.status" })
+                    expect (skinList.slotStyles.contains (slot), theme + ":" + slot);
             }
-
-            for (const auto* styleName : { "label.studioTable",
-                                           "label.listeningTable" })
-            {
-                const auto found = defaultSkin->renderers.find (styleName);
-                if (found == defaultSkin->renderers.end()) continue;
-                expectWithinAbsoluteError (
-                    numberProperty (found->second, "label", "frame.inset.left")
-                        .value_or (-1.0), 8.0, 0.0001);
-                expectWithinAbsoluteError (
-                    numberProperty (found->second, "label", "frame.inset.right")
-                        .value_or (-1.0), 8.0, 0.0001);
-            }
-
-            const auto checkNumber = [&] (const char* style, const char* layer,
-                                          const char* property, double expected)
-            {
-                expectWithinAbsoluteError (
-                    numberProperty (defaultSkin->renderers.at (style), layer, property)
-                        .value_or (-1.0), expected, 0.0001,
-                    juce::String (style) + ":" + property);
-            };
-            for (const auto& [style, size] : {
-                     std::pair { "label.studioBrand", 17.0 },
-                     std::pair { "label.studioTitle", 22.0 },
-                     std::pair { "label.studio", 13.0 },
-                     std::pair { "label.studioData", 11.5 },
-                     std::pair { "label.studioTable", 12.5 },
-                     std::pair { "label.listeningBrand", 18.0 },
-                     std::pair { "label.listeningTitle", 27.0 },
-                     std::pair { "label.listening", 13.0 },
-                     std::pair { "label.listeningMuted", 12.0 },
-                     std::pair { "label.listeningData", 12.5 },
-                     std::pair { "label.listeningSection", 11.5 },
-                     std::pair { "label.listeningTable", 13.0 } })
-            {
-                checkNumber (style, "label", "fontSize", size);
-                expect (defaultSkin->renderers.at (style).renderer.contextPaths
-                            .contains ("text.align"), style);
-            }
-            for (const auto* style : { "textButton.studioNeutral",
-                                       "textButton.studioPrimary" })
-            {
-                checkNumber (style, "label", "frame.inset.left", 10.0);
-                checkNumber (style, "label", "frame.inset.right", 10.0);
-                checkNumber (style, "label", "frame.inset.bottom", 1.0);
-                checkNumber (style, "label", "fontSize", 12.5);
-            }
-            for (const auto* style : { "textButton.listeningNeutral",
-                                       "textButton.listeningPrimary" })
-            {
-                checkNumber (style, "label", "frame.inset.left", 10.0);
-                checkNumber (style, "label", "frame.inset.right", 10.0);
-                checkNumber (style, "label", "frame.inset.bottom", 1.0);
-                checkNumber (style, "label", "fontSize", 13.0);
-            }
-            checkNumber ("comboBox.listening", "label", "frame.inset.left", 12.0);
-            checkNumber ("comboBox.listening", "label", "frame.inset.right", 34.0);
-            for (const auto* layer : { "heading", "layout", "meter-label" })
-                checkNumber ("outputStage.studio", layer, "fontSize", 11.5);
-            for (const auto* layer : { "source-label", "device", "matrix-mode" })
-                checkNumber ("outputStage.studio", layer, "fontSize", 10.5);
-
-            const auto studioStyles = componentStyles (
-                defaultSkin->layouts.at (SkinLayoutEntry::studio));
-            expectEquals (studioStyles.at ("queue.count"),
-                          juce::String ("label.studioData"));
-            expectEquals (studioStyles.at ("transport.time"),
-                          juce::String ("label.studioData"));
-            expectEquals (studioStyles.at ("app.status"),
-                          juce::String ("label.studioData"));
-            for (const auto& [component, style] : {
-                     std::pair { "settings.open", "textButton.studioIconNeutral" },
-                     std::pair { "library.add", "textButton.studioIconPrimary" },
-                     std::pair { "effects.open", "textButton.studioIconNeutral" },
-                     std::pair { "transport.previous", "textButton.studioIconNeutral" },
-                     std::pair { "transport.playPause", "textButton.studioIconPrimary" },
-                     std::pair { "transport.next", "textButton.studioIconNeutral" } })
-                expectEquals (studioStyles.at (component), juce::String (style));
-            const auto listeningStyles = componentStyles (
-                defaultSkin->layouts.at (SkinLayoutEntry::listening));
-            expectEquals (listeningStyles.at ("queue.count"),
-                          juce::String ("label.listeningData"));
-            expectEquals (listeningStyles.at ("transport.time"),
-                          juce::String ("label.listeningData"));
-            expectEquals (listeningStyles.at ("app.status"),
-                          juce::String ("label.listeningMuted"));
-            for (const auto& [component, style] : {
-                     std::pair { "settings.open", "textButton.listeningIconNeutral" },
-                     std::pair { "library.add", "textButton.listeningIconPrimary" },
-                     std::pair { "effects.open", "textButton.listeningIconNeutral" },
-                     std::pair { "transport.previous", "textButton.listeningIconNeutral" },
-                     std::pair { "transport.playPause", "textButton.listeningIconPrimary" },
-                     std::pair { "transport.next", "textButton.listeningIconNeutral" } })
-                expectEquals (listeningStyles.at (component), juce::String (style));
-
-            const auto effectsStyles = componentStyles (
-                defaultSkin->layouts.at (SkinLayoutEntry::effects));
-            expectEquals (effectsStyles.at ("effects.close"),
-                          juce::String ("textButton.listeningIconNeutral"));
-            expectEquals (effectsStyles.at ("effects.add"),
-                          juce::String ("textButton.listeningIconPrimary"));
-            expectEquals (effectsStyles.at ("effects.filter"),
-                          juce::String ("textEditor.listening"));
-            expectEquals (effectsStyles.at ("effects.catalog"),
-                          juce::String ("comboBox.listening"));
-            expectEquals (effectsStyles.at ("effects.chain"),
-                          juce::String ("effectChain.listening"));
-
-            const auto settingsStyles = componentStyles (
-                defaultSkin->layouts.at (SkinLayoutEntry::settings));
-            expectEquals (settingsStyles.at ("settings.close"),
-                          juce::String ("textButton.listeningIconNeutral"));
-            expectEquals (settingsStyles.at ("settings.audio.heading"),
-                          juce::String ("label.listeningSection"));
-            expectEquals (settingsStyles.at ("settings.skins.heading"),
-                          juce::String ("label.listeningSection"));
-            expectEquals (settingsStyles.at ("settings.plugins.scanAll"),
-                          juce::String ("textButton.listeningLeadingPrimary"));
-            for (const auto* component : {
-                     "settings.plugins.scanFolder", "settings.skins.import",
-                     "settings.skins.reload", "settings.skins.preview",
-                     "settings.skins.remove" })
-                expectEquals (settingsStyles.at (component),
-                              juce::String ("textButton.listeningLeadingNeutral"));
-
-            for (const auto* style : { "surface.studioIcon",
-                                       "surface.studioOnPrimaryIcon",
-                                       "surface.listeningIcon",
-                                       "surface.listeningOnPrimaryIcon" })
-            {
-                expect (defaultSkin->renderers.contains (style), style);
-                if (defaultSkin->renderers.contains (style))
-                    expect (defaultSkin->renderers.at (style).renderer.contextPaths
-                                .contains ("icon.path"), style);
-            }
-            expectEquals (defaultSkin->renderers.at (
-                              "textButton.listeningIconPrimary")
-                              .slotStyles.at ("icon.play"),
-                          juce::String ("surface.listeningOnPrimaryIcon"));
-            checkNumber ("textButton.listeningLeadingNeutral", "label",
-                         "frame.inset.left", 34.0);
-
-            const auto& skinListSlots = defaultSkin->renderers.at (
-                "skinList.listening").slotStyles;
-            const std::map<juce::String, juce::String> expectedSkinListSlots {
-                { "row.surface", "surface.listeningSkinCard" },
-                { "row.name", "label.listening" },
-                { "row.author", "label.listeningMuted" },
-                { "row.version", "label.listeningData" },
-                { "row.status", "label.listeningSkinStatus" }
-            };
-            expect (skinListSlots == expectedSkinListSlots,
-                    "The public skin library anatomy must remain explicit.");
-            expect (defaultSkin->renderers.contains ("surface.listeningSkinCard"));
-            expect (defaultSkin->renderers.contains ("label.listeningSkinStatus"));
-
+            const auto& meter = defaultSkin->renderers.at ("outputStage.studio").renderer;
+            for (const auto* context : { "output.layout", "meter.channelCount", "item.peakDb", "item.label", "text.secondary" })
+                expect (meter.contextPaths.contains (context), context);
+            const auto channels = std::find_if (meter.baseLayers.begin(), meter.baseLayers.end(),
+                [] (const auto& layer) { return layer.repeatSource == "meter.channels"; });
+            expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 10,
+                    "Studio meters must use the actual channel list through 7.1.2");
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
             expectEquals (foundation->manifest.minAppVersion, juce::String ("0.2.0"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.2.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.3.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
+        }
+
+        beginTest ("six Default routes preserve workspace theme, focus and queue presentation at both window sizes");
+        if (defaultSkin)
+        {
+            const auto* studioBackground = defaultSkin->tokens.find<juce::Colour> ("colors.studio.background");
+            const auto* listeningBackground = defaultSkin->tokens.find<juce::Colour> ("colors.listening.background");
+            expect (studioBackground && listeningBackground && *studioBackground != *listeningBackground);
+            if (studioBackground && listeningBackground)
+                expect (studioBackground->getPerceivedBrightness() < listeningBackground->getPerceivedBrightness());
+            for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+                for (const auto entry : { workspace == WorkspaceMode::studio
+                                             ? SkinLayoutEntry::studio : SkinLayoutEntry::listening,
+                                         SkinLayoutEntry::effects, SkinLayoutEntry::settings })
+                    for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
+                                               juce::Rectangle<float> (0, 0, 1240, 800) })
+                    {
+                        SkinValidationReport report;
+                        const auto resolved = SkinLayoutEngine::resolve (
+                            defaultSkin->layouts.at (entry), bounds, 1.0f, report, workspace);
+                        expect (resolved.has_value(), report.toText());
+                        if (! resolved) continue;
+                        expect (resolved->root.bounds == bounds, "routes must retain the window's outer bounds");
+                        const auto theme = toString (workspace);
+                        const auto* background = defaultSkin->resolveStyle (SkinRenderTarget::surface,
+                                                                           resolved->root.style);
+                        expect (background != nullptr);
+                        if (background && studioBackground && listeningBackground)
+                            expect (renderCentre (*background) == (workspace == WorkspaceMode::studio
+                                ? *studioBackground : *listeningBackground));
+                        for (const auto target : { SkinRenderTarget::popupMenu, SkinRenderTarget::tooltip,
+                                                   SkinRenderTarget::scrollBar })
+                        {
+                            const auto name = skinRenderTargetName (target);
+                            expect (resolved->ancillaryStyles.contains (name), theme + ":" + name);
+                            if (! resolved->ancillaryStyles.contains (name)) continue;
+                            const auto style = resolved->ancillaryStyles.at (name);
+                            expectEquals (style, name + "." + theme);
+                            expect (defaultSkin->resolveStyle (target, style) == &defaultSkin->renderers.at (style));
+                        }
+                        const auto checkStyleOwners = [&] (const auto& self, const SkinResolvedNode& node) -> void
+                        {
+                            if (node.componentId.isNotEmpty())
+                            {
+                                const auto* descriptor = PlayerComponentCatalog::find (node.componentId);
+                                expect (descriptor != nullptr, node.componentId);
+                                if (descriptor)
+                                {
+                                    auto targetName = descriptor->defaultRendererTarget;
+                                    if (const auto found = descriptor->rendererTargetByPresentation.find (node.presentation);
+                                        found != descriptor->rendererTargetByPresentation.end()) targetName = found->second;
+                                    const auto target = skinRenderTargetFromName (targetName);
+                                    const auto found = defaultSkin->renderers.find (node.style);
+                                    expect (node.style.startsWith (targetName + "." + theme), node.componentId + ":" + node.style);
+                                    expect (target && found != defaultSkin->renderers.end()
+                                            && defaultSkin->resolveStyle (*target, node.style) == &found->second,
+                                            node.componentId + " must use its explicit workspace renderer");
+                                }
+                            }
+                            for (const auto& child : node.children) self (self, child);
+                        };
+                        checkStyleOwners (checkStyleOwners, resolved->root);
+                        for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+                            if (descriptor.requiredIn.contains (entry))
+                            {
+                                const auto* component = resolved->component (descriptor.id);
+                                expect (component != nullptr, descriptor.id);
+                                if (! component) continue;
+                                expect (component->visible && ! component->bounds.isEmpty(), descriptor.id);
+                                if (descriptor.interactive) expect (component->focusOrder > 0, descriptor.id);
+                            }
+                        if (entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening)
+                        {
+                            const auto* queue = resolved->component ("queue.table");
+                            expect (queue != nullptr);
+                            if (queue)
+                            {
+                                expectEquals (queue->presentation, juce::String (
+                                    workspace == WorkspaceMode::studio ? "table" : "list"));
+                                expectEquals (queue->style, "table." + theme);
+                            }
+                            if (workspace == WorkspaceMode::listening)
+                            {
+                                const auto* artwork = resolved->component ("artwork.cover");
+                                expect (artwork != nullptr && artwork->visible && ! artwork->bounds.isEmpty());
+                            }
+                            else
+                                expect (resolved->component ("output.stage") != nullptr);
+                        }
+                    }
+        }
+
+        beginTest ("workspace navigation and transport anchors stay fixed across Default routes");
+        if (defaultSkin)
+            for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
+                                       juce::Rectangle<float> (0, 0, 1240, 800) })
+            {
+                std::map<juce::String, juce::Rectangle<float>> navigation, transport;
+                std::optional<juce::Rectangle<float>> leftCard, rightCard;
+                for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+                    for (const auto entry : { workspace == WorkspaceMode::studio
+                                                 ? SkinLayoutEntry::studio : SkinLayoutEntry::listening,
+                                             SkinLayoutEntry::effects, SkinLayoutEntry::settings })
+                    {
+                        SkinValidationReport report;
+                        const auto layout = SkinLayoutEngine::resolve (
+                            defaultSkin->layouts.at (entry), bounds, 1.0f, report, workspace);
+                        expect (layout.has_value(), report.toText());
+                        if (! layout) continue;
+                        const auto checkAnchors = [&] (auto& previous, const auto& ids)
+                        {
+                            for (const auto* id : ids)
+                            {
+                                const auto* node = layout->component (id);
+                                expect (node != nullptr, id);
+                                if (! node) continue;
+                                if (previous.contains (id))
+                                    expect (node->bounds == previous.at (id), juce::String (id) + " moved during navigation");
+                                else previous.emplace (id, node->bounds);
+                            }
+                        };
+                        checkAnchors (navigation, std::array { "app.brand.title", "workspace.studio", "workspace.listening",
+                                                               "effects.open", "settings.open" });
+                        if (entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening)
+                        {
+                            checkAnchors (transport, std::array { "transport.previous", "transport.playPause", "transport.next",
+                                                                 "transport.seek", "transport.time", "transport.volume",
+                                                                 "transport.volumeLabel", "transport.volumeValue",
+                                                                 "transport.shuffle", "transport.repeat" });
+                            const auto& cards = layout->root.children.at (0).children.at (1).children;
+                            expectEquals (static_cast<int> (cards.size()), 2);
+                            if (cards.size() == 2)
+                            {
+                                if (leftCard && rightCard)
+                                    expect (*leftCard == cards[0].bounds && *rightCard == cards[1].bounds,
+                                            "Card boundaries must remain fixed across A/B");
+                                leftCard = cards[0].bounds;
+                                rightCard = cards[1].bounds;
+                                expectWithinAbsoluteError (leftCard->getY(), rightCard->getY(), 0.01f);
+                                expectWithinAbsoluteError (leftCard->getBottom(), rightCard->getBottom(), 0.01f);
+                            }
+                        }
+                        if (entry == SkinLayoutEntry::settings)
+                        {
+                            const auto* library = layout->component ("settings.skins.library");
+                            expect (library != nullptr && library->bounds.getHeight() >= 112.0f,
+                                    "The two built-in skin rows must fit without shrinking their list");
+                        }
+                    }
+            }
+
+        beginTest ("queue row metadata renders inside its own non-zero cell bounds");
+        if (defaultSkin)
+        {
+            struct RowFaultSink final : SkinRuntimeFaultSink
+            {
+                void reportRenderFault (const SkinDiagnostic&, SkinRenderStatus) override { failed = true; }
+                bool failed = false;
+            } sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
+            {
+                return JuceSkinAdapter::RuntimeBinding { defaultSkin->resolveStyle (target, style), nullptr, &sink, true };
+            }, renderer);
+            juce::ListBox list;
+            const auto renderRow = [&] (const juce::String& theme, const juce::String& artist,
+                                       const juce::String& album, bool compact)
+            {
+                list.getProperties().set (JuceSkinAdapter::styleProperty, "table." + theme);
+                juce::Image image (juce::Image::ARGB, 460, 84, true);
+                juce::Graphics graphics (image);
+                const JuceSkinAdapter::ListBoxRowGeometry geometry {
+                    { 12.0f, 10.0f, compact ? 170.0f : 350.0f, compact ? 40.0f : 56.0f },
+                    compact ? juce::Rectangle<float> (188, 10, 192, 40) : juce::Rectangle<float>(),
+                    { 386.0f, 10.0f, 62.0f, compact ? 40.0f : 56.0f }
+                };
+                adapter.drawListBoxRow (graphics, list, 0, 460, 84, false, "Track title",
+                    "/Music/Album/Track.flac", "3:12", geometry, false, false, true, artist, album);
+                return image;
+            };
+            const auto expectChangesOnlyWithin = [&] (const juce::Image& before, const juce::Image& after,
+                                                      juce::Rectangle<int> expected)
+            {
+                int changed = 0;
+                bool inside = true;
+                for (int y = 0; y < before.getHeight(); ++y)
+                    for (int x = 0; x < before.getWidth(); ++x)
+                        if (before.getPixelAt (x, y) != after.getPixelAt (x, y))
+                        {
+                            ++changed;
+                            inside = inside && expected.contains (x, y);
+                        }
+                expect (changed > 0, "row.artist and row.album must reach the resolved label renderer");
+                expect (inside, "metadata must not draw in the title or duration column");
+            };
+            const auto& listTitle = defaultSkin->renderers.at (
+                defaultSkin->renderers.at ("table.listening").slotStyles.at ("cell.title"));
+            expect (listTitle.renderer.contextPaths.contains ("row.title"));
+            expect (listTitle.renderer.contextPaths.contains ("row.artist"));
+            expectChangesOnlyWithin (renderRow ("listening", "", "", false),
+                                     renderRow ("listening", "Artist name", "", false),
+                                     { 12, 38, 350, 28 });
+            expectChangesOnlyWithin (renderRow ("studio", "First artist", "First album", true),
+                                     renderRow ("studio", "Second artist", "Second album", true),
+                                     { 188, 10, 192, 40 });
+            expect (! sink.failed, "compiled Default row styles must render without runtime faults");
         }
 
         beginTest ("built-in routes keep library actions out of Settings and in queue headers");
@@ -996,14 +1083,15 @@ public:
                     const auto parents = componentParents (skin->layouts.at (entry));
                     expect (parents.contains ("library.add"));
                     if (parents.contains ("library.add"))
-                        expect (parents.at ("library.add").contains ("queue-header"),
-                                "Add Music must live in the queue header");
+                        expect (parents.contains ("queue.title")
+                                && parents.at ("library.add") == parents.at ("queue.title"),
+                                "Add Music must share the queue heading with its title");
                     expect (parents.contains ("settings.open"));
                     expect (parents.contains ("effects.open"));
-                    expectWithinAbsoluteError (
-                        skin->layouts.at (entry).base.common.padding.left.value,
-                        0.0f, 0.001f,
-                        "A/B root padding must match at zero");
+                    if (skin == foundation.get())
+                        expectWithinAbsoluteError (
+                            skin->layouts.at (entry).base.common.padding.left.value,
+                            0.0f, 0.001f);
                 }
 
                 const auto settings = componentParents (
@@ -1025,6 +1113,10 @@ public:
                 {
                     juce::ignoreUnused (parent);
                     expect (id == "settings.title" || id == "settings.close"
+                            || (skin == defaultSkin.get()
+                                && (id == "app.brand.title" || id == "app.status"
+                                    || id == "workspace.studio" || id == "workspace.listening"
+                                    || id == "effects.open" || id == "settings.open"))
                             || id.startsWith ("settings.audio.")
                             || id.startsWith ("settings.plugins.")
                             || id.startsWith ("settings.skins."), id);
@@ -1095,8 +1187,8 @@ public:
                 expect (opacity && *opacity >= 0.55, style);
             }
 
-            expect (renderCentre (defaultSkin->renderers.at ("surface.listening"))
-                    != renderCentre (defaultSkin->renderers.at ("surface.listening"), true),
+            expect (renderCentre (defaultSkin->renderers.at ("surface.listeningListRow"))
+                    != renderCentre (defaultSkin->renderers.at ("surface.listeningListRow"), true),
                     "Listening skin rows must render a visible selected surface.");
             expect (renderCentre (foundation->renderers.at ("surface.default"))
                     != renderCentre (foundation->renderers.at ("surface.default"), true),
@@ -1163,28 +1255,31 @@ public:
                         juce::String (style)
                             + " must use one flat full-width selection surface.");
 
-            const auto artworkPixel = [&] (const juce::String& iconName)
+            const auto artworkPixel = [&] (const juce::String& iconName, bool hasImage = false)
             {
                 SkinRenderContext artwork;
                 artwork.iconName = iconName;
-                artwork.extraLookup = [hasTrack = iconName == "track"] (
+                artwork.extraLookup = [hasTrack = iconName == "track", hasImage] (
                     std::string_view path)
                     -> std::optional<SkinExpressionValue>
                 {
                     if (path == "artwork.hasTrack")
                         return SkinExpressionValue (hasTrack);
                     if (path == "artwork.hasImage")
-                        return SkinExpressionValue (false);
+                        return SkinExpressionValue (hasImage);
                     if (path == "artwork.aspectRatio")
                         return SkinExpressionValue (1.0);
                     return std::nullopt;
                 };
                 return renderPixelWithContext (
                     defaultSkin->renderers.at ("artwork.listening"), artwork,
-                    160, 160, 80, 80);
+                    160, 160, 80, 50);
             };
-            expect (artworkPixel ("track") != artworkPixel ("empty"),
-                    "A selected track without embedded art must not render the no-track state.");
+            expect (! artworkPixel ("empty").isTransparent(), "empty artwork must have a skin-owned placeholder");
+            expect (artworkPixel ("track") == artworkPixel ("empty"),
+                    "tracks without artwork use the same neutral placeholder");
+            expect (artworkPixel ("track") != artworkPixel ("track", true),
+                    "the placeholder must disappear when actual artwork is available");
         }
 
         beginTest ("full pipeline preserves inherited exact styles and composite slot tables");

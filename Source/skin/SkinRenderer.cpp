@@ -16,11 +16,17 @@ constexpr int maximumShadowLayers = 8;
 constexpr int64_t maximumShadowPixelsPerFrame = 16000000ll;
 constexpr float maximumRenderMagnitude = 10000000.0f;
 
+double meterPeakDecibels (double peak)
+{
+    return peak > 0.001 ? 20.0 * std::log10 (peak) : -60.0;
+}
+
 struct RepeatItem
 {
     int index = 0;
     juce::String label;
     double peak = 0.0;
+    double peakDb = -60.0;
     bool isLfe = false;
 };
 
@@ -280,6 +286,7 @@ private:
                 if (path == "item.index") return number (item->index);
                 if (path == "item.label") return string (item->label);
                 if (path == "item.peak") return number (item->peak);
+                if (path == "item.peakDb") return number (item->peakDb);
                 if (path == "item.isLfe") return boolean (item->isLfe);
             }
 
@@ -294,6 +301,7 @@ private:
                                        ? context.meterLabels[channel] : juce::String());
                 const auto index = static_cast<size_t> (channel);
                 if (field == "peak") return number (context.meterPeaks[index]);
+                if (field == "peakDb") return number (meterPeakDecibels (context.meterPeaks[index]));
                 if (field == "isLfe") return boolean (context.meterIsLfe[index]);
             }
 
@@ -737,11 +745,49 @@ private:
             property (layer, "maxLines", frame, item, insideRepeat), 1.0f)));
         const auto overflow = valueOr<juce::String> (
             property (layer, "overflow", frame, item, insideRepeat), "clip");
+        if (frame.isEmpty() || text.isEmpty()) return;
+        graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
         if (overflow == "clip" && maxLines == 1)
+        {
             graphics.drawText (text, frame, alignment, false);
-        else
-            graphics.drawFittedText (text, frame.toNearestInt(), alignment, maxLines,
-                                     overflow == "shrink" ? 0.2f : 1.0f);
+            return;
+        }
+        if (overflow == "shrink")
+        {
+            auto fittedText = text;
+            if (text.containsAnyOf ("\r\n"))
+            {
+                const juce::detail::ShapedText paragraphs (text,
+                    juce::detail::ShapedText::Options {}
+                        .withFont (graphics.getCurrentFont()).withWordWrapWidth (frame.getWidth())
+                        .withTrailingWhitespacesShouldFit (false));
+                const auto& lines = paragraphs.getLineTextRanges().getRanges();
+                if (lines.size() > static_cast<size_t> (maxLines))
+                    fittedText = text.substring (0,
+                        static_cast<int> (lines[static_cast<size_t> (maxLines - 1)].getEnd())).trimEnd();
+            }
+            graphics.drawFittedText (fittedText, frame.toNearestInt(), alignment, maxLines, 0.2f);
+            return;
+        }
+
+        const auto font = graphics.getCurrentFont();
+        const auto visibleLines = juce::jmin (maxLines, juce::jmax (1,
+            static_cast<int> (std::floor (frame.getHeight() / font.getHeight()))));
+        auto options = juce::detail::ShapedText::Options {}
+            .withFont (font).withWordWrapWidth (frame.getWidth()).withHeight (frame.getHeight())
+            .withJustification (alignment).withMaxNumLines (visibleLines)
+            .withTrailingWhitespacesShouldFit (false);
+        if (overflow == "ellipsis") options = options.withEllipsis();
+        juce::detail::ShapedText shaped (text, options);
+        const auto& ranges = shaped.getLineTextRanges().getRanges();
+        if (overflow == "ellipsis" && ! ranges.empty())
+        {
+            const auto end = static_cast<int> (ranges.back().getEnd());
+            if (text.substring (end).trim().isNotEmpty())
+                shaped = juce::detail::ShapedText (
+                    text.substring (0, end).trimEnd() + juce::String::charToString (0x2026), options);
+        }
+        shaped.draw (graphics, juce::AffineTransform::translation (frame.getPosition()));
     }
 
     void drawAsset (const SkinRenderLayer& layer, juce::Rectangle<float> frame,
@@ -825,6 +871,7 @@ private:
         {
             if (index < context.meterLabels.size()) item.label = context.meterLabels[index];
             item.peak = context.meterPeaks[static_cast<size_t> (index)];
+            item.peakDb = meterPeakDecibels (item.peak);
             item.isLfe = context.meterIsLfe[static_cast<size_t> (index)];
         }
         else if (index < context.repeatLabels.size())

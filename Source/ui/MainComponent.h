@@ -36,16 +36,19 @@ public:
 
     void resized() override;
     bool keyPressed (const juce::KeyPress& key) override;
+    void mouseUp (const juce::MouseEvent&) override;
     void importFilesAndFolders (const juce::Array<juce::File>&);
 private:
     class EffectSlotRow;
     class PluginEditorWindow;
 
     void timerCallback() override;
+    void showStatus (const juce::String&, bool isError = false);
     void skinChanged() override;
     int getNumRows() override;
     void paintRowBackground (juce::Graphics& g, int rowNumber, int width, int height, bool rowIsSelected) override;
     void paintCell (juce::Graphics& g, int rowNumber, int columnId, int width, int height, bool rowIsSelected) override;
+    juce::String getCellTooltip (int rowNumber, int columnId) override;
     void selectedRowsChanged (int lastRowSelected) override;
     bool isInterestedInFileDrag (const juce::StringArray&) override;
     void filesDropped (const juce::StringArray&, int, int) override;
@@ -107,6 +110,7 @@ private:
     std::vector<std::unique_ptr<EffectSlotRow>> effectRows;
     juce::Array<juce::File> queuedLibraryImportInputs;
     bool autoSaveFailureVisible = false;
+    double statusVisibleUntil = 0.0;
 
     juce::TextButton addFilesButton { "Add Files" };
     juce::TextEditor librarySearchEditor;
@@ -157,6 +161,7 @@ private:
     OutputStageComponent outputStage;
     SkinFallbackDiagnostic skinFallbackDiagnostic;
     SkinLayoutHost skinLayoutHost;
+    juce::TooltipWindow tooltipWindow { this, 600 };
 
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     bool effectsDrawerOpen = false;

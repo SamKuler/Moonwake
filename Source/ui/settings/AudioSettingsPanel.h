@@ -12,7 +12,7 @@
 class AudioSettingsPanel final
 {
 public:
-    using StatusCallback = std::function<void (const juce::String&)>;
+    using StatusCallback = std::function<void (const juce::String&, bool isError)>;
 
     AudioSettingsPanel (PlayerController&, JuceSkinAdapter* = nullptr);
     ~AudioSettingsPanel();
@@ -38,7 +38,7 @@ private:
     void applySampleRateSelection();
     void applyBufferSizeSelection();
     void applyChannelLayoutSelection();
-    void reportStatus (const juce::String&);
+    void reportStatus (const juce::String&, bool isError);
 
     PlayerController& controller;
     StatusCallback statusCallback;

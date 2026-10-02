@@ -382,6 +382,9 @@ add_executable(MoonwakeTests
         Tests/SkinPackageTests.cpp
         Tests/SkinRenderCompilerTests.cpp
         Tests/SkinRendererTests.cpp
+        Tests/SkinTextLayoutTests.cpp
+        Tests/OutputStageTests.cpp
+        Tests/SkinTableListBoxTests.cpp
         Tests/SettingsPanelTests.cpp
         Tests/SkinVisualIsolationTests.cpp
         Tests/SkinTokenStoreTests.cpp

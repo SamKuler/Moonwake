@@ -1,8 +1,45 @@
 {
-  "apiVersion": 1, "target": "scrollBar",
+  "apiVersion": 1,
+  "target": "scrollBar",
   "layers": [
-    { "id": "track", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 2 }, "radius": 4, "fill": { "$ref": "colors.listening.surface" } },
-    { "id": "thumb", "type": "roundedRect", "frame": { "anchor": "contentBounds", "inset": 3 }, "radius": 4, "fill": { "$ref": "colors.listening.muted" } }
+    {
+      "id": "track",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 2
+      },
+      "radius": 4,
+      "fill": {
+        "$ref": "colors.listening.surface"
+      }
+    },
+    {
+      "id": "thumb",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": 3
+      },
+      "radius": 4,
+      "fill": {
+        "$ref": "colors.listening.muted"
+      }
+    }
   ],
-  "variants": { "hover": { "thumb.fill": { "$ref": "colors.listening.text" } }, "pressed": { "thumb.fill": { "$ref": "colors.listening.active" } }, "disabled": { "thumb.opacity": 0.35 } }
+  "variants": {
+    "hover": {
+      "thumb.fill": {
+        "$ref": "colors.listening.text"
+      }
+    },
+    "pressed": {
+      "thumb.fill": {
+        "$ref": "colors.listening.active"
+      }
+    },
+    "disabled": {
+      "thumb.opacity": 0.35
+    }
+  }
 }

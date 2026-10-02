@@ -2,8 +2,40 @@
   "apiVersion": 1,
   "target": "surface",
   "layers": [
-    { "id": "selection", "type": "rect", "visible": { "$context": "state.selected" }, "frame": { "anchor": "bounds" }, "fill": "#B85C3818" },
-    { "id": "divider", "type": "rect", "frame": { "x": 14, "y": { "$expr": "bounds.height - 1" }, "width": { "$expr": "max(0, bounds.width - 28)" }, "height": 1 }, "fill": { "$ref": "colors.listening.border" } }
+    {
+      "id": "selection",
+      "type": "rect",
+      "visible": {
+        "$context": "state.selected"
+      },
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#31576618"
+    },
+    {
+      "id": "divider",
+      "type": "rect",
+      "frame": {
+        "x": {
+          "$context": "bounds.x"
+        },
+        "y": {
+          "$expr": "bounds.height - 1"
+        },
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": 1
+      },
+      "fill": {
+        "$ref": "colors.listening.border"
+      }
+    }
   ],
-  "variants": { "focused": { "selection.fill": "#B85C382C" } }
+  "variants": {
+    "focused": {
+      "selection.fill": "#3157662C"
+    }
+  }
 }

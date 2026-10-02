@@ -5,6 +5,7 @@
 #include "app/PlayerController.h"
 
 #include <algorithm>
+#include <limits>
 #include <thread>
 
 namespace
@@ -203,7 +204,9 @@ public:
                 juce::Thread::sleep (1);
             }
             expect (controller.isPlaying());
-            expect (controller.synchronizePlayback());
+            bool preparationFailed = true;
+            expect (controller.synchronizePlayback (true, &preparationFailed));
+            expect (! preparationFailed, "Normal repeat boundaries are not preparation failures.");
             expect (controller.getCurrentPositionSeconds() < 0.1);
             controller.setRepeatMode (RepeatMode::off);
             for (int block = 0; block < 24; ++block)
@@ -211,8 +214,50 @@ public:
                 offlineDevice->render (rendered);
                 juce::Thread::sleep (1);
             }
-            expect (controller.synchronizePlayback());
+            preparationFailed = true;
+            expect (controller.synchronizePlayback (true, &preparationFailed));
+            expect (! preparationFailed, "Normal queue completion is not a preparation failure.");
             expect (controller.getViewState().transportIntent == TransportIntent::stopped);
+        }
+
+        beginTest ("controller seeking reports failure without misreporting an unchanged valid position");
+        {
+            PlayerController controller (std::make_unique<OfflineAudioDeviceBackend>());
+            expect (! controller.seekToSeconds (0.05));
+            controller.addFiles ({ file });
+            expect (controller.selectTrack (0));
+            expect (controller.seekToSeconds (0.0));
+            expect (controller.seekToRatio (0.5));
+            expectWithinAbsoluteError (controller.getCurrentPositionSeconds(), 0.05, 0.00001);
+            expect (controller.seekToSeconds (0.05));
+            expect (! controller.seekToSeconds (std::numeric_limits<double>::quiet_NaN()));
+            expectWithinAbsoluteError (controller.getCurrentPositionSeconds(), 0.05, 0.00001);
+            controller.clearPlaylist();
+            expect (! controller.seekToRatio (0.5));
+        }
+
+        beginTest ("controller reports future preparation failures once, independently of playback changes");
+        {
+            const auto removed = directory.getNonexistentChildFile ("future-unavailable", ".wav");
+            expect (file.copyFileTo (removed));
+            PlayerController controller (std::make_unique<OfflineAudioDeviceBackend>());
+            controller.addFiles ({ file, removed });
+            expect (removed.deleteFile());
+            expect (controller.playOrPause());
+            bool preparationFailed = false;
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 2000.0;
+            while (! preparationFailed && juce::Time::getMillisecondCounterHiRes() < deadline)
+            {
+                controller.synchronizePlayback (true, &preparationFailed);
+                if (! preparationFailed) juce::Thread::sleep (1);
+            }
+            expect (preparationFailed);
+            expect (! controller.getPlaylist().getTrack (1)->available);
+            expect (controller.getLastStatusMessage().contains ("Skipped unavailable audio"));
+            preparationFailed = true;
+            controller.synchronizePlayback (true, &preparationFailed);
+            expect (! preparationFailed, "A consumed failure must not redisplay on every UI poll.");
+            controller.clearPlaylist();
         }
 
         beginTest ("controller skips missing manual candidates and records actual playback history");

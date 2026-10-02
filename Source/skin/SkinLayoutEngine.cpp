@@ -86,7 +86,8 @@ public:
     }
 
     std::optional<SkinResolvedLayout> run (const SkinLayoutDefinition& definition,
-                                           juce::Rectangle<float> bounds)
+                                           juce::Rectangle<float> bounds,
+                                           WorkspaceMode workspace)
     {
         if (! finiteRectangle (bounds) || ! std::isfinite (scaleFactor) || scaleFactor <= 0)
         {
@@ -95,12 +96,16 @@ public:
         }
 
         const SkinLayoutNode* selected = &definition.base;
+        auto ancillaryStyles = definition.ancillaryStyles;
         for (const auto& breakpoint : definition.breakpoints)
-            if (breakpoint.widths.contains (bounds.getWidth())
+            if ((! breakpoint.workspace || *breakpoint.workspace == workspace)
+                && breakpoint.widths.contains (bounds.getWidth())
                 && breakpoint.heights.contains (bounds.getHeight())
                 && breakpoint.scaleFactors.contains (scaleFactor))
             {
                 selected = &breakpoint.root;
+                for (const auto& [target, style] : breakpoint.ancillaryStyles)
+                    ancillaryStyles.insert_or_assign (target, style);
                 break;
             }
 
@@ -114,7 +119,7 @@ public:
 
         auto root = resolveNode (*selected, bounds, bounds);
         if (! root || failed) return std::nullopt;
-        return SkinResolvedLayout { std::move (*root) };
+        return SkinResolvedLayout { std::move (*root), std::move (ancillaryStyles) };
     }
 
 private:
@@ -751,7 +756,9 @@ const SkinResolvedNode* SkinResolvedLayout::component (const juce::String& id) c
 
 std::optional<SkinResolvedLayout> SkinLayoutEngine::resolve (
     const SkinLayoutDefinition& definition, juce::Rectangle<float> bounds,
-    float scaleFactor, SkinValidationReport& report)
+    float scaleFactor, SkinValidationReport& report,
+    std::optional<WorkspaceMode> workspace)
 {
-    return Resolver (scaleFactor, report).run (definition, bounds);
+    return Resolver (scaleFactor, report).run (
+        definition, bounds, workspace.value_or (definition.defaultWorkspace));
 }

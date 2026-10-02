@@ -528,7 +528,7 @@ public:
                 juce::String ("surface.pluginRow"));
         }
 
-        beginTest ("rejects unknown patch fields, incompatible tokens and non-default ancillary styles");
+        beginTest ("rejects unknown patch fields and incompatible tokens");
         {
             auto raw = renderDocument ("surface", { rectLayer ("body") });
             auto hover = object();
@@ -547,22 +547,30 @@ public:
             expect (! compile (renderDocument ("surface", { layer }), tokens, report));
             expect (report.hasCode ("RENDER006"));
         }
+        beginTest ("ancillary renderer index accepts named styles through schema and file compilation");
+        for (const auto* target : { "popupMenu", "tooltip", "scrollBar" })
         {
             auto index = object();
             auto styles = object();
-            styles.getDynamicObject()->setProperty ("dark", "components/popup.json");
-            index.getDynamicObject()->setProperty ("popupMenu", styles);
+            styles.getDynamicObject()->setProperty ("studio", "components/ancillary.json");
+            index.getDynamicObject()->setProperty (target, styles);
             SkinValidationReport report;
             const auto validated = SkinSchemaValidator::validate (
                 SkinSchemaDocument::componentIndex, index, "components/index.json", report);
-            expect (validated.has_value());
-            std::vector<SkinPackage::EmbeddedFile> files;
-            const auto package = SkinPackage::fromEmbedded ("empty", std::move (files), report);
+            expect (validated.has_value(), report.toText());
+            std::vector<SkinPackage::EmbeddedFile> files {
+                { "components/ancillary.json", bytes (juce::JSON::toString (
+                    renderDocument (target, { rectLayer ("body") }), false)) }
+            };
+            const auto package = SkinPackage::fromEmbedded ("named-ancillary", std::move (files), report);
             const PlayerComponentCatalog catalog;
-            if (package)
-                expect (SkinRenderCompiler::compileIndex (
-                    *validated, *package, tokens, catalog, report).empty());
-            expect (report.hasCode ("RENDER004"));
+            if (validated && package)
+            {
+                const auto compiled = SkinRenderCompiler::compileIndex (
+                    *validated, *package, tokens, catalog, report);
+                expect (compiled.contains (juce::String (target) + ".studio"), report.toText());
+            }
+            expect (! report.hasErrors(), report.toText());
         }
 
         beginTest ("schema-validates every bounded renderer file before semantic compilation");

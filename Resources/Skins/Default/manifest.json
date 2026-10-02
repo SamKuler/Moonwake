@@ -3,12 +3,19 @@
   "id": "builtin.default",
   "name": "Studio / Listening",
   "version": "1.0.0",
-  "author": { "name": "Sam Kuler" },
-  "description": "Dark Studio A and bright Listening B in one switchable skin.",
+  "author": {
+    "name": "Sam Kuler"
+  },
+  "description": "A focused studio workspace and an artwork-led listening room.",
   "license": "AGPL-3.0-only",
-  "minAppVersion": "0.2.0",
+  "minAppVersion": "0.3.0",
   "extends": "builtin.foundation",
-  "capabilities": ["tokens", "renderers", "layouts", "animations"],
+  "capabilities": [
+    "tokens",
+    "renderers",
+    "layouts",
+    "animations"
+  ],
   "entrypoints": {
     "tokens": "tokens.json",
     "components": "components/index.json",

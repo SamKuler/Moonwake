@@ -1,0 +1,53 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 1
+      },
+      "radius": 10,
+      "fill": {
+        "$ref": "colors.studio.surface"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.border"
+        },
+        "width": 1
+      },
+      "shadow": {
+        "color": "#00000030",
+        "radius": 12,
+        "offsetX": 0,
+        "offsetY": 4
+      }
+    },
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": 12
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textSecondary"
+      },
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 3,
+      "overflow": "ellipsis"
+    }
+  ]
+}

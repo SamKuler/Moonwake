@@ -12,7 +12,7 @@
 class PluginSettingsPanel final
 {
 public:
-    using StatusCallback = std::function<void (const juce::String&)>;
+    using StatusCallback = std::function<void (const juce::String&, bool isError)>;
     using ActionCallback = std::function<void()>;
 
     PluginSettingsPanel (PlayerController&, JuceSkinAdapter* = nullptr);

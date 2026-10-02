@@ -1,5 +1,6 @@
 #include "SkinLayoutCompiler.h"
 
+#include <algorithm>
 #include <set>
 
 namespace
@@ -93,6 +94,9 @@ public:
     std::optional<SkinLayoutDefinition> run (const juce::var& document)
     {
         SkinLayoutDefinition result;
+        result.defaultWorkspace = entry == SkinLayoutEntry::studio
+            ? WorkspaceMode::studio : WorkspaceMode::listening;
+        if (! parseAncillaryStyles (document, result.ancillaryStyles, {})) return std::nullopt;
         TreeState baseState;
         auto base = parseNode (document.getProperty ("root", {}), 1, {}, baseState,
                                true, 1.0f, false);
@@ -105,10 +109,15 @@ public:
             {
                 const auto& raw = breakpoints->getReference (i);
                 SkinLayoutDefinition::Breakpoint breakpoint;
+                if (! parseAncillaryStyles (raw, breakpoint.ancillaryStyles,
+                                             "/breakpoints/" + juce::String (i))) return std::nullopt;
                 const auto when = raw.getProperty ("when", {});
                 breakpoint.widths = parseRange (when, "minWidth", "maxWidth");
                 breakpoint.heights = parseRange (when, "minHeight", "maxHeight");
                 breakpoint.scaleFactors = parseRange (when, "minScaleFactor", "maxScaleFactor");
+                if (hasProperty (when, "workspace"))
+                    breakpoint.workspace = workspaceModeFromString (
+                        when.getProperty ("workspace", {}).toString());
                 if (! validRange (breakpoint.widths) || ! validRange (breakpoint.heights)
                     || ! validRange (breakpoint.scaleFactors))
                 {
@@ -116,15 +125,24 @@ public:
                           "Breakpoint minimum exceeds its maximum.");
                     return std::nullopt;
                 }
-                for (const auto& earlier : result.breakpoints)
-                    if (containsRange (earlier.widths, breakpoint.widths)
-                        && containsRange (earlier.heights, breakpoint.heights)
-                        && containsRange (earlier.scaleFactors, breakpoint.scaleFactors))
-                    {
-                        fail ("LAYOUT010", "/breakpoints/" + juce::String (i) + "/when",
-                              "Breakpoint can never be selected because an earlier range contains it.");
-                        return std::nullopt;
-                    }
+                const auto coveredIn = [&] (WorkspaceMode workspace)
+                {
+                    if (breakpoint.workspace && *breakpoint.workspace != workspace) return true;
+                    return std::any_of (result.breakpoints.begin(), result.breakpoints.end(),
+                        [&] (const auto& earlier)
+                        {
+                            return (! earlier.workspace || *earlier.workspace == workspace)
+                                && containsRange (earlier.widths, breakpoint.widths)
+                                && containsRange (earlier.heights, breakpoint.heights)
+                                && containsRange (earlier.scaleFactors, breakpoint.scaleFactors);
+                        });
+                };
+                if (coveredIn (WorkspaceMode::studio) && coveredIn (WorkspaceMode::listening))
+                {
+                    fail ("LAYOUT010", "/breakpoints/" + juce::String (i) + "/when",
+                          "Breakpoint is covered by earlier ranges in every workspace it matches.");
+                    return std::nullopt;
+                }
 
                 TreeState state;
                 auto root = parseNode (raw.getProperty ("root", {}), 1, {}, state,
@@ -138,6 +156,27 @@ public:
     }
 
 private:
+    bool parseAncillaryStyles (const juce::var& document,
+                               std::map<juce::String, juce::String>& styles,
+                               const juce::String& pointer)
+    {
+        const auto raw = document.getProperty ("ancillaryStyles", {});
+        if (const auto* object = raw.getDynamicObject())
+            for (const auto& property : object->getProperties())
+            {
+                const auto target = property.name.toString();
+                const auto style = property.value.toString();
+                if (! style.startsWith (target + "."))
+                {
+                    fail ("LAYOUT013", pointer + "/ancillaryStyles/" + target,
+                          "Ancillary style must name a renderer of its declared target.");
+                    return false;
+                }
+                styles.emplace (target, style);
+            }
+        return true;
+    }
+
     std::optional<SkinLayoutNode> parseNode (
         const juce::var& value, int depth, ParentContext parent, TreeState& state,
         bool ancestorVisible, float ancestorOpacity, bool ancestorZero)

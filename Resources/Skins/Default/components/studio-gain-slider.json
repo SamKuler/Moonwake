@@ -1,0 +1,119 @@
+{
+  "apiVersion": 1,
+  "target": "linearSlider",
+  "layers": [
+    {
+      "id": "track",
+      "type": "roundedRect",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 5"
+        },
+        "y": {
+          "$expr": "bounds.y + bounds.height * 0.5 - 2"
+        },
+        "width": {
+          "$expr": "(bounds.width - 10)"
+        },
+        "height": 4
+      },
+      "radius": 2,
+      "fill": {
+        "$ref": "colors.studio.track"
+      }
+    },
+    {
+      "id": "value",
+      "type": "roundedRect",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 5"
+        },
+        "y": {
+          "$expr": "bounds.y + bounds.height * 0.5 - 2"
+        },
+        "width": {
+          "$expr": "(bounds.width - 10) * value.normalized"
+        },
+        "height": 4
+      },
+      "radius": 2,
+      "fill": {
+        "$ref": "colors.studio.active"
+      }
+    },
+    {
+      "id": "thumb",
+      "type": "roundedRect",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + (bounds.width - 10) * value.normalized"
+        },
+        "y": {
+          "$expr": "bounds.y + (bounds.height - 18) * 0.5"
+        },
+        "width": 10,
+        "height": 18
+      },
+      "fill": {
+        "$ref": "colors.studio.active"
+      },
+      "radius": 2,
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.onActive"
+        },
+        "width": 1
+      }
+    },
+    {
+      "id": "thumb-line",
+      "type": "line",
+      "start": {
+        "x": {
+          "$expr": "bounds.x + 5 + (bounds.width - 10) * value.normalized"
+        },
+        "y": {
+          "$expr": "bounds.y + bounds.height * 0.5 - 5"
+        }
+      },
+      "end": {
+        "x": {
+          "$expr": "bounds.x + 5 + (bounds.width - 10) * value.normalized"
+        },
+        "y": {
+          "$expr": "bounds.y + bounds.height * 0.5 + 5"
+        }
+      },
+      "color": {
+        "$ref": "colors.studio.onActive"
+      },
+      "width": 1
+    },
+    {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 1.5
+      },
+      "radius": 5,
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.studio.focus"
+        },
+        "width": 2
+      }
+    }
+  ],
+  "variants": {
+    "disabled": {
+      "track.opacity": 0.4,
+      "value.opacity": 0.4
+    }
+  }
+}

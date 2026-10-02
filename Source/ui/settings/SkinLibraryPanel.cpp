@@ -17,6 +17,7 @@ public:
         setTitle ("Built-in and installed player skins");
         setWantsKeyboardFocus (true);
         setModel (this);
+        setOutlineThickness (0);
         setRowHeight (rowHeight);
         setColour (juce::ListBox::backgroundColourId,
                    juce::Colour {});
@@ -196,24 +197,27 @@ private:
                 "row.surface", SkinRenderTarget::surface,
                 rowContext, rowKey));
 
-        auto content = row.reduced (14, 0);
-        auto statusBounds = content.removeFromRight (76).reduced (0, 11);
+        auto content = row.reduced (14, 6);
+        auto statusBounds = content.removeFromRight (
+            juce::jlimit (56, 88, content.getWidth() / 3)).reduced (0, 5);
         content.removeFromRight (8);
-        auto versionBounds = content.removeFromRight (52);
+        auto versionBounds = content.removeFromRight (
+            juce::jlimit (32, 60, row.getWidth() / 6));
         content.removeFromRight (8);
-        auto nameBounds = content.removeFromTop (28);
+        auto nameBounds = content.removeFromTop (22);
+        content.removeFromTop (2);
         auto authorBounds = content;
         drawTextSlot (graphics, nameBounds, "row.name", displayName (description),
                       rowKey, &rowContext);
         drawTextSlot (graphics, authorBounds, "row.author",
-                      "BY " + description.author.toUpperCase(),
+                      "by " + description.author,
                       rowKey, &rowContext);
         drawTextSlot (graphics, versionBounds, "row.version", "v" + selection.version,
                       rowKey, &rowContext);
         drawTextSlot (graphics, statusBounds, "row.status",
-                      previewed ? "PREVIEW"
-                                : (active ? "ACTIVE"
-                                          : (builtIn ? "BUILT-IN" : "IMPORTED")),
+                      previewed ? "Preview"
+                                : (active ? "Active"
+                                          : (builtIn ? "Built in" : "Imported")),
                       rowKey,
                       &rowContext);
     }
@@ -337,13 +341,15 @@ SkinLibraryPanel::SkinLibraryPanel (SkinManager& managerToUse,
     : manager (managerToUse),
       library (std::make_unique<SkinListView> (adapter))
 {
-    headingLabel.setText ("APPEARANCE  /  SKINS", juce::dontSendNotification);
+    headingLabel.setText ("Appearance", juce::dontSendNotification);
     headingLabel.setName ("Skin settings");
     headingLabel.setTitle ("Appearance and skin settings");
     headingLabel.setJustificationType (juce::Justification::centredLeft);
 
-    importButton.setButtonText ("Import Package");
-    reloadButton.setButtonText ("Developer Folder");
+    importButton.setButtonText ("Import skin");
+    applyButton.setButtonText ("Apply");
+    cancelPreviewButton.setButtonText ("Cancel preview");
+    reloadButton.setButtonText ("Developer folder");
     importButton.setTitle ("Import a Moonwake skin package");
     removeButton.setTitle ("Remove the selected third-party skin version");
     previewButton.setTitle ("Preview the selected skin without saving it");
@@ -427,7 +433,7 @@ void SkinLibraryPanel::refresh()
                             manager.activeSelection(), manager.isPreviewing());
     reloadButton.setButtonText (
         manager.developerDirectory() == juce::File()
-            ? "Developer Folder" : "Reload Folder");
+            ? "Developer folder" : "Reload folder");
     updateActions();
 }
 
@@ -485,7 +491,7 @@ void SkinLibraryPanel::cancelPreview()
 {
     manager.cancelPreview();
     if (statusCallback)
-        statusCallback ("Skin preview cancelled.");
+        statusCallback ("Skin preview cancelled.", false);
     refresh();
 }
 
@@ -524,9 +530,9 @@ void SkinLibraryPanel::report (const SkinValidationReport& reportValue,
     if (! statusCallback)
         return;
     if (reportValue.hasErrors())
-        statusCallback (reportValue.toText());
+        statusCallback (reportValue.toText(), true);
     else if (successMessage.isNotEmpty())
-        statusCallback (successMessage);
+        statusCallback (successMessage, false);
 }
 
 juce::Component& SkinLibraryPanel::libraryControl() noexcept { return *library; }

@@ -43,6 +43,7 @@ public:
     void drawComboBox (juce::Graphics&, int width, int height, bool down,
                        int buttonX, int buttonY, int buttonW, int buttonH,
                        juce::ComboBox&) override;
+    void drawComboBoxTextWhenNothingSelected (juce::Graphics&, juce::ComboBox&, juce::Label&) override;
     void positionComboBoxText (juce::ComboBox&, juce::Label&) override;
     void fillTextEditorBackground (juce::Graphics&, int width, int height,
                                    juce::TextEditor&) override;
@@ -62,6 +63,12 @@ public:
     void drawScrollbarButton (juce::Graphics&, juce::ScrollBar&, int width,
                               int height, int buttonDirection, bool vertical,
                               bool over, bool down) override;
+    juce::Font getPopupMenuFont() override;
+    int getPopupMenuBorderSize() override;
+    void getIdealPopupMenuItemSize (const juce::String&, bool separator, int standardHeight,
+                                    int& width, int& height) override;
+    juce::Rectangle<int> getTooltipBounds (const juce::String&, juce::Point<int>,
+                                          juce::Rectangle<int>) override;
     void drawPopupMenuBackground (juce::Graphics&, int width, int height) override;
     void drawPopupMenuItem (juce::Graphics&, const juce::Rectangle<int>&,
                             bool separator, bool active, bool highlighted,
@@ -103,6 +110,8 @@ public:
         juce::Rectangle<float> bounds;
         float cornerRadius = 0.0f;
         bool clip = false;
+        float opacity = 1.0f;
+        bool visible = true;
     };
 
     bool drawListBoxBackground (juce::Graphics&, juce::ListBox&,
@@ -120,6 +129,8 @@ public:
 
     [[nodiscard]] std::optional<ArtworkImageStyle> artworkImageStyleFor (
         const juce::Component&, SkinRenderContext) const;
+    [[nodiscard]] std::optional<ArtworkImageStyle> artworkAmbienceStyleFor (
+        const juce::Component&, SkinRenderContext) const;
 
     bool drawCustomComponent (juce::Graphics&, const juce::Component&,
                               SkinRenderTarget, SkinRenderContext,
@@ -130,6 +141,18 @@ public:
                          const juce::String& instanceKey = {});
 
 private:
+    struct TextStyle
+    {
+        juce::Font font { juce::FontOptions {} };
+        juce::Colour colour;
+        juce::Rectangle<float> bounds;
+        juce::Justification alignment { juce::Justification::centredLeft };
+        int maxLines = 1;
+    };
+    [[nodiscard]] std::optional<TextStyle> textStyleFor (
+        const juce::Component&, SkinRenderTarget, SkinRenderContext) const;
+    [[nodiscard]] std::optional<ArtworkImageStyle> artworkLayerStyleFor (
+        const juce::Component&, SkinRenderContext, juce::StringRef layerId) const;
     [[nodiscard]] RuntimeBinding bindingFor (const juce::Component&, SkinRenderTarget,
                                              const juce::String& forcedStyle = {}) const;
     bool drawBinding (juce::Graphics&, const juce::Component&, SkinRenderTarget,

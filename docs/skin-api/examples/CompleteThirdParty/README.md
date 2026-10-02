@@ -13,6 +13,9 @@
 | `components/index.json` | Renderer Index | 把稳定 target/style 名映射到 Render Definition；对应 `component-index.schema.json` |
 | `components/button-primary.json` | Render Definition | 主操作按钮及状态动画；对应 `render.schema.json` |
 | `components/button-neutral.json` | Render Definition | 中性按钮；对应 `render.schema.json` |
+| `components/surface-studio.json` | Render Definition | Studio 共享面板背景；通过工作区断点选择 |
+| `components/popup-menu-studio.json`、`tooltip-studio.json`、`scroll-bar-studio.json` | Render Definition | Studio 分支的附属控件样式，通过 ancillaryStyles 绑定 |
+| `components/artwork.json` | Render Definition | 可选封面氛围与实际封面的圆角裁切 |
 | `components/surface-card.json` | Render Definition | 卡片 surface；对应 `render.schema.json` |
 | `components/seek-slider.json` | Render Definition | 进度轨道和拖动柄；对应 `render.schema.json` |
 | `components/volume-knob.json` | Render Definition | rotary volume 旋钮；对应 `render.schema.json` |
@@ -23,6 +26,8 @@
 
 本示例有意省略可选的标题、摘要、列表和辅助操作，例如 `settings.plugins.formats`、`settings.plugins.knownList`、`settings.skins.preview`、`settings.skins.remove` 与 `settings.skins.reload`。要构建完整设置体验，请按开发者指南的 Component Catalog 选择这些可选 ID；不要把本示例的最小布局误认为唯一推荐的信息架构。
 
+Effects 与 Settings 的基础 root 用于 Listening；`when.workspace: "studio"` 分支提供完整的 Studio 布局，并选择 `surface.studio`。四个入口名称保持不变。示例要求应用 `0.3.0` 或更高。
+
 ## 验证
 
 从仓库根目录运行：
@@ -30,6 +35,8 @@
     ./build/MoonwakeSkinTool validate docs/skin-api/examples/CompleteThirdParty/
     ./build/MoonwakeSkinTool layout docs/skin-api/examples/CompleteThirdParty/ --workspace studio --size 1040x700
     ./build/MoonwakeSkinTool layout docs/skin-api/examples/CompleteThirdParty/ --workspace listening --size 1240x800
+    ./build/MoonwakeSkinTool layout docs/skin-api/examples/CompleteThirdParty/ --workspace effects --size 1040x700 --theme studio
+    ./build/MoonwakeSkinTool snapshot docs/skin-api/examples/CompleteThirdParty/ --workspace settings --size 1240x800 --theme listening --output /tmp/settings-listening.png
     ./build/MoonwakeSkinTool snapshot docs/skin-api/examples/CompleteThirdParty/ --workspace listening --size 1240x800 --output /tmp/complete-third-party.png
 
 验证必须同时满足 JSON Schema、语义类型、required component、唯一 `focusOrder`、最小尺寸和资源预算。单个文件能通过 JSON 语法检查，不代表整个包有效。

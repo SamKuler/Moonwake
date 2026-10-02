@@ -462,9 +462,14 @@ juce::var layoutSchema()
                                                          reference ("#/$defs/componentId"));
     componentAdditions.getDynamicObject()->setProperty ("focusOrder",
                                                          boundedNumber ("integer", 1, 100000));
+    std::vector<juce::String> presentations;
+    for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+        for (const auto& presentation : descriptor.presentations)
+            if (std::find (presentations.begin(), presentations.end(), presentation)
+                == presentations.end())
+                presentations.push_back (presentation);
     componentAdditions.getDynamicObject()->setProperty (
-        "presentation", enumSchema (
-            { "linearHorizontal", "rotary", "contain", "cover" }));
+        "presentation", enumSchema (presentations));
     auto component = nodeSchema ("component", componentAdditions, { "component" });
 
     auto visualAdditions = object();
@@ -486,9 +491,18 @@ juce::var layoutSchema()
     scale.getDynamicObject()->setProperty ("maximum", 8);
     conditionProperties.getDynamicObject()->setProperty ("minScaleFactor", scale);
     conditionProperties.getDynamicObject()->setProperty ("maxScaleFactor", scale.clone());
+    conditionProperties.getDynamicObject()->setProperty ("workspace", enumSchema ({ "studio", "listening" }));
     auto condition = closedObject (conditionProperties);
     condition.getDynamicObject()->setProperty ("minProperties", 1);
     auto breakpointProperties = object();
+    auto ancillaryProperties = object();
+    for (const auto& name : skinRenderTargetNames())
+        if (const auto target = skinRenderTargetFromName (name);
+            target && skinRenderIsAncillaryTarget (*target))
+            ancillaryProperties.getDynamicObject()->setProperty (
+                name, stringSchema (1, 128, R"(^[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_.-]*$)"));
+    const auto ancillaryStyles = closedObject (ancillaryProperties);
+    breakpointProperties.getDynamicObject()->setProperty ("ancillaryStyles", ancillaryStyles);
     breakpointProperties.getDynamicObject()->setProperty ("when", condition);
     breakpointProperties.getDynamicObject()->setProperty ("root", reference ("#/$defs/node"));
     auto breakpoint = closedObject (breakpointProperties, { "when", "root" });
@@ -496,6 +510,7 @@ juce::var layoutSchema()
     auto properties = object();
     auto apiVersion = object();
     apiVersion.getDynamicObject()->setProperty ("const", 1);
+    properties.getDynamicObject()->setProperty ("ancillaryStyles", ancillaryStyles);
     properties.getDynamicObject()->setProperty ("apiVersion", apiVersion);
     properties.getDynamicObject()->setProperty ("root", reference ("#/$defs/node"));
     properties.getDynamicObject()->setProperty (

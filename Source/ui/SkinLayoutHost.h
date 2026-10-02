@@ -16,9 +16,10 @@ public:
     ~SkinLayoutHost();
 
     bool apply (SkinLayoutEntry, juce::Rectangle<int> bounds, float scaleFactor,
-                SkinValidationReport&);
+                SkinValidationReport&, std::optional<WorkspaceMode> workspace = {});
     void clear();
     [[nodiscard]] bool isAnimationDriveActive() const noexcept;
+    [[nodiscard]] juce::String ancillaryStyleFor (SkinRenderTarget) const;
 
 private:
     class SkinSceneComponent;
@@ -26,7 +27,7 @@ private:
     struct Runtime;
 
     void captureOriginalStates();
-    void restoreOriginalStates();
+    void restoreOriginalStates (const Runtime* next = nullptr);
     bool attachRuntime (Runtime&, SkinValidationReport&);
     void detachRuntime (Runtime&);
 
