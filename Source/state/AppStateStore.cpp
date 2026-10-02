@@ -13,7 +13,7 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 8;
+constexpr int currentSchemaVersion = 9;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -123,6 +123,17 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
     root.setProperty (playbackPositionProperty,
                       finiteNonNegative (state.playbackPositionSeconds), nullptr);
     root.setProperty (outputLayoutProperty, toString (state.outputLayout), nullptr);
+    juce::ValueTree channelMix ("OutputChannelMix");
+    for (const auto& mix : state.outputChannelMix)
+    {
+        juce::ValueTree channel ("Channel");
+        channel.setProperty ("type", static_cast<int> (mix.channel), nullptr);
+        channel.setProperty ("gain", mix.gain, nullptr);
+        channel.setProperty ("muted", mix.muted, nullptr);
+        channel.setProperty ("solo", mix.solo, nullptr);
+        channelMix.appendChild (channel, nullptr);
+    }
+    root.appendChild (channelMix, nullptr);
     juce::ValueTree device ("AudioDevice");
     device.setProperty ("name", state.audioDevice.outputDeviceName, nullptr);
     device.setProperty (sampleRateProperty,
@@ -179,6 +190,17 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
         slotTree.setProperty (bypassedProperty, slot.bypassed, nullptr);
         slotTree.setProperty (availablePropertyForSlot, slot.available, nullptr);
         slotTree.setProperty (errorMessageProperty, slot.errorMessage, nullptr);
+        if (! slot.scope.empty())
+        {
+            juce::ValueTree scopeTree ("Scope");
+            for (const auto channel : slot.scope)
+            {
+                juce::ValueTree channelTree ("Channel");
+                channelTree.setProperty ("type", static_cast<int> (channel), nullptr);
+                scopeTree.appendChild (channelTree, nullptr);
+            }
+            slotTree.appendChild (scopeTree, nullptr);
+        }
         if (slot.serializedState.getSize() > 0)
             slotTree.setProperty (serializedStateProperty, slot.serializedState.toBase64Encoding(), nullptr);
         chainTree.appendChild (slotTree, nullptr);
@@ -199,6 +221,19 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
         tree.getProperty (playbackPositionProperty,
                           state.playbackPositionSeconds)));
     state.outputLayout = outputLayoutFromString (tree.getProperty (outputLayoutProperty, "stereo").toString());
+    for (const auto channel : tree.getChildWithName ("OutputChannelMix"))
+    {
+        if (! channel.hasType ("Channel")) continue;
+        const OutputChannelMix mix {
+            static_cast<juce::AudioChannelSet::ChannelType> (static_cast<int> (channel.getProperty ("type", 0))),
+            static_cast<float> (channel.getProperty ("gain", 1.0)),
+            static_cast<bool> (channel.getProperty ("muted", false)),
+            static_cast<bool> (channel.getProperty ("solo", false)) };
+        if (! isValidOutputChannelMix (mix)) continue;
+        const auto found = std::find_if (state.outputChannelMix.begin(), state.outputChannelMix.end(),
+            [&] (const auto& existing) { return existing.channel == mix.channel; });
+        *found = mix;
+    }
     const auto device = tree.getChildWithName ("AudioDevice");
     state.audioDevice.outputDeviceName = device.getProperty ("name").toString();
     state.audioDevice.sampleRate = finiteNonNegative (
@@ -275,14 +310,20 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
             const auto pluginName = slotTree.getProperty (pluginNameProperty).toString();
             const auto pluginIdentifier = slotTree.getProperty (pluginIdentifierProperty).toString();
             const auto pluginFormat = slotTree.getProperty (pluginFormatProperty).toString();
+            EffectScope scope;
+            const auto scopeTree = slotTree.getChildWithName ("Scope");
+            for (const auto channel : scopeTree)
+                scope.push_back (channel.hasType ("Channel")
+                    ? static_cast<juce::AudioChannelSet::ChannelType> (static_cast<int> (channel.getProperty ("type", 0)))
+                    : juce::AudioChannelSet::unknown);
             const auto id = savedId > 0
                                 ? state.effectChain.addSlotWithId (savedId,
                                                                    pluginName,
                                                                    pluginFormat,
-                                                                   pluginIdentifier)
+                                                                   pluginIdentifier, scope)
                                 : state.effectChain.addSlot (pluginName,
                                                              pluginIdentifier,
-                                                             pluginFormat);
+                                                             pluginFormat, scope);
 
             if (id == 0)
                 continue;
@@ -291,6 +332,9 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
             state.effectChain.setAvailability (id,
                                                static_cast<bool> (slotTree.getProperty (availablePropertyForSlot, true)),
                                                slotTree.getProperty (errorMessageProperty).toString());
+            juce::String scopeError;
+            if (! validateEffectScope (scope, toAudioChannelSet (state.outputLayout), scopeError))
+                state.effectChain.setAvailability (id, false, scopeError);
 
             if (auto* slot = state.effectChain.getSlotById (id))
                 slot->serializedState.fromBase64Encoding (slotTree.getProperty (serializedStateProperty).toString());

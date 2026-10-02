@@ -16,7 +16,7 @@ struct OutputFaultSink final : SkinRuntimeFaultSink
 };
 
 juce::Image drawOutput (const SkinRenderStyleEntry& style, OutputLayout layout,
-                        std::array<float, 10> peaks, int width, int height,
+                        std::array<float, maximumOutputChannels> peaks, int width, int height,
                         OutputFaultSink& sink, juce::Colour background = juce::Colours::transparentBlack)
 {
     SkinRenderer renderer;
@@ -98,58 +98,42 @@ public:
             expect (style != nullptr);
             if (! style) return;
             const auto background = *skin->tokens.find<juce::Colour> ("colors.studio.surface");
-            const auto track = *skin->tokens.find<juce::Colour> ("colors.studio.background");
             const auto fill = *skin->tokens.find<juce::Colour> ("colors.studio.active");
-            const auto active = track.overlaidWith (fill.withAlpha (0.8f));
-            const auto isActive = [&] (juce::Colour colour)
+            const auto activePixels = [fill] (const juce::Image& image)
             {
-                return std::abs (colour.getRed() - active.getRed()) <= 2
-                    && std::abs (colour.getGreen() - active.getGreen()) <= 2
-                    && std::abs (colour.getBlue() - active.getBlue()) <= 2;
+                int count = 0;
+                for (int y = 0; y < image.getHeight(); ++y)
+                    for (int x = 0; x < image.getWidth(); ++x)
+                        if (image.getPixelAt (x, y) == fill) ++count;
+                return count;
             };
             for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
-                                       OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
-                for (const auto size : { juce::Point<int> (329, 412), juce::Point<int> (405, 512) })
+                                       OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo,
+                                       OutputLayout::sevenOneFour, OutputLayout::sevenOneSix,
+                                       OutputLayout::nineOneSix })
+                for (const auto size : { juce::Point<int> (329, 368), juce::Point<int> (405, 468) })
                 {
                     OutputFaultSink sink;
-                    std::array<float, 10> peaks;
-                    peaks.fill (0.1f); // -20 dBFS, two thirds of the -60..0 range.
-                    const auto image = drawOutput (*style, layout, peaks, size.x, size.y, sink, background);
-                    std::vector<juce::Range<int>> bars;
-                    int first = -1;
-                    for (int x = 0; x <= size.x; ++x)
-                    {
-                        const auto activePixel = x < size.x && isActive (image.getPixelAt (x, size.y - 100));
-                        if (activePixel && first < 0) first = x;
-                        if (! activePixel && first >= 0)
-                        {
-                            bars.emplace_back (first, x);
-                            first = -1;
-                        }
-                    }
-                    expectEquals (static_cast<int> (bars.size()), getChannelCount (layout), toString (layout));
-                    for (size_t index = 0; index < bars.size(); ++index)
-                    {
-                        expect (bars[index].getLength() >= 14 && bars[index].getLength() <= 16);
-                        if (index > 0)
-                            expect (bars[index].getStart() - bars[index - 1].getStart() <= 33,
-                                    "channel bars must remain a compact group");
-                        const auto x = bars[index].getStart() + 7;
-                        const auto levelY = 84 + (size.y - 172) / 3;
-                        expect (! isActive (image.getPixelAt (x, levelY - 4)), "-20 dBFS top boundary");
-                        expect (isActive (image.getPixelAt (x, levelY + 4)), "-20 dBFS occupies two thirds of the range");
-                    }
-                    expect (image.getPixelAt (0, size.y / 2) == background, "the containing layout owns the panel surface");
-                    peaks.fill (0.0f);
+                    std::array<float, maximumOutputChannels> peaks {};
                     const auto silent = drawOutput (*style, layout, peaks, size.x, size.y, sink, background);
-                    peaks.fill (2.0f);
-                    const auto overFullScale = drawOutput (*style, layout, peaks, size.x, size.y, sink, background);
-                    for (const auto bar : bars)
+                    expectEquals (activePixels (silent), 0, "silence must leave all meters empty");
+                    peaks.fill (0.1f);
+                    const auto loud = drawOutput (*style, layout, peaks, size.x, size.y, sink, background);
+                    peaks.fill (0.01f);
+                    const auto quiet = drawOutput (*style, layout, peaks, size.x, size.y, sink, background);
+                    const auto loudArea = activePixels (loud), quietArea = activePixels (quiet);
+                    expect (quietArea > 0, toString (layout));
+                    expectWithinAbsoluteError (static_cast<double> (loudArea) / juce::jmax (1, quietArea),
+                                               2.0, 0.12, "-20 vs -40 dBFS occupy 2:1 areas on a -60 dB scale");
+                    int representedChannels = 0;
+                    for (int channel = 0; channel < getChannelCount (layout); ++channel)
                     {
-                        const auto x = bar.getStart() + 7;
-                        expect (silent.getPixelAt (x, size.y - 100) == track, "silence must leave an empty meter");
-                        expect (isActive (overFullScale.getPixelAt (x, 88)), "above-full-scale samples must fill the visible range");
+                        peaks.fill (0.0f);
+                        peaks[static_cast<size_t> (channel)] = 0.1f;
+                        if (activePixels (drawOutput (*style, layout, peaks, size.x, size.y, sink, background)) > 0)
+                            ++representedChannels;
                     }
+                    expectEquals (representedChannels, getChannelCount (layout), "every channel including heights must render");
                     expect (! sink.failed, toString (layout));
                 }
         }

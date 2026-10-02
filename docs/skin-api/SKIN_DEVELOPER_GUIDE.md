@@ -4,7 +4,7 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.3.0、内置皮肤 1.0.0
+- 版本基线：应用 0.4.0、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
@@ -554,7 +554,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | artwork | 封面组件一次 | artwork.hasTrack、artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
 | effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
-| channelMap | 主体一次；每个只读通道映射调用 slots | slots：channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected | row.surface、row.source、row.destination |
+| channelMap | 输出端口映射或 output.mixer 的逐声道行 | 映射：channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected；Mixer：text.primary、value.*、state.* | row.surface、row.source、row.destination；Mixer 另含 row.peak、row.gain、row.mute、row.solo |
 | pluginList | 主体一次；每个可见插件调用 slots | slots：plugin.index、plugin.name、plugin.manufacturer、plugin.format、plugin.enabled | row.surface、row.name、row.manufacturer、row.format、row.status |
 | skinList | 主体一次；每个可见皮肤分别调用 slots | 行 slots：skin.index、skin.id、skin.name、skin.author、skin.version、skin.builtin、skin.active、skin.previewed | row.surface、row.name、row.author、row.version、row.status |
 
@@ -778,9 +778,9 @@ repeat 只允许白名单数据源。输出仪表可以使用 meter.channels：
 
 允许的数据源：
 
-- meter.channels，最多 10。
+- meter.channels，最多 16（应用 0.4.0 起）。
 - table.visibleColumns，最多 3。
-- output.channelLabels，最多 10。
+- output.channelLabels，最多 16（应用 0.4.0 起）。
 
 repeat.template 不能包含 repeat，即使藏在 group 子树中也不允许。编译器按 source 的最大元素数静态展开计数；单个 Render Program 的最坏绘制操作超过 5000 时拒绝导入。Skin API 1 不允许皮肤创建任意数组。
 
@@ -1243,6 +1243,8 @@ transport.seek 仅允许 linearHorizontal。皮肤不能改变值域或步进。
 | effects.title | label | 可选 | 面板标题 |
 | effects.filterLabel | label | 可选 | 筛选标签 |
 | effects.filter | textEditor | Effects 必需 | 插件名称筛选 |
+| effects.scope | comboBox | 可选 | 为新增效果器选择完整总线、单声道或声道对；0.4.0 起 |
+| effects.scopeLabel | label | 可选 | 效果器作用范围标题；0.4.0 起 |
 | effects.catalog | comboBox | Effects 必需 | 可插入插件目录 |
 | effects.add | textButton | Effects 必需 | 插入所选插件 |
 | effects.chain | effectChain | Effects 必需 | 动态效果槽列表 |
@@ -1260,11 +1262,16 @@ effects.chain 内部动态槽使用固定 style slots：
 
 皮肤不能直接实例化、删除或重排动态槽；这些行为仍由 effects.chain 组件处理。
 
+应用 0.4.0 增加可选 `slot.scope`（textButton）绘制槽，显示并编辑该效果器作用范围。空声道集合表示完整输出总线，显式单声道或声道对按扬声器身份保存；未选声道透传。插件不支持所选总线或切换后扬声器缺失时，变更失败并保留原处理链。
+
 ### 10.7 输出显示
 
 | ID | 类型 | 必需位置 | 行为或数据 |
 |---|---|---|---|
-| output.stage | outputStage | 可选 | 当前多声道峰值与扬声器标签 |
+| output.stage | outputStage | 可选 | 当前多声道电平、响度和扬声器标签 |
+| output.mixer | channelMap | 可选 | 每声道增益、静音和独奏，0.4.0 起 |
+| output.mode | comboBox | 可选 | 选择 Peak、Peak + RMS、Loudness 或 Mixer；0.4.0 起 |
+| output.reset | textButton | 可选 | 仪表模式下开始新测量；Mixer 模式下重置所有声道增益、静音和独奏；0.4.0 起 |
 
 outputStage 提供：
 
@@ -1276,9 +1283,29 @@ outputStage 提供：
 - meter.channels[n].peak：线性采样峰值，0 为静音，1 为 0 dBFS；超出满刻度时可大于 1。
 - meter.channels[n].peakDb：同一采样峰值的 dBFS 值（20 × log10(peak)），显示下限为 -60；大于 0 的读数保留。
 - meter.channels[n].isLfe。
-- output.layout：stereo、5.1、5.1.2 或 7.1.2。
+- output.layout：`mono`、`stereo`、`2.1`、`3.0`、`quad`、`5.0`、`5.1`、`6.1`、`7.0`、`7.1`、`5.1.2`、`5.1.4`、`7.1.2`、`7.1.4`、`7.1.6`、`9.1.4`、`9.1.6`。
+- meter.channels[n].rmsDb / truePeakDb：RMS / True Peak 电平，显示下限 -60 dB，保留正值。repeat 对应 `item.rmsDb` / `item.truePeakDb`。
+- meter.mode：`peak`、`rms` 或 `loudness`。
+- meter.available：后台是否已经发布测量结果。
+- meter.status：测量等待、中断或测量位置的显示文字。
+- meter.momentary / shortTerm / integrated：LUFS 数值；无有效结果时表达式值为 -100。
+- meter.momentaryText / shortTermText / integratedText：一位小数的 LUFS 字符串，无有效结果时为 `--`。
+- meter.truePeakText：本次测量所有输出声道中的最大 dBTP，无有效结果时为 `--`。
 
-`meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。峰值来自效果链与输出增益之后的实际采样，并沿用应用的峰值衰减显示；它不是 True Peak、RMS 或 LUFS。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
+新增测量字段、16 声道上限及模式控件要求 `minAppVersion: "0.4.0"`。
+
+`meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。采样峰值来自效果链与输出增益之后的实际采样；RMS 使用 300 ms 窗口，LUFS 使用 K 加权及门限，Momentary / Short-term 分别为 400 ms / 3 s。LFE 不计入 LUFS，但保留独立峰值、RMS 与 True Peak。测量在后台工作线程进行，界面模式或 A/B 切换不重置测量。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
+
+`output.mixer` 使用 `channelMap` target，最小尺寸 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
+
+- `row.surface` → surface：行分割线与背景。
+- `row.source` → label：L、R、C、LFE 等扬声器简称。
+- `row.destination` → label：声道增益的 dB 文本。
+- `row.peak` → label：输出端测得的 dBFS 峰值。
+- `row.gain` → linearSlider：`value.normalized` 为 -60 至 +6 dB 的位置，最低位置为静音；双击恢复 0 dB。
+- `row.mute` / `row.solo` → toggleButton：`state.selected` 表示是否启用；`text.primary` 分别为 M / S，应用提供完整可访问性名称和提示。
+
+每声道设置以扬声器身份持久化。Solo 可多选，Mute 优先于 Solo，未出现在当前布局内的 Solo 不参与当前总线选择。增益位于效果链后、主音量与仪表前，使用 20 ms 平滑。只读 `settings.audio.channelMap` 的行为保持不变。
 
 ### 10.8 Settings
 
@@ -1290,7 +1317,7 @@ outputStage 提供：
 | settings.audio.device | comboBox | 是 | 选择 CoreAudio 输出设备 |
 | settings.audio.sampleRate | comboBox | 是 | 选择设备采样率 |
 | settings.audio.bufferSize | comboBox | 是 | 选择缓冲区 |
-| settings.audio.channelLayout | comboBox | 是 | Stereo、5.1、5.1.2、7.1.2 |
+| settings.audio.channelLayout | comboBox | 是 | 选择受支持的扬声器布局，受实际设备输出能力约束 |
 | settings.audio.channelMap | channelMap | 否 | 只读查看逻辑声道到 CoreAudio 输出端口的顺序映射；端口不可在皮肤内重排 |
 | settings.plugins.formats | label | 否 | VST3 与 AU 支持摘要 |
 | settings.plugins.knownList | pluginList | 否 | 已发现插件 |
@@ -1823,7 +1850,7 @@ Import Package 成功不代表立即应用。Preview 创建临时 Skin Session�
 
 每个 Preview 或 active skin 都有独立 Skin Session，拥有自己的资源缓存、动画、运行时报告和 health。Renderer 通过 fault sink 报告，不能在 paint 内直接替换 session。切换与回退不会停止音频，也不会重建 PlayerController。
 
-meter 数据是 UI 读取的最多 10 个声道原子快照。皮肤只看到 SkinRenderContext 中的副本，不能访问 AudioEngine、callback buffer、锁或实时线程；复杂 renderer 只可能影响 UI 帧率，不会进入音频处理路径。
+meter 数据是 UI 读取的最多 16 个声道测量快照。皮肤只看到 SkinRenderContext 中的副本，不能访问 AudioEngine、callback buffer、锁或实时线程；复杂 renderer 只可能影响 UI 帧率，不会进入音频处理路径。
 
 ## 19. 诊断格式
 

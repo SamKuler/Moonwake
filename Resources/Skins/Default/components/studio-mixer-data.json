@@ -1,0 +1,29 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textControl"
+      },
+      "color": {
+        "$ref": "colors.studio.muted"
+      },
+      "align": "right",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    }
+  ]
+}

@@ -9,13 +9,16 @@
         "anchor": "bounds",
         "inset": 0.5
       },
-      "radius": {
-        "$ref": "metrics.studioControlRadius"
+      "radius": 10,
+      "fill": {
+        "$ref": "colors.studio.control"
       },
-      "fill": "#00000000",
       "stroke": {
         "color": "#00000000",
         "width": 0
+      },
+      "visible": {
+        "$expr": "state.selected or state.hover or state.pressed"
       }
     },
     {
@@ -28,9 +31,7 @@
         "anchor": "bounds",
         "inset": 1.5
       },
-      "radius": {
-        "$ref": "metrics.studioControlRadius"
-      },
+      "radius": 10,
       "fill": "#00000000",
       "stroke": {
         "color": {
@@ -43,13 +44,11 @@
   "variants": {
     "selected": {
       "body.fill": {
-        "$ref": "colors.studio.active"
+        "$ref": "colors.studio.surface"
       }
     },
     "hover": {
-      "body.fill": {
-        "$ref": "colors.studio.control"
-      }
+      "body.opacity": 0.9
     },
     "pressed": {
       "body.opacity": 0.76

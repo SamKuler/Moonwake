@@ -49,7 +49,7 @@ struct PlayerViewState
     juce::String audioDeviceName;
     double audioSampleRate = 0.0;
     int audioBufferSize = 0;
-    std::array<float, 10> outputPeakLevels {};
+    std::array<float, maximumOutputChannels> outputPeakLevels {};
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
 
     juce::String statusMessage;

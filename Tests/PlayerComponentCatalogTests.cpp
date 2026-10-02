@@ -21,9 +21,9 @@ juce::StringArray exactIds()
         "transport.next", "transport.seek", "transport.time", "transport.shuffle",
         "transport.repeat", "transport.volumeLabel", "transport.volumeValue",
         "transport.volume", "effects.open", "effects.close", "effects.summary",
-        "effects.title", "effects.filterLabel", "effects.filter", "effects.catalog",
+        "effects.title", "effects.filterLabel", "effects.filter", "effects.catalog", "effects.scope", "effects.scopeLabel",
         "effects.add", "effects.chain", "effects.empty", "effects.outputLayout",
-        "output.stage", "settings.title", "settings.close", "settings.audio.heading",
+        "output.stage", "output.mixer", "output.mode", "output.reset", "settings.title", "settings.close", "settings.audio.heading",
         "settings.audio.device",
         "settings.audio.sampleRate", "settings.audio.bufferSize",
         "settings.audio.channelLayout", "settings.audio.channelMap",
@@ -238,7 +238,13 @@ public:
         expect (slotsOf ("effects.chain") == std::map<juce::String, juce::String> ({
             { "slot.surface", "surface" }, { "slot.name", "label" },
             { "slot.bypass", "textButton" }, { "slot.editor", "textButton" },
-            { "slot.remove", "textButton" }, { "slot.dragIndicator", "surface" }
+            { "slot.remove", "textButton" }, { "slot.scope", "textButton" }, { "slot.dragIndicator", "surface" }
+        }));
+        expect (slotsOf ("output.mixer") == std::map<juce::String, juce::String> ({
+            { "row.surface", "surface" }, { "row.source", "label" },
+            { "row.destination", "label" }, { "row.peak", "label" },
+            { "row.gain", "linearSlider" }, { "row.mute", "toggleButton" },
+            { "row.solo", "toggleButton" }
         }));
         expect (slotsOf ("settings.audio.channelMap")
                 == std::map<juce::String, juce::String> ({

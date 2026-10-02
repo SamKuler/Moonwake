@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.3.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.4.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -23,6 +23,10 @@ if (NOT EXISTS "${MOONWAKE_JUCE_DIR}/CMakeLists.txt")
         "JUCE submodule is missing. Run: git submodule update --init --recursive")
 endif()
 add_subdirectory("${MOONWAKE_JUCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE")
+
+add_library(MoonwakeEbur128 STATIC ThirdParty/libebur128/ebur128.c)
+target_include_directories(MoonwakeEbur128 PUBLIC ThirdParty/libebur128)
+set_target_properties(MoonwakeEbur128 PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES)
 
 if (APPLE)
     # Keep JUCE's recommended warnings enabled for Moonwake sources while
@@ -141,6 +145,7 @@ set(MOONWAKE_SOURCES
     Source/app/AutoSaveScheduler.cpp
     Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
+    Source/audio/OutputMeter.cpp
     Source/audio/GaplessAudioSource.cpp
     Source/audio/ChannelRouter.cpp
     Source/audio/ChannelMappedAudioSource.cpp
@@ -196,6 +201,7 @@ set(MOONWAKE_SOURCES
     Source/ui/settings/SkinLibraryPanel.cpp
     Source/ui/AlbumArtworkComponent.cpp
     Source/ui/MainComponent.cpp
+    Source/ui/OutputMixerComponent.cpp
     Source/ui/OutputStageComponent.cpp
     Source/ui/SkinFallbackDiagnostic.cpp
 )
@@ -239,6 +245,7 @@ target_link_libraries(Moonwake
         juce::juce_data_structures
         juce::juce_gui_extra
         MoonwakeSkinResources
+        MoonwakeEbur128
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
@@ -250,6 +257,9 @@ add_dependencies(Moonwake MoonwakePluginScanner)
 if (APPLE)
     set_property(TARGET Moonwake APPEND PROPERTY LINK_DEPENDS
         "$<TARGET_FILE:MoonwakePluginScanner>")
+    target_sources(Moonwake PRIVATE ThirdParty/libebur128/COPYING)
+    set_source_files_properties(ThirdParty/libebur128/COPYING PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources/licenses/libebur128")
     target_link_libraries(Moonwake PRIVATE
         "-framework AudioToolbox"
         "-framework AppKit"
@@ -293,6 +303,7 @@ add_executable(MoonwakeTests
         Source/app/PlaybackCheckpoint.cpp
         Source/app/PlayerController.cpp
         Source/audio/AudioEngine.cpp
+        Source/audio/OutputMeter.cpp
         Source/audio/GaplessAudioSource.cpp
         Source/audio/TrackMetadataReader.cpp
         Source/library/ArtworkExtractor.cpp
@@ -350,11 +361,13 @@ add_executable(MoonwakeTests
         Source/ui/settings/PluginSettingsPanel.cpp
         Source/ui/settings/SkinLibraryPanel.cpp
         Source/ui/AlbumArtworkComponent.cpp
+        Source/ui/OutputMixerComponent.cpp
         Source/ui/OutputStageComponent.cpp
         Source/ui/SkinFallbackDiagnostic.cpp
         Tests/TestMain.cpp
         Tests/AppStateStoreTests.cpp
         Tests/AudioEngineTests.cpp
+        Tests/OutputMeterTests.cpp
         Tests/AudioDeviceSettingsTests.cpp
         Tests/ChannelRouterTests.cpp
         Tests/ChannelMappedAudioSourceTests.cpp
@@ -384,6 +397,7 @@ add_executable(MoonwakeTests
         Tests/SkinRendererTests.cpp
         Tests/SkinTextLayoutTests.cpp
         Tests/OutputStageTests.cpp
+        Tests/OutputMixerTests.cpp
         Tests/SkinTableListBoxTests.cpp
         Tests/SettingsPanelTests.cpp
         Tests/SkinVisualIsolationTests.cpp
@@ -442,6 +456,7 @@ target_link_libraries(MoonwakeTests
         juce::juce_events
         juce::juce_gui_basics
         MoonwakeSkinResources
+        MoonwakeEbur128
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags

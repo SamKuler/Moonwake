@@ -3,6 +3,7 @@
 
 #include "audio/ChannelMappedAudioSource.h"
 #include "audio/GaplessAudioSource.h"
+#include "audio/OutputLayout.h"
 
 #include <atomic>
 #include <cmath>
@@ -87,6 +88,38 @@ private:
     ReaderProbe& probe;
 };
 
+class NamedLayoutReader final : public juce::AudioFormatReader
+{
+public:
+    NamedLayoutReader (juce::AudioChannelSet layoutToUse, juce::AudioBuffer<float> samplesToUse)
+        : AudioFormatReader (nullptr, "Named layout PCM"),
+          layout (std::move (layoutToUse)), samples (std::move (samplesToUse))
+    {
+        sampleRate = 48000.0;
+        numChannels = static_cast<unsigned int> (samples.getNumChannels());
+        bitsPerSample = 32;
+        usesFloatingPointData = true;
+        lengthInSamples = samples.getNumSamples();
+    }
+
+    juce::AudioChannelSet getChannelLayout() override { return layout; }
+
+    bool readSamples (int* const* channels, int channelCount, int destinationOffset,
+                      juce::int64 startSample, int count) override
+    {
+        for (int channel = 0; channel < channelCount; ++channel)
+            if (channels[channel] != nullptr)
+                juce::FloatVectorOperations::copy (
+                    reinterpret_cast<float*> (channels[channel]) + destinationOffset,
+                    samples.getReadPointer (channel, static_cast<int> (startSample)), count);
+        return true;
+    }
+
+private:
+    juce::AudioChannelSet layout;
+    juce::AudioBuffer<float> samples;
+};
+
 class ChannelMappedAudioSourceTests final : public juce::UnitTest
 {
 public:
@@ -165,12 +198,113 @@ public:
             expect (file.deleteFile());
         }
 
+        beginTest ("named 12, 14 and 16 channel sources retain every speaker and clear only the active region");
+        for (const auto output : { OutputLayout::sevenOneFour, OutputLayout::sevenOneSix,
+                                    OutputLayout::nineOneFour, OutputLayout::nineOneSix })
+        {
+            const auto layout = toAudioChannelSet (output);
+            juce::AudioBuffer<float> input (layout.size(), 67);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                for (int frame = 0; frame < input.getNumSamples(); ++frame)
+                    input.setSample (channel, frame, 0.025f * static_cast<float> (channel + 1) + 0.001f * static_cast<float> (frame));
+            ChannelMappedAudioSource source (
+                std::make_unique<NamedLayoutReader> (layout, std::move (input)), layout);
+            expect (source.getSourceLayout() == layout);
+            source.prepareToPlay (16, 48000.0);
+            juce::AudioBuffer<float> rendered (layout.size(), 138);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                juce::FloatVectorOperations::fill (rendered.getWritePointer (channel), -0.875f, 138);
+            source.getNextAudioBlock ({ &rendered, 5, 128 });
+            for (int channel = 0; channel < layout.size(); ++channel)
+            {
+                for (int frame = 0; frame < 67; ++frame)
+                    expectWithinAbsoluteError (rendered.getSample (channel, 5 + frame),
+                        0.025f * static_cast<float> (channel + 1) + 0.001f * static_cast<float> (frame), 0.000001f);
+                expectWithinAbsoluteError (rendered.getMagnitude (channel, 72, 61), 0.0f, 0.000001f);
+                expectWithinAbsoluteError (rendered.getSample (channel, 4), -0.875f, 0.000001f);
+                expectWithinAbsoluteError (rendered.getSample (channel, 133), -0.875f, 0.000001f);
+            }
+        }
+
+        beginTest ("stereo source leaves every added speaker silent in larger output layouts");
+        for (const auto output : { OutputLayout::sevenOneFour, OutputLayout::sevenOneSix,
+                                    OutputLayout::nineOneFour, OutputLayout::nineOneSix })
+        {
+            const auto layout = toAudioChannelSet (output);
+            juce::AudioBuffer<float> input (2, 64);
+            juce::FloatVectorOperations::fill (input.getWritePointer (0), 0.25f, 64);
+            juce::FloatVectorOperations::fill (input.getWritePointer (1), -0.5f, 64);
+            ChannelMappedAudioSource source (std::make_unique<NamedLayoutReader> (
+                juce::AudioChannelSet::stereo(), std::move (input)), layout);
+            source.prepareToPlay (64, 48000.0);
+            juce::AudioBuffer<float> rendered (layout.size(), 64);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                juce::FloatVectorOperations::fill (rendered.getWritePointer (channel), 0.875f, 64);
+            source.getNextAudioBlock ({ &rendered, 0, 64 });
+            for (int channel = 0; channel < layout.size(); ++channel)
+            {
+                const auto role = layout.getTypeOfChannel (channel);
+                const auto expected = role == juce::AudioChannelSet::left ? 0.25f
+                    : role == juce::AudioChannelSet::right ? -0.5f : 0.0f;
+                for (int frame = 0; frame < 64; ++frame)
+                    expectWithinAbsoluteError (rendered.getSample (channel, frame), expected, 0.000001f);
+            }
+        }
+
+        beginTest ("native 9.1.6 downmix preserves every speaker on the correct stereo side");
+        {
+            using Set = juce::AudioChannelSet;
+            const auto layout = Set::create9point1point6();
+            juce::AudioBuffer<float> input (16, 17);
+            input.clear();
+            for (int channel = 0; channel < 16; ++channel)
+            {
+                input.setSample (channel, channel, 1.0f);
+                input.setSample (channel, 16, 1.0f);
+            }
+            ChannelMappedAudioSource source (
+                std::make_unique<NamedLayoutReader> (layout, std::move (input)), Set::stereo());
+            source.prepareToPlay (17, 48000.0);
+            juce::AudioBuffer<float> rendered (2, 17);
+            source.getNextAudioBlock ({ &rendered, 0, 17 });
+            for (const auto role : { Set::left, Set::leftSurroundSide, Set::leftSurroundRear,
+                                     Set::wideLeft, Set::topFrontLeft, Set::topSideLeft, Set::topRearLeft })
+            {
+                const auto frame = layout.getChannelIndexForType (role);
+                expect (rendered.getSample (0, frame) > 0.0f,
+                        "Left speaker dropped: " + Set::getChannelTypeName (role));
+                expectWithinAbsoluteError (rendered.getSample (1, frame), 0.0f, 0.000001f);
+            }
+            for (const auto role : { Set::right, Set::rightSurroundSide, Set::rightSurroundRear,
+                                     Set::wideRight, Set::topFrontRight, Set::topSideRight, Set::topRearRight })
+            {
+                const auto frame = layout.getChannelIndexForType (role);
+                expect (rendered.getSample (1, frame) > 0.0f,
+                        "Right speaker dropped: " + Set::getChannelTypeName (role));
+                expectWithinAbsoluteError (rendered.getSample (0, frame), 0.0f, 0.000001f);
+            }
+            for (const auto role : { Set::centre, Set::LFE })
+            {
+                const auto frame = layout.getChannelIndexForType (role);
+                expect (rendered.getSample (0, frame) > 0.0f);
+                expectWithinAbsoluteError (rendered.getSample (0, frame),
+                                           rendered.getSample (1, frame), 0.000001f);
+            }
+            for (int channel = 0; channel < 2; ++channel)
+                expectWithinAbsoluteError (rendered.getSample (channel, 16), 1.0f, 0.000001f,
+                                           "Simultaneous full-scale inputs retain normalised headroom.");
+        }
+
         beginTest ("continuous native PCM is identical when split across resampled files");
         for (const auto rate : { 44100.0, 96000.0 })
             for (const auto& layout : { juce::AudioChannelSet::stereo(),
                                         juce::AudioChannelSet::create5point1(),
                                         juce::AudioChannelSet::create5point1point2(),
-                                        juce::AudioChannelSet::create7point1point2() })
+                                        juce::AudioChannelSet::create7point1point2(),
+                                        juce::AudioChannelSet::create7point1point4(),
+                                        juce::AudioChannelSet::create7point1point6(),
+                                        juce::AudioChannelSet::create9point1point4(),
+                                        juce::AudioChannelSet::create9point1point6() })
             {
                 // Neither split is an integral device-frame duration at both rates.
                 const auto whole = writeWave (rate, layout, 0, 12347, 0);
@@ -182,15 +316,20 @@ public:
                 const auto split = renderPlan (
                     { { { first, 1 }, { second, 2 }, { third, 3 } }, -1 }, layout, frames);
                 expectSameWaveform (reference, split, rate);
+                if (layout.size() > 10)
+                    for (int channel = 0; channel < layout.size(); ++channel)
+                        expect (reference.getMagnitude (channel, 128, frames - 256) > 0.1f,
+                                "Resampled channel " + juce::String (channel + 1) + " must contain source PCM.");
                 for (const auto& file : { whole, first, second, third }) expect (file.deleteFile());
             }
 
         beginTest ("cached native loops preserve phase and cumulative fractional duration");
         for (const auto rate : { 44100.0, 96000.0 })
+        for (const auto& layout : { juce::AudioChannelSet::create7point1point2(),
+                                    juce::AudioChannelSet::create9point1point6() })
         {
             constexpr auto period = 113;
             constexpr auto repetitions = 200;
-            const auto layout = juce::AudioChannelSet::create7point1point2();
             const auto whole = writeWave (rate, layout, 0, period * (repetitions + 1), period);
             const auto loop = writeWave (rate, layout, 0, period, period);
             const auto frames = static_cast<int> (std::llround (period * repetitions * 48000.0 / rate));

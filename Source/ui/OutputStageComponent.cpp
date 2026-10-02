@@ -1,6 +1,7 @@
 #include "OutputStageComponent.h"
 
 #include "JuceSkinAdapter.h"
+#include <cmath>
 
 void OutputStageComponent::setState (
     OutputLayout layoutToUse,
@@ -9,7 +10,7 @@ void OutputStageComponent::setState (
     juce::String trackTitleToUse,
     juce::String deviceNameToUse,
     int availableChannelsToUse,
-    std::array<float, 10> outputPeakLevelsToUse)
+    std::array<float, maximumOutputChannels> outputPeakLevelsToUse)
 {
     const auto changed = layout != layoutToUse || workspaceMode != workspaceModeToUse
         || playing != isPlaying || trackTitle != trackTitleToUse
@@ -45,6 +46,9 @@ void OutputStageComponent::paint (juce::Graphics& graphics)
     context.minimum = 0.0;
     context.maximum = static_cast<double> (availableChannels);
     context.meterPeaks = outputPeakLevels;
+    if (readings.available) context.meterPeaks = readings.samplePeak;
+    context.meterRms = readings.rms;
+    context.meterTruePeaks = readings.truePeak;
     int channelIndex = 0;
     for (const auto channel : toAudioChannelSet (layout).getChannelTypes())
     {
@@ -55,11 +59,31 @@ void OutputStageComponent::paint (juce::Graphics& graphics)
                 channel == juce::AudioChannelSet::LFE;
         ++channelIndex;
     }
-    context.extraLookup = [layoutName = toString (layout)] (
+    context.extraLookup = [this, layoutName = toString (layout)] (
                               std::string_view path)
         -> std::optional<SkinExpressionValue>
     {
         if (path == "output.layout") return SkinExpressionValue (layoutName);
+        if (path == "meter.mode") return SkinExpressionValue (juce::String (
+            mode == MeterMode::peak ? "peak" : mode == MeterMode::rms ? "rms" : "loudness"));
+        if (path == "meter.available") return SkinExpressionValue (readings.available);
+        if (path == "meter.status") return SkinExpressionValue (juce::String (
+            readings.measurementInterrupted ? "Measurement restarted after a processing gap"
+                                            : readings.available ? "Post effects / output gain" : "Waiting for audio"));
+        const auto number = [] (double value) { return SkinExpressionValue (std::isfinite (value) ? value : -100.0); };
+        const auto text = [] (double value) { return SkinExpressionValue (
+            std::isfinite (value) ? juce::String (value, 1) : juce::String ("--")); };
+        if (path == "meter.momentary") return number (readings.momentaryLufs);
+        if (path == "meter.shortTerm") return number (readings.shortTermLufs);
+        if (path == "meter.integrated") return number (readings.integratedLufs);
+        if (path == "meter.momentaryText") return text (readings.momentaryLufs);
+        if (path == "meter.shortTermText") return text (readings.shortTermLufs);
+        if (path == "meter.integratedText") return text (readings.integratedLufs);
+        if (path == "meter.truePeakText")
+        {
+            const auto maximum = *std::max_element (readings.maxTruePeak.begin(), readings.maxTruePeak.end());
+            return text (maximum > 0.0f ? 20.0 * std::log10 (maximum) : -std::numeric_limits<double>::infinity());
+        }
         return std::nullopt;
     };
     static_cast<void> (adapter->drawCustomComponent (

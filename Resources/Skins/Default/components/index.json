@@ -22,7 +22,9 @@
     "studioPageTitle": "components/studio-page-title.json",
     "listeningPageTitle": "components/listening-page-title.json",
     "studioNotice": "components/studio-notice.json",
-    "listeningNotice": "components/listening-notice.json"
+    "listeningNotice": "components/listening-notice.json",
+    "studioMixerName": "components/studio-mixer-name.json",
+    "studioMixerData": "components/studio-mixer-data.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -200,11 +202,15 @@
         "icon.reload": "surface.studioOnPrimaryIcon",
         "icon.preview": "surface.studioOnPrimaryIcon"
       }
-    }
+    },
+    "studioCompact": "components/studio-compact-button.json",
+    "listeningCompact": "components/listening-compact-button.json"
   },
   "toggleButton": {
     "listening": "components/listening-toggle-button.json",
-    "studio": "components/studio-toggle-button.json"
+    "studio": "components/studio-toggle-button.json",
+    "studioMixerMute": "components/studio-mixer-mute.json",
+    "studioMixerSolo": "components/studio-mixer-solo.json"
   },
   "comboBox": {
     "listening": "components/listening-combo-box.json",
@@ -304,8 +310,9 @@
         "slot.name": "label.listening",
         "slot.bypass": "textButton.listeningNeutral",
         "slot.editor": "textButton.listeningNeutral",
-        "slot.remove": "textButton.listeningNeutral",
-        "slot.dragIndicator": "surface.listeningReadOnlyRow"
+        "slot.remove": "textButton.listeningCompact",
+        "slot.dragIndicator": "surface.listeningReadOnlyRow",
+        "slot.scope": "textButton.listeningNeutral"
       }
     },
     "studio": {
@@ -315,8 +322,9 @@
         "slot.name": "label.studio",
         "slot.bypass": "textButton.studioNeutral",
         "slot.editor": "textButton.studioNeutral",
-        "slot.remove": "textButton.studioNeutral",
-        "slot.dragIndicator": "surface.studioReadOnlyRow"
+        "slot.remove": "textButton.studioCompact",
+        "slot.dragIndicator": "surface.studioReadOnlyRow",
+        "slot.scope": "textButton.studioNeutral"
       }
     }
   },
@@ -338,6 +346,18 @@
         "row.surface": "surface.studioReadOnlyRow",
         "row.source": "label.studioData",
         "row.destination": "label.studioData"
+      }
+    },
+    "studioMixer": {
+      "renderer": "components/studio-mixer.json",
+      "slots": {
+        "row.surface": "surface.studioReadOnlyRow",
+        "row.source": "label.studioMixerName",
+        "row.destination": "label.studioMixerData",
+        "row.peak": "label.studioMixerData",
+        "row.gain": "linearSlider.studioGain",
+        "row.mute": "toggleButton.studioMixerMute",
+        "row.solo": "toggleButton.studioMixerSolo"
       }
     }
   },

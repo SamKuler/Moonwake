@@ -1,6 +1,7 @@
 #include "MainComponent.h"
 
 #include "EffectRackLayout.h"
+#include "EffectScopeMenu.h"
 #include "app/ProductIdentity.h"
 #include "app/ProductPaths.h"
 
@@ -133,6 +134,7 @@ public:
         nameLabel.setText (slot.pluginName + formatSuffix + (slot.available ? juce::String{} : "  /  Unavailable"),
                            juce::dontSendNotification);
         nameLabel.setJustificationType (juce::Justification::centredLeft);
+        nameLabel.setTooltip (nameLabel.getText());
         nameLabel.setInterceptsMouseClicks (false, false);
 
         bypassButton.setTooltip (slot.bypassed ? "Enable effect" : "Bypass effect");
@@ -152,6 +154,33 @@ public:
         };
         editorButton.onClick = [this] { owner.openPluginEditor (index); };
         removeButton.onClick = [this] { owner.removeEffect (index); };
+        scopeButton.setButtonText (::effectScopeLabel (slot.scope));
+        scopeButton.setTooltip ("Choose the channels processed by this effect");
+        scopeButton.setEnabled (slot.available);
+        scopeButton.onClick = [this, id = slot.id]
+        {
+            auto choices = EffectScopeMenu (toAudioChannelSet (owner.controller.getViewState().outputLayout));
+            choices.menu.setLookAndFeel (&owner.skinAdapter);
+            choices.menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&scopeButton),
+                [safe = juce::Component::SafePointer<MainComponent> (&owner), id, scopes = std::move (choices.scopes)] (int selected)
+                {
+                    if (! safe || ! juce::isPositiveAndBelow (selected - 1, static_cast<int> (scopes.size()))) return;
+                    const auto& chain = safe->controller.getEffectChain();
+                    for (int row = 0; row < chain.size(); ++row)
+                        if (chain.getSlot (row)->id == id)
+                        {
+                            if (! safe->controller.setEffectScopeAtIndex (row, scopes[static_cast<size_t> (selected - 1)]))
+                                safe->showStatus (safe->controller.getLastStatusMessage(), true);
+                            safe->refreshEffects();
+                            break;
+                        }
+                });
+        };
+        scopeButton.setSkinPainter ([this] (juce::Graphics& graphics, bool over, bool down)
+        {
+            return drawSlot (graphics, scopeButton, "slot.scope", SkinRenderTarget::textButton,
+                             scopeButton.getButtonText(), {}, over, down, false);
+        });
 
         nameLabel.setSkinPainter ([this] (juce::Graphics& graphics)
         {
@@ -164,14 +193,14 @@ public:
         {
             return drawSlot (graphics, bypassButton, "slot.bypass",
                              SkinRenderTarget::textButton,
-                             bypassButton.getToggleState() ? "ON" : "OFF", "bypass",
+                             bypassButton.getToggleState() ? "Bypassed" : "Active", "bypass",
                              over, down, bypassButton.getToggleState());
         });
         editorButton.setSkinPainter ([this] (juce::Graphics& graphics,
                                              bool over, bool down)
         {
             return drawSlot (graphics, editorButton, "slot.editor",
-                             SkinRenderTarget::textButton, "EDIT", "editor",
+                             SkinRenderTarget::textButton, "Edit", "editor",
                              over, down, false);
         });
         removeButton.setSkinPainter ([this] (juce::Graphics& graphics,
@@ -187,6 +216,7 @@ public:
         addAndMakeVisible (bypassButton);
         addAndMakeVisible (editorButton);
         addAndMakeVisible (removeButton);
+        addAndMakeVisible (scopeButton);
     }
 
     void mouseDown (const juce::MouseEvent& event) override
@@ -232,15 +262,17 @@ public:
 
     void resized() override
     {
-        auto bounds = getLocalBounds().reduced (10, 6);
-        removeButton.setBounds (bounds.removeFromRight (32));
+        auto bounds = getLocalBounds().reduced (12, 8);
+        auto heading = bounds.removeFromTop (28);
+        scopeButton.setBounds (heading.removeFromRight (juce::jmin (200, heading.getWidth() * 2 / 5)));
+        heading.removeFromRight (10);
+        nameLabel.setBounds (heading);
+        bounds.removeFromTop (8);
+        removeButton.setBounds (bounds.removeFromRight (28));
         bounds.removeFromRight (6);
-        editorButton.setBounds (bounds.removeFromRight (32));
+        editorButton.setBounds (bounds.removeFromRight (56));
         bounds.removeFromRight (6);
-        bypassButton.setBounds (bounds.removeFromRight (32));
-        bounds.removeFromRight (10);
-        bounds.removeFromLeft (18);
-        nameLabel.setBounds (bounds);
+        bypassButton.setBounds (bounds.removeFromRight (86));
     }
 
 private:
@@ -293,6 +325,7 @@ private:
     RackIconButton bypassButton { "Bypass" };
     RackIconButton editorButton { "Editor" };
     RackIconButton removeButton { "Remove" };
+    RackIconButton scopeButton { "Channels" };
 };
 
 MainComponent::MainComponent()
@@ -407,11 +440,10 @@ MainComponent::MainComponent()
     repeatModeBox.addItem ("Repeat one", 3);
     repeatModeBox.setSelectedId (1);
 
-    outputLayoutBox.addItem ("Stereo", 1);
-    outputLayoutBox.addItem ("5.1", 2);
-    outputLayoutBox.addItem ("5.1.2", 3);
-    outputLayoutBox.addItem ("7.1.2", 4);
-    outputLayoutBox.setSelectedId (1);
+    for (const auto& layout : outputLayouts())
+        outputLayoutBox.addItem (juce::String (layout.name) + " / " + juce::String (layout.channels.size()) + " ch",
+                                 static_cast<int> (layout.layout) + 1);
+    outputLayoutBox.setSelectedId (static_cast<int> (OutputLayout::stereo) + 1);
 
     playlistTable.setModel (this);
     playlistTable.setOutlineThickness (0);
@@ -444,6 +476,32 @@ MainComponent::MainComponent()
         "Search plug-ins",
         skinAdapter.findColour (juce::TextEditor::textColourId));
     pluginCombo.setTextWhenNothingSelected ("No matching effects");
+    effectScopeLabel.setText ("Process channels", juce::dontSendNotification);
+    effectScopeBox.setTitle ("Channels for the next effect");
+    meterModeBox.addItem ("Peak", 1);
+    meterModeBox.addItem ("Peak + RMS", 2);
+    meterModeBox.addItem ("Loudness", 3);
+    meterModeBox.addItem ("Mixer", 4);
+    meterModeBox.setSelectedId (2, juce::dontSendNotification);
+    meterModeBox.setTitle ("Output meter mode");
+    resetMeterButton.setTooltip ("Start a new loudness measurement");
+    meterModeBox.onChange = [this]
+    {
+        updateOutputView();
+    };
+    resetMeterButton.onClick = [this]
+    {
+        if (outputMixer.isVisible()) controller.resetOutputChannelMix();
+        else controller.resetOutputMeter();
+        updateTransportState();
+    };
+    outputMixer.onChange = [this] (auto channel, float gain, bool muted, bool solo)
+    {
+        if (! controller.setOutputChannelMix (channel, gain, muted, solo))
+            showStatus ("Unable to update output channel", true);
+        updateTransportState();
+    };
+    refreshEffectScopes();
     effectRackViewport.setViewedComponent (&effectRackContent, false);
     effectRackViewport.setScrollBarsShown (true, false);
 
@@ -501,6 +559,10 @@ MainComponent::MainComponent()
                                     &pluginFilterLabel,
                                     &pluginFilterEditor,
                                     &pluginCombo,
+                                    &effectScopeBox,
+                                    &effectScopeLabel,
+                                    &meterModeBox,
+                                    &resetMeterButton,
                                     &addEffectButton,
                                     &nowPlayingEyebrowLabel,
                                     &queueTitleLabel,
@@ -530,6 +592,7 @@ MainComponent::MainComponent()
                                     &statusLabel,
                                     &albumArtwork,
                                     &outputStage,
+                                    &outputMixer,
                                     &skinFallbackDiagnostic };
 
     for (auto* child : children)
@@ -546,7 +609,12 @@ MainComponent::MainComponent()
         showStatus (message, isError);
         updateTransportState();
     };
-    audioSettingsPanel.setStatusCallback (reportStatus);
+    audioSettingsPanel.setStatusCallback ([this, reportStatus] (const juce::String& message, bool isError)
+    {
+        refreshEffectScopes();
+        refreshEffects();
+        reportStatus (message, isError);
+    });
     pluginSettingsPanel.setStatusCallback (reportStatus);
     pluginSettingsPanel.setScanFolderCallback ([this] { choosePluginDirectory(); });
     skinLibraryPanel.setStatusCallback ([this] (const juce::String& message, bool isError)
@@ -665,7 +733,7 @@ MainComponent::MainComponent()
                 safeThis->addEffectButton.setEnabled (safeThis->pluginCombo.getSelectedId() > 0);
                 safeThis->showStatus (message, ! inserted);
                 safeThis->refreshEffects();
-            });
+            }, effectScopeChoices[static_cast<size_t> (effectScopeBox.getSelectedId() - 1)]);
     };
     pluginFilterEditor.onTextChange = [this] { refreshPlugins(); };
     playPauseButton.onClick = [this]
@@ -705,18 +773,13 @@ MainComponent::MainComponent()
     };
     outputLayoutBox.onChange = [this]
     {
-        juce::String error;
-        switch (outputLayoutBox.getSelectedId())
-        {
-            case 2: error = controller.setOutputLayout (OutputLayout::fiveOne); break;
-            case 3: error = controller.setOutputLayout (OutputLayout::fiveOneTwo); break;
-            case 4: error = controller.setOutputLayout (OutputLayout::sevenOneTwo); break;
-            default: error = controller.setOutputLayout (OutputLayout::stereo); break;
-        }
+        const auto error = controller.setOutputLayout (static_cast<OutputLayout> (outputLayoutBox.getSelectedId() - 1));
 
         showStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
                     error.isNotEmpty());
         audioSettingsPanel.refresh();
+        refreshEffectScopes();
+        refreshEffects();
         updateTransportState();
     };
     volumeSlider.onValueChange = [this]
@@ -863,6 +926,7 @@ void MainComponent::finishStateRestore (StateRestoreResult result)
     workspaceMode = controller.getViewState().workspaceMode;
     refreshPlaylist();
     refreshPlugins();
+    refreshEffectScopes();
     refreshEffects();
     audioSettingsPanel.refresh();
     pluginSettingsPanel.refreshInventory();
@@ -933,11 +997,16 @@ void MainComponent::bindSkinComponents()
         { "effects.filterLabel", &pluginFilterLabel },
         { "effects.filter", &pluginFilterEditor },
         { "effects.catalog", &pluginCombo },
+        { "effects.scope", &effectScopeBox },
+        { "effects.scopeLabel", &effectScopeLabel },
         { "effects.add", &addEffectButton },
         { "effects.chain", &effectRackViewport },
         { "effects.empty", &emptyRackLabel },
         { "effects.outputLayout", &outputLayoutBox },
         { "output.stage", &outputStage },
+        { "output.mixer", &outputMixer },
+        { "output.mode", &meterModeBox },
+        { "output.reset", &resetMeterButton },
         { "settings.title", &settingsTitleLabel },
         { "settings.close", &settingsCloseButton }
     };
@@ -1019,6 +1088,7 @@ void MainComponent::resized()
     statusLabel.setVisible (statusVisibleUntil > juce::Time::getMillisecondCounterHiRes() / 1000.0);
     if (statusLabel.isVisible()) statusLabel.toFront (false);
     updateEmptyQueueState();
+    updateOutputView();
     refreshEffects();
     repaint();
 }
@@ -1556,6 +1626,19 @@ void MainComponent::refreshPlugins()
     addEffectButton.setEnabled (! pluginInsertionInProgress && pluginCombo.getSelectedId() > 0);
 }
 
+void MainComponent::refreshEffectScopes()
+{
+    EffectScope selected;
+    if (juce::isPositiveAndBelow (effectScopeBox.getSelectedId() - 1, static_cast<int> (effectScopeChoices.size())))
+        selected = effectScopeChoices[static_cast<size_t> (effectScopeBox.getSelectedId() - 1)];
+    auto choices = EffectScopeMenu (toAudioChannelSet (controller.getViewState().outputLayout));
+    effectScopeBox.clear (juce::dontSendNotification);
+    *effectScopeBox.getRootMenu() = choices.menu;
+    const auto selectedId = choices.idFor (selected);
+    effectScopeChoices = std::move (choices.scopes);
+    effectScopeBox.setSelectedId (selectedId > 0 ? selectedId : 1, juce::dontSendNotification);
+}
+
 void MainComponent::refreshEffects()
 {
     for (auto& row : effectRows)
@@ -1588,12 +1671,29 @@ void MainComponent::refreshEffects()
     }
 
     effectRackContent.repaint();
-    if (skinManager.activeSession() == nullptr)
-    {
-        emptyRackLabel.setVisible (effectRackViewport.isVisible()
-                                   && chain.size() == 0);
-        emptyRackLabel.toFront (false);
-    }
+    const auto emptyLabelPlaced = emptyRackLabel.getParentComponent() != nullptr
+        && emptyRackLabel.getParentComponent() != this;
+    emptyRackLabel.setVisible (emptyLabelPlaced && effectRackViewport.isVisible() && chain.size() == 0);
+}
+
+void MainComponent::updateOutputView()
+{
+    // A bound component lives inside the active skin's placement wrapper.
+    const auto mixerPlaced = outputMixer.getParentComponent() != nullptr
+        && outputMixer.getParentComponent() != this;
+    const auto stagePlaced = outputStage.getParentComponent() != nullptr
+        && outputStage.getParentComponent() != this;
+    meterModeBox.setItemEnabled (4, mixerPlaced);
+    if (! mixerPlaced && meterModeBox.getSelectedId() == 4
+        && meterModeBox.getParentComponent() != nullptr && meterModeBox.getParentComponent() != this)
+        meterModeBox.setSelectedId (2, juce::dontSendNotification);
+    const auto mixing = meterModeBox.getSelectedId() == 4 && mixerPlaced;
+    outputMixer.setVisible (mixing);
+    outputStage.setVisible (stagePlaced && ! mixing);
+    if (meterModeBox.getSelectedId() != 4)
+        outputStage.setMeterMode (static_cast<OutputStageComponent::MeterMode> (meterModeBox.getSelectedId() - 1));
+    resetMeterButton.setTooltip (mixing ? "Reset all channel gains, mutes and solos"
+                                      : "Start a new loudness measurement");
 }
 
 void MainComponent::updateTransportState()
@@ -1622,13 +1722,7 @@ void MainComponent::updateTransportState()
         case RepeatMode::off: repeatModeBox.setSelectedId (1, juce::dontSendNotification); break;
     }
 
-    switch (state.outputLayout)
-    {
-        case OutputLayout::fiveOne: outputLayoutBox.setSelectedId (2, juce::dontSendNotification); break;
-        case OutputLayout::fiveOneTwo: outputLayoutBox.setSelectedId (3, juce::dontSendNotification); break;
-        case OutputLayout::sevenOneTwo: outputLayoutBox.setSelectedId (4, juce::dontSendNotification); break;
-        case OutputLayout::stereo: outputLayoutBox.setSelectedId (1, juce::dontSendNotification); break;
-    }
+    outputLayoutBox.setSelectedId (static_cast<int> (state.outputLayout) + 1, juce::dontSendNotification);
 
     if (state.selectedIndex >= 0)
     {
@@ -1698,6 +1792,8 @@ void MainComponent::updateTransportState()
                                juce::dontSendNotification);
     outputStage.setState (state.outputLayout, workspaceMode, state.isPlaying, state.selectedTrackTitle,
                           deviceName, state.availableOutputChannels, state.outputPeakLevels);
+    outputStage.setMeterReadings (controller.getOutputMeterReadings());
+    outputMixer.setState (state.outputLayout, controller.getOutputChannelMix(), state.outputPeakLevels);
 
     const auto hasSelection = playlistTable.getSelectedRow() >= 0;
     removeTrackButton.setEnabled (hasSelection);

@@ -46,7 +46,7 @@ struct GaplessAudioSource::NativeStream final : juce::AudioSource
     {
         info.clearActiveBufferRegion();
         const auto count = juce::jmin (info.numSamples, available);
-        for (int channel = 0; channel < juce::jmin (10, info.buffer->getNumChannels()); ++channel)
+        for (int channel = 0; channel < juce::jmin (maximumOutputChannels, info.buffer->getNumChannels()); ++channel)
             info.buffer->copyFrom (channel, info.startSample, samples, channel, offset, count);
         offset += count;
         available -= count;
@@ -72,7 +72,7 @@ struct GaplessAudioSource::NativeStream final : juce::AudioSource
 
     GaplessAudioSource& owner;
     std::deque<Span> spans;
-    juce::AudioBuffer<float> samples { 10, chunkFrames * 2 };
+    juce::AudioBuffer<float> samples { maximumOutputChannels, chunkFrames * 2 };
     int offset = 0, available = 0;
     long double decodedOutputFrames = 0.0L;
     bool ended = false;
@@ -178,7 +178,7 @@ bool GaplessAudioSource::NativeStream::fill (int minimumFrames, long double thro
 {
     if (offset > 0)
     {
-        for (int channel = 0; channel < 10; ++channel)
+        for (int channel = 0; channel < maximumOutputChannels; ++channel)
             std::memmove (samples.getWritePointer (channel), samples.getReadPointer (channel, offset),
                           static_cast<size_t> (available) * sizeof (float));
         offset = 0;
@@ -218,10 +218,10 @@ bool GaplessAudioSource::NativeStream::fill (int minimumFrames, long double thro
             continue;
         }
         if (available + count > samples.getNumSamples())
-            samples.setSize (10, juce::jmax (available + count, samples.getNumSamples() * 2), true);
+            samples.setSize (maximumOutputChannels, juce::jmax (available + count, samples.getNumSamples() * 2), true);
         if (track.cached)
         {
-            for (int channel = 0; channel < 10; ++channel)
+            for (int channel = 0; channel < maximumOutputChannels; ++channel)
                 samples.copyFrom (channel, available, track.cached->samples, channel,
                                   static_cast<int> (track.emittedFrames), count);
         }
@@ -251,8 +251,8 @@ bool GaplessAudioSource::NativeStream::fill (int minimumFrames, long double thro
                 && owner.cachedFrames + count <= bufferFrames)
             {
                 auto cached = std::make_unique<CachedTrack>();
-                cached->samples.setSize (10, count);
-                for (int channel = 0; channel < 10; ++channel)
+                cached->samples.setSize (maximumOutputChannels, count);
+                for (int channel = 0; channel < maximumOutputChannels; ++channel)
                     cached->samples.copyFrom (channel, 0, samples, channel, available, count);
                 cached->sampleRate = track.sampleRate;
                 owner.cachedTracks[static_cast<size_t> (owner.indexForSequence (owner.producerSequence))]
@@ -290,7 +290,7 @@ bool GaplessAudioSource::resetAt (uint64_t sequence, double startSeconds)
         finalFrame.store (0);
         return false;
     }
-    resampler = std::make_unique<juce::ResamplingAudioSource> (nativeStream.get(), false, 10);
+    resampler = std::make_unique<juce::ResamplingAudioSource> (nativeStream.get(), false, maximumOutputChannels);
     resampler->setResamplingRatio (decoder->sampleRate / deviceSampleRate);
     resampler->prepareToPlay (chunkFrames, deviceSampleRate);
     activeBoundary = decoder->boundary;
@@ -526,7 +526,7 @@ void GaplessAudioSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& 
     info.clearActiveBufferRegion();
     const auto read = audioFifo.read (info.numSamples);
     const auto count = read.blockSize1 + read.blockSize2;
-    for (int channel = 0; channel < juce::jmin (10, info.buffer->getNumChannels()); ++channel)
+    for (int channel = 0; channel < juce::jmin (maximumOutputChannels, info.buffer->getNumChannels()); ++channel)
     {
         info.buffer->copyFrom (channel, info.startSample,
             audioBuffer.getReadPointer (channel, read.startIndex1), read.blockSize1);

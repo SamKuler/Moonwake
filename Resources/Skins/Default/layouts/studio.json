@@ -238,13 +238,72 @@
                 "style": "surface.studio",
                 "children": [
                   {
-                    "id": "studio-output-stage",
-                    "type": "component",
-                    "component": "output.stage",
-                    "style": "outputStage.studio",
-                    "grow": 1
+                    "id": "studio-output-controls",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "gap": 6,
+                    "children": [
+                      {
+                        "id": "studio-output-layout",
+                        "type": "component",
+                        "component": "effects.outputLayout",
+                        "style": "comboBox.studio",
+                        "grow": 1,
+                        "focusOrder": 80
+                      },
+                      {
+                        "id": "studio-meter-mode",
+                        "type": "component",
+                        "component": "output.mode",
+                        "style": "comboBox.studio",
+                        "grow": 1,
+                        "focusOrder": 85
+                      },
+                      {
+                        "id": "studio-meter-reset",
+                        "type": "component",
+                        "component": "output.reset",
+                        "style": "textButton.studioNeutral",
+                        "width": 62,
+                        "focusOrder": 90
+                      }
+                    ]
+                  },
+                  {
+                    "id": "studio-output-view",
+                    "type": "stack",
+                    "grow": 1,
+                    "children": [
+                      {
+                        "id": "studio-output-stage",
+                        "type": "component",
+                        "component": "output.stage",
+                        "style": "outputStage.studio",
+                        "anchors": {
+                          "left": 0,
+                          "right": 0,
+                          "top": 0,
+                          "bottom": 0
+                        }
+                      },
+                      {
+                        "id": "studio-output-mixer",
+                        "type": "component",
+                        "component": "output.mixer",
+                        "style": "channelMap.studioMixer",
+                        "anchors": {
+                          "left": 0,
+                          "right": 0,
+                          "top": 0,
+                          "bottom": 0
+                        },
+                        "focusOrder": 95
+                      }
+                    ]
                   }
-                ]
+                ],
+                "gap": 8
               }
             ]
           },

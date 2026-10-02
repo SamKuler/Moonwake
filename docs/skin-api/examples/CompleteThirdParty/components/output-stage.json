@@ -6,7 +6,7 @@
       "id": "channels",
       "type": "repeat",
       "source": "meter.channels",
-      "limit": 10,
+      "limit": 16,
       "template": {
         "id": "peak",
         "type": "rect",
@@ -23,7 +23,236 @@
           }
         },
         "fill": "#8DC8D9FF"
+      },
+      "visible": {
+        "$expr": "meter.mode != 'loudness'"
       }
+    },
+    {
+      "id": "rms-channels",
+      "type": "repeat",
+      "source": "meter.channels",
+      "limit": 16,
+      "template": {
+        "id": "rms",
+        "type": "rect",
+        "frame": {
+          "x": {
+            "$expr": "item.index * min(24, bounds.width / max(1, meter.channelCount))"
+          },
+          "y": {
+            "$expr": "bounds.height * (1 - clamp((item.rmsDb + 60) / 60, 0, 1))"
+          },
+          "width": 6,
+          "height": {
+            "$expr": "bounds.height * clamp((item.rmsDb + 60) / 60, 0, 1)"
+          }
+        },
+        "fill": "#D19C64"
+      },
+      "visible": {
+        "$expr": "meter.mode == 'rms'"
+      }
+    },
+    {
+      "id": "loudness-integratedText-label",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 0,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": "Integrated LUFS",
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 14,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
+    },
+    {
+      "id": "loudness-integratedText-value",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 24,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": {
+        "$context": "meter.integratedText"
+      },
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 24,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
+    },
+    {
+      "id": "loudness-momentaryText-label",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 76,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": "Momentary LUFS",
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 14,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
+    },
+    {
+      "id": "loudness-momentaryText-value",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 100,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": {
+        "$context": "meter.momentaryText"
+      },
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 24,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
+    },
+    {
+      "id": "loudness-shortTermText-label",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 152,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": "Short-term LUFS",
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 14,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
+    },
+    {
+      "id": "loudness-shortTermText-value",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 176,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": {
+        "$context": "meter.shortTermText"
+      },
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 24,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
+    },
+    {
+      "id": "loudness-truePeakText-label",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 228,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": "Max True Peak dBTP",
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 14,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
+    },
+    {
+      "id": "loudness-truePeakText-value",
+      "type": "text",
+      "visible": {
+        "$expr": "meter.mode == 'loudness'"
+      },
+      "frame": {
+        "x": 4,
+        "y": 252,
+        "width": {
+          "$expr": "bounds.width - 8"
+        },
+        "height": 32
+      },
+      "text": {
+        "$context": "meter.truePeakText"
+      },
+      "font": {
+        "$ref": "fonts.example.body"
+      },
+      "fontSize": 24,
+      "color": {
+        "$ref": "colors.example.text"
+      },
+      "maxLines": 1
     }
   ]
 }

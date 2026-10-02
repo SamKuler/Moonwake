@@ -10,18 +10,10 @@ namespace
 {
 juce::StringArray channelNames (OutputLayout layout)
 {
-    switch (layout)
-    {
-        case OutputLayout::fiveOne:
-            return { "L", "R", "C", "LFE", "Ls", "Rs" };
-        case OutputLayout::fiveOneTwo:
-            return { "L", "R", "C", "LFE", "Ls", "Rs", "Ltf", "Rtf" };
-        case OutputLayout::sevenOneTwo:
-            return { "L", "R", "C", "LFE", "Lss", "Rss", "Lrs", "Rrs", "Ltf", "Rtf" };
-        case OutputLayout::stereo:
-            return { "L", "R" };
-    }
-    return { "L", "R" };
+    juce::StringArray names;
+    for (const auto channel : toAudioChannelSet (layout).getChannelTypes())
+        names.add (juce::AudioChannelSet::getAbbreviatedChannelTypeName (channel));
+    return names;
 }
 
 juce::String sampleRateLabel (double rate)
@@ -222,10 +214,9 @@ AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,
     bufferSizeBox.setTitle ("Audio buffer size");
     channelLayoutBox.setTitle ("Multichannel output layout");
 
-    channelLayoutBox.addItem ("Stereo / 2 channels", 1);
-    channelLayoutBox.addItem ("5.1 Surround / 6 channels", 2);
-    channelLayoutBox.addItem ("5.1.2 Atmos / 8 channels", 3);
-    channelLayoutBox.addItem ("7.1.2 Atmos / 10 channels", 4);
+    for (const auto& layout : outputLayouts())
+        channelLayoutBox.addItem (juce::String (layout.name) + " / " + juce::String (layout.channels.size()) + " channels",
+                                  static_cast<int> (layout.layout) + 1);
 
     deviceBox.onChange = [this] { applyDeviceSelection(); };
     sampleRateBox.onChange = [this] { applySampleRateSelection(); };
@@ -300,15 +291,7 @@ void AudioSettingsPanel::refresh()
         availableBufferSizes.indexOf (settings.currentBufferSize),
         juce::dontSendNotification);
 
-    auto layoutId = 1;
-    switch (viewState.outputLayout)
-    {
-        case OutputLayout::fiveOne: layoutId = 2; break;
-        case OutputLayout::fiveOneTwo: layoutId = 3; break;
-        case OutputLayout::sevenOneTwo: layoutId = 4; break;
-        case OutputLayout::stereo: layoutId = 1; break;
-    }
-    channelLayoutBox.setSelectedId (layoutId, juce::dontSendNotification);
+    channelLayoutBox.setSelectedId (static_cast<int> (viewState.outputLayout) + 1, juce::dontSendNotification);
     channelMap->setState (viewState.outputLayout, settings.availableOutputChannels);
 }
 
@@ -355,14 +338,7 @@ void AudioSettingsPanel::applyChannelLayoutSelection()
 {
     if (refreshing)
         return;
-    juce::String error;
-    switch (channelLayoutBox.getSelectedId())
-    {
-        case 2: error = controller.setOutputLayout (OutputLayout::fiveOne); break;
-        case 3: error = controller.setOutputLayout (OutputLayout::fiveOneTwo); break;
-        case 4: error = controller.setOutputLayout (OutputLayout::sevenOneTwo); break;
-        default: error = controller.setOutputLayout (OutputLayout::stereo); break;
-    }
+    const auto error = controller.setOutputLayout (static_cast<OutputLayout> (channelLayoutBox.getSelectedId() - 1));
     refresh();
     reportStatus (error.isNotEmpty() ? error : controller.getLastStatusMessage(),
                   error.isNotEmpty());

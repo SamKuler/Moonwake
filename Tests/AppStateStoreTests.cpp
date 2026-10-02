@@ -62,7 +62,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 8);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 9);
             expectEquals (restored.playlist.size(), 2);
             expectEquals (restored.playlist.getSelectedIndex(), 1);
             expectEquals (restored.playlist.getTrack (0)->file.getFullPathName(),
@@ -111,6 +111,76 @@ public:
             expectEquals (restored.effectChain.getSlot (1)->pluginName, juce::String ("Delay"));
             expect (! restored.effectChain.getSlot (1)->available);
             expectEquals (restored.effectChain.getSlot (1)->errorMessage, juce::String ("Not installed"));
+        }
+
+        beginTest ("channel mixes persist absent speakers and old states restore neutral gains");
+        {
+            PlayerAppState state;
+            for (auto& mix : state.outputChannelMix)
+            {
+                if (mix.channel == juce::AudioChannelSet::left)
+                    mix = { mix.channel, 0.5f, true, false };
+                if (mix.channel == juce::AudioChannelSet::topSideLeft)
+                    mix = { mix.channel, 2.0f, false, true };
+            }
+            auto tree = AppStateStore::toValueTree (state);
+            const auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*tree.createXml()));
+            expect (restored.outputChannelMix == state.outputChannelMix);
+            expect (restored.outputLayout == OutputLayout::stereo);
+            auto mixTree = tree.getChildWithName ("OutputChannelMix");
+            for (auto channel : mixTree)
+                if (static_cast<int> (channel.getProperty ("type")) == static_cast<int> (juce::AudioChannelSet::left))
+                    channel.setProperty ("gain", -1.0f, nullptr);
+            auto unknown = juce::ValueTree ("Channel");
+            unknown.setProperty ("type", 999, nullptr);
+            unknown.setProperty ("solo", true, nullptr);
+            mixTree.appendChild (unknown, nullptr);
+            const auto sanitized = AppStateStore::fromValueTree (tree);
+            expectEquals (sanitized.outputChannelMix.size(), defaultOutputChannelMix().size());
+            for (const auto& mix : sanitized.outputChannelMix)
+            {
+                expect (isValidOutputChannelMix (mix));
+                if (mix.channel == juce::AudioChannelSet::left)
+                    expect (mix == OutputChannelMix { mix.channel });
+            }
+            tree.removeChild (mixTree, nullptr);
+            tree.setProperty ("schemaVersion", 8, nullptr);
+            expect (AppStateStore::fromValueTree (tree).outputChannelMix == defaultOutputChannelMix());
+        }
+
+        beginTest ("effect scopes round-trip stable channel identities and preserve invalid slots for diagnosis");
+        {
+            PlayerAppState state;
+            state.outputLayout = OutputLayout::sevenOneTwo;
+            const EffectScope pair { juce::AudioChannelSet::rightSurroundSide, juce::AudioChannelSet::leftSurroundSide };
+            const auto pairId = state.effectChain.addSlot ("Stereo EQ", "stereo-eq", "VST3", pair);
+            state.effectChain.addSlot ("Mono EQ", "mono-eq", "AudioUnit", { juce::AudioChannelSet::LFE });
+            state.effectChain.addSlot ("Bus", "full-bus", "VST3");
+            state.effectChain.setBypassed (pairId, true);
+            state.effectChain.getSlotById (pairId)->serializedState.append ("state", 5);
+            auto tree = AppStateStore::toValueTree (state);
+            const auto xml = tree.createXml();
+            const auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*xml));
+            expect (restored.effectChain.getSlot (0)->scope == pair);
+            expect (restored.effectChain.getSlot (1)->scope == EffectScope { juce::AudioChannelSet::LFE });
+            expect (restored.effectChain.getSlot (2)->scope.empty());
+            expect (restored.effectChain.getSlot (0)->bypassed);
+            expect (restored.effectChain.getSlot (0)->serializedState == state.effectChain.getSlot (0)->serializedState);
+            auto slots = tree.getChildWithName ("EffectChain");
+            auto scopeTree = slots.getChild (0).getChildWithName ("Scope");
+            scopeTree.getChild (0).setProperty ("type", 999, nullptr);
+            const auto invalid = AppStateStore::fromValueTree (tree);
+            expectEquals (invalid.effectChain.size(), 3);
+            expect (! invalid.effectChain.getSlot (0)->available);
+            expect (invalid.effectChain.getSlot (0)->errorMessage.isNotEmpty());
+            expectEquals (static_cast<int> (invalid.effectChain.getSlot (0)->scope[0]), 999);
+            expect (invalid.effectChain.getSlot (0)->bypassed);
+            tree.setProperty ("schemaVersion", 8, nullptr);
+            for (auto slot : slots)
+                slot.removeAllChildren (nullptr);
+            const auto legacy = AppStateStore::fromValueTree (tree);
+            for (const auto& slot : legacy.effectChain.getSlots())
+                expect (slot.scope.empty(), "legacy effects retain full-bus processing");
         }
 
         beginTest ("restored shuffle cycles retain the selected track and visit every available alternative");

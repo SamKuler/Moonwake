@@ -1,0 +1,35 @@
+{
+  "apiVersion": 1,
+  "target": "channelMap",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$ref": "colors.surfaceRaised"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.border"
+        },
+        "width": 1,
+        "placement": "inside"
+      }
+    }
+  ],
+  "variants": {
+    "focused": {
+      "body.stroke.color": {
+        "$ref": "colors.focus"
+      },
+      "body.stroke.width": 2
+    }
+  }
+}

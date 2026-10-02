@@ -30,6 +30,29 @@
         ]
       },
       {
+        "id": "scope-row-0",
+        "type": "row",
+        "height": 32,
+        "gap": 8,
+        "children": [
+          {
+            "id": "scope-label-0",
+            "type": "component",
+            "component": "effects.scopeLabel",
+            "style": "label.default",
+            "grow": 1
+          },
+          {
+            "id": "scope-picker-0",
+            "type": "component",
+            "component": "effects.scope",
+            "style": "comboBox.default",
+            "width": 200,
+            "focusOrder": 55
+          }
+        ]
+      },
+      {
         "id": "effects-insert",
         "type": "row",
         "height": 36,
@@ -99,6 +122,29 @@
                 "style": "textButton.neutral",
                 "width": 84,
                 "focusOrder": 10
+              }
+            ]
+          },
+          {
+            "id": "scope-row-1",
+            "type": "row",
+            "height": 32,
+            "gap": 8,
+            "children": [
+              {
+                "id": "scope-label-1",
+                "type": "component",
+                "component": "effects.scopeLabel",
+                "style": "label.default",
+                "grow": 1
+              },
+              {
+                "id": "scope-picker-1",
+                "type": "component",
+                "component": "effects.scope",
+                "style": "comboBox.default",
+                "width": 200,
+                "focusOrder": 55
               }
             ]
           },

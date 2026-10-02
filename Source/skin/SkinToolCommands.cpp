@@ -337,6 +337,8 @@ std::optional<SkinExpressionValue> representativeValue (
         case SkinExpressionType::string:
             if (key == "plugin.format") return SkinExpressionValue (juce::String ("VST3"));
             if (key == "output.layout") return SkinExpressionValue (juce::String ("5.1"));
+            if (key == "meter.mode") return SkinExpressionValue (juce::String ("rms"));
+            if (key == "meter.status") return SkinExpressionValue (juce::String ("Meter preview"));
             return SkinExpressionValue (juce::String ("Preview"));
         case SkinExpressionType::colour:
             return SkinExpressionValue (juce::Colours::white);

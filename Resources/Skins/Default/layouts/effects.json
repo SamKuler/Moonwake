@@ -162,6 +162,38 @@
                 "shrink": 0
               },
               {
+                "id": "effects-effects-root-scope-row",
+                "type": "row",
+                "height": 36,
+                "shrink": 0,
+                "gap": 12,
+                "children": [
+                  {
+                    "id": "effects-effects-root-scope-label",
+                    "type": "component",
+                    "component": "effects.scopeLabel",
+                    "style": "label.listening",
+                    "grow": 1
+                  },
+                  {
+                    "id": "effects-effects-root-scope",
+                    "type": "component",
+                    "component": "effects.scope",
+                    "style": "comboBox.listening",
+                    "width": 220,
+                    "focusOrder": 115
+                  },
+                  {
+                    "id": "effects-effects-root-layout",
+                    "type": "component",
+                    "component": "effects.outputLayout",
+                    "style": "comboBox.listening",
+                    "width": 220,
+                    "focusOrder": 117
+                  }
+                ]
+              },
+              {
                 "id": "effects-effects-chain-area",
                 "type": "stack",
                 "grow": 1,
@@ -377,6 +409,38 @@
                       }
                     ],
                     "shrink": 0
+                  },
+                  {
+                    "id": "themed-effects-themed-effects-root-scope-row",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "gap": 12,
+                    "children": [
+                      {
+                        "id": "themed-effects-themed-effects-root-scope-label",
+                        "type": "component",
+                        "component": "effects.scopeLabel",
+                        "style": "label.studio",
+                        "grow": 1
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-root-scope",
+                        "type": "component",
+                        "component": "effects.scope",
+                        "style": "comboBox.studio",
+                        "width": 220,
+                        "focusOrder": 115
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-root-layout",
+                        "type": "component",
+                        "component": "effects.outputLayout",
+                        "style": "comboBox.studio",
+                        "width": 220,
+                        "focusOrder": 117
+                      }
+                    ]
                   },
                   {
                     "id": "themed-effects-themed-effects-chain-area",

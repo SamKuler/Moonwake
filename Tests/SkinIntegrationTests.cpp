@@ -852,7 +852,7 @@ public:
                     expect (skinList.slotStyles.contains (slot), theme + ":" + slot);
             }
             const auto& meter = defaultSkin->renderers.at ("outputStage.studio").renderer;
-            for (const auto* context : { "output.layout", "meter.channelCount", "item.peakDb", "item.label", "text.secondary" })
+            for (const auto* context : { "meter.mode", "meter.channelCount", "item.peakDb", "item.label", "text.secondary" })
                 expect (meter.contextPaths.contains (context), context);
             const auto channels = std::find_if (meter.baseLayers.begin(), meter.baseLayers.end(),
                 [] (const auto& layer) { return layer.repeatSource == "meter.channels"; });
@@ -862,7 +862,7 @@ public:
             expectEquals (foundation->manifest.minAppVersion, juce::String ("0.2.0"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.3.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.4.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "audio/OutputLayout.h"
+
 #include "SkinDiagnostic.h"
 #include "SkinRenderDefinition.h"
 
@@ -39,9 +41,11 @@ struct SkinRenderContext
     juce::String iconName;
     juce::String iconPathData;
     std::shared_ptr<const juce::Path> iconPath;
-    std::array<float, 10> meterPeaks {};
+    std::array<float, maximumOutputChannels> meterPeaks {};
+    std::array<float, maximumOutputChannels> meterRms {};
+    std::array<float, maximumOutputChannels> meterTruePeaks {};
     juce::StringArray meterLabels;
-    std::array<bool, 10> meterIsLfe {};
+    std::array<bool, maximumOutputChannels> meterIsLfe {};
     int repeatItemCount = 0;
     juce::StringArray repeatLabels;
     juce::String scrollOrientation;

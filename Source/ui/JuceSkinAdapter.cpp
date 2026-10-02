@@ -900,6 +900,8 @@ bool JuceSkinAdapter::drawCustomComponent (
     auto state = stateFor (component, component.isMouseOver (true),
                            component.isMouseButtonDown(), context.state.selected);
     state.dragging = context.state.dragging || state.dragging;
+    // Child controls paint their own focus feedback.
+    state.focused = component.hasKeyboardFocus (false);
     context.state = state;
     return drawBinding (graphics, component, target, std::move (context), {},
                         instanceKey);

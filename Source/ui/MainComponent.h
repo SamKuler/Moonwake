@@ -11,6 +11,7 @@
 #include "state/StateRestoreService.h"
 #include "AlbumArtworkComponent.h"
 #include "OutputStageComponent.h"
+#include "OutputMixerComponent.h"
 #include "SkinFallbackDiagnostic.h"
 #include "SkinLayoutHost.h"
 #include "SkinEffectChainViewport.h"
@@ -63,7 +64,9 @@ private:
     void updateEmptyQueueState();
     void refreshPlugins();
     void refreshEffects();
+    void refreshEffectScopes();
     void updateTransportState();
+    void updateOutputView();
     [[nodiscard]] bool shouldDeferTransportCommands() const;
     void dispatchQueuedTransportCommands();
     void handleRemoteTransportCommand (const RemoteTransportCommand&);
@@ -127,6 +130,11 @@ private:
     juce::Label pluginFilterLabel;
     juce::TextEditor pluginFilterEditor;
     juce::ComboBox pluginCombo;
+    juce::ComboBox effectScopeBox;
+    juce::Label effectScopeLabel;
+    std::vector<EffectScope> effectScopeChoices;
+    juce::ComboBox meterModeBox;
+    juce::TextButton resetMeterButton { "Reset" };
     juce::TextButton addEffectButton { "Add Effect" };
     SkinEffectChainViewport effectRackViewport;
     juce::Component effectRackContent;
@@ -159,6 +167,7 @@ private:
     juce::Slider seekSlider;
     AlbumArtworkComponent albumArtwork;
     OutputStageComponent outputStage;
+    OutputMixerComponent outputMixer;
     SkinFallbackDiagnostic skinFallbackDiagnostic;
     SkinLayoutHost skinLayoutHost;
     juce::TooltipWindow tooltipWindow { this, 600 };
@@ -172,6 +181,6 @@ private:
     bool pluginInsertionInProgress = false;
     bool refreshingPlaylist = false;
 
-    static constexpr int effectRowHeight = 44;
+    static constexpr int effectRowHeight = 80;
     static constexpr int effectRowGap = 8;
 };

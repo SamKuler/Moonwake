@@ -3,11 +3,32 @@
 
 #include "plugins/PluginManager.h"
 #include "plugins/PluginScanProcess.h"
+#include "app/PlayerController.h"
 
 #include <cmath>
 
 namespace
 {
+class ScopeOfflineBackend final : public IAudioDeviceBackend
+{
+public:
+    juce::String initialiseWithDefaultDevices (int, int) override { return "Offline scope fixture."; }
+    juce::StringArray getOutputDeviceNames() const override { return {}; }
+    AudioDeviceBackendState getCurrentDeviceState() const override { return {}; }
+    juce::AudioDeviceManager::AudioDeviceSetup getAudioDeviceSetup() const override { return {}; }
+    juce::String setAudioDeviceSetup (const juce::AudioDeviceManager::AudioDeviceSetup&, bool) override { return "Offline."; }
+    void addAudioCallback (juce::AudioIODeviceCallback*) override {}
+    void removeAudioCallback (juce::AudioIODeviceCallback*) override {}
+};
+
+bool dispatchScopeUntil (const std::function<bool()>& complete)
+{
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 10000.0;
+    while (! complete() && juce::Time::getMillisecondCounterHiRes() < deadline)
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+    return complete();
+}
+
 struct ScopedTemporaryDirectory
 {
     ~ScopedTemporaryDirectory()
@@ -171,6 +192,73 @@ public:
 
     void runTest() override
     {
+        beginTest ("controller inserts, changes, rejects and restores a real VST3 channel scope");
+        {
+            juce::String error;
+            const auto descriptions = scanWithHelper ("VST3", MOONWAKE_TEST_VST3_PATH, error);
+            expectEquals (descriptions.size(), 1, error);
+            if (! descriptions.isEmpty())
+            {
+                juce::KnownPluginList known;
+                known.addType (descriptions[0]);
+                PlayerController controller (std::make_unique<ScopeOfflineBackend>());
+                StateRestoreResult initial;
+                initial.state.emplace();
+                initial.state->outputLayout = OutputLayout::sevenOneTwo;
+                initial.pluginCache = known.createXml();
+                expect (controller.applyPreparedState (std::move (initial)));
+                expectEquals (controller.getInsertEffectPlugins().size(), 1);
+                const EffectScope sides { juce::AudioChannelSet::leftSurroundSide, juce::AudioChannelSet::rightSurroundSide };
+                bool completed = false;
+                bool inserted = false;
+                controller.addPluginByIndexAsync (0, [&] (bool ok, const juce::String& message)
+                {
+                    completed = true;
+                    inserted = ok;
+                    error = message;
+                }, sides);
+                expect (dispatchScopeUntil ([&] { return completed; }));
+                expect (inserted, error);
+                if (inserted)
+                {
+                    expect (controller.getEffectChain().getSlot (0)->scope == sides);
+                    auto* instance = controller.getEffectPluginForEditor (0);
+                    expect (instance != nullptr && instance->getTotalNumInputChannels() == 2);
+                    expect (controller.setEffectBypassedAtIndex (0, true));
+                    const auto revision = controller.getEffectChainRevision();
+                    expect (! controller.setEffectScopeAtIndex (0, { juce::AudioChannelSet::left, juce::AudioChannelSet::left }));
+                    expectEquals (controller.getEffectChainRevision(), revision);
+                    expect (controller.getEffectChain().getSlot (0)->scope == sides);
+                    expect (controller.setOutputLayout (OutputLayout::stereo).isNotEmpty());
+                    expect (controller.getViewState().outputLayout == OutputLayout::sevenOneTwo);
+                    const EffectScope mono { juce::AudioChannelSet::LFE };
+                    expect (controller.setEffectScopeAtIndex (0, mono), controller.getLastStatusMessage());
+                    expect (controller.getEffectPluginForEditor (0)->getBusesLayout().getMainInputChannelSet() == juce::AudioChannelSet::mono());
+                    expect (controller.getEffectChain().getSlot (0)->bypassed);
+                    PlayerAppState snapshot;
+                    expect (controller.captureStateSnapshot (snapshot, error), error);
+                    expect (snapshot.effectChain.getSlot (0)->scope == mono);
+                    ScopedTemporaryDirectory temporary { juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getNonexistentChildFile ("moonwake-scope-roundtrip", {}) };
+                    expect (temporary.directory.createDirectory());
+                    const auto stateFile = temporary.directory.getChildFile ("state.xml");
+                    const auto cacheFile = temporary.directory.getChildFile ("plugins.xml");
+                    expect (controller.saveState (stateFile, cacheFile), controller.getLastStatusMessage());
+                    PlayerController restored (std::make_unique<ScopeOfflineBackend>());
+                    expect (restored.loadState (stateFile, cacheFile), restored.getLastStatusMessage());
+                    expect (dispatchScopeUntil ([&] { return restored.getEffectPluginForEditor (0) != nullptr; }));
+                    expect (restored.getEffectChain().getSlot (0)->scope == mono);
+                    expect (restored.getEffectChain().getSlot (0)->bypassed);
+                    if (auto* restoredInstance = restored.getEffectPluginForEditor (0))
+                        expectEquals (restoredInstance->getTotalNumInputChannels(), 1);
+                    expect (restored.setEffectScopeAtIndex (0, {}));
+                    expectEquals (restored.getEffectPluginForEditor (0)->getTotalNumInputChannels(), 10);
+                    expect (restored.setOutputLayout (OutputLayout::stereo).isEmpty());
+                    expectEquals (restored.getEffectPluginForEditor (0)->getTotalNumInputChannels(), 2);
+                }
+            }
+        }
+
         beginTest ("isolated scanner discovers and hosts a real VST3 bundle");
         {
             juce::String error;

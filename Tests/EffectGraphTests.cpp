@@ -8,21 +8,47 @@ namespace
 class TestEffect final : public juce::AudioProcessor
 {
 public:
-    explicit TestEffect (float multiplierToUse, bool supportsSurroundToUse = false)
+    explicit TestEffect (float multiplierToUse, bool supportsSurroundToUse = false,
+                         float offsetToUse = 0.0f, bool distinguishChannelsToUse = false,
+                         int latencyToUse = 0)
         : AudioProcessor (BusesProperties()
                               .withInput ("Input", juce::AudioChannelSet::stereo(), true)
                               .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
           multiplier (multiplierToUse),
-          supportsSurround (supportsSurroundToUse)
+          supportsSurround (supportsSurroundToUse), offset (offsetToUse),
+          distinguishChannels (distinguishChannelsToUse), latency (latencyToUse)
     {
+        setLatencySamples (latency);
     }
 
     const juce::String getName() const override { return "Test Effect"; }
-    void prepareToPlay (double, int) override {}
+    void prepareToPlay (double, int) override
+    {
+        preparedChannels = getTotalNumInputChannels();
+        delay.setSize (preparedChannels, juce::jmax (1, latency));
+        delay.clear();
+        delayPosition = 0;
+    }
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
     {
-        buffer.applyGain (multiplier);
+        processingLayoutMatched = processingLayoutMatched && preparedChannels == getTotalNumInputChannels();
+        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            {
+                const auto input = buffer.getSample (channel, sample)
+                    * multiplier * (distinguishChannels ? static_cast<float> (channel + 1) : 1.0f) + offset;
+                if (latency == 0)
+                    buffer.setSample (channel, sample, input);
+                else
+                {
+                    const auto position = (delayPosition + sample) % latency;
+                    buffer.setSample (channel, sample, delay.getSample (channel, position));
+                    delay.setSample (channel, position, input);
+                }
+            }
+        if (latency != 0)
+            delayPosition = (delayPosition + buffer.getNumSamples()) % latency;
     }
     double getTailLengthSeconds() const override { return 0.0; }
     bool acceptsMidi() const override { return false; }
@@ -51,10 +77,33 @@ public:
                 || layouts.getMainInputChannelSet() == juce::AudioChannelSet::stereo());
     }
 
+    bool canApplyBusesLayout (const BusesLayout& layouts) const override
+    {
+        return layouts.getMainInputChannelSet().size() != rejectedChannelCount
+            && isBusesLayoutSupported (layouts);
+    }
+    int rejectedChannelCount = 0;
+    bool processingLayoutMatched = true;
+
 private:
     float multiplier = 1.0f;
     bool supportsSurround = false;
+    float offset = 0.0f;
+    bool distinguishChannels = false;
+    int preparedChannels = 0;
+    int latency = 0;
+    int delayPosition = 0;
+    juce::AudioBuffer<float> delay;
 };
+
+juce::AudioBuffer<float> signal (int channels)
+{
+    juce::AudioBuffer<float> buffer (channels, 64);
+    for (int channel = 0; channel < channels; ++channel)
+        for (int sample = 0; sample < 64; ++sample)
+            buffer.setSample (channel, sample, static_cast<float> (channel + 1));
+    return buffer;
+}
 
 class EffectGraphTests final : public juce::UnitTest
 {
@@ -175,6 +224,173 @@ public:
                 expectWithinAbsoluteError (buffer.getSample (channel, 0),
                                            static_cast<float> ((channel + 1) * 2),
                                            0.0001f);
+        }
+
+        beginTest ("explicit stereo scopes preserve ordered channels and all other channels through 16 outputs");
+        for (const auto& layout : { juce::AudioChannelSet::stereo(), juce::AudioChannelSet::create5point1(),
+                                  juce::AudioChannelSet::create5point1point2(), juce::AudioChannelSet::create7point1point2(),
+                                  juce::AudioChannelSet::create9point1point6() })
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, layout);
+            const EffectScope scope { layout.getTypeOfChannel (layout.size() - 1), layout.getTypeOfChannel (0) };
+            juce::String error;
+            expect (graph.addProcessor (1, std::make_unique<TestEffect> (2.0f, false, 0.0f, true), error, scope), error);
+            expect (graph.getProcessorScope (1) && *graph.getProcessorScope (1) == scope);
+            auto* plugin = graph.getProcessor (1);
+            expect (plugin && plugin->getBusesLayout().getMainInputChannelSet() == juce::AudioChannelSet::stereo());
+            auto buffer = signal (layout.size());
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                expectWithinAbsoluteError (buffer.getSample (channel, 0), static_cast<float> (channel + 1)
+                    * (channel == 0 ? 4.0f : channel == layout.size() - 1 ? 2.0f : 1.0f), 0.0001f);
+            expect (graph.setBypassed (1, true));
+            buffer = signal (layout.size());
+            graph.processBlock (buffer, midi);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                expectWithinAbsoluteError (buffer.getSample (channel, 0), static_cast<float> (channel + 1), 0.0001f);
+        }
+
+        beginTest ("overlapping mono and stereo scopes retain chain order and complete-bus processing");
+        {
+            EffectGraph graph;
+            const auto layout = juce::AudioChannelSet::create7point1point2();
+            graph.prepareToPlay (48000.0, 64, layout);
+            juce::String error;
+            expect (graph.addProcessor (1, std::make_unique<TestEffect> (2.0f, false, 1.0f), error,
+                                        { juce::AudioChannelSet::left, juce::AudioChannelSet::right }), error);
+            expect (graph.addProcessor (2, std::make_unique<TestEffect> (3.0f, true), error), error);
+            expect (graph.addProcessor (3, std::make_unique<TestEffect> (0.5f, true), error,
+                                        { juce::AudioChannelSet::right }), error);
+            expectEquals (graph.getProcessor (3)->getTotalNumInputChannels(), 1);
+            juce::MidiBuffer midi;
+            auto buffer = signal (layout.size());
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 9.0f, 0.0001f);
+            expectWithinAbsoluteError (buffer.getSample (1, 0), 7.5f, 0.0001f);
+            for (int channel = 2; channel < layout.size(); ++channel)
+                expectWithinAbsoluteError (buffer.getSample (channel, 0), static_cast<float> ((channel + 1) * 3), 0.0001f);
+            expect (graph.moveProcessor (1, 0));
+            buffer = signal (layout.size());
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 7.0f, 0.0001f);
+            expectWithinAbsoluteError (buffer.getSample (1, 0), 6.5f, 0.0001f);
+            expect (graph.removeProcessor (1));
+            buffer = signal (layout.size());
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 3.0f, 0.0001f);
+            expectWithinAbsoluteError (buffer.getSample (1, 0), 3.0f, 0.0001f);
+        }
+
+        beginTest ("scope changes reprepare native buses and rejected scopes leave routing intact");
+        {
+            EffectGraph graph;
+            const auto layout = juce::AudioChannelSet::create5point1();
+            graph.prepareToPlay (48000.0, 64, layout);
+            juce::String error;
+            auto plugin = std::make_unique<TestEffect> (2.0f, true);
+            auto* effect = plugin.get();
+            expect (graph.addProcessor (1, std::move (plugin), error), error);
+            const EffectScope centre { juce::AudioChannelSet::centre };
+            expect (graph.setProcessorScope (1, centre, error), error);
+            expectEquals (effect->getTotalNumInputChannels(), 1);
+            auto buffer = signal (layout.size());
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            expect (effect->processingLayoutMatched);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                expectWithinAbsoluteError (buffer.getSample (channel, 0), static_cast<float> (channel + 1)
+                    * (layout.getTypeOfChannel (channel) == juce::AudioChannelSet::centre ? 2.0f : 1.0f), 0.0001f);
+            effect->rejectedChannelCount = 2; // Check succeeds; applying the new bus layout fails.
+            for (const EffectScope& bad : { EffectScope { juce::AudioChannelSet::left, juce::AudioChannelSet::right },
+                                          EffectScope { juce::AudioChannelSet::left, juce::AudioChannelSet::left },
+                                          EffectScope { juce::AudioChannelSet::topFrontLeft },
+                                          EffectScope { juce::AudioChannelSet::left, juce::AudioChannelSet::right, juce::AudioChannelSet::centre } })
+            {
+                expect (! graph.setProcessorScope (1, bad, error));
+                expect (error.isNotEmpty());
+                expect (*graph.getProcessorScope (1) == centre);
+                expectEquals (effect->getTotalNumInputChannels(), 1);
+            }
+            buffer = signal (layout.size());
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (2, 0), 6.0f, 0.0001f);
+            expect (effect->processingLayoutMatched);
+            expect (! graph.setChannelLayout (juce::AudioChannelSet::stereo(), error));
+            expect (*graph.getProcessorScope (1) == centre);
+            effect->rejectedChannelCount = 0;
+            expect (graph.setProcessorScope (1, {}, error), error);
+            expectEquals (effect->getTotalNumInputChannels(), 6);
+            buffer = signal (layout.size());
+            graph.processBlock (buffer, midi);
+            expect (effect->processingLayoutMatched);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                expectWithinAbsoluteError (buffer.getSample (channel, 0), static_cast<float> ((channel + 1) * 2), 0.0001f);
+        }
+
+        beginTest ("layout changes retain semantic channel identity and roll back all buses on rejection");
+        {
+            EffectGraph graph;
+            const auto original = juce::AudioChannelSet::create7point1point2();
+            graph.prepareToPlay (48000.0, 64, original);
+            juce::String error;
+            expect (graph.addProcessor (1, std::make_unique<TestEffect> (2.0f, true), error), error);
+            auto refusing = std::make_unique<TestEffect> (3.0f, true);
+            auto* refusingPointer = refusing.get();
+            expect (graph.addProcessor (2, std::move (refusing), error), error);
+            const EffectScope sides { juce::AudioChannelSet::leftSurroundSide, juce::AudioChannelSet::rightSurroundSide };
+            expect (graph.addProcessor (3, std::make_unique<TestEffect> (0.5f), error, sides), error);
+            refusingPointer->rejectedChannelCount = 16;
+            expect (! graph.setChannelLayout (juce::AudioChannelSet::create9point1point6(), error));
+            expectEquals (graph.getProcessor (1)->getTotalNumInputChannels(), 10);
+            expectEquals (graph.getProcessor (2)->getTotalNumInputChannels(), 10);
+            refusingPointer->rejectedChannelCount = 0;
+            const auto expanded = juce::AudioChannelSet::create9point1point6();
+            expect (graph.setChannelLayout (expanded, error), error);
+            auto buffer = signal (expanded.size());
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            for (int channel = 0; channel < expanded.size(); ++channel)
+            {
+                const auto type = expanded.getTypeOfChannel (channel);
+                const auto scoped = type == sides[0] || type == sides[1];
+                expectWithinAbsoluteError (buffer.getSample (channel, 0), static_cast<float> (channel + 1)
+                    * (scoped ? 3.0f : 6.0f), 0.0001f);
+            }
+            expect (refusingPointer->processingLayoutMatched);
+        }
+
+        beginTest ("JUCE delay compensation aligns scoped processors and untouched channels across 16 outputs");
+        {
+            EffectGraph graph;
+            const auto layout = juce::AudioChannelSet::create9point1point6();
+            graph.prepareToPlay (48000.0, 64, layout);
+            juce::String error;
+            expect (graph.addProcessor (1, std::make_unique<TestEffect> (1.0f, false, 0.0f, false, 7), error,
+                                        { layout.getTypeOfChannel (15), layout.getTypeOfChannel (0) }), error);
+            const auto expectAlignedImpulse = [&] (int latency)
+            {
+                juce::AudioBuffer<float> buffer (layout.size(), 64);
+                buffer.clear();
+                for (int channel = 0; channel < layout.size(); ++channel)
+                    buffer.setSample (channel, 0, static_cast<float> (channel + 1));
+                juce::MidiBuffer midi;
+                graph.processBlock (buffer, midi);
+                for (int channel = 0; channel < layout.size(); ++channel)
+                    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                        expectWithinAbsoluteError (buffer.getSample (channel, sample),
+                            sample == latency ? static_cast<float> (channel + 1) : 0.0f, 0.0001f,
+                            "channel " + juce::String (channel) + " sample " + juce::String (sample));
+            };
+            expectAlignedImpulse (7);
+            expect (graph.addProcessor (2, std::make_unique<TestEffect> (1.0f, true, 0.0f, false, 11), error,
+                                        { layout.getTypeOfChannel (2) }), error);
+            expectAlignedImpulse (11);
+            expect (graph.addProcessor (3, std::make_unique<TestEffect> (1.0f, true, 0.0f, false, 5), error), error);
+            expectAlignedImpulse (16);
+            expect (graph.setProcessorScope (1, { layout.getTypeOfChannel (2), layout.getTypeOfChannel (3) }, error), error);
+            expectAlignedImpulse (23);
         }
     }
 };

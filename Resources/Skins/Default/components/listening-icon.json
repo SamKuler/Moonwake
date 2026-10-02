@@ -37,7 +37,7 @@
   "variants": {
     "selected": {
       "icon.stroke.color": {
-        "$ref": "colors.listening.onActive"
+        "$ref": "colors.listening.text"
       }
     },
     "pressed": {

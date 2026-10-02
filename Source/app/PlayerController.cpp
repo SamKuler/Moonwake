@@ -503,8 +503,43 @@ void PlayerController::setSkinPersistenceState (SkinPersistenceState state)
     ++stateRevision;
 }
 
+bool PlayerController::setOutputChannelMix (juce::AudioChannelSet::ChannelType channel,
+                                           float gain, bool muted, bool solo)
+{
+    const OutputChannelMix requested { channel, gain, muted, solo };
+    const auto previous = audioEngine.getOutputChannelMix();
+    if (std::find (previous.begin(), previous.end(), requested) != previous.end())
+        return true;
+    if (! audioEngine.setOutputChannelMix (channel, gain, muted, solo))
+    {
+        lastStatusMessage = "Choose a supported output channel and a finite gain between 0 and 2.";
+        return false;
+    }
+    ++stateRevision;
+    return true;
+}
+
+void PlayerController::resetOutputChannelMix()
+{
+    const auto previous = audioEngine.getOutputChannelMix();
+    if (std::none_of (previous.begin(), previous.end(), [] (const auto& mix)
+        { return mix != OutputChannelMix { mix.channel }; }))
+        return;
+    audioEngine.resetOutputChannelMix();
+    ++stateRevision;
+}
+
 juce::String PlayerController::setOutputLayout (OutputLayout layout)
 {
+    for (const auto& slot : effectChain.getSlots())
+    {
+        juce::String error;
+        if (! validateEffectScope (slot.scope, toAudioChannelSet (layout), error))
+        {
+            lastStatusMessage = slot.pluginName + ": " + error;
+            return lastStatusMessage;
+        }
+    }
     const auto error = audioEngine.setOutputLayout (layout);
     lastStatusMessage = error.isNotEmpty()
                             ? error
@@ -629,7 +664,8 @@ PluginScanStatus PlayerController::getPluginScanStatus() const
     return pluginManager.getScanStatus();
 }
 
-void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCallback callback)
+void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCallback callback,
+                                             EffectScope scope)
 {
     const auto plugins = getInsertEffectPlugins();
     if (pluginIndex < 0 || pluginIndex >= plugins.size())
@@ -644,18 +680,29 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
         return;
     }
 
+    juce::String scopeError;
+    if (! validateEffectScope (scope, toAudioChannelSet (audioEngine.getOutputLayout()), scopeError))
+    {
+        callback (false, scopeError);
+        return;
+    }
     const auto description = plugins[pluginIndex];
     const auto alive = lifetimeFlag;
     pluginManager.createPluginInstanceAsync (
         description,
         44100.0,
         512,
-        [this, alive, description, completion = std::move (callback)]
+        [this, alive, description, requestedScope = std::move (scope), completion = std::move (callback)]
         (std::unique_ptr<juce::AudioPluginInstance> plugin, const juce::String& creationError) mutable
         {
             if (! alive->load())
                 return;
 
+            if (restoringEffects)
+            {
+                completion (false, "Wait for the saved effect chain to finish restoring.");
+                return;
+            }
             if (plugin == nullptr)
             {
                 completion (false,
@@ -666,10 +713,10 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
 
             const auto slotId = effectChain.addSlot (description.name,
                                                      description.createIdentifierString(),
-                                                     description.pluginFormatName);
+                                                     description.pluginFormatName, requestedScope);
             juce::String graphError;
             plugin->addListener (this);
-            if (! audioEngine.addEffectPlugin (slotId, std::move (plugin), graphError))
+            if (! audioEngine.addEffectPlugin (slotId, std::move (plugin), graphError, requestedScope))
             {
                 effectChain.removeSlot (slotId);
                 completion (false, graphError);
@@ -751,6 +798,32 @@ bool PlayerController::setEffectBypassedAtIndex (int effectIndex, bool shouldByp
 
     ++effectChainRevision;
     ++stateRevision;
+    return true;
+}
+
+bool PlayerController::setEffectScopeAtIndex (int effectIndex, const EffectScope& scope)
+{
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the saved effect chain to finish restoring.";
+        return false;
+    }
+    const auto* slot = effectChain.getSlot (effectIndex);
+    if (slot == nullptr)
+    {
+        lastStatusMessage = "No effect selected.";
+        return false;
+    }
+    if (! validateEffectScope (scope, toAudioChannelSet (audioEngine.getOutputLayout()), lastStatusMessage))
+        return false;
+    if (scope == slot->scope)
+        return true;
+    if (slot->available && ! audioEngine.setEffectScope (slot->id, scope, lastStatusMessage))
+        return false;
+    effectChain.getSlotById (slot->id)->scope = scope;
+    ++effectChainRevision;
+    ++stateRevision;
+    lastStatusMessage = "Effect channel scope updated.";
     return true;
 }
 
@@ -1105,6 +1178,7 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
 
     state.volume = audioEngine.getGain();
     state.outputLayout = preferredOutputLayout;
+    state.outputChannelMix = audioEngine.getOutputChannelMix();
     state.audioDevice = audioDevicePreferences;
     state.workspaceMode = workspaceMode;
     state.activeSkinId = skinPersistenceState.activeSkinId;
@@ -1153,6 +1227,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
         }
     }
 
+    effectChain = {};
     audioEngine.unload();
     playbackCoordinator.loadFailed();
     playbackCheckpoint.reset ({}, 0.0);
@@ -1171,6 +1246,10 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     if (const auto layoutWarning = setOutputLayout (state.outputLayout);
         layoutWarning.isNotEmpty())
         restoreDiagnostics.add (layoutWarning);
+    audioEngine.resetOutputChannelMix();
+    for (const auto& mix : state.outputChannelMix)
+        if (! audioEngine.setOutputChannelMix (mix.channel, mix.gain, mix.muted, mix.solo))
+            restoreDiagnostics.add ("An invalid saved output channel mix was ignored.");
     if (const auto* selectedTrack = playlist.getSelectedTrack();
         selectedTrack != nullptr)
         playbackCheckpoint.reset (selectedTrack->id,
@@ -1265,7 +1344,7 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
                                                  static_cast<int> (savedSlot.serializedState.getSize()));
 
                 plugin->addListener (this);
-                if (audioEngine.addEffectPlugin (savedSlot.id, std::move (plugin), error))
+                if (audioEngine.addEffectPlugin (savedSlot.id, std::move (plugin), error, savedSlot.scope))
                 {
                     static_cast<void> (audioEngine.setEffectBypassed (savedSlot.id, savedSlot.bypassed));
                     effectChain.setAvailability (savedSlot.id, true);

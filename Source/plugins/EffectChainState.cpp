@@ -4,21 +4,23 @@
 
 int EffectChainState::addSlot (juce::String pluginName,
                                juce::String pluginIdentifier,
-                               juce::String pluginFormat)
+                               juce::String pluginFormat,
+                               EffectScope scope)
 {
     const auto id = nextSlotId++;
 
     slots.push_back ({ id,
                        std::move (pluginName),
                        std::move (pluginIdentifier),
-                       std::move (pluginFormat) });
+                       std::move (pluginFormat), std::move (scope) });
     return id;
 }
 
 int EffectChainState::addSlotWithId (int slotId,
                                      juce::String pluginName,
                                      juce::String pluginFormat,
-                                     juce::String pluginIdentifier)
+                                     juce::String pluginIdentifier,
+                                     EffectScope scope)
 {
     if (slotId <= 0 || getSlotById (slotId) != nullptr)
         return 0;
@@ -26,7 +28,7 @@ int EffectChainState::addSlotWithId (int slotId,
     slots.push_back ({ slotId,
                        std::move (pluginName),
                        std::move (pluginIdentifier),
-                       std::move (pluginFormat) });
+                       std::move (pluginFormat), std::move (scope) });
     nextSlotId = juce::jmax (nextSlotId, slotId + 1);
     return slotId;
 }

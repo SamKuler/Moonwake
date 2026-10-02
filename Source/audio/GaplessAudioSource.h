@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include "audio/ChannelMappedAudioSource.h"
+#include "audio/OutputLayout.h"
 
 #include <atomic>
 #include <memory>
@@ -101,8 +102,8 @@ private:
     static constexpr int bufferFrames = 65536;
     static constexpr int chunkFrames = 1024;
     juce::AbstractFifo audioFifo { bufferFrames + 1 };
-    juce::AudioBuffer<float> audioBuffer { 10, bufferFrames + 1 };
-    juce::AudioBuffer<float> renderBuffer { 10, chunkFrames };
+    juce::AudioBuffer<float> audioBuffer { maximumOutputChannels, bufferFrames + 1 };
+    juce::AudioBuffer<float> renderBuffer { maximumOutputChannels, chunkFrames };
     juce::AbstractFifo boundaryFifo { bufferFrames + 1 };
     std::vector<Boundary> boundaries;
     std::unique_ptr<Decoder> decoder;

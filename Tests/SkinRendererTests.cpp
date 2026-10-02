@@ -2400,7 +2400,7 @@ public:
             OutputStageComponent output;
             output.setBounds (0, 0, 200, 120);
             output.setLookAndFeel (&adapter);
-            std::array<float, 10> peaks {};
+            std::array<float, maximumOutputChannels> peaks {};
             output.setState (OutputLayout::fiveOneTwo, WorkspaceMode::studio,
                              true, "Track", "Device", 8, peaks);
             {

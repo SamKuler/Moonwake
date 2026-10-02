@@ -37,7 +37,7 @@
   "variants": {
     "selected": {
       "icon.stroke.color": {
-        "$ref": "colors.studio.onActive"
+        "$ref": "colors.studio.text"
       }
     },
     "pressed": {

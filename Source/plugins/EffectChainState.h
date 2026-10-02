@@ -1,5 +1,7 @@
 #pragma once
 
+#include "audio/EffectScope.h"
+
 #include <juce_core/juce_core.h>
 
 #include <vector>
@@ -11,11 +13,13 @@ struct EffectSlotState
     EffectSlotState (int idToUse,
                      juce::String pluginNameToUse,
                      juce::String pluginIdentifierToUse,
-                     juce::String pluginFormatToUse = {})
+                     juce::String pluginFormatToUse = {},
+                     EffectScope scopeToUse = {})
         : id (idToUse),
           pluginName (std::move (pluginNameToUse)),
           pluginIdentifier (std::move (pluginIdentifierToUse)),
-          pluginFormat (std::move (pluginFormatToUse))
+          pluginFormat (std::move (pluginFormatToUse)),
+          scope (std::move (scopeToUse))
     {
     }
 
@@ -23,6 +27,7 @@ struct EffectSlotState
     juce::String pluginName;
     juce::String pluginIdentifier;
     juce::String pluginFormat;
+    EffectScope scope;
     bool bypassed = false;
     bool available = true;
     juce::String errorMessage;
@@ -34,11 +39,13 @@ class EffectChainState
 public:
     int addSlot (juce::String pluginName,
                  juce::String pluginIdentifier,
-                 juce::String pluginFormat = {});
+                 juce::String pluginFormat = {},
+                 EffectScope scope = {});
     int addSlotWithId (int slotId,
                        juce::String pluginName,
                        juce::String pluginFormat,
-                       juce::String pluginIdentifier);
+                       juce::String pluginIdentifier,
+                       EffectScope scope = {});
     bool removeSlot (int slotId);
     bool setBypassed (int slotId, bool shouldBeBypassed);
     bool setAvailability (int slotId, bool isAvailable, juce::String errorMessage = {});

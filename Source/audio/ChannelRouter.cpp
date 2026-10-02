@@ -50,10 +50,50 @@ RouteTargets getRouteTargets (juce::AudioChannelSet::ChannelType type,
         return result;
     }
 
+    if (destinationChannels == 1 && destinationLayout.getTypeOfChannel (0) == juce::AudioChannelSet::centre)
+    {
+        result.add (0, type == juce::AudioChannelSet::LFE ? lfeFold : equalPower);
+        return result;
+    }
+
+    const auto addFirstAvailable = [&] (std::initializer_list<juce::AudioChannelSet::ChannelType> candidates,
+                                        float gain)
+    {
+        for (const auto candidate : candidates)
+            if (const auto destination = destinationFor (candidate); destination >= 0)
+            {
+                result.add (destination, gain);
+                break;
+            }
+    };
+
     if (type == juce::AudioChannelSet::centre)
         addStereoPair (equalPower);
     else if (type == juce::AudioChannelSet::LFE)
         addStereoPair (lfeFold);
+    else if (type == juce::AudioChannelSet::wideLeft)
+        addFirstAvailable ({ juce::AudioChannelSet::left }, equalPower);
+    else if (type == juce::AudioChannelSet::wideRight)
+        addFirstAvailable ({ juce::AudioChannelSet::right }, equalPower);
+    else if (type == juce::AudioChannelSet::centreSurround)
+    {
+        addFirstAvailable ({ juce::AudioChannelSet::leftSurroundRear, juce::AudioChannelSet::leftSurround,
+                             juce::AudioChannelSet::leftSurroundSide, juce::AudioChannelSet::left }, equalPower);
+        addFirstAvailable ({ juce::AudioChannelSet::rightSurroundRear, juce::AudioChannelSet::rightSurround,
+                             juce::AudioChannelSet::rightSurroundSide, juce::AudioChannelSet::right }, equalPower);
+    }
+    else if (type == juce::AudioChannelSet::topFrontLeft)
+        addFirstAvailable ({ juce::AudioChannelSet::topSideLeft, juce::AudioChannelSet::left }, heightFold);
+    else if (type == juce::AudioChannelSet::topFrontRight)
+        addFirstAvailable ({ juce::AudioChannelSet::topSideRight, juce::AudioChannelSet::right }, heightFold);
+    else if (type == juce::AudioChannelSet::topRearLeft)
+        addFirstAvailable ({ juce::AudioChannelSet::topSideLeft, juce::AudioChannelSet::leftSurroundRear,
+                             juce::AudioChannelSet::leftSurround, juce::AudioChannelSet::leftSurroundSide,
+                             juce::AudioChannelSet::left }, heightFold);
+    else if (type == juce::AudioChannelSet::topRearRight)
+        addFirstAvailable ({ juce::AudioChannelSet::topSideRight, juce::AudioChannelSet::rightSurroundRear,
+                             juce::AudioChannelSet::rightSurround, juce::AudioChannelSet::rightSurroundSide,
+                             juce::AudioChannelSet::right }, heightFold);
     else if (type == juce::AudioChannelSet::leftSurround)
     {
         const auto surround = destinationFor (juce::AudioChannelSet::leftSurroundSide);

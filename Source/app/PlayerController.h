@@ -53,6 +53,9 @@ public:
     void setShuffleEnabled (bool shouldShuffle);
     void setRepeatMode (RepeatMode mode);
     void setVolume (double volume);
+    [[nodiscard]] std::vector<OutputChannelMix> getOutputChannelMix() const { return audioEngine.getOutputChannelMix(); }
+    bool setOutputChannelMix (juce::AudioChannelSet::ChannelType, float gain, bool muted, bool solo);
+    void resetOutputChannelMix();
     void setSkinPersistenceState (SkinPersistenceState);
     juce::String setOutputLayout (OutputLayout layout);
     juce::String selectOutputDevice (const juce::String& deviceName);
@@ -63,10 +66,12 @@ public:
     bool startPluginScan (const juce::File& customVst3Directory = {});
     void cancelPluginScan();
     [[nodiscard]] PluginScanStatus getPluginScanStatus() const;
-    void addPluginByIndexAsync (int pluginIndex, PluginInsertionCallback callback);
+    void addPluginByIndexAsync (int pluginIndex, PluginInsertionCallback callback,
+                                EffectScope scope = {});
     bool removeEffectAtIndex (int effectIndex);
     bool moveEffect (int fromIndex, int toIndex);
     bool setEffectBypassedAtIndex (int effectIndex, bool shouldBypass);
+    bool setEffectScopeAtIndex (int effectIndex, const EffectScope&);
     [[nodiscard]] bool captureStateSnapshot (PlayerAppState&,
                                              juce::String& errorMessage);
     bool saveState (const juce::File& stateFile, const juce::File& pluginListFile);
@@ -90,6 +95,8 @@ public:
     [[nodiscard]] AudioDeviceSettingsView getAudioDeviceSettings() const;
     [[nodiscard]] bool isPlaying() const;
     [[nodiscard]] PlayerViewState getViewState() const;
+    [[nodiscard]] OutputMeterReadings getOutputMeterReadings() const { return audioEngine.getOutputMeterReadings(); }
+    void resetOutputMeter() noexcept { audioEngine.resetOutputMeter(); }
     [[nodiscard]] SkinPersistenceState getSkinPersistenceState() const;
     [[nodiscard]] uint64_t getStateRevision() const noexcept;
 

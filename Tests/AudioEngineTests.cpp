@@ -14,7 +14,7 @@ class OfflineAudioDeviceBackend final : public IAudioDeviceBackend,
                                         private juce::AudioIODevice
 {
 public:
-    OfflineAudioDeviceBackend() : AudioIODevice ("Offline 10ch", "Test")
+    OfflineAudioDeviceBackend() : AudioIODevice ("Offline 16ch", "Test")
     {
         setup.outputDeviceName = getName();
         setup.sampleRate = 48000.0;
@@ -28,7 +28,7 @@ public:
     AudioDeviceBackendState getCurrentDeviceState() const override
     {
         return { true, getName(), setup.sampleRate, { setup.sampleRate },
-                 setup.bufferSize, { setup.bufferSize }, 10 };
+                 setup.bufferSize, { setup.bufferSize }, 16 };
     }
     juce::AudioDeviceManager::AudioDeviceSetup getAudioDeviceSetup() const override
     {
@@ -65,7 +65,8 @@ public:
 private:
     juce::StringArray getOutputChannelNames() override
     {
-        return { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" };
+        return { "1", "2", "3", "4", "5", "6", "7", "8",
+                 "9", "10", "11", "12", "13", "14", "15", "16" };
     }
     juce::StringArray getInputChannelNames() override { return {}; }
     juce::Array<double> getAvailableSampleRates() override { return { setup.sampleRate }; }
@@ -146,6 +147,39 @@ private:
     int position = 0;
 };
 
+class MixProbePlugin final : public juce::AudioPluginInstance
+{
+public:
+    MixProbePlugin() : AudioPluginInstance (BusesProperties()
+        .withInput ("Input", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)) {}
+    const juce::String getName() const override { return "Channel mix probe"; }
+    void fillInPluginDescription (juce::PluginDescription& description) const override { description.name = getName(); }
+    void prepareToPlay (double, int) override {}
+    void releaseResources() override {}
+    void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+            std::fill_n (buffer.getWritePointer (channel), buffer.getNumSamples(), 0.1f * static_cast<float> (channel + 1));
+    }
+    bool isBusesLayoutSupported (const BusesLayout& layout) const override
+    {
+        return layout.getMainInputChannelSet() == layout.getMainOutputChannelSet();
+    }
+    double getTailLengthSeconds() const override { return 0.0; }
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+    bool hasEditor() const override { return false; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const juce::String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const juce::String&) override {}
+    void getStateInformation (juce::MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+};
+
 class AudioEngineTests final : public juce::UnitTest
 {
 public:
@@ -156,6 +190,129 @@ public:
 
     void runTest() override
     {
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
+                                   OutputLayout::sevenOneTwo, OutputLayout::sevenOneFour,
+                                   OutputLayout::sevenOneSix, OutputLayout::nineOneSix })
+        {
+            beginTest ("channel gain, mute and multi-solo follow effects and feed the output meter in " + toString (layout));
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            playback.setGain (0.5);
+            expect (playback.initialise().isEmpty());
+            expect (playback.setOutputLayout (layout).isEmpty());
+            juce::String error;
+            expect (playback.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error), error);
+            const auto channels = toAudioChannelSet (layout);
+            juce::AudioBuffer<float> block (channels.size(), 256);
+            for (int index = 0; index < 4; ++index) device->render (block);
+            expect (playback.setOutputChannelMix (channels.getTypeOfChannel (0), 2.0f, false, false));
+            expect (playback.setOutputChannelMix (channels.getTypeOfChannel (1), 0.5f, true, false));
+            {
+                juce::UnitTestAllocationChecker allocations (*this);
+                device->render (block);
+            }
+            expectWithinAbsoluteError (block.getSample (0, 0), 0.05f * (1.0f + 1.0f / 960.0f), 0.00001f);
+            expectWithinAbsoluteError (block.getSample (0, 255), 0.05f * (1.0f + 256.0f / 960.0f), 0.00001f);
+            for (int index = 0; index < 4; ++index) device->render (block);
+            for (int channel = 0; channel < channels.size(); ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 255),
+                    channel == 0 ? 0.1f : channel == 1 ? 0.0f : 0.05f * static_cast<float> (channel + 1), 0.00001f);
+            playback.resetOutputMeter();
+            for (int index = 0; index < 64; ++index)
+            {
+                device->render (block);
+                juce::Thread::sleep (1);
+            }
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 2000.0;
+            while (playback.getOutputMeterReadings().measuredSeconds < 64.0 * 256.0 / 48000.0
+                   && juce::Time::getMillisecondCounterHiRes() < deadline)
+                juce::Thread::sleep (1);
+            const auto readings = playback.getOutputMeterReadings();
+            expect (readings.available && ! readings.measurementInterrupted);
+            for (int channel = 0; channel < channels.size(); ++channel)
+            {
+                expectWithinAbsoluteError (readings.samplePeak[static_cast<size_t> (channel)], block.getSample (channel, 255), 0.00001f);
+                expectWithinAbsoluteError (readings.rms[static_cast<size_t> (channel)], block.getSample (channel, 255), 0.00001f);
+            }
+            expect (playback.setOutputChannelMix (channels.getTypeOfChannel (0), 2.0f, false, true));
+            expect (playback.setOutputChannelMix (channels.getTypeOfChannel (1), 0.5f, false, true));
+            for (int index = 0; index < 4; ++index) device->render (block);
+            for (int channel = 0; channel < channels.size(); ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 255), channel == 0 ? 0.1f : channel == 1 ? 0.05f : 0.0f, 0.00001f);
+            expect (playback.setOutputChannelMix (channels.getTypeOfChannel (0), 2.0f, true, true));
+            for (int index = 0; index < 4; ++index) device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 255), 0.0f, 0.00001f, "mute takes precedence over solo");
+            expectWithinAbsoluteError (block.getSample (1, 255), 0.05f, 0.00001f);
+            playback.resetOutputChannelMix();
+            for (int index = 0; index < 4; ++index) device->render (block);
+            for (int channel = 0; channel < channels.size(); ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 255), 0.05f * static_cast<float> (channel + 1), 0.00001f);
+        }
+
+        beginTest ("absent solo identities do not silence the current layout and return with their saved mix");
+        {
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            playback.setGain (0.5);
+            expect (playback.initialise().isEmpty());
+            juce::String error;
+            expect (playback.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error), error);
+            const auto height = juce::AudioChannelSet::topSideLeft;
+            expect (playback.setOutputChannelMix (height, 0.25f, false, true));
+            juce::AudioBuffer<float> stereo (2, 256);
+            for (int index = 0; index < 4; ++index) device->render (stereo);
+            expectWithinAbsoluteError (stereo.getSample (0, 255), 0.05f, 0.00001f);
+            expectWithinAbsoluteError (stereo.getSample (1, 255), 0.1f, 0.00001f);
+            const auto before = playback.getOutputChannelMix();
+            expect (! playback.setOutputChannelMix (juce::AudioChannelSet::unknown, 1.0f, false, false));
+            expect (! playback.setOutputChannelMix (static_cast<juce::AudioChannelSet::ChannelType> (999), 1.0f, false, false));
+            for (const auto gain : { -0.01f, 2.01f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity() })
+                expect (! playback.setOutputChannelMix (height, gain, false, false));
+            expect (playback.getOutputChannelMix() == before);
+            expect (playback.setOutputLayout (OutputLayout::nineOneSix).isEmpty());
+            juce::AudioBuffer<float> immersive (16, 256);
+            for (int index = 0; index < 4; ++index) device->render (immersive);
+            const auto channels = toAudioChannelSet (OutputLayout::nineOneSix);
+            for (int channel = 0; channel < 16; ++channel)
+                expectWithinAbsoluteError (immersive.getSample (channel, 255),
+                    channels.getTypeOfChannel (channel) == height ? 0.0125f * static_cast<float> (channel + 1) : 0.0f, 0.00001f);
+            expect (playback.setOutputLayout (OutputLayout::stereo).isEmpty());
+            device->render (stereo);
+            expectWithinAbsoluteError (stereo.getSample (0, 0), 0.05f, 0.00001f, "layout prepare must start with that layout's mapped mix");
+            expect (playback.getOutputChannelMix() == before);
+        }
+
+        beginTest ("controller mix edits persist speaker identities and increment revisions only on changes");
+        {
+            PlayerController controller (std::make_unique<OfflineAudioDeviceBackend>());
+            const auto firstRevision = controller.getStateRevision();
+            expect (controller.setOutputChannelMix (juce::AudioChannelSet::left, 1.0f, false, false));
+            controller.resetOutputChannelMix();
+            expectEquals (controller.getStateRevision(), firstRevision);
+            expect (controller.setOutputChannelMix (juce::AudioChannelSet::left, 0.5f, true, false));
+            expectEquals (controller.getStateRevision(), firstRevision + 1);
+            expect (controller.setOutputChannelMix (juce::AudioChannelSet::topSideLeft, 1.5f, false, true));
+            expectEquals (controller.getStateRevision(), firstRevision + 2);
+            PlayerAppState snapshot;
+            juce::String error;
+            expect (controller.captureStateSnapshot (snapshot, error), error);
+            StateRestoreResult saved;
+            saved.state = AppStateStore::fromValueTree (AppStateStore::toValueTree (snapshot));
+            PlayerController restored (std::make_unique<OfflineAudioDeviceBackend>());
+            expect (restored.applyPreparedState (std::move (saved)));
+            expect (restored.getOutputChannelMix() == controller.getOutputChannelMix());
+            expect (restored.setOutputLayout (OutputLayout::nineOneSix).isEmpty());
+            expect (restored.getOutputChannelMix() == snapshot.outputChannelMix);
+            const auto revision = restored.getStateRevision();
+            restored.resetOutputChannelMix();
+            expectEquals (restored.getStateRevision(), revision + 1);
+            expect (restored.getOutputChannelMix() == defaultOutputChannelMix());
+            restored.resetOutputChannelMix();
+            expectEquals (restored.getStateRevision(), revision + 1);
+        }
+
         beginTest ("unload detaches the reader and clears transport duration");
         const auto directory = juce::File::getCurrentWorkingDirectory()
                                    .getChildFile ("build")
@@ -321,13 +478,13 @@ public:
             beginTest ("all output channels carry their source signal at "
                        + juce::String (sourceSampleRate, 0) + " Hz");
             const auto multichannelFile = directory.getNonexistentChildFile (
-                "discrete-ten-channel", ".wav");
+                "discrete-sixteen-channel", ".wav");
             auto multichannelOutput = std::unique_ptr<juce::OutputStream> (
                 multichannelFile.createOutputStream());
             auto multichannelWriter = format.createWriterFor (
                 multichannelOutput, juce::AudioFormatWriterOptions{}
                     .withSampleRate (sourceSampleRate)
-                    .withChannelLayout (juce::AudioChannelSet::discreteChannels (10))
+                    .withChannelLayout (juce::AudioChannelSet::discreteChannels (16))
                     .withBitsPerSample (32)
                     .withSampleFormat (
                         juce::AudioFormatWriterOptions::SampleFormat::floatingPoint));
@@ -335,7 +492,7 @@ public:
             if (multichannelWriter == nullptr)
                 continue;
 
-            juce::AudioBuffer<float> signal (10, 48000);
+            juce::AudioBuffer<float> signal (16, 48000);
             for (int channel = 0; channel < signal.getNumChannels(); ++channel)
                 std::fill_n (signal.getWritePointer (channel), signal.getNumSamples(),
                              0.04f * static_cast<float> (channel + 1));
@@ -350,6 +507,8 @@ public:
 
             const auto verifyOutput = [&] (OutputLayout layout)
             {
+                expectEquals (offlineDevice->getAudioDeviceSetup().outputChannels.countNumberOfSetBits(),
+                              getChannelCount (layout), "The backend must enable the requested physical outputs.");
                 juce::AudioBuffer<float> rendered (getChannelCount (layout), 256);
                 for (int block = 0; block < 8; ++block)
                     offlineDevice->render (rendered);
@@ -371,7 +530,9 @@ public:
             };
 
             for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
-                                       OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+                                       OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo,
+                                   OutputLayout::sevenOneFour, OutputLayout::sevenOneSix,
+                                   OutputLayout::nineOneFour, OutputLayout::nineOneSix })
             {
                 expect (multichannelEngine.setOutputLayout (layout).isEmpty());
                 expect (multichannelEngine.loadFile (multichannelFile));
@@ -386,7 +547,9 @@ public:
             expect (multichannelEngine.loadFile (multichannelFile));
             multichannelEngine.play();
             for (const auto layout : { OutputLayout::stereo, OutputLayout::sevenOneTwo,
-                                       OutputLayout::stereo, OutputLayout::sevenOneTwo })
+                                       OutputLayout::sevenOneFour, OutputLayout::sevenOneSix,
+                                       OutputLayout::nineOneFour, OutputLayout::nineOneSix,
+                                       OutputLayout::stereo, OutputLayout::nineOneSix })
             {
                 expect (multichannelEngine.setOutputLayout (layout).isEmpty());
                 verifyOutput (layout);
@@ -397,21 +560,22 @@ public:
         }
 
         const auto writeSignal = [&] (const juce::String& name, int samples,
-                                      double rate, float level)
+                                      double rate, float level, int channels = 16)
         {
             const auto signalFile = directory.getNonexistentChildFile (name, ".wav");
             auto stream = std::unique_ptr<juce::OutputStream> (signalFile.createOutputStream());
             auto signalWriter = format.createWriterFor (
                 stream, juce::AudioFormatWriterOptions{}
                     .withSampleRate (rate)
-                    .withChannelLayout (juce::AudioChannelSet::discreteChannels (10))
+                    .withChannelLayout (channels == 2 ? juce::AudioChannelSet::stereo()
+                                                    : juce::AudioChannelSet::discreteChannels (channels))
                     .withBitsPerSample (32)
                     .withSampleFormat (juce::AudioFormatWriterOptions::SampleFormat::floatingPoint));
             expect (signalWriter != nullptr);
             if (signalWriter)
             {
-                juce::AudioBuffer<float> signal (10, samples);
-                for (int channel = 0; channel < 10; ++channel)
+                juce::AudioBuffer<float> signal (channels, samples);
+                for (int channel = 0; channel < channels; ++channel)
                     std::fill_n (signal.getWritePointer (channel), samples,
                                  level * static_cast<float> (channel + 1));
                 expect (signalWriter->writeFromAudioSampleBuffer (signal, 0, samples));
@@ -425,9 +589,79 @@ public:
         const auto differentRate = writeSignal ("gapless-rate", 147, 44100.0, 0.04f);
         const auto missing = directory.getNonexistentChildFile ("missing", ".wav");
 
+        beginTest ("output meter observes rendered gain and resets on explicit playback discontinuities");
+        {
+            const auto meterFile = writeSignal ("meter-output", 96000, 48000.0, 0.05f);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            expect (playback.initialise().isEmpty());
+            playback.setGain (0.5);
+            expect (playback.loadFile (meterFile));
+            playback.play();
+            juce::AudioBuffer<float> block (2, 256);
+            for (int index = 0; index < 72; ++index)
+            {
+                device->render (block);
+                juce::Thread::sleep (1);
+            }
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 2000.0;
+            while (playback.getOutputMeterReadings().measuredSeconds < 72.0 * 256.0 / 48000.0
+                   && juce::Time::getMillisecondCounterHiRes() < deadline)
+                juce::Thread::sleep (1);
+            const auto reading = playback.getOutputMeterReadings();
+            expect (reading.available);
+            expect (! reading.measurementInterrupted);
+            expectWithinAbsoluteError (reading.samplePeak[0], block.getMagnitude (0, 0, 256), 0.0001f);
+            expectWithinAbsoluteError (reading.samplePeak[0], 0.025f, 0.0001f);
+            expectWithinAbsoluteError (reading.rms[1], 0.05f, 0.0001f);
+            playback.resetOutputMeter();
+            expectEquals (playback.getOutputMeterReadings().maxTruePeak[0], 0.0f);
+            device->render (block);
+            expect (playback.seekToSeconds (0.5));
+            expectEquals (playback.getOutputMeterReadings().measuredSeconds, 0.0);
+            expectEquals (playback.getOutputMeterReadings().maxTruePeak[0], 0.0f);
+            playback.unload();
+            expectEquals (playback.getOutputMeterReadings().samplePeak[0], 0.0f);
+            expect (meterFile.deleteFile());
+        }
+
+        beginTest ("stereo playback clears every unsupported speaker after large-layout playback");
+        {
+            const auto stereoFile = writeSignal ("stereo-upmix", 48000, 48000.0, 0.125f, 2);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            expect (playback.initialise().isEmpty());
+            for (const auto layout : { OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
+                                       OutputLayout::sevenOneTwo, OutputLayout::sevenOneFour,
+                                       OutputLayout::sevenOneSix, OutputLayout::nineOneFour,
+                                       OutputLayout::nineOneSix })
+            {
+                expect (playback.setOutputLayout (layout).isEmpty());
+                expect (playback.loadFile (third));
+                playback.play();
+                juce::AudioBuffer<float> rendered (getChannelCount (layout), 256);
+                device->render (rendered);
+                expect (rendered.getSample (rendered.getNumChannels() - 1, 255) > 0.0f);
+                expect (playback.loadFile (stereoFile));
+                playback.play();
+                for (int block = 0; block < 8; ++block) device->render (rendered);
+                for (int channel = 0; channel < rendered.getNumChannels(); ++channel)
+                    for (int frame = 0; frame < rendered.getNumSamples(); ++frame)
+                        expectWithinAbsoluteError (rendered.getSample (channel, frame),
+                            channel < 2 ? 0.125f * static_cast<float> (channel + 1) * static_cast<float> (playback.getGain()) : 0.0f,
+                            0.0001f, toString (layout) + " speaker " + juce::String (channel + 1));
+            }
+            playback.unload();
+            expect (stereoFile.deleteFile());
+        }
+
         beginTest ("future queue edits preserve effect resources and buffered tails on every bus");
         for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
-                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo,
+                                   OutputLayout::sevenOneFour, OutputLayout::sevenOneSix,
+                                   OutputLayout::nineOneFour, OutputLayout::nineOneSix })
         {
             auto backend = std::make_unique<OfflineAudioDeviceBackend>();
             auto* device = backend.get();
@@ -605,7 +839,9 @@ public:
         }
 
         for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
-                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo,
+                                   OutputLayout::sevenOneFour, OutputLayout::sevenOneSix,
+                                   OutputLayout::nineOneFour, OutputLayout::nineOneSix })
         {
             beginTest ("track boundaries fill the same callback in " + toString (layout));
             auto backend = std::make_unique<OfflineAudioDeviceBackend>();
@@ -702,10 +938,16 @@ public:
             expect (gapless.getPlaybackProgress().generation > generation);
             expectWithinAbsoluteError (gapless.getCurrentPositionSeconds(), 64.0 / 48000.0, 0.000001);
             expect (gapless.setOutputLayout (OutputLayout::sevenOneTwo).isEmpty());
-            juce::AudioBuffer<float> rendered (10, 256);
+            expect (gapless.setOutputLayout (OutputLayout::nineOneSix).isEmpty());
+            juce::AudioBuffer<float> rendered (16, 256);
             device->render (rendered);
-            expectWithinAbsoluteError (rendered.getSample (9, 32), 0.16f, 0.0001f);
-            expectWithinAbsoluteError (rendered.getSample (9, 33), 0.48f, 0.0001f);
+            for (int channel = 0; channel < 16; ++channel)
+            {
+                expectWithinAbsoluteError (rendered.getSample (channel, 32),
+                                           0.02f * static_cast<float> (channel + 1) * 0.8f, 0.0001f);
+                expectWithinAbsoluteError (rendered.getSample (channel, 33),
+                                           0.06f * static_cast<float> (channel + 1) * 0.8f, 0.0001f);
+            }
             expectEquals (gapless.getPlaybackProgress().token, uint64_t { 33 });
             gapless.seekToSeconds (gapless.getLengthInSeconds());
             device->render (rendered);

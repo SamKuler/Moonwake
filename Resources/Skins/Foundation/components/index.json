@@ -8,6 +8,7 @@
     "skinStatus": "components/skin-status.json"
   },
   "textButton": {
+    "defaultCompact": "components/default-compact-button.json",
     "default": "components/text-button.json",
     "primary": "components/primary-button.json",
     "iconNeutral": {
@@ -96,7 +97,8 @@
         "slot.name": "label.default",
         "slot.bypass": "textButton.default",
         "slot.editor": "textButton.default",
-        "slot.remove": "textButton.default",
+        "slot.remove": "textButton.defaultCompact",
+        "slot.scope": "textButton.default",
         "slot.dragIndicator": "surface.default"
       }
     }
@@ -108,7 +110,11 @@
       "slots": {
         "row.surface": "surface.listRow",
         "row.source": "label.data",
-        "row.destination": "label.muted"
+        "row.destination": "label.muted",
+        "row.peak": "label.data",
+        "row.gain": "linearSlider.default",
+        "row.mute": "toggleButton.default",
+        "row.solo": "toggleButton.default"
       }
     }
   },

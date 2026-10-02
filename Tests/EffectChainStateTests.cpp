@@ -42,13 +42,15 @@ public:
         beginTest ("moves slots without changing IDs");
         {
             EffectChainState chain;
-            const auto first = chain.addSlot ("EQ", "vst3:eq");
+            const EffectScope scope { juce::AudioChannelSet::centre };
+            const auto first = chain.addSlot ("EQ", "vst3:eq", "VST3", scope);
             const auto second = chain.addSlot ("Delay", "vst3:delay");
             const auto third = chain.addSlot ("Limiter", "vst3:limiter");
 
             expect (chain.moveSlot (2, 0));
             expectEquals (chain.getSlot (0)->id, third);
             expectEquals (chain.getSlot (1)->id, first);
+            expect (chain.getSlot (1)->scope == scope);
             expectEquals (chain.getSlot (2)->id, second);
             expect (! chain.moveSlot (5, 0));
         }

@@ -1,4 +1,5 @@
 #include "SkinRenderDefinition.h"
+#include "audio/OutputLayout.h"
 
 #include "PlayerComponentCatalog.h"
 
@@ -405,14 +406,26 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
         case SkinRenderTarget::outputStage:
             addAllText();
             addContext (result, { { "meter.channelCount", Type::number },
-                                  { "output.layout", Type::string } });
-            for (int channel = 0; channel < 10; ++channel)
+                                  { "output.layout", Type::string },
+                                  { "meter.mode", Type::string },
+                                  { "meter.status", Type::string },
+                                  { "meter.available", Type::boolean },
+                                  { "meter.momentary", Type::number },
+                                  { "meter.shortTerm", Type::number },
+                                  { "meter.integrated", Type::number },
+                                  { "meter.momentaryText", Type::string },
+                                  { "meter.shortTermText", Type::string },
+                                  { "meter.integratedText", Type::string },
+                                  { "meter.truePeakText", Type::string } });
+            for (int channel = 0; channel < maximumOutputChannels; ++channel)
             {
                 const auto prefix = "meter.channels[" + juce::String (channel) + "].";
                 result.emplace (prefix + "index", Type::number);
                 result.emplace (prefix + "label", Type::string);
                 result.emplace (prefix + "peak", Type::number);
                 result.emplace (prefix + "peakDb", Type::number);
+                result.emplace (prefix + "rmsDb", Type::number);
+                result.emplace (prefix + "truePeakDb", Type::number);
                 result.emplace (prefix + "isLfe", Type::boolean);
             }
             break;
@@ -427,6 +440,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
     if (repeatSource == "meter.channels")
         addContext (result, { { "item.index", Type::number }, { "item.label", Type::string },
                               { "item.peak", Type::number }, { "item.peakDb", Type::number },
+                              { "item.rmsDb", Type::number }, { "item.truePeakDb", Type::number },
                               { "item.isLfe", Type::boolean } });
     else if (repeatSource == "table.visibleColumns")
         addContext (result, { { "item.index", Type::number }, { "item.label", Type::string } });
@@ -586,9 +600,9 @@ bool skinRenderPropertyTypesCompatible (SkinRenderValueType expected,
 const std::vector<SkinRepeatSourceDescriptor>& skinRepeatSourceDescriptors()
 {
     static const std::vector<SkinRepeatSourceDescriptor> values {
-        { "meter.channels", 10, SkinRenderTarget::outputStage },
+        { "meter.channels", maximumOutputChannels, SkinRenderTarget::outputStage },
         { "table.visibleColumns", 3, SkinRenderTarget::table },
-        { "output.channelLabels", 10, SkinRenderTarget::outputStage }
+        { "output.channelLabels", maximumOutputChannels, SkinRenderTarget::outputStage }
     };
     return values;
 }

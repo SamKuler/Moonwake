@@ -27,5 +27,19 @@
   },
   "outputStage": {
     "default": "components/output-stage.json"
+  },
+  "channelMap": {
+    "mixer": {
+      "renderer": "components/output-mixer.json",
+      "slots": {
+        "row.surface": "surface.listRow",
+        "row.source": "label.data",
+        "row.destination": "label.muted",
+        "row.peak": "label.muted",
+        "row.gain": "linearSlider.default",
+        "row.mute": "toggleButton.default",
+        "row.solo": "toggleButton.default"
+      }
+    }
   }
 }

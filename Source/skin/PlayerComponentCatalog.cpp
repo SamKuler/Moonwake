@@ -198,16 +198,27 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeLabelDescriptor ("effects.filterLabel"),
         makeDescriptor ("effects.filter", Kind::textEditor, { Entry::effects }),
         makeDescriptor ("effects.catalog", Kind::comboBox, { Entry::effects }),
+        makeDescriptor ("effects.scope", Kind::comboBox),
+        makeLabelDescriptor ("effects.scopeLabel"),
         makeIconDescriptor ("effects.add", "add", { Entry::effects }),
         makeDescriptor ("effects.chain", Kind::effectChain, { Entry::effects }, {}, {}, {
             Slot { "slot.surface", "surface" }, Slot { "slot.name", "label" },
             Slot { "slot.bypass", "textButton" }, Slot { "slot.editor", "textButton" },
-            Slot { "slot.remove", "textButton" }, Slot { "slot.dragIndicator", "surface" }
+            Slot { "slot.remove", "textButton" }, Slot { "slot.scope", "textButton" },
+            Slot { "slot.dragIndicator", "surface" }
         }),
         makeLabelDescriptor ("effects.empty", "center"),
         makeDescriptor ("effects.outputLayout", Kind::comboBox),
 
         makeDescriptor ("output.stage", Kind::outputStage),
+        makeDescriptor ("output.mixer", Kind::channelMap, {}, {}, {}, {
+            Slot { "row.surface", "surface" }, Slot { "row.source", "label" },
+            Slot { "row.destination", "label" }, Slot { "row.peak", "label" },
+            Slot { "row.gain", "linearSlider" }, Slot { "row.mute", "toggleButton" },
+            Slot { "row.solo", "toggleButton" }
+        }),
+        makeDescriptor ("output.mode", Kind::comboBox),
+        makeDescriptor ("output.reset", Kind::textButton),
 
         makeLabelDescriptor ("settings.title"),
         makeIconDescriptor ("settings.close", "close", { Entry::settings }),

@@ -3,6 +3,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 
 #include "audio/OutputLayout.h"
+#include "audio/OutputChannelMix.h"
 #include "app/WorkspaceMode.h"
 #include "playlist/PlaylistModel.h"
 #include "plugins/EffectChainState.h"
@@ -21,6 +22,7 @@ struct PlayerAppState
     double volume = 0.8;
     double playbackPositionSeconds = 0.0;
     OutputLayout outputLayout = OutputLayout::stereo;
+    std::vector<OutputChannelMix> outputChannelMix = defaultOutputChannelMix();
     AudioDevicePreferences audioDevice;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     juce::String activeSkinId = "builtin.default";

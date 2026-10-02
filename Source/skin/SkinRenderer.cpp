@@ -27,6 +27,8 @@ struct RepeatItem
     juce::String label;
     double peak = 0.0;
     double peakDb = -60.0;
+    double rmsDb = -60.0;
+    double truePeakDb = -60.0;
     bool isLfe = false;
 };
 
@@ -287,10 +289,12 @@ private:
                 if (path == "item.label") return string (item->label);
                 if (path == "item.peak") return number (item->peak);
                 if (path == "item.peakDb") return number (item->peakDb);
+                if (path == "item.rmsDb") return number (item->rmsDb);
+                if (path == "item.truePeakDb") return number (item->truePeakDb);
                 if (path == "item.isLfe") return boolean (item->isLfe);
             }
 
-            for (int channel = 0; channel < 10; ++channel)
+            for (int channel = 0; channel < maximumOutputChannels; ++channel)
             {
                 const auto prefix = "meter.channels[" + std::to_string (channel) + "].";
                 if (! path.starts_with (prefix)) continue;
@@ -302,6 +306,8 @@ private:
                 const auto index = static_cast<size_t> (channel);
                 if (field == "peak") return number (context.meterPeaks[index]);
                 if (field == "peakDb") return number (meterPeakDecibels (context.meterPeaks[index]));
+                if (field == "rmsDb") return number (meterPeakDecibels (context.meterRms[index]));
+                if (field == "truePeakDb") return number (meterPeakDecibels (context.meterTruePeaks[index]));
                 if (field == "isLfe") return boolean (context.meterIsLfe[index]);
             }
 
@@ -872,6 +878,8 @@ private:
             if (index < context.meterLabels.size()) item.label = context.meterLabels[index];
             item.peak = context.meterPeaks[static_cast<size_t> (index)];
             item.peakDb = meterPeakDecibels (item.peak);
+            item.rmsDb = meterPeakDecibels (context.meterRms[static_cast<size_t> (index)]);
+            item.truePeakDb = meterPeakDecibels (context.meterTruePeaks[static_cast<size_t> (index)]);
             item.isLfe = context.meterIsLfe[static_cast<size_t> (index)];
         }
         else if (index < context.repeatLabels.size())

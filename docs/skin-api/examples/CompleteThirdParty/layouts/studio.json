@@ -98,10 +98,74 @@
             ]
           },
           {
-            "id": "studio-output",
-            "type": "component",
-            "component": "output.stage",
-            "width": "24%"
+            "id": "studio-output-panel",
+            "type": "column",
+            "width": "24%",
+            "gap": 8,
+            "children": [
+              {
+                "id": "studio-output-options",
+                "type": "row",
+                "height": 32,
+                "shrink": 0,
+                "gap": 4,
+                "children": [
+                  {
+                    "id": "studio-output-mode",
+                    "type": "component",
+                    "component": "output.mode",
+                    "grow": 1,
+                    "focusOrder": 51
+                  },
+                  {
+                    "id": "studio-output-reset",
+                    "type": "component",
+                    "component": "output.reset",
+                    "width": 60,
+                    "focusOrder": 52
+                  }
+                ]
+              },
+              {
+                "id": "studio-output-layout",
+                "type": "component",
+                "component": "effects.outputLayout",
+                "height": 32,
+                "shrink": 0,
+                "focusOrder": 53
+              },
+              {
+                "id": "studio-output-view",
+                "type": "stack",
+                "grow": 1,
+                "children": [
+                  {
+                    "id": "studio-output",
+                    "type": "component",
+                    "component": "output.stage",
+                    "anchors": {
+                      "left": 0,
+                      "right": 0,
+                      "top": 0,
+                      "bottom": 0
+                    }
+                  },
+                  {
+                    "id": "studio-output-mixer",
+                    "type": "component",
+                    "component": "output.mixer",
+                    "style": "channelMap.mixer",
+                    "anchors": {
+                      "left": 0,
+                      "right": 0,
+                      "top": 0,
+                      "bottom": 0
+                    },
+                    "focusOrder": 54
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "studio-right-card",

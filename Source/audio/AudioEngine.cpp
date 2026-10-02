@@ -121,10 +121,11 @@ AudioEngine::AudioEngine()
 
 AudioEngine::AudioEngine (std::unique_ptr<IAudioDeviceBackend> backend)
     : deviceBackend (std::move (backend)),
-      effectProcessingSource (transportSource, outputPeakLevels, outputGain)
+      effectProcessingSource (transportSource, outputPeakLevels, outputGain, outputMeter)
 {
     jassert (deviceBackend != nullptr);
     formatManager.registerBasicFormats();
+    updateOutputChannelMixTargets();
     transportSource.setSource (&playbackSource);
     sourcePlayer.setSource (&effectProcessingSource);
 }
@@ -185,7 +186,9 @@ bool AudioEngine::loadPlaybackPlan (AudioPlaybackPlan plan, double startSeconds)
         return false;
     transportSource.stop();
     const ScopedPlaybackEdit edit (*this);
-    return playbackSource.loadPlan (std::move (plan), startSeconds);
+    const auto loaded = playbackSource.loadPlan (std::move (plan), startSeconds);
+    if (loaded) outputMeter.reset();
+    return loaded;
 }
 
 bool AudioEngine::setUpcomingPlayback (std::vector<AudioPlaybackItem> items, int repeatFrom)
@@ -209,6 +212,7 @@ void AudioEngine::unload()
     transportSource.stop();
     const ScopedPlaybackEdit edit (*this);
     playbackSource.clear();
+    outputMeter.reset();
     for (auto& level : outputPeakLevels)
         level.store (0.0f, std::memory_order_relaxed);
 }
@@ -232,13 +236,56 @@ void AudioEngine::stop()
 bool AudioEngine::seekToSeconds (double seconds)
 {
     const ScopedPlaybackEdit edit (*this);
-    return playbackSource.seekToSeconds (juce::jmax (0.0, seconds));
+    const auto sought = playbackSource.seekToSeconds (juce::jmax (0.0, seconds));
+    if (sought) outputMeter.reset();
+    return sought;
 }
 
 void AudioEngine::setGain (double gainToUse)
 {
     outputGain.store (static_cast<float> (juce::jlimit (0.0, 1.0, gainToUse)),
                       std::memory_order_relaxed);
+}
+
+std::vector<OutputChannelMix> AudioEngine::getOutputChannelMix() const
+{
+    return outputChannelMix;
+}
+
+bool AudioEngine::setOutputChannelMix (juce::AudioChannelSet::ChannelType channel,
+                                      float gain, bool muted, bool solo)
+{
+    const OutputChannelMix requested { channel, gain, muted, solo };
+    if (! isValidOutputChannelMix (requested))
+        return false;
+    const auto found = std::find_if (outputChannelMix.begin(), outputChannelMix.end(),
+        [channel] (const auto& mix) { return mix.channel == channel; });
+    jassert (found != outputChannelMix.end());
+    if (*found == requested)
+        return true;
+    *found = requested;
+    updateOutputChannelMixTargets();
+    return true;
+}
+
+void AudioEngine::resetOutputChannelMix()
+{
+    for (auto& mix : outputChannelMix)
+        mix = { mix.channel };
+    updateOutputChannelMixTargets();
+}
+
+void AudioEngine::updateOutputChannelMixTargets()
+{
+    const auto channels = toAudioChannelSet (outputLayout);
+    const auto hasSolo = std::any_of (outputChannelMix.begin(), outputChannelMix.end(),
+        [&] (const auto& mix) { return mix.solo && channels.getChannelIndexForType (mix.channel) >= 0; });
+    std::array<float, maximumOutputChannels> targets;
+    targets.fill (1.0f);
+    for (const auto& mix : outputChannelMix)
+        if (const auto index = channels.getChannelIndexForType (mix.channel); index >= 0)
+            targets[static_cast<size_t> (index)] = mix.muted || (hasSolo && ! mix.solo) ? 0.0f : mix.gain;
+    effectProcessingSource.setChannelGainTargets (targets);
 }
 
 juce::String AudioEngine::setOutputLayout (OutputLayout layout)
@@ -256,6 +303,7 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout)
 
         playbackSource.setDestinationLayout (requestedChannelLayout);
         outputLayout = layout;
+        updateOutputChannelMixTargets();
         return {};
     }
 
@@ -303,6 +351,7 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout)
     }
 
     outputLayout = layout;
+    updateOutputChannelMixTargets();
     return {};
 }
 
@@ -473,20 +522,31 @@ int AudioEngine::getCurrentAudioBufferSize() const
     return deviceBackend ? deviceBackend->getCurrentDeviceState().bufferSize : 0;
 }
 
-std::array<float, 10> AudioEngine::getOutputPeakLevels() const
+std::array<float, maximumOutputChannels> AudioEngine::getOutputPeakLevels() const
 {
-    std::array<float, 10> result {};
+    std::array<float, maximumOutputChannels> result {};
     for (size_t channel = 0; channel < result.size(); ++channel)
         result[channel] = outputPeakLevels[channel].load (std::memory_order_relaxed);
 
     return result;
 }
 
+OutputMeterReadings AudioEngine::getOutputMeterReadings() const
+{
+    return outputMeter.getReadings();
+}
+
+void AudioEngine::resetOutputMeter() noexcept
+{
+    outputMeter.reset();
+}
+
 bool AudioEngine::addEffectPlugin (int slotId,
                                    std::unique_ptr<juce::AudioPluginInstance> plugin,
-                                   juce::String& errorMessage)
+                                   juce::String& errorMessage,
+                                   EffectScope scope)
 {
-    return effectProcessingSource.addPlugin (slotId, std::move (plugin), errorMessage);
+    return effectProcessingSource.addPlugin (slotId, std::move (plugin), errorMessage, std::move (scope));
 }
 
 bool AudioEngine::removeEffectPlugin (int slotId)
@@ -514,6 +574,11 @@ bool AudioEngine::setEffectBypassed (int slotId, bool shouldBypass)
     return effectProcessingSource.setBypassed (slotId, shouldBypass);
 }
 
+bool AudioEngine::setEffectScope (int slotId, const EffectScope& scope, juce::String& errorMessage)
+{
+    return effectProcessingSource.setScope (slotId, scope, errorMessage);
+}
+
 int AudioEngine::getEffectPluginCount() const
 {
     return effectProcessingSource.getPluginCount();
@@ -536,33 +601,49 @@ void AudioEngine::endEffectStateCapture() noexcept
 
 AudioEngine::EffectProcessingSource::EffectProcessingSource (
     juce::AudioTransportSource& sourceToWrap,
-    std::array<std::atomic<float>, 10>& outputPeakLevelsToUse,
-    std::atomic<float>& outputGainToUse)
+    std::array<std::atomic<float>, maximumOutputChannels>& outputPeakLevelsToUse,
+    std::atomic<float>& outputGainToUse,
+    OutputMeter& outputMeterToUse)
     : transport (sourceToWrap),
       outputPeakLevels (outputPeakLevelsToUse),
-      outputGain (outputGainToUse)
+      outputGain (outputGainToUse),
+      outputMeter (outputMeterToUse)
 {
     smoothedGain.setCurrentAndTargetValue (outputGain.load (std::memory_order_relaxed));
+    for (size_t channel = 0; channel < channelGainTargets.size(); ++channel)
+    {
+        channelGainTargets[channel].store (1.0f, std::memory_order_relaxed);
+        smoothedChannelGains[channel].setCurrentAndTargetValue (1.0f);
+    }
 }
 
 void AudioEngine::EffectProcessingSource::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
 {
     transport.prepareToPlay (samplesPerBlockExpected, sampleRate);
     effectGraph.prepareToPlay (sampleRate, samplesPerBlockExpected, channelLayout);
+    outputMeter.prepare (sampleRate, channelLayout);
     smoothedGain.reset (sampleRate, 0.02);
     smoothedGain.setCurrentAndTargetValue (outputGain.load (std::memory_order_relaxed));
+    for (size_t channel = 0; channel < smoothedChannelGains.size(); ++channel)
+    {
+        smoothedChannelGains[channel].reset (sampleRate, 0.02);
+        smoothedChannelGains[channel].setCurrentAndTargetValue (
+            channelGainTargets[channel].load (std::memory_order_relaxed));
+    }
 }
 
 void AudioEngine::EffectProcessingSource::releaseResources()
 {
     effectGraph.releaseResources();
     transport.releaseResources();
+    outputMeter.release();
     for (auto& level : outputPeakLevels)
         level.store (0.0f, std::memory_order_relaxed);
 }
 
 void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill)
 {
+    const auto meterEpoch = outputMeter.beginBlock();
     bufferToFill.clearActiveBufferRegion();
     if (! playbackEditRequested.load())
     {
@@ -589,10 +670,18 @@ void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSo
     midiBuffer.clear();
     effectGraph.processBlock (processBuffer, midiBuffer);
 
+    for (int channel = 0; channel < juce::jmin (channelCount, maximumOutputChannels); ++channel)
+    {
+        auto& gain = smoothedChannelGains[static_cast<size_t> (channel)];
+        gain.setTargetValue (channelGainTargets[static_cast<size_t> (channel)].load (std::memory_order_relaxed));
+        gain.applyGain (processBuffer.getWritePointer (channel), bufferToFill.numSamples);
+    }
+
     const auto startGain = smoothedGain.getCurrentValue();
     smoothedGain.setTargetValue (outputGain.load (std::memory_order_relaxed));
     const auto endGain = smoothedGain.skip (bufferToFill.numSamples);
     processBuffer.applyGainRamp (0, bufferToFill.numSamples, startGain, endGain);
+    outputMeter.push (processBuffer, 0, bufferToFill.numSamples, meterEpoch);
 
     for (size_t channel = 0; channel < outputPeakLevels.size(); ++channel)
     {
@@ -625,9 +714,10 @@ void AudioEngine::EffectProcessingSource::endPlaybackEdit()
 
 bool AudioEngine::EffectProcessingSource::addPlugin (int slotId,
                                                      std::unique_ptr<juce::AudioPluginInstance> plugin,
-                                                     juce::String& errorMessage)
+                                                     juce::String& errorMessage,
+                                                     EffectScope scope)
 {
-    return effectGraph.addProcessor (slotId, std::move (plugin), errorMessage);
+    return effectGraph.addProcessor (slotId, std::move (plugin), errorMessage, std::move (scope));
 }
 
 bool AudioEngine::EffectProcessingSource::removePlugin (int slotId)
@@ -655,6 +745,11 @@ bool AudioEngine::EffectProcessingSource::setBypassed (int slotId, bool shouldBy
     return effectGraph.setBypassed (slotId, shouldBypass);
 }
 
+bool AudioEngine::EffectProcessingSource::setScope (int slotId, const EffectScope& scope, juce::String& errorMessage)
+{
+    return effectGraph.setProcessorScope (slotId, scope, errorMessage);
+}
+
 bool AudioEngine::EffectProcessingSource::setChannelLayout (const juce::AudioChannelSet& layout,
                                                             juce::String& errorMessage)
 {
@@ -663,6 +758,13 @@ bool AudioEngine::EffectProcessingSource::setChannelLayout (const juce::AudioCha
 
     channelLayout = layout;
     return true;
+}
+
+void AudioEngine::EffectProcessingSource::setChannelGainTargets (
+    const std::array<float, maximumOutputChannels>& targets) noexcept
+{
+    for (size_t channel = 0; channel < targets.size(); ++channel)
+        channelGainTargets[channel].store (targets[channel], std::memory_order_relaxed);
 }
 
 int AudioEngine::EffectProcessingSource::getPluginCount() const
