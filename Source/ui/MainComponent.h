@@ -8,6 +8,7 @@
 #include "library/LibraryFilter.h"
 #include "library/LibraryImportService.h"
 #include "state/StateSaveService.h"
+#include "state/StateRestoreService.h"
 #include "AlbumArtworkComponent.h"
 #include "OutputStageComponent.h"
 #include "SkinFallbackDiagnostic.h"
@@ -60,6 +61,8 @@ private:
     void refreshPlugins();
     void refreshEffects();
     void updateTransportState();
+    [[nodiscard]] bool shouldDeferTransportCommands() const;
+    void dispatchQueuedTransportCommands();
     void handleRemoteTransportCommand (const RemoteTransportCommand&);
     void openPluginEditor (int effectIndex);
     void removeEffect (int effectIndex);
@@ -73,6 +76,8 @@ private:
     void handleAutoSaveCompletion (uint64_t revision,
                                    bool saved,
                                    const juce::String& errorMessage);
+    void finishStateRestore (StateRestoreResult);
+    void setRestoreControlsEnabled (bool);
     [[nodiscard]] juce::File getStateDirectory() const;
     [[nodiscard]] juce::File getStateFile() const;
     [[nodiscard]] juce::File getPluginListFile() const;
@@ -82,6 +87,10 @@ private:
     std::shared_ptr<std::atomic_bool> remoteCommandLifetime;
     AutoSaveScheduler autoSaveScheduler;
     StateSaveService stateSaveService;
+    StateRestoreService stateRestoreService;
+    enum class RestoreStatus { loading, ready, failed };
+    RestoreStatus restoreStatus = RestoreStatus::loading;
+    std::vector<RemoteTransportCommand> queuedTransportCommands;
     LibraryFilter libraryFilter;
     LibraryImportService libraryImportService;
     SkinManager skinManager;

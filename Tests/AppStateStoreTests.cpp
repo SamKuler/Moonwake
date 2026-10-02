@@ -46,6 +46,7 @@ public:
             state.volume = 0.65;
             state.playbackPositionSeconds = 37.25;
             state.outputLayout = OutputLayout::fiveOneTwo;
+            state.audioDevice = { "Aggregate Output", 96000.0, 128 };
             state.workspaceMode = WorkspaceMode::studio;
             state.activeSkinId = "com.example.skin";
             state.activeSkinVersion = "2.3.4";
@@ -61,7 +62,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 7);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 8);
             expectEquals (restored.playlist.size(), 2);
             expectEquals (restored.playlist.getSelectedIndex(), 1);
             expectEquals (restored.playlist.getTrack (0)->file.getFullPathName(),
@@ -90,6 +91,10 @@ public:
             expectWithinAbsoluteError (restored.playbackPositionSeconds,
                                        37.25, 0.0001);
             expect (restored.outputLayout == OutputLayout::fiveOneTwo);
+            expectEquals (restored.audioDevice.outputDeviceName,
+                          juce::String ("Aggregate Output"));
+            expectWithinAbsoluteError (restored.audioDevice.sampleRate, 96000.0, 0.01);
+            expectEquals (restored.audioDevice.bufferSize, 128);
             expect (restored.workspaceMode == WorkspaceMode::studio);
             expectEquals (restored.activeSkinId, juce::String ("com.example.skin"));
             expectEquals (restored.activeSkinVersion, juce::String ("2.3.4"));
@@ -106,6 +111,42 @@ public:
             expectEquals (restored.effectChain.getSlot (1)->pluginName, juce::String ("Delay"));
             expect (! restored.effectChain.getSlot (1)->available);
             expectEquals (restored.effectChain.getSlot (1)->errorMessage, juce::String ("Not installed"));
+        }
+
+        beginTest ("restored shuffle cycles retain the selected track and visit every available alternative");
+        {
+            PlayerAppState state;
+            for (int index = 0; index < 64; ++index)
+            {
+                TrackItem track { juce::File ("/music/restored-" + juce::String (index) + ".wav"),
+                                  "Track " + juce::String (index), 30.0 };
+                track.id = "restored-" + juce::String (index);
+                track.available = index % 7 != 0;
+                state.playlist.addTrack (std::move (track));
+            }
+            expect (state.playlist.selectTrack (17));
+            state.playlist.setShuffleEnabled (true);
+            state.playlist.setRepeatMode (RepeatMode::off);
+
+            auto restored = AppStateStore::fromValueTree (AppStateStore::toValueTree (state));
+            expectEquals (restored.playlist.getSelectedIndex(), 17);
+            expectEquals (restored.playlist.getSelectedTrack()->id, juce::String ("restored-17"));
+            expect (restored.playlist.isShuffleEnabled());
+            expect (restored.playlist.getRepeatMode() == RepeatMode::off);
+
+            juce::StringArray visited;
+            while (restored.playlist.advanceToNextTrack())
+            {
+                const auto* track = restored.playlist.getSelectedTrack();
+                expect (track != nullptr && track->available);
+                if (track == nullptr) break;
+                expect (track->id != "restored-17");
+                expect (! visited.contains (track->id));
+                visited.add (track->id);
+                if (visited.size() > state.playlist.size()) break;
+            }
+            expectEquals (visited.size(), 53);
+            expect (! restored.playlist.advanceToNextTrack());
         }
 
         beginTest ("loads schema 5 trees without IDs or stream metadata");

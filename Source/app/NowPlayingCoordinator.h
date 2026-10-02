@@ -12,7 +12,8 @@ public:
     explicit NowPlayingCoordinator (std::unique_ptr<NowPlayingBridge>);
 
     void setCommandHandler (NowPlayingBridge::CommandHandler);
-    void update (const PlayerViewState&, double monotonicSeconds);
+    void update (const PlayerViewState&, double monotonicSeconds,
+                 bool acceptDeferredCommands = false);
     void clear();
 
 private:
@@ -20,7 +21,7 @@ private:
     std::optional<NowPlayingSnapshot> lastPublished;
     double lastPublishedAt = 0.0;
 
-    [[nodiscard]] static NowPlayingSnapshot project (const PlayerViewState&);
+    [[nodiscard]] static NowPlayingSnapshot project (const PlayerViewState&, bool acceptDeferredCommands);
     [[nodiscard]] bool shouldPublish (const NowPlayingSnapshot&,
                                       double monotonicSeconds) const;
 };

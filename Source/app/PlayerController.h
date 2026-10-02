@@ -9,12 +9,14 @@
 #include "plugins/EffectChainState.h"
 #include "plugins/PluginManager.h"
 #include "state/AppStateStore.h"
+#include "state/StateRestoreService.h"
 #include "library/ArtworkStore.h"
 
 #include <atomic>
 #include <functional>
 #include <memory>
 #include <vector>
+#include <unordered_map>
 
 struct SkinPersistenceState
 {
@@ -36,10 +38,12 @@ public:
     juce::String addPreparedTracks (std::vector<TrackMetadataResult> tracks);
     bool selectTrack (int index);
     bool playOrPause();
+    bool setPlaying (bool shouldPlay);
     bool nextTrack();
     bool previousTrack();
     bool handlePlaybackFinished();
     bool handlePlaybackReadError();
+    bool synchronizePlayback (bool finishQueue = true);
     bool removeTrack (int index);
     bool moveTrack (int fromIndex, int toIndex);
     void clearPlaylist();
@@ -67,6 +71,7 @@ public:
                                              juce::String& errorMessage);
     bool saveState (const juce::File& stateFile, const juce::File& pluginListFile);
     bool loadState (const juce::File& stateFile, const juce::File& pluginListFile);
+    bool applyPreparedState (StateRestoreResult result);
 
     [[nodiscard]] const PlaylistModel& getPlaylist() const;
     [[nodiscard]] const EffectChainState& getEffectChain() const;
@@ -97,6 +102,8 @@ private:
     PlaybackCheckpoint playbackCheckpoint;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     SkinPersistenceState skinPersistenceState;
+    AudioDevicePreferences audioDevicePreferences;
+    OutputLayout preferredOutputLayout = OutputLayout::stereo;
     juce::String lastStatusMessage;
     std::shared_ptr<std::atomic_bool> lifetimeFlag { std::make_shared<std::atomic_bool> (true) };
     uint64_t effectChainRevision = 0;
@@ -104,15 +111,26 @@ private:
     std::atomic<uint64_t> pluginStateRevision { 0 };
     uint64_t capturedPluginStateRevision = 0;
     bool restoringEffects = false;
+    AudioPlaybackPlan playbackPlan;
+    std::unordered_map<uint64_t, juce::String> playbackTrackIds;
+    std::unordered_map<uint64_t, uint64_t> failedPlaybackItems;
+    uint64_t playbackGeneration = 0;
+    uint64_t playbackSequence = 0;
+    juce::StringArray restoreDiagnostics;
 
     bool execute (const PlaybackAction& action);
-    bool loadTrackById (const juce::String& trackId, bool shouldPlay);
+    void rememberAudioDeviceSettings();
+    juce::String restoreAudioDeviceSettings (const PlayerAppState&);
+    bool loadTrackById (const juce::String& trackId, bool shouldPlay,
+                        std::optional<PlaylistNavigation> navigation = {});
+    bool navigatePlayback (PlaylistNavigation, bool shouldPlay);
+    bool refreshUpcomingPlayback();
     [[nodiscard]] juce::String getSelectedTrackId() const;
     void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override;
     void audioProcessorChanged (
         juce::AudioProcessor*,
         const juce::AudioProcessorListener::ChangeDetails&) override;
-    [[nodiscard]] bool restoreStateSnapshot (const PlayerAppState& state);
+    [[nodiscard]] bool restoreStateSnapshot (PlayerAppState state);
     void restoreNextEffect (std::shared_ptr<std::vector<EffectSlotState>> slots, size_t index);
     [[nodiscard]] std::vector<int> getAvailableEffectSlotIds() const;
 };

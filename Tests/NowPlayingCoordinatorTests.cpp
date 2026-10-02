@@ -15,18 +15,39 @@ public:
     void publish (const NowPlayingSnapshot& snapshot) override
     {
         publications.push_back (snapshot);
+        current = snapshot;
     }
 
-    void clear() override { ++clearCount; }
-
-    void emit (RemoteTransportCommand command)
+    void clear() override
     {
-        if (handler)
-            handler (command);
+        ++clearCount;
+        current.reset();
+    }
+
+    bool emit (RemoteTransportCommand command)
+    {
+        if (! current || ! handler) return false;
+        const auto enabled = [&]
+        {
+            switch (command.type)
+            {
+                case RemoteTransportCommandType::play:
+                case RemoteTransportCommandType::pause:
+                case RemoteTransportCommandType::togglePlayPause: return current->canPlay;
+                case RemoteTransportCommandType::next: return current->canGoNext;
+                case RemoteTransportCommandType::previous: return current->canGoPrevious;
+                case RemoteTransportCommandType::seekToSeconds: return current->canSeek;
+            }
+            return false;
+        }();
+        if (! enabled) return false;
+        handler (command);
+        return true;
     }
 
     CommandHandler handler;
     std::vector<NowPlayingSnapshot> publications;
+    std::optional<NowPlayingSnapshot> current;
     int clearCount = 0;
 };
 
@@ -41,6 +62,9 @@ PlayerViewState selectedState()
     state.selectedTrackAlbum = "Natural Works";
     state.selectedTrackArtworkPath = "/artwork/forest.png";
     state.selectedTrackAvailable = true;
+    state.canPlay = true;
+    state.canGoNext = true;
+    state.canGoPrevious = true;
     state.positionSeconds = 12.5;
     state.lengthSeconds = 0.0;
     state.selectedTrackDurationSeconds = 180.0;
@@ -81,6 +105,71 @@ public:
             expect (! snapshot.playing);
             expectWithinAbsoluteError (snapshot.elapsedSeconds, 12.5, 0.001);
             expectWithinAbsoluteError (snapshot.durationSeconds, 180.0, 0.001);
+        }
+
+        beginTest ("unavailable selection retains playback retry and available navigation commands");
+        {
+            auto bridge = std::make_unique<FakeNowPlayingBridge>();
+            auto* fake = bridge.get();
+            NowPlayingCoordinator coordinator (std::move (bridge));
+            std::vector<RemoteTransportCommandType> received;
+            coordinator.setCommandHandler ([&received] (const auto& command)
+            {
+                received.push_back (command.type);
+            });
+            auto state = selectedState();
+            state.selectedTrackAvailable = false;
+            state.canGoPrevious = false;
+            coordinator.update (state, 1.0);
+
+            expect (fake->emit ({ RemoteTransportCommandType::play }));
+            expect (fake->emit ({ RemoteTransportCommandType::next }));
+            expect (! fake->emit ({ RemoteTransportCommandType::previous }));
+            expect (! fake->emit ({ RemoteTransportCommandType::seekToSeconds, 3.0 }));
+            expectEquals (static_cast<int> (received.size()), 2);
+
+            state.canGoNext = false;
+            coordinator.update (state, 1.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 2);
+            expect (! fake->emit ({ RemoteTransportCommandType::next }));
+            expect (fake->emit ({ RemoteTransportCommandType::play }));
+        }
+
+        beginTest ("restore accepts deferred transport commands without publishing a track");
+        {
+            auto bridge = std::make_unique<FakeNowPlayingBridge>();
+            auto* fake = bridge.get();
+            NowPlayingCoordinator coordinator (std::move (bridge));
+            std::vector<RemoteTransportCommandType> queued;
+            coordinator.setCommandHandler ([&queued] (const auto& command)
+            {
+                queued.push_back (command.type);
+            });
+            coordinator.update ({}, 1.0, true);
+            const auto& loading = fake->publications.back();
+            expect (! loading.hasTrack);
+            expect (loading.trackId.isEmpty());
+            expect (loading.title.isEmpty());
+            expectEquals (loading.queueCount, 0);
+            for (const auto command : { RemoteTransportCommandType::play,
+                                        RemoteTransportCommandType::pause,
+                                        RemoteTransportCommandType::togglePlayPause,
+                                        RemoteTransportCommandType::next,
+                                        RemoteTransportCommandType::previous })
+                expect (fake->emit ({ command }));
+            expectEquals (static_cast<int> (queued.size()), 5);
+            expect (! fake->emit ({ RemoteTransportCommandType::seekToSeconds, 3.0 }));
+
+            coordinator.update ({}, 1.0, false);
+            expectEquals (static_cast<int> (fake->publications.size()), 2);
+            for (const auto command : { RemoteTransportCommandType::play,
+                                        RemoteTransportCommandType::pause,
+                                        RemoteTransportCommandType::togglePlayPause,
+                                        RemoteTransportCommandType::next,
+                                        RemoteTransportCommandType::previous })
+                expect (! fake->emit ({ command }));
+            expectEquals (static_cast<int> (queued.size()), 5);
+            expect (! fake->publications.back().hasTrack);
         }
 
         beginTest ("suppresses duplicates and publishes paused position changes");
@@ -131,12 +220,13 @@ public:
                 received = command;
             });
 
-            fake->emit ({ RemoteTransportCommandType::seekToSeconds, 42.0 });
+            coordinator.update (selectedState(), 1.0);
+            expect (fake->emit ({ RemoteTransportCommandType::seekToSeconds, 42.0 }));
             expect (received.type == RemoteTransportCommandType::seekToSeconds);
             expectWithinAbsoluteError (received.positionSeconds, 42.0, 0.001);
 
-            coordinator.update (selectedState(), 1.0);
             coordinator.clear();
+            expect (! fake->emit ({ RemoteTransportCommandType::play }));
             coordinator.update (selectedState(), 2.0);
             expectEquals (fake->clearCount, 1);
             expectEquals (static_cast<int> (fake->publications.size()), 2);

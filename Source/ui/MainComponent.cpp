@@ -298,6 +298,7 @@ private:
 MainComponent::MainComponent()
     : nowPlayingCoordinator (createSystemNowPlayingBridge()),
       remoteCommandLifetime (std::make_shared<std::atomic_bool> (true)),
+      stateRestoreService (ProductPaths::artworkCacheRoot()),
       libraryImportService (ProductPaths::artworkCacheRoot()),
       skinAdapter ([this] (const juce::Component& component,
                            SkinRenderTarget target,
@@ -327,7 +328,6 @@ MainComponent::MainComponent()
       skinLibraryPanel (skinManager, &skinAdapter),
       skinLayoutHost (skinManager, skinBindings)
 {
-    controller.loadState (getStateFile(), getPluginListFile());
     workspaceMode = controller.getViewState().workspaceMode;
     SkinValidationReport skinReport;
     const auto skinReady = skinManager.initialise (
@@ -344,29 +344,6 @@ MainComponent::MainComponent()
             controller.setSkinPersistenceState (std::move (state));
         });
 
-        const auto restored = controller.getSkinPersistenceState();
-        if (restored.developerDirectory != juce::File())
-        {
-            SkinValidationReport developerReport;
-            if (! skinManager.restoreDeveloperDirectory (
-                    restored.developerDirectory, developerReport))
-            {
-                appendReport (skinReport, developerReport);
-                auto corrected = restored;
-                corrected.developerDirectory = juce::File{};
-                controller.setSkinPersistenceState (std::move (corrected));
-            }
-        }
-
-        SkinValidationReport restoreReport;
-        if (! skinManager.activate ({ restored.activeSkinId,
-                                      restored.activeSkinVersion },
-                                    false, restoreReport))
-        {
-            appendReport (skinReport, restoreReport);
-        }
-
-        updateSkinPersistenceStateFromManager();
         appliedSkinSession = skinManager.activeSession();
         skinManager.addListener (this);
         if (skinReport.hasErrors())
@@ -791,11 +768,28 @@ MainComponent::MainComponent()
         component->setExplicitFocusOrder (focusIndex++);
 
     setSize (1240, 800);
+    setRestoreControlsEnabled (false);
+    statusLabel.setText ("Restoring library...", juce::dontSendNotification);
+    const juce::Component::SafePointer<MainComponent> safeThis (this);
+    if (! stateRestoreService.start (getStateFile(), getPluginListFile(),
+            [safeThis] (StateRestoreResult result) mutable
+            {
+                if (safeThis != nullptr)
+                    safeThis->finishStateRestore (std::move (result));
+            }))
+    {
+        restoreStatus = RestoreStatus::failed;
+        setRestoreControlsEnabled (true);
+        updateTransportState();
+        statusLabel.setText ("Could not start restoring the saved library. Saved data was preserved.",
+                             juce::dontSendNotification);
+    }
 }
 
 MainComponent::~MainComponent()
 {
     stopTimer();
+    stateRestoreService.cancel();
     remoteCommandLifetime->store (false, std::memory_order_release);
     nowPlayingCoordinator.setCommandHandler ({});
     nowPlayingCoordinator.clear();
@@ -805,11 +799,72 @@ MainComponent::~MainComponent()
     skinManager.removeListener (this);
     skinLayoutHost.clear();
     updateSkinPersistenceStateFromManager();
-    if (! controller.saveState (getStateFile(), getPluginListFile()))
+    if (restoreStatus == RestoreStatus::ready
+        && ! controller.saveState (getStateFile(), getPluginListFile()))
         juce::Logger::writeToLog (
             "Moonwake shutdown save failed: "
             + controller.getLastStatusMessage());
     setLookAndFeel (nullptr);
+}
+
+void MainComponent::setRestoreControlsEnabled (bool enabled)
+{
+    for (auto* component : std::initializer_list<juce::Component*> {
+             &studioModeButton, &listeningModeButton, &settingsButton,
+             &effectsButton, &volumeSlider,
+             &shuffleButton, &repeatModeBox, &outputLayoutBox })
+        component->setEnabled (enabled);
+}
+
+void MainComponent::finishStateRestore (StateRestoreResult result)
+{
+    const auto restoredState = controller.applyPreparedState (std::move (result));
+    restoreStatus = restoredState ? RestoreStatus::ready : RestoreStatus::failed;
+    setRestoreControlsEnabled (true);
+    SkinValidationReport skinReport;
+    if (restoredState && skinManager.activeSession() != nullptr)
+    {
+        const auto restored = controller.getSkinPersistenceState();
+        if (restored.developerDirectory != juce::File())
+        {
+            SkinValidationReport developerReport;
+            if (! skinManager.restoreDeveloperDirectory (
+                    restored.developerDirectory, developerReport))
+            {
+                appendReport (skinReport, developerReport);
+                auto corrected = restored;
+                corrected.developerDirectory = juce::File{};
+                controller.setSkinPersistenceState (std::move (corrected));
+            }
+        }
+
+        SkinValidationReport restoreReport;
+        if (! skinManager.activate ({ restored.activeSkinId,
+                                      restored.activeSkinVersion },
+                                    false, restoreReport))
+        {
+            appendReport (skinReport, restoreReport);
+        }
+
+        updateSkinPersistenceStateFromManager();
+    }
+    workspaceMode = controller.getViewState().workspaceMode;
+    refreshPlaylist();
+    refreshPlugins();
+    refreshEffects();
+    audioSettingsPanel.refresh();
+    pluginSettingsPanel.refreshInventory();
+    skinLibraryPanel.refresh();
+    applyWorkspaceVisuals();
+    resized();
+    updateTransportState();
+    statusLabel.setText (SkinFallbackDiagnostic::makeStartupStatusText (
+                            skinReport, controller.getLastStatusMessage())
+                            + (restoredState ? juce::String{}
+                                : " Changes will not be saved until the saved session can be restored."),
+                         juce::dontSendNotification);
+    startLibraryImport ({});
+    dispatchQueuedTransportCommands();
 }
 
 void MainComponent::updateSkinPersistenceStateFromManager()
@@ -952,7 +1007,10 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 {
     if (key == juce::KeyPress::spaceKey)
     {
-        playPauseButton.triggerClick();
+        if (shouldDeferTransportCommands())
+            handleRemoteTransportCommand ({ RemoteTransportCommandType::togglePlayPause });
+        else
+            playPauseButton.triggerClick();
         return true;
     }
 
@@ -998,6 +1056,7 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 
 void MainComponent::setWorkspaceMode (WorkspaceMode mode)
 {
+    if (restoreStatus == RestoreStatus::loading) return;
     if (workspaceMode == mode)
         return;
 
@@ -1032,14 +1091,13 @@ void MainComponent::closeDrawers()
 
 void MainComponent::timerCallback()
 {
-    if (controller.handlePlaybackReadError())
-        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+    if (restoreStatus == RestoreStatus::loading)
+        return;
 
-    const auto playbackState = controller.getViewState();
-    if (playbackState.playbackFinished
-        && playbackState.transportIntent == TransportIntent::playing)
+    const auto playbackChanged = controller.synchronizePlayback();
+    const auto readFailed = controller.handlePlaybackReadError();
+    if (playbackChanged || readFailed)
     {
-        controller.handlePlaybackFinished();
         refreshPlaylist();
         statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
     }
@@ -1057,7 +1115,8 @@ void MainComponent::timerCallback()
 
     const auto nowSeconds = juce::Time::getMillisecondCounterHiRes() / 1000.0;
     const auto revision = controller.getStateRevision();
-    if (autoSaveScheduler.observe (revision, nowSeconds))
+    if (restoreStatus == RestoreStatus::ready
+        && autoSaveScheduler.observe (revision, nowSeconds))
     {
         PlayerAppState snapshot;
         juce::String captureError;
@@ -1215,22 +1274,25 @@ void MainComponent::filesDropped (const juce::StringArray& paths, int, int)
 
 void MainComponent::startLibraryImport (juce::Array<juce::File> files)
 {
-    if (files.isEmpty())
+    queuedLibraryImportInputs.addArray (files);
+    if (queuedLibraryImportInputs.isEmpty())
         return;
-    if (libraryImportService.isRunning())
+    if (restoreStatus == RestoreStatus::loading || libraryImportService.isRunning())
     {
-        queuedLibraryImportInputs.addArray (files);
-        statusLabel.setText (
-            juce::String (files.size())
-                + (files.size() == 1 ? " import item queued."
-                                     : " import items queued."),
-                             juce::dontSendNotification);
+        if (! files.isEmpty())
+            statusLabel.setText (
+                juce::String (files.size())
+                    + (files.size() == 1 ? " import item queued."
+                                         : " import items queued."),
+                juce::dontSendNotification);
         return;
     }
 
+    auto inputs = std::move (queuedLibraryImportInputs);
+    queuedLibraryImportInputs.clear();
     const auto safeThis = juce::Component::SafePointer<MainComponent> (this);
     if (! libraryImportService.start (
-            std::move (files),
+            std::move (inputs),
             [safeThis] (const LibraryImportProgress& progress)
             {
                 if (safeThis == nullptr)
@@ -1273,29 +1335,25 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
                     safeThis->updateTransportState();
                 }
 
-                if (! safeThis->queuedLibraryImportInputs.isEmpty())
+                safeThis->dispatchQueuedTransportCommands();
+                // The service releases its completion state after this callback returns.
+                juce::MessageManager::callAsync ([safeThis]
                 {
-                    auto queuedInputs = std::move (
-                        safeThis->queuedLibraryImportInputs);
-                    safeThis->queuedLibraryImportInputs.clear();
-                    juce::MessageManager::callAsync (
-                        [safeThis,
-                         pendingInputs = std::move (queuedInputs)] () mutable
-                        {
-                            if (safeThis != nullptr)
-                                safeThis->startLibraryImport (
-                                    std::move (pendingInputs));
-                        });
-                }
+                    if (safeThis == nullptr) return;
+                    safeThis->startLibraryImport ({});
+                    safeThis->dispatchQueuedTransportCommands();
+                });
             }))
     {
         setLibraryImportRunning (false);
         statusLabel.setText ("Could not start the music import.",
                              juce::dontSendNotification);
+        dispatchQueuedTransportCommands();
     }
     else
     {
         setLibraryImportRunning (true);
+        updateTransportState();
     }
 }
 
@@ -1483,7 +1541,8 @@ void MainComponent::updateTransportState()
 {
     const auto state = controller.getViewState();
     nowPlayingCoordinator.update (
-        state, juce::Time::getMillisecondCounterHiRes() / 1000.0);
+        state, juce::Time::getMillisecondCounterHiRes() / 1000.0,
+        shouldDeferTransportCommands());
 
     if (! seekSlider.isMouseButtonDown())
         seekSlider.setValue (state.seekRatio, juce::dontSendNotification);
@@ -1584,24 +1643,44 @@ void MainComponent::updateTransportState()
                                   && state.selectedIndex > 0);
     moveTrackDownButton.setEnabled (hasSelection && libraryFilter.query().isEmpty()
                                     && state.selectedIndex < state.playlistSize - 1);
-    playPauseButton.setEnabled (state.selectedIndex >= 0 && state.selectedTrackAvailable);
-    previousButton.setEnabled (state.selectedIndex >= 0);
-    nextButton.setEnabled (state.selectedIndex >= 0);
+    const auto transportReady = restoreStatus != RestoreStatus::loading;
+    playPauseButton.setEnabled (transportReady && state.canPlay);
+    previousButton.setEnabled (transportReady && state.canGoPrevious);
+    nextButton.setEnabled (transportReady && state.canGoNext);
+}
+
+bool MainComponent::shouldDeferTransportCommands() const
+{
+    return restoreStatus == RestoreStatus::loading
+        || (controller.getPlaylist().isEmpty()
+            && (libraryImportService.isRunning() || ! queuedLibraryImportInputs.isEmpty()));
+}
+
+void MainComponent::dispatchQueuedTransportCommands()
+{
+    if (shouldDeferTransportCommands()) return;
+    auto commands = std::move (queuedTransportCommands);
+    queuedTransportCommands.clear();
+    for (const auto& command : commands) handleRemoteTransportCommand (command);
+    updateTransportState();
 }
 
 void MainComponent::handleRemoteTransportCommand (
     const RemoteTransportCommand& command)
 {
-    const auto before = controller.getViewState();
+    if (shouldDeferTransportCommands() || ! queuedTransportCommands.empty())
+    {
+        queuedTransportCommands.push_back (command);
+        dispatchQueuedTransportCommands();
+        return;
+    }
     switch (command.type)
     {
         case RemoteTransportCommandType::play:
-            if (! before.isPlaying)
-                controller.playOrPause();
+            controller.setPlaying (true);
             break;
         case RemoteTransportCommandType::pause:
-            if (before.isPlaying)
-                controller.playOrPause();
+            controller.setPlaying (false);
             break;
         case RemoteTransportCommandType::togglePlayPause:
             controller.playOrPause();

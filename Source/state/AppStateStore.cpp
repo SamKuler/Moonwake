@@ -13,7 +13,7 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 7;
+constexpr int currentSchemaVersion = 8;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -123,6 +123,12 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
     root.setProperty (playbackPositionProperty,
                       finiteNonNegative (state.playbackPositionSeconds), nullptr);
     root.setProperty (outputLayoutProperty, toString (state.outputLayout), nullptr);
+    juce::ValueTree device ("AudioDevice");
+    device.setProperty ("name", state.audioDevice.outputDeviceName, nullptr);
+    device.setProperty (sampleRateProperty,
+                        finiteNonNegative (state.audioDevice.sampleRate), nullptr);
+    device.setProperty ("bufferSize", juce::jmax (0, state.audioDevice.bufferSize), nullptr);
+    root.appendChild (device, nullptr);
     root.setProperty (workspaceModeProperty, toString (state.workspaceMode), nullptr);
     root.setProperty (activeSkinIdProperty, state.activeSkinId, nullptr);
     root.setProperty (activeSkinVersionProperty, state.activeSkinVersion, nullptr);
@@ -193,6 +199,12 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
         tree.getProperty (playbackPositionProperty,
                           state.playbackPositionSeconds)));
     state.outputLayout = outputLayoutFromString (tree.getProperty (outputLayoutProperty, "stereo").toString());
+    const auto device = tree.getChildWithName ("AudioDevice");
+    state.audioDevice.outputDeviceName = device.getProperty ("name").toString();
+    state.audioDevice.sampleRate = finiteNonNegative (
+        static_cast<double> (device.getProperty (sampleRateProperty, 0.0)));
+    state.audioDevice.bufferSize = juce::jmax (0,
+        static_cast<int> (device.getProperty ("bufferSize", 0)));
     state.workspaceMode = workspaceModeFromString (
         tree.getProperty (workspaceModeProperty, "listening").toString());
     state.activeSkinId = tree.getProperty (
@@ -206,9 +218,6 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
     const auto playlistTree = tree.getChildWithName (playlistType);
     if (playlistTree.isValid())
     {
-        state.playlist.setShuffleEnabled (static_cast<bool> (playlistTree.getProperty (shuffleProperty, false)));
-        state.playlist.setRepeatMode (repeatModeFromString (playlistTree.getProperty (repeatProperty, "off").toString()));
-
         for (int i = 0; i < playlistTree.getNumChildren(); ++i)
         {
             const auto trackTree = playlistTree.getChild (i);
@@ -247,6 +256,10 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
                                        ? state.playlist.indexOfId (selectedTrackId)
                                        : static_cast<int> (playlistTree.getProperty (selectedIndexProperty, -1));
         state.playlist.selectTrack (selectedIndex);
+        state.playlist.setRepeatMode (repeatModeFromString (
+            playlistTree.getProperty (repeatProperty, "off").toString()));
+        state.playlist.setShuffleEnabled (static_cast<bool> (
+            playlistTree.getProperty (shuffleProperty, false)));
     }
 
     const auto chainTree = tree.getChildWithName (effectChainType);

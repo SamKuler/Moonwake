@@ -7,6 +7,13 @@
 #include "playlist/PlaylistModel.h"
 #include "plugins/EffectChainState.h"
 
+struct AudioDevicePreferences
+{
+    juce::String outputDeviceName;
+    double sampleRate = 0.0;
+    int bufferSize = 0;
+};
+
 struct PlayerAppState
 {
     PlaylistModel playlist;
@@ -14,6 +21,7 @@ struct PlayerAppState
     double volume = 0.8;
     double playbackPositionSeconds = 0.0;
     OutputLayout outputLayout = OutputLayout::stereo;
+    AudioDevicePreferences audioDevice;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     juce::String activeSkinId = "builtin.default";
     juce::String activeSkinVersion;

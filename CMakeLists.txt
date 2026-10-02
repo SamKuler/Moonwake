@@ -151,6 +151,7 @@ set(MOONWAKE_SOURCES
     Source/library/ArtworkStore.cpp
     Source/library/LibraryFilter.cpp
     Source/library/LibraryImportService.cpp
+    Source/library/LibraryRestore.cpp
     Source/playlist/TrackFileIdentity.cpp
     Source/playlist/PlaylistModel.cpp
     Source/plugins/EffectChainState.cpp
@@ -158,6 +159,7 @@ set(MOONWAKE_SOURCES
     Source/plugins/PluginScanProcess.cpp
     Source/state/AppStateStore.cpp
     Source/state/StateSaveService.cpp
+    Source/state/StateRestoreService.cpp
     Source/skin/SkinCompatibilityChecker.cpp
     Source/skin/SkinBuiltInPackages.cpp
     Source/skin/SkinCompiler.cpp
@@ -297,6 +299,7 @@ add_executable(MoonwakeTests
         Source/library/ArtworkStore.cpp
         Source/library/LibraryFilter.cpp
         Source/library/LibraryImportService.cpp
+        Source/library/LibraryRestore.cpp
         Source/audio/ChannelRouter.cpp
         Source/audio/ChannelMappedAudioSource.cpp
         Source/audio/EffectGraph.cpp
@@ -310,6 +313,7 @@ add_executable(MoonwakeTests
         Source/audio/OutputLayout.cpp
         Source/state/AppStateStore.cpp
         Source/state/StateSaveService.cpp
+        Source/state/StateRestoreService.cpp
         Source/skin/SkinCompatibilityChecker.cpp
         Source/skin/SkinBuiltInPackages.cpp
         Source/skin/SkinCompiler.cpp
@@ -386,6 +390,8 @@ add_executable(MoonwakeTests
         Tests/ArtworkExtractorTests.cpp
         Tests/AutoSaveSchedulerTests.cpp
         Tests/StateSaveServiceTests.cpp
+        Tests/StateRestoreServiceTests.cpp
+        Tests/LibraryRestoreTests.cpp
         Tests/ArtworkStoreTests.cpp
         Tests/LibraryFilterTests.cpp
         Tests/LibraryImportServiceTests.cpp

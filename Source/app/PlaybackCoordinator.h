@@ -37,6 +37,7 @@ public:
     [[nodiscard]] PlaybackAction playbackFinished (const juce::String& nextTrackId);
 
     void loadFailed();
+    void trackStarted (const juce::String&, TransportIntent);
 
     [[nodiscard]] TransportIntent getIntent() const;
     [[nodiscard]] const juce::String& getLoadedTrackId() const;

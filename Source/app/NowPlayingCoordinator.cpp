@@ -45,12 +45,13 @@ void NowPlayingCoordinator::setCommandHandler (
 }
 
 void NowPlayingCoordinator::update (const PlayerViewState& state,
-                                    double monotonicSeconds)
+                                    double monotonicSeconds,
+                                    bool acceptDeferredCommands)
 {
     if (bridge == nullptr)
         return;
 
-    const auto snapshot = project (state);
+    const auto snapshot = project (state, acceptDeferredCommands);
     monotonicSeconds = finiteNonNegative (monotonicSeconds);
     if (! shouldPublish (snapshot, monotonicSeconds))
         return;
@@ -68,7 +69,8 @@ void NowPlayingCoordinator::clear()
     lastPublishedAt = 0.0;
 }
 
-NowPlayingSnapshot NowPlayingCoordinator::project (const PlayerViewState& state)
+NowPlayingSnapshot NowPlayingCoordinator::project (const PlayerViewState& state,
+                                                   bool acceptDeferredCommands)
 {
     NowPlayingSnapshot result;
     result.trackId = state.selectedTrackId;
@@ -80,19 +82,17 @@ NowPlayingSnapshot NowPlayingCoordinator::project (const PlayerViewState& state)
     result.queueCount = juce::jmax (0, state.playlistSize);
     result.hasTrack = state.selectedIndex >= 0 && state.selectedTrackId.isNotEmpty();
     result.playing = result.hasTrack && state.isPlaying;
-    result.canPlay = result.hasTrack && state.selectedTrackAvailable;
-    result.canGoPrevious = result.canPlay;
-    result.canGoNext = result.canPlay && result.queueCount > 0
-        && (state.shuffleEnabled
-            || state.selectedIndex + 1 < result.queueCount
-            || state.repeatMode != RepeatMode::off);
+    result.canPlay = acceptDeferredCommands || state.canPlay;
+    result.canGoPrevious = acceptDeferredCommands || state.canGoPrevious;
+    result.canGoNext = acceptDeferredCommands || state.canGoNext;
     result.durationSeconds = finiteNonNegative (juce::jmax (
         state.lengthSeconds, state.selectedTrackDurationSeconds));
     result.elapsedSeconds = finiteNonNegative (state.positionSeconds);
     if (result.durationSeconds > 0.0)
         result.elapsedSeconds = juce::jmin (result.elapsedSeconds,
                                             result.durationSeconds);
-    result.canSeek = result.canPlay && result.durationSeconds > 0.0;
+    result.canSeek = result.hasTrack && state.selectedTrackAvailable
+        && result.durationSeconds > 0.0;
     return result;
 }
 

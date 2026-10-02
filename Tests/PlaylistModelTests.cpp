@@ -2,8 +2,23 @@
 
 #include "playlist/PlaylistModel.h"
 
+#include <algorithm>
+
 namespace
 {
+PlaylistModel navigationPlaylist()
+{
+    PlaylistModel playlist;
+    for (const auto* id : { "a", "b", "c", "d" })
+    {
+        TrackItem track { juce::File ("/music").getChildFile (
+                             juce::String (id) + ".wav"), id, 1.0 };
+        track.id = id;
+        playlist.addTrack (std::move (track));
+    }
+    return playlist;
+}
+
 class PlaylistModelTests final : public juce::UnitTest
 {
 public:
@@ -149,6 +164,343 @@ public:
             single.addTrack ({ juce::File ("/music/only.wav"), "Only", 8.0 });
             single.setShuffleEnabled (true);
             expect (! single.advanceToNextTrack());
+        }
+
+        beginTest ("manual next ignores repeat one while natural completion repeats");
+        {
+            auto playlist = navigationPlaylist();
+            playlist.setRepeatMode (RepeatMode::one);
+            expect (playlist.selectTrack (0));
+            expect (playlist.advanceToNextTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("b"));
+            expect (playlist.selectTrack (3));
+            expect (! playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+        }
+
+        beginTest ("shuffle previous and next follow committed playback history");
+        {
+            auto playlist = navigationPlaylist();
+            playlist.setShuffleSeed (27);
+            playlist.setShuffleEnabled (true);
+            expect (playlist.selectTrack (0));
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            const auto second = playlist.getSelectedTrack()->id;
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            const auto third = playlist.getSelectedTrack()->id;
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, second);
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            expectEquals (playlist.getSelectedTrack()->id, second);
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            expectEquals (playlist.getSelectedTrack()->id, third);
+        }
+
+        beginTest ("sequential previous follows queue order after an explicit selection");
+        {
+            auto playlist = navigationPlaylist();
+            expect (playlist.selectTrack (2));
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("b"));
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("c"));
+            expect (playlist.setTrackAvailable ("b", false));
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+            playlist.setRepeatMode (RepeatMode::all);
+            expect (! playlist.advanceToPreviousTrack());
+        }
+
+        beginTest ("manual selection replaces forward history and stable IDs survive edits");
+        {
+            auto playlist = navigationPlaylist();
+            playlist.setShuffleEnabled (true);
+            expect (playlist.selectTrack (0));
+            expect (playlist.recordPlayback ("b"));
+            expect (playlist.recordPlayback ("c"));
+            expect (playlist.advanceToPreviousTrack());
+            expect (playlist.selectTrack (3));
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("b"));
+            expect (playlist.moveTrack (playlist.indexOfId ("d"), 0));
+            expect (playlist.removeTrack (playlist.indexOfId ("a")));
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("d"));
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("b"));
+            expect (! playlist.advanceToPreviousTrack());
+        }
+
+        beginTest ("candidate inspection and preload copies leave navigation unchanged");
+        {
+            auto playlist = navigationPlaylist();
+            playlist.setShuffleSeed (321);
+            playlist.setShuffleEnabled (true);
+            playlist.setRepeatMode (RepeatMode::all);
+            expect (playlist.selectTrack (0));
+            const auto candidates = playlist.navigationCandidates (
+                PlaylistNavigation::naturalCompletion);
+            expect (candidates == playlist.navigationCandidates (
+                PlaylistNavigation::naturalCompletion));
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+            expect (! playlist.advanceToPreviousTrack());
+
+            auto plan = playlist;
+            std::vector<juce::String> sequence;
+            for (int transition = 0; transition < 12; ++transition)
+            {
+                expect (plan.advanceToNextTrack());
+                sequence.push_back (plan.getSelectedTrack()->id);
+            }
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+            for (const auto& id : sequence)
+            {
+                const auto next = playlist.navigationCandidates (
+                    PlaylistNavigation::naturalCompletion);
+                expect (! next.empty());
+                if (! next.empty()) expectEquals (next.front(), id);
+                expect (playlist.commitPlayback (id));
+                expectEquals (playlist.getSelectedTrack()->id, id);
+            }
+            expect (playlist.navigationCandidates (PlaylistNavigation::naturalCompletion)
+                    == plan.navigationCandidates (PlaylistNavigation::naturalCompletion));
+        }
+
+        beginTest ("continuous plans preserve repeated forward-history occurrences");
+        {
+            for (const auto mode : { RepeatMode::off, RepeatMode::all })
+            {
+                auto playlist = navigationPlaylist();
+                playlist.setShuffleSeed (27);
+                playlist.setShuffleEnabled (true);
+                playlist.setRepeatMode (mode);
+                for (const auto* id : { "a", "b", "a", "c", "a" })
+                    expect (playlist.selectTrack (playlist.indexOfId (id)));
+                for (int step = 0; step < 4; ++step)
+                    expect (playlist.advanceToPreviousTrack());
+                const auto candidates = playlist.navigationCandidates (PlaylistNavigation::manualNext);
+                const auto plan = playlist.continuousPlaybackPlan();
+                const std::vector<juce::String> prefix { "a", "b", "a", "c", "a" };
+                expect (plan.trackIds.size() >= prefix.size());
+                if (plan.trackIds.size() >= prefix.size())
+                    expect (std::equal (prefix.begin(), prefix.end(), plan.trackIds.begin()));
+                expect (candidates == playlist.navigationCandidates (PlaylistNavigation::manualNext));
+                expect (plan.trackIds == playlist.continuousPlaybackPlan().trackIds);
+                expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+                if (mode == RepeatMode::off)
+                    expectEquals (plan.repeatFrom, -1);
+                else
+                {
+                    expect (plan.repeatFrom >= static_cast<int> (prefix.size()));
+                    expectEquals (static_cast<int> (plan.trackIds.size()) - plan.repeatFrom, 4);
+                }
+                for (size_t index = 1; index < prefix.size(); ++index)
+                    expect (playlist.recordPlayback (prefix[index]));
+                expect (playlist.advanceToPreviousTrack());
+                expectEquals (playlist.getSelectedTrack()->id, juce::String ("c"));
+            }
+        }
+
+        beginTest ("unavailable history entries preserve adjacent occurrences of the same track");
+        {
+            auto playlist = navigationPlaylist();
+            playlist.setShuffleEnabled (true);
+            for (const auto* id : { "a", "b", "a", "c", "a" })
+                expect (playlist.selectTrack (playlist.indexOfId (id)));
+            for (int step = 0; step < 4; ++step)
+                expect (playlist.advanceToPreviousTrack());
+            expect (playlist.setTrackAvailable ("b", false));
+            expect (playlist.setTrackAvailable ("c", false));
+            const auto plan = playlist.continuousPlaybackPlan();
+            expect (plan.trackIds == std::vector<juce::String> { "a", "a", "a", "d" });
+            expect (playlist.recordPlayback ("a"));
+            expect (playlist.recordPlayback ("a"));
+            expect (playlist.setTrackAvailable ("b", true));
+            expect (playlist.setTrackAvailable ("c", true));
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("c"));
+        }
+
+        beginTest ("continuous repeat plans isolate the playable loop from the initial queue tail");
+        {
+            auto playlist = navigationPlaylist();
+            expect (playlist.selectTrack (2));
+            auto plan = playlist.continuousPlaybackPlan();
+            expect (plan.trackIds == std::vector<juce::String> { "c", "d" });
+            expectEquals (plan.repeatFrom, -1);
+            playlist.setRepeatMode (RepeatMode::all);
+            plan = playlist.continuousPlaybackPlan();
+            expect (plan.trackIds == std::vector<juce::String> { "c", "d", "a", "b", "c", "d" });
+            expectEquals (plan.repeatFrom, 2);
+            playlist.setRepeatMode (RepeatMode::one);
+            plan = playlist.continuousPlaybackPlan();
+            expect (plan.trackIds == std::vector<juce::String> { "c" });
+            expectEquals (plan.repeatFrom, 0);
+            expect (playlist.setTrackAvailable ("c", false));
+            plan = playlist.continuousPlaybackPlan();
+            expect (plan.trackIds == std::vector<juce::String> { "c", "d" });
+            expectEquals (plan.repeatFrom, 1);
+            for (const auto& track : playlist.getTracks())
+                expect (playlist.setTrackAvailable (track.id, false));
+            for (const auto mode : { RepeatMode::off, RepeatMode::one, RepeatMode::all })
+            {
+                playlist.setRepeatMode (mode);
+                plan = playlist.continuousPlaybackPlan();
+                expect (plan.trackIds == std::vector<juce::String> { "c" });
+                expectEquals (plan.repeatFrom, -1);
+            }
+            playlist.clear();
+            expect (playlist.continuousPlaybackPlan().trackIds.empty());
+        }
+
+        beginTest ("continuous shuffle loops contain one complete available cycle");
+        {
+            auto playlist = navigationPlaylist();
+            playlist.setShuffleSeed (39);
+            playlist.setShuffleEnabled (true);
+            playlist.setRepeatMode (RepeatMode::all);
+            expect (playlist.selectTrack (0));
+            expect (playlist.setTrackAvailable ("c", false));
+            const auto candidates = playlist.navigationCandidates (PlaylistNavigation::manualNext);
+            const auto plan = playlist.continuousPlaybackPlan();
+            expect (playlist.navigationCandidates (PlaylistNavigation::manualNext) == candidates);
+            expectEquals (plan.repeatFrom, 3);
+            expectEquals (static_cast<int> (plan.trackIds.size()), 6);
+            if (plan.trackIds.size() == 6)
+            {
+                auto cycle = std::vector<juce::String> (plan.trackIds.begin() + 3, plan.trackIds.end());
+                std::sort (cycle.begin(), cycle.end());
+                expect (cycle == std::vector<juce::String> { "a", "b", "d" });
+                expect (plan.trackIds[2] != plan.trackIds[3]);
+                expect (plan.trackIds.back() != plan.trackIds[3]);
+                for (int index = 1; index < 3; ++index)
+                {
+                    expect (playlist.advanceToNextTrack());
+                    expectEquals (playlist.getSelectedTrack()->id, plan.trackIds[static_cast<size_t> (index)]);
+                }
+            }
+        }
+
+        beginTest ("navigation capabilities match bounded candidates without consuming state");
+        {
+            for (const auto shuffle : { false, true })
+                for (const auto mode : { RepeatMode::off, RepeatMode::one, RepeatMode::all })
+                {
+                    auto playlist = navigationPlaylist();
+                    playlist.setShuffleEnabled (shuffle);
+                    playlist.setShuffleSeed (8);
+                    playlist.setRepeatMode (mode);
+                    expect (playlist.selectTrack (0));
+                    expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+                    expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+                    expect (playlist.advanceToPreviousTrack());
+                    for (const auto kind : { PlaylistNavigation::manualNext,
+                                             PlaylistNavigation::naturalCompletion,
+                                             PlaylistNavigation::previous })
+                    {
+                        const auto before = playlist.navigationCandidates (kind);
+                        expect (playlist.hasNavigationCandidate (kind) == ! before.empty());
+                        expect (playlist.navigationCandidates (kind) == before);
+                    }
+                    for (const auto& track : playlist.getTracks())
+                        expect (playlist.setTrackAvailable (track.id, false));
+                    for (const auto kind : { PlaylistNavigation::manualNext,
+                                             PlaylistNavigation::naturalCompletion,
+                                             PlaylistNavigation::previous })
+                        expect (! playlist.hasNavigationCandidate (kind));
+                }
+            PlaylistModel empty;
+            expect (! empty.hasNavigationCandidate (PlaylistNavigation::manualNext));
+        }
+
+        beginTest ("actual playback records fixed shuffle cycles without consuming other tracks");
+        {
+            auto playlist = navigationPlaylist();
+            playlist.setShuffleSeed (73);
+            playlist.setShuffleEnabled (true);
+            playlist.setRepeatMode (RepeatMode::all);
+            expect (playlist.recordPlayback ("a"));
+            for (int cycle = 0; cycle < 2; ++cycle)
+                for (const auto* id : { "c", "b", "d", "a" })
+                {
+                    expect (playlist.recordPlayback (id));
+                    expectEquals (playlist.getSelectedTrack()->id, juce::String (id));
+                }
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("d"));
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("b"));
+            expect (playlist.recordPlayback ("d"));
+            expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+
+            auto unplayed = navigationPlaylist();
+            unplayed.setShuffleSeed (8);
+            unplayed.setShuffleEnabled (true);
+            expect (unplayed.recordPlayback ("a"));
+            const auto proposed = unplayed.navigationCandidates (PlaylistNavigation::manualNext);
+            expectEquals (static_cast<int> (proposed.size()), 3);
+            if (proposed.size() == 3)
+            {
+                expect (unplayed.recordPlayback (proposed.back()));
+                const auto remaining = unplayed.navigationCandidates (PlaylistNavigation::manualNext);
+                expectEquals (static_cast<int> (remaining.size()), 2);
+                for (size_t index = 0; index < 2; ++index)
+                    expect (std::find (remaining.begin(), remaining.end(), proposed[index])
+                            != remaining.end());
+            }
+        }
+
+        beginTest ("failed candidates remain bounded and never enter playback history");
+        {
+            for (const auto shuffle : { false, true })
+            {
+                auto playlist = navigationPlaylist();
+                playlist.setShuffleSeed (17);
+                playlist.setShuffleEnabled (shuffle);
+                playlist.setRepeatMode (RepeatMode::all);
+                expect (playlist.selectTrack (0));
+                const auto candidates = playlist.navigationCandidates (
+                    PlaylistNavigation::manualNext);
+                expectEquals (static_cast<int> (candidates.size()), playlist.size());
+                expect (candidates.size() >= 2);
+                if (candidates.size() >= 2)
+                {
+                    expect (playlist.setTrackAvailable (candidates.front(), false));
+                    expect (playlist.commitPlayback (
+                        candidates[1], PlaylistNavigation::manualNext));
+                    expect (playlist.advanceToPreviousTrack());
+                    expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+                }
+                for (const auto& track : playlist.getTracks())
+                    expect (playlist.setTrackAvailable (track.id, false));
+                expect (playlist.navigationCandidates (PlaylistNavigation::manualNext).empty());
+                expect (playlist.navigationCandidates (PlaylistNavigation::naturalCompletion).empty());
+                expect (! playlist.advanceToNextTrack());
+                expect (playlist.setTrackAvailable ("c", true));
+                expect (playlist.advanceToNextTrack (PlaylistNavigation::manualNext));
+                expectEquals (playlist.getSelectedTrack()->id, juce::String ("c"));
+            }
+        }
+
+        beginTest ("repeat one does not duplicate history and unavailable entries are skipped");
+        {
+            auto playlist = navigationPlaylist();
+            expect (playlist.selectTrack (0));
+            expect (playlist.advanceToNextTrack());
+            playlist.setRepeatMode (RepeatMode::one);
+            for (int repetition = 0; repetition < 20; ++repetition)
+                expect (playlist.advanceToNextTrack());
+            expect (playlist.advanceToPreviousTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("a"));
+            expect (playlist.setTrackAvailable ("b", false));
+            expect (playlist.setTrackAvailable ("a", false));
+            expect (playlist.advanceToNextTrack());
+            expectEquals (playlist.getSelectedTrack()->id, juce::String ("c"));
+            expect (! playlist.advanceToPreviousTrack());
         }
 
         beginTest ("empty playlists do not advance");

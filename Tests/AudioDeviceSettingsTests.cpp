@@ -355,6 +355,49 @@ public:
             expectEquals (view.audioBufferSize, 64);
         }
 
+        beginTest ("device preferences survive saving and a new controller");
+        {
+            const auto root = juce::File::getCurrentWorkingDirectory()
+                .getChildFile ("build").getNonexistentChildFile ("device-preferences", {});
+            expect (root.createDirectory());
+            const auto stateFile = root.getChildFile ("state.xml");
+            const auto pluginFile = root.getChildFile ("plugins.xml");
+            {
+                PlayerController writer (std::make_unique<FakeAudioDeviceBackend>());
+                const auto revision = writer.getStateRevision();
+                expect (writer.selectOutputDevice ("Aggregate 10ch").isEmpty());
+                expect (writer.getStateRevision() > revision);
+                expect (writer.setAudioSampleRate (96000.0).isEmpty());
+                expect (writer.setAudioBufferSize (128).isEmpty());
+                expect (writer.setOutputLayout (OutputLayout::sevenOneTwo).isEmpty());
+                expect (writer.saveState (stateFile, pluginFile));
+            }
+            PlayerController reader (std::make_unique<FakeAudioDeviceBackend>());
+            expect (reader.loadState (stateFile, pluginFile));
+            const auto settings = reader.getAudioDeviceSettings();
+            expectEquals (settings.currentDevice, juce::String ("Aggregate 10ch"));
+            expectWithinAbsoluteError (settings.currentSampleRate, 96000.0, 0.01);
+            expectEquals (settings.currentBufferSize, 128);
+            expect (reader.getViewState().outputLayout == OutputLayout::sevenOneTwo);
+
+            auto missingBackend = std::make_unique<FakeAudioDeviceBackend>();
+            missingBackend->devices.erase ("Aggregate 10ch");
+            PlayerController fallback (std::move (missingBackend));
+            expect (fallback.loadState (stateFile, pluginFile));
+            expectEquals (fallback.getAudioDeviceSettings().currentDevice,
+                          juce::String ("Built-in Output"));
+            expect (fallback.getLastStatusMessage().contains ("Aggregate 10ch"));
+            PlayerAppState captured;
+            juce::String error;
+            expect (fallback.captureStateSnapshot (captured, error), error);
+            expect (captured.outputLayout == OutputLayout::sevenOneTwo);
+            const auto device = AppStateStore::toValueTree (captured)
+                .getChildWithName ("AudioDevice");
+            expectEquals (device.getProperty ("name").toString(),
+                          juce::String ("Aggregate 10ch"));
+            expect (root.deleteRecursively());
+        }
+
         beginTest ("PlayerController restores a saved position without autoplay");
         {
             const auto directory = juce::File::getCurrentWorkingDirectory()

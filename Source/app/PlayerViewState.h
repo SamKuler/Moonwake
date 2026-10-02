@@ -34,6 +34,9 @@ struct PlayerViewState
     TransportIntent transportIntent = TransportIntent::stopped;
     bool isPlaying = false;
     bool playbackFinished = false;
+    bool canPlay = false;
+    bool canGoNext = false;
+    bool canGoPrevious = false;
     double positionSeconds = 0.0;
     double lengthSeconds = 0.0;
     double seekRatio = 0.0;

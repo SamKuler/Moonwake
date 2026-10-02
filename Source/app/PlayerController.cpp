@@ -33,6 +33,7 @@ PlayerController::PlayerController()
     : artworkStore (ProductPaths::artworkCacheRoot())
 {
     const auto error = audioEngine.initialise();
+    rememberAudioDeviceSettings();
     lastStatusMessage = error.isEmpty() ? "Ready" : "Audio device error: " + error;
 }
 
@@ -41,6 +42,7 @@ PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend
       artworkStore (ProductPaths::artworkCacheRoot())
 {
     const auto error = audioEngine.initialise();
+    rememberAudioDeviceSettings();
     lastStatusMessage = error.isEmpty() ? "Ready" : "Audio device error: " + error;
 }
 
@@ -126,157 +128,244 @@ juce::String PlayerController::addPreparedTracks (
         lastStatusMessage += " Artwork warnings: "
                            + artworkWarnings.joinIntoString (", ");
     if (addedCount > 0)
+    {
         ++stateRevision;
+        const auto importStatus = lastStatusMessage;
+        if (refreshUpcomingPlayback()) lastStatusMessage = importStatus;
+    }
     return lastStatusMessage;
 }
 
 bool PlayerController::selectTrack (int index)
 {
-    const auto* requestedTrack = playlist.getTrack (index);
-    if (requestedTrack == nullptr)
-        return false;
-
-    if (index == playlist.getSelectedIndex())
-        return true;
-
-    if (! requestedTrack->available)
-    {
-        lastStatusMessage = "Audio file is unavailable: " + requestedTrack->file.getFullPathName();
-        return false;
-    }
-
-    if (! playlist.selectTrack (index))
-        return false;
-    ++stateRevision;
-
-    const auto action = playbackCoordinator.selectionChanged (requestedTrack->id);
-    if (! execute (action))
-        return false;
-    playbackCheckpoint.reset (requestedTrack->id,
-                              audioEngine.getCurrentPositionSeconds());
-
-    if (action.type != PlaybackActionType::none)
-        lastStatusMessage = (playbackCoordinator.getIntent() == TransportIntent::playing ? "Playing " : "Loaded ")
-            + requestedTrack->title;
-
-    return true;
+    synchronizePlayback();
+    const auto* track = playlist.getTrack (index);
+    if (track == nullptr) return false;
+    if (track->id == playbackCoordinator.getLoadedTrackId()) return true;
+    const auto id = track->id;
+    return loadTrackById (id, playbackCoordinator.getIntent() == TransportIntent::playing);
 }
 
 bool PlayerController::playOrPause()
 {
+    synchronizePlayback();
+    return setPlaying (playbackCoordinator.getIntent() != TransportIntent::playing);
+}
+
+bool PlayerController::setPlaying (bool shouldPlay)
+{
+    if (! shouldPlay) audioEngine.pause();
+    const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
+    synchronizePlayback();
+    if (! shouldPlay && playbackCoordinator.getIntent() != TransportIntent::playing)
+        return true;
     if (playlist.getSelectedTrack() == nullptr)
     {
         lastStatusMessage = "Add and select an audio file first.";
         return false;
     }
-
-    const auto action = playbackCoordinator.togglePlay (getSelectedTrackId());
-    if (! execute (action))
-        return false;
-    playbackCheckpoint.reset (getSelectedTrackId(),
-                              audioEngine.getCurrentPositionSeconds());
+    if (shouldPlay && playbackCoordinator.getLoadedTrackId() != getSelectedTrackId())
+    {
+        if (loadTrackById (getSelectedTrackId(), true)) return true;
+        return navigatePlayback (PlaylistNavigation::manualNext, true);
+    }
+    if ((playbackCoordinator.getIntent() == TransportIntent::playing) == shouldPlay)
+        return true;
+    if (! execute (playbackCoordinator.togglePlay (getSelectedTrackId()))) return false;
+    playbackCheckpoint.reset (getSelectedTrackId(), audioEngine.getCurrentPositionSeconds());
     ++stateRevision;
-
     lastStatusMessage = playbackCoordinator.getIntent() == TransportIntent::playing
-                            ? "Playing " + playlist.getSelectedTrack()->title
-                            : "Paused.";
+        ? "Playing " + playlist.getSelectedTrack()->title : "Paused.";
     return true;
 }
 
 bool PlayerController::nextTrack()
 {
-    if (! playlist.advanceToNextTrack())
-    {
-        lastStatusMessage = "No next track.";
-        return false;
-    }
-    ++stateRevision;
-
-    const auto action = playbackCoordinator.moveToTrack (getSelectedTrackId(), false);
-    if (! execute (action))
-        return false;
-    playbackCheckpoint.reset (getSelectedTrackId(),
-                              audioEngine.getCurrentPositionSeconds());
-
-    lastStatusMessage = playbackCoordinator.getIntent() == TransportIntent::playing
-                            ? "Playing " + playlist.getSelectedTrack()->title
-                            : "Selected " + playlist.getSelectedTrack()->title;
-    return true;
+    synchronizePlayback();
+    return navigatePlayback (PlaylistNavigation::manualNext,
+                             playbackCoordinator.getIntent() == TransportIntent::playing);
 }
 
 bool PlayerController::previousTrack()
 {
-    const auto selected = playlist.getSelectedIndex();
-    juce::String previousTrackId;
-    for (auto index = selected - 1; index >= 0; --index)
-        if (const auto* track = playlist.getTrack (index); track != nullptr && track->available)
-        {
-            previousTrackId = track->id;
-            break;
-        }
-    const auto action = playbackCoordinator.previous (previousTrackId, audioEngine.getCurrentPositionSeconds());
-
-    if (action.trackId.isNotEmpty() && action.trackId != getSelectedTrackId())
+    synchronizePlayback();
+    const auto previous = playlist.navigationCandidates (PlaylistNavigation::previous);
+    if (playbackCoordinator.getLoadedTrackId().isNotEmpty()
+        && (audioEngine.getCurrentPositionSeconds() >= 3.0 || previous.empty()))
     {
-        playlist.selectTrack (playlist.indexOfId (action.trackId));
+        if (! execute ({ PlaybackActionType::seekToStart,
+                         playbackCoordinator.getLoadedTrackId() })) return false;
+        playbackCheckpoint.reset (getSelectedTrackId(), 0.0);
         ++stateRevision;
+        lastStatusMessage = "Restarted current track.";
+        return true;
     }
-
-    if (! execute (action))
-        return false;
-
-    if (action.type == PlaybackActionType::seekToStart)
-        ++stateRevision;
-    playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(),
-                              audioEngine.getCurrentPositionSeconds());
-
-    if (action.type == PlaybackActionType::none)
-    {
-        lastStatusMessage = "No previous track.";
-        return false;
-    }
-
-    lastStatusMessage = action.type == PlaybackActionType::seekToStart
-                            ? "Restarted current track."
-                            : (playbackCoordinator.getIntent() == TransportIntent::playing ? "Playing " : "Selected ")
-                                  + playlist.getSelectedTrack()->title;
-    return true;
+    return navigatePlayback (PlaylistNavigation::previous,
+                             playbackCoordinator.getIntent() == TransportIntent::playing);
 }
 
 bool PlayerController::handlePlaybackFinished()
 {
-    const auto hasNextTrack = playlist.advanceToNextTrack();
-    if (hasNextTrack)
-        ++stateRevision;
-    const auto action = playbackCoordinator.playbackFinished (hasNextTrack ? getSelectedTrackId() : juce::String{});
-
-    if (! execute (action))
-        return false;
-    if (! hasNextTrack)
-        ++stateRevision;
-    playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(),
-                              audioEngine.getCurrentPositionSeconds());
-
-    lastStatusMessage = hasNextTrack ? "Playing " + playlist.getSelectedTrack()->title : "End of queue.";
-    return hasNextTrack;
+    return synchronizePlayback();
 }
 
 bool PlayerController::handlePlaybackReadError()
 {
-    if (! audioEngine.hasReadError())
-        return false;
-
-    playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(),
-                              audioEngine.getCurrentPositionSeconds());
-    lastStatusMessage = "Could not read the audio file. Playback stopped.";
+    if (! audioEngine.hasReadError()) return false;
+    audioEngine.pause();
+    synchronizePlayback (false);
+    const auto id = playbackCoordinator.getLoadedTrackId();
+    const auto shouldPlay = playbackCoordinator.getIntent() == TransportIntent::playing;
+    playlist.setTrackAvailable (id, false);
+    playbackCheckpoint.reset (id, audioEngine.getCurrentPositionSeconds());
     audioEngine.unload();
     playbackCoordinator.loadFailed();
     ++stateRevision;
+    if (shouldPlay && navigatePlayback (PlaylistNavigation::manualNext, true)) return true;
+    lastStatusMessage = "Could not read the audio file. No playable track remains.";
     return true;
+}
+
+bool PlayerController::navigatePlayback (PlaylistNavigation kind, bool shouldPlay)
+{
+    const auto candidates = playlist.navigationCandidates (kind);
+    int skipped = 0;
+    for (const auto& id : candidates)
+    {
+        if (loadTrackById (id, shouldPlay, kind))
+        {
+            if (skipped > 0)
+                lastStatusMessage += " Skipped " + juce::String (skipped) + " unavailable tracks.";
+            return true;
+        }
+        ++skipped;
+    }
+    lastStatusMessage = skipped > 0
+        ? "Skipped " + juce::String (skipped) + " unavailable tracks. No playable track remains."
+        : (kind == PlaylistNavigation::previous ? "No previous track." : "No next track.");
+    return false;
+}
+
+bool PlayerController::refreshUpcomingPlayback()
+{
+    audioEngine.pause();
+    const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
+    synchronizePlayback();
+    const auto currentId = playbackCoordinator.getLoadedTrackId();
+    const auto* current = playlist.getTrack (playlist.indexOfId (currentId));
+    if (current == nullptr)
+        return true;
+    const auto currentToken = audioEngine.getPlaybackProgress().token;
+    AudioPlaybackPlan nextPlan;
+    std::unordered_map<uint64_t, juce::String> ids;
+    nextPlan.items.push_back ({ current->file, currentToken });
+    ids.emplace (currentToken, currentId);
+    const auto navigation = playlist.continuousPlaybackPlan();
+    if (navigation.trackIds.size() > 1)
+    {
+        std::unordered_map<std::string, const TrackItem*> tracks;
+        for (const auto& track : playlist.getTracks()) tracks.emplace (track.id.toStdString(), &track);
+        uint64_t token = 1;
+        for (size_t index = 1; index < navigation.trackIds.size(); ++index)
+        {
+            const auto& id = navigation.trackIds[index];
+            const auto found = tracks.find (id.toStdString());
+            if (found == tracks.end()) continue;
+            if (token == currentToken) ++token;
+            nextPlan.items.push_back ({ found->second->file, token });
+            ids.emplace (token++, id);
+        }
+    }
+    nextPlan.repeatFrom = navigation.repeatFrom;
+    std::vector<AudioPlaybackItem> upcoming (nextPlan.items.begin() + 1, nextPlan.items.end());
+    if (! audioEngine.setUpcomingPlayback (std::move (upcoming), nextPlan.repeatFrom))
+    {
+        lastStatusMessage = "Could not prepare continuous playback.";
+        return false;
+    }
+    playbackPlan = std::move (nextPlan);
+    playbackTrackIds = std::move (ids);
+    const auto progress = audioEngine.getPlaybackProgress();
+    playbackGeneration = progress.generation;
+    playbackSequence = 0;
+    failedPlaybackItems.clear();
+    if (playbackCoordinator.getIntent() == TransportIntent::playing)
+        audioEngine.play();
+    return true;
+}
+
+bool PlayerController::synchronizePlayback (bool finishQueue)
+{
+    const auto progress = audioEngine.getPlaybackProgress();
+    bool changed = false;
+    juce::StringArray failures;
+    for (const auto& failure : audioEngine.drainPreparationFailures())
+    {
+        if (failure.generation != playbackGeneration) continue;
+        const auto firstUnplayed = failure.sequence + (failure.hadBufferedAudio ? 1u : 0u);
+        const auto [position, inserted] = failedPlaybackItems.emplace (failure.token, firstUnplayed);
+        if (! inserted) position->second = std::min (position->second, firstUnplayed);
+        if (const auto found = playbackTrackIds.find (failure.token); found != playbackTrackIds.end())
+        {
+            playlist.setTrackAvailable (found->second, false);
+            failures.add (failure.error);
+        }
+        changed = true;
+    }
+    if (progress.generation == playbackGeneration && ! playbackPlan.items.empty())
+    {
+        while (playbackSequence < progress.sequence)
+        {
+            const auto sequence = ++playbackSequence;
+            auto index = sequence;
+            if (index >= playbackPlan.items.size())
+            {
+                if (playbackPlan.repeatFrom < 0) break;
+                const auto loopStart = static_cast<uint64_t> (playbackPlan.repeatFrom);
+                index = loopStart + (index - playbackPlan.items.size())
+                    % (playbackPlan.items.size() - loopStart);
+            }
+            const auto token = playbackPlan.items[static_cast<size_t> (index)].token;
+            if (const auto failure = failedPlaybackItems.find (token);
+                failure != failedPlaybackItems.end() && sequence >= failure->second)
+                continue;
+            const auto found = playbackTrackIds.find (token);
+            if (found == playbackTrackIds.end()) continue;
+            if (! playlist.recordPlayback (found->second)) continue;
+            playbackCoordinator.trackStarted (found->second, playbackCoordinator.getIntent());
+            ++stateRevision;
+            changed = true;
+        }
+        if (changed)
+        {
+            playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(), progress.positionSeconds);
+            if (const auto* track = playlist.getSelectedTrack())
+                lastStatusMessage = (playbackCoordinator.getIntent() == TransportIntent::playing
+                                         ? "Playing " : "Loaded ") + track->title;
+        }
+        if (finishQueue && progress.finished && ! progress.readError
+            && playbackCoordinator.getIntent() == TransportIntent::playing)
+        {
+            execute (playbackCoordinator.playbackFinished ({}));
+            ++stateRevision;
+            changed = true;
+            lastStatusMessage = "End of queue.";
+        }
+    }
+    if (! failures.isEmpty())
+    {
+        ++stateRevision;
+        lastStatusMessage = "Skipped unavailable audio: " + failures.joinIntoString (" ");
+    }
+    return changed;
 }
 
 bool PlayerController::removeTrack (int index)
 {
+    if (playlist.getTrack (index) == nullptr) return false;
+    audioEngine.pause();
+    const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
+    synchronizePlayback();
     const auto* track = playlist.getTrack (index);
     if (track == nullptr)
         return false;
@@ -296,16 +385,19 @@ bool PlayerController::removeTrack (int index)
         playbackCheckpoint.reset ({}, 0.0);
     }
 
+    refreshUpcomingPlayback();
     lastStatusMessage = "Removed " + removedTitle + ".";
     return true;
 }
 
 bool PlayerController::moveTrack (int fromIndex, int toIndex)
 {
+    synchronizePlayback();
     if (! playlist.moveTrack (fromIndex, toIndex))
         return false;
 
     ++stateRevision;
+    refreshUpcomingPlayback();
     lastStatusMessage = "Queue reordered.";
     return true;
 }
@@ -313,6 +405,11 @@ bool PlayerController::moveTrack (int fromIndex, int toIndex)
 void PlayerController::clearPlaylist()
 {
     audioEngine.unload();
+    playbackPlan = {};
+    playbackTrackIds.clear();
+    failedPlaybackItems.clear();
+    playbackGeneration = 0;
+    playbackSequence = 0;
     playbackCoordinator.loadFailed();
     playbackCheckpoint.reset ({}, 0.0);
     for (const auto& track : playlist.getTracks())
@@ -330,6 +427,7 @@ void PlayerController::seekToRatio (double ratio)
 
 void PlayerController::seekToSeconds (double seconds)
 {
+    synchronizePlayback();
     const auto length = audioEngine.getLengthInSeconds();
     if (! std::isfinite (seconds) || length <= 0.0)
         return;
@@ -357,17 +455,21 @@ void PlayerController::checkpointPlaybackPosition()
 
 void PlayerController::setShuffleEnabled (bool shouldShuffle)
 {
+    synchronizePlayback();
     if (playlist.isShuffleEnabled() == shouldShuffle)
         return;
     playlist.setShuffleEnabled (shouldShuffle);
+    refreshUpcomingPlayback();
     ++stateRevision;
 }
 
 void PlayerController::setRepeatMode (RepeatMode mode)
 {
+    synchronizePlayback();
     if (playlist.getRepeatMode() == mode)
         return;
     playlist.setRepeatMode (mode);
+    refreshUpcomingPlayback();
     ++stateRevision;
 }
 
@@ -399,7 +501,10 @@ juce::String PlayerController::setOutputLayout (OutputLayout layout)
                             ? error
                             : "Output layout set to " + toString (audioEngine.getOutputLayout()) + ".";
     if (error.isEmpty())
+    {
+        preferredOutputLayout = layout;
         ++stateRevision;
+    }
     return error;
 }
 
@@ -411,6 +516,11 @@ juce::String PlayerController::selectOutputDevice (
                             ? error
                             : "Output device set to "
                                 + audioEngine.getCurrentAudioDeviceName() + ".";
+    if (error.isEmpty())
+    {
+        rememberAudioDeviceSettings();
+        ++stateRevision;
+    }
     return error;
 }
 
@@ -421,6 +531,11 @@ juce::String PlayerController::setAudioSampleRate (double sampleRate)
                             ? error
                             : "Sample rate set to "
                                 + juce::String (sampleRate, 0) + " Hz.";
+    if (error.isEmpty())
+    {
+        rememberAudioDeviceSettings();
+        ++stateRevision;
+    }
     return error;
 }
 
@@ -431,7 +546,48 @@ juce::String PlayerController::setAudioBufferSize (int bufferSize)
                             ? error
                             : "Buffer size set to "
                                 + juce::String (bufferSize) + " samples.";
+    if (error.isEmpty())
+    {
+        rememberAudioDeviceSettings();
+        ++stateRevision;
+    }
     return error;
+}
+
+void PlayerController::rememberAudioDeviceSettings()
+{
+    audioDevicePreferences = { audioEngine.getCurrentAudioDeviceName(),
+                               audioEngine.getCurrentAudioSampleRate(),
+                               audioEngine.getCurrentAudioBufferSize() };
+}
+
+juce::String PlayerController::restoreAudioDeviceSettings (const PlayerAppState& state)
+{
+    const auto& preferences = state.audioDevice;
+    if (preferences.outputDeviceName.isEmpty()
+        && preferences.sampleRate <= 0.0 && preferences.bufferSize <= 0)
+        return {};
+
+    audioDevicePreferences = preferences;
+    juce::StringArray errors;
+    if (preferences.outputDeviceName.isNotEmpty())
+    {
+        const auto error = audioEngine.selectOutputDevice (preferences.outputDeviceName);
+        if (error.isNotEmpty())
+            return "Could not restore output device " + preferences.outputDeviceName
+                + ". Using " + audioEngine.getCurrentAudioDeviceName() + ". " + error;
+    }
+    if (preferences.sampleRate > 0.0)
+    {
+        const auto error = audioEngine.setSampleRate (preferences.sampleRate);
+        if (error.isNotEmpty()) errors.add (error);
+    }
+    if (preferences.bufferSize > 0)
+    {
+        const auto error = audioEngine.setBufferSize (preferences.bufferSize);
+        if (error.isNotEmpty()) errors.add (error);
+    }
+    return errors.joinIntoString (" ");
 }
 
 void PlayerController::setWorkspaceMode (WorkspaceMode mode)
@@ -625,25 +781,38 @@ bool PlayerController::saveState (const juce::File& stateFile, const juce::File&
 
 bool PlayerController::loadState (const juce::File& stateFile, const juce::File& pluginListFile)
 {
-    if (pluginListFile.existsAsFile())
-    {
-        juce::String pluginError;
-        if (! pluginManager.readKnownPluginCache (pluginListFile, pluginError))
-            lastStatusMessage = pluginError;
-    }
+    return applyPreparedState (StateRestoreService::prepare (
+        stateFile, pluginListFile, artworkStore.root()));
+}
 
-    if (! stateFile.existsAsFile())
-        return false;
-
-    PlayerAppState restoredState;
-    juce::String stateError;
-    if (! AppStateStore::readFromFile (stateFile, restoredState, stateError))
+bool PlayerController::applyPreparedState (StateRestoreResult result)
+{
+    if (result.cancelled)
     {
-        lastStatusMessage = stateError;
+        lastStatusMessage = "Session restore cancelled.";
         return false;
     }
 
-    return restoreStateSnapshot (restoredState);
+    const auto failed = result.errorMessage.isNotEmpty();
+    restoreDiagnostics = std::move (result.warnings);
+    if (failed)
+        restoreDiagnostics.add (std::move (result.errorMessage));
+    if (result.pluginCache != nullptr)
+        pluginManager.restoreKnownPluginsFromXml (*result.pluginCache);
+    if (! result.state || failed)
+    {
+        if (! restoreDiagnostics.isEmpty())
+            lastStatusMessage = restoreDiagnostics.joinIntoString (" ");
+        return ! failed;
+    }
+
+    if (! restoreStateSnapshot (std::move (*result.state)))
+    {
+        if (! restoreDiagnostics.isEmpty())
+            lastStatusMessage += " " + restoreDiagnostics.joinIntoString (" ");
+        return false;
+    }
+    return true;
 }
 
 const PlaylistModel& PlayerController::getPlaylist() const
@@ -756,6 +925,10 @@ PlayerViewState PlayerController::getViewState() const
     }
 
     state.transportIntent = playbackCoordinator.getIntent();
+    state.canPlay = state.selectedIndex >= 0;
+    state.canGoNext = playlist.hasNavigationCandidate (PlaylistNavigation::manualNext);
+    state.canGoPrevious = playbackCoordinator.getLoadedTrackId().isNotEmpty()
+        || playlist.hasNavigationCandidate (PlaylistNavigation::previous);
     state.isPlaying = audioEngine.isPlaying();
     state.playbackFinished = ! state.isPlaying && audioEngine.hasStreamFinished();
     state.positionSeconds = audioEngine.getCurrentPositionSeconds();
@@ -819,29 +992,37 @@ bool PlayerController::execute (const PlaybackAction& action)
     return false;
 }
 
-bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPlay)
+bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPlay,
+                                      std::optional<PlaylistNavigation> navigation)
 {
-    const auto trackIndex = playlist.indexOfId (trackId);
-    const auto* track = playlist.getTrack (trackIndex);
-    if (track == nullptr || ! track->available)
-    {
-        lastStatusMessage = "Audio file is unavailable.";
-        audioEngine.unload();
-        playbackCoordinator.loadFailed();
-        return false;
-    }
-
+    const auto index = playlist.indexOfId (trackId);
+    const auto* track = playlist.getTrack (index);
+    if (track == nullptr) return false;
+    const auto title = track->title;
+    const auto path = track->file.getFullPathName();
     if (! audioEngine.loadFile (track->file))
     {
-        lastStatusMessage = "Could not load audio file: " + track->file.getFullPathName();
+        playlist.setTrackAvailable (trackId, false);
+        lastStatusMessage = "Could not load audio file: " + path;
+        audioEngine.unload();
+        playbackCoordinator.loadFailed();
+        ++stateRevision;
+        return false;
+    }
+    playlist.setTrackAvailable (trackId, true);
+    if (navigation.has_value()) playlist.commitPlayback (trackId, *navigation);
+    else playlist.selectTrack (index);
+    playbackCoordinator.trackStarted (trackId, shouldPlay ? TransportIntent::playing : TransportIntent::paused);
+    if (! refreshUpcomingPlayback())
+    {
         audioEngine.unload();
         playbackCoordinator.loadFailed();
         return false;
     }
-
-    if (shouldPlay)
-        audioEngine.play();
-
+    if (shouldPlay) audioEngine.play();
+    playbackCheckpoint.reset (trackId, audioEngine.getCurrentPositionSeconds());
+    ++stateRevision;
+    lastStatusMessage = (shouldPlay ? "Playing " : "Loaded ") + title;
     return true;
 }
 
@@ -856,6 +1037,7 @@ juce::String PlayerController::getSelectedTrackId() const
 bool PlayerController::captureStateSnapshot (PlayerAppState& state,
                                              juce::String& errorMessage)
 {
+    synchronizePlayback();
     errorMessage.clear();
     state = {};
     state.playlist = playlist;
@@ -913,7 +1095,8 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     }
 
     state.volume = audioEngine.getGain();
-    state.outputLayout = audioEngine.getOutputLayout();
+    state.outputLayout = preferredOutputLayout;
+    state.audioDevice = audioDevicePreferences;
     state.workspaceMode = workspaceMode;
     state.activeSkinId = skinPersistenceState.activeSkinId;
     state.activeSkinVersion = skinPersistenceState.activeSkinVersion;
@@ -936,73 +1119,8 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     return true;
 }
 
-bool PlayerController::restoreStateSnapshot (const PlayerAppState& state)
+bool PlayerController::restoreStateSnapshot (PlayerAppState state)
 {
-    const auto selectedTrackId = state.playlist.getSelectedTrack() != nullptr
-                                     ? state.playlist.getSelectedTrack()->id
-                                     : juce::String{};
-
-    PlaylistModel restoredPlaylist;
-    restoredPlaylist.setShuffleEnabled (state.playlist.isShuffleEnabled());
-    restoredPlaylist.setRepeatMode (state.playlist.getRepeatMode());
-
-    for (const auto& savedTrack : state.playlist.getTracks())
-    {
-        auto restoredTrack = savedTrack;
-        const auto needsArtworkCache = restoredTrack.artworkCacheKey.isEmpty()
-                                       || ! artworkStore.isValid (
-                                              restoredTrack.artworkCacheKey);
-        if (needsArtworkCache && restoredTrack.artworkCacheKey.isNotEmpty())
-            static_cast<void> (artworkStore.remove (
-                restoredTrack.artworkCacheKey));
-        const auto metadata = metadataReader.read (savedTrack.file,
-                                                   needsArtworkCache);
-
-        if (metadata.ok)
-        {
-            restoredTrack.durationSeconds = metadata.track.durationSeconds;
-            restoredTrack.sampleRate = metadata.track.sampleRate;
-            restoredTrack.channelCount = metadata.track.channelCount;
-            restoredTrack.bitDepth = metadata.track.bitDepth;
-            restoredTrack.formatName = metadata.track.formatName;
-            const auto updateText = [] (juce::String& destination,
-                                        const juce::String& refreshed)
-            {
-                if (refreshed.isNotEmpty()) destination = refreshed;
-            };
-            updateText (restoredTrack.title, metadata.track.title);
-            updateText (restoredTrack.artist, metadata.track.artist);
-            updateText (restoredTrack.album, metadata.track.album);
-            updateText (restoredTrack.albumArtist, metadata.track.albumArtist);
-            updateText (restoredTrack.genre, metadata.track.genre);
-            if (metadata.track.year > 0) restoredTrack.year = metadata.track.year;
-            if (metadata.track.trackNumber > 0)
-                restoredTrack.trackNumber = metadata.track.trackNumber;
-            if (metadata.track.discNumber > 0)
-                restoredTrack.discNumber = metadata.track.discNumber;
-            if (needsArtworkCache && metadata.artworkData.getSize() > 0)
-            {
-                juce::String artworkError;
-                const auto refreshedKey = artworkStore.store (
-                    restoredTrack.id, metadata.artworkData, artworkError);
-                if (refreshedKey.isNotEmpty())
-                    restoredTrack.artworkCacheKey = refreshedKey;
-            }
-            else if (needsArtworkCache)
-                restoredTrack.artworkCacheKey.clear();
-            restoredTrack.available = true;
-        }
-        else
-        {
-            restoredTrack.available = false;
-        }
-
-        restoredPlaylist.addTrack (std::move (restoredTrack));
-    }
-
-    if (selectedTrackId.isNotEmpty())
-        restoredPlaylist.selectTrack (restoredPlaylist.indexOfId (selectedTrackId));
-
     if (audioEngine.getEffectPluginCount() > 0)
     {
         if (! audioEngine.beginEffectStateCapture())
@@ -1029,10 +1147,21 @@ bool PlayerController::restoreStateSnapshot (const PlayerAppState& state)
     audioEngine.unload();
     playbackCoordinator.loadFailed();
     playbackCheckpoint.reset ({}, 0.0);
-    playlist = std::move (restoredPlaylist);
+    playlist = std::move (state.playlist);
+    playbackPlan = {};
+    playbackTrackIds.clear();
+    failedPlaybackItems.clear();
+    playbackGeneration = 0;
+    playbackSequence = 0;
 
+    preferredOutputLayout = state.outputLayout;
+    if (const auto deviceWarning = restoreAudioDeviceSettings (state);
+        deviceWarning.isNotEmpty())
+        restoreDiagnostics.add (deviceWarning);
     setVolume (state.volume);
-    setOutputLayout (state.outputLayout);
+    if (const auto layoutWarning = setOutputLayout (state.outputLayout);
+        layoutWarning.isNotEmpty())
+        restoreDiagnostics.add (layoutWarning);
     if (const auto* selectedTrack = playlist.getSelectedTrack();
         selectedTrack != nullptr)
         playbackCheckpoint.reset (selectedTrack->id,
@@ -1051,8 +1180,13 @@ bool PlayerController::restoreStateSnapshot (const PlayerAppState& state)
             if (audioEngine.seekToSeconds (position))
                 playbackCheckpoint.reset (selectedTrack->id, position);
             else
+            {
                 handlePlaybackReadError();
+                restoreDiagnostics.add (lastStatusMessage);
+            }
         }
+        else
+            restoreDiagnostics.add (lastStatusMessage);
     }
     workspaceMode = state.workspaceMode;
     setSkinPersistenceState ({ state.activeSkinId, state.activeSkinVersion,
@@ -1065,6 +1199,9 @@ bool PlayerController::restoreStateSnapshot (const PlayerAppState& state)
     ++effectChainRevision;
     auto slots = std::make_shared<std::vector<EffectSlotState>> (state.effectChain.getSlots());
     restoringEffects = ! slots->empty();
+    lastStatusMessage = "Saved session restored.";
+    if (! restoreDiagnostics.isEmpty())
+        lastStatusMessage += " " + restoreDiagnostics.joinIntoString (" ");
     if (restoringEffects)
         restoreNextEffect (std::move (slots), 0);
     ++stateRevision;
@@ -1077,6 +1214,8 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
     {
         restoringEffects = false;
         lastStatusMessage = "Saved effect chain restored.";
+        if (! restoreDiagnostics.isEmpty())
+            lastStatusMessage += " " + restoreDiagnostics.joinIntoString (" ");
         ++effectChainRevision;
         return;
     }

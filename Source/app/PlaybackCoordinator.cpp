@@ -87,6 +87,12 @@ void PlaybackCoordinator::loadFailed()
     loadedTrackId.clear();
 }
 
+void PlaybackCoordinator::trackStarted (const juce::String& trackId, TransportIntent nextIntent)
+{
+    loadedTrackId = trackId;
+    intent = nextIntent;
+}
+
 TransportIntent PlaybackCoordinator::getIntent() const
 {
     return intent;

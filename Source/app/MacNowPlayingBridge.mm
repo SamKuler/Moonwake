@@ -108,6 +108,7 @@ public:
             if (! snapshot.hasTrack)
             {
                 clear();
+                updateCommandAvailability (snapshot);
                 return;
             }
 
