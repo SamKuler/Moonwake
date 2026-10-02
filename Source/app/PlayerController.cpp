@@ -261,6 +261,20 @@ bool PlayerController::handlePlaybackFinished()
     return hasNextTrack;
 }
 
+bool PlayerController::handlePlaybackReadError()
+{
+    if (! audioEngine.hasReadError())
+        return false;
+
+    playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(),
+                              audioEngine.getCurrentPositionSeconds());
+    lastStatusMessage = "Could not read the audio file. Playback stopped.";
+    audioEngine.unload();
+    playbackCoordinator.loadFailed();
+    ++stateRevision;
+    return true;
+}
+
 bool PlayerController::removeTrack (int index)
 {
     const auto* track = playlist.getTrack (index);
@@ -324,7 +338,11 @@ void PlayerController::seekToSeconds (double seconds)
     if (std::abs (position - audioEngine.getCurrentPositionSeconds()) < 0.01)
         return;
 
-    audioEngine.seekToSeconds (position);
+    if (! audioEngine.seekToSeconds (position))
+    {
+        handlePlaybackReadError();
+        return;
+    }
     playbackCheckpoint.reset (playbackCoordinator.getLoadedTrackId(), position);
     ++stateRevision;
 }
@@ -739,6 +757,7 @@ PlayerViewState PlayerController::getViewState() const
 
     state.transportIntent = playbackCoordinator.getIntent();
     state.isPlaying = audioEngine.isPlaying();
+    state.playbackFinished = ! state.isPlaying && audioEngine.hasStreamFinished();
     state.positionSeconds = audioEngine.getCurrentPositionSeconds();
     state.lengthSeconds = audioEngine.getLengthInSeconds();
     state.seekRatio = state.lengthSeconds > 0.0
@@ -784,7 +803,11 @@ bool PlayerController::execute (const PlaybackAction& action)
             audioEngine.pause();
             return true;
         case PlaybackActionType::seekToStart:
-            audioEngine.seekToSeconds (0.0);
+            if (! audioEngine.seekToSeconds (0.0))
+            {
+                handlePlaybackReadError();
+                return false;
+            }
             return true;
         case PlaybackActionType::stop:
             audioEngine.stop();
@@ -1025,8 +1048,10 @@ bool PlayerController::restoreStateSnapshot (const PlayerAppState& state)
             const auto position = juce::jlimit (
                 0.0, juce::jmax (0.0, audioEngine.getLengthInSeconds()),
                 state.playbackPositionSeconds);
-            audioEngine.seekToSeconds (position);
-            playbackCheckpoint.reset (selectedTrack->id, position);
+            if (audioEngine.seekToSeconds (position))
+                playbackCheckpoint.reset (selectedTrack->id, position);
+            else
+                handlePlaybackReadError();
         }
     }
     workspaceMode = state.workspaceMode;

@@ -154,10 +154,11 @@ void AudioEngine::shutdown()
     if (initialised)
     {
         deviceBackend->removeAudioCallback (&sourcePlayer);
-        unload();
         initialised = false;
     }
 
+    unload();
+    readAheadThread.stopThread (1000);
     sourcePlayer.setSource (nullptr);
 }
 
@@ -166,14 +167,18 @@ bool AudioEngine::loadFile (const juce::File& file)
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
     if (reader == nullptr)
         return false;
+    if (! readAheadThread.isThreadRunning() && ! readAheadThread.startThread())
+        return false;
 
     const auto sampleRate = reader->sampleRate;
     auto newSource = std::make_unique<ChannelMappedAudioSource> (std::move (reader),
-                                                                 toAudioChannelSet (outputLayout));
+                                                                 toAudioChannelSet (outputLayout),
+                                                                 readAheadThread);
     transportSource.stop();
-    transportSource.setSource (newSource.get(), 0, nullptr, sampleRate);
+    transportSource.setSource (newSource.get(), 0, nullptr, sampleRate,
+                               getChannelCount (OutputLayout::sevenOneTwo));
     readerSource = std::move (newSource);
-    return true;
+    return ! readerSource->hasReadError();
 }
 
 void AudioEngine::unload()
@@ -198,12 +203,20 @@ void AudioEngine::pause()
 void AudioEngine::stop()
 {
     transportSource.stop();
-    transportSource.setPosition (0.0);
+    static_cast<void> (seekToSeconds (0.0));
 }
 
-void AudioEngine::seekToSeconds (double seconds)
+bool AudioEngine::seekToSeconds (double seconds)
 {
+    if (initialised)
+    {
+        ScopedAudioCallbackPause callbackPause (*deviceBackend, sourcePlayer);
+        transportSource.setPosition (juce::jmax (0.0, seconds));
+        return ! hasReadError();
+    }
+
     transportSource.setPosition (juce::jmax (0.0, seconds));
+    return ! hasReadError();
 }
 
 void AudioEngine::setGain (double gainToUse)
@@ -393,6 +406,16 @@ juce::String AudioEngine::setBufferSize (int bufferSize)
 bool AudioEngine::isPlaying() const
 {
     return transportSource.isPlaying();
+}
+
+bool AudioEngine::hasReadError() const
+{
+    return readerSource != nullptr && readerSource->hasReadError();
+}
+
+bool AudioEngine::hasStreamFinished() const
+{
+    return readerSource != nullptr && transportSource.hasStreamFinished();
 }
 
 double AudioEngine::getCurrentPositionSeconds() const

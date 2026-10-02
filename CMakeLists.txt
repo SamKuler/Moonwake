@@ -138,7 +138,6 @@ set(MOONWAKE_SOURCES
     Source/app/PlaybackCoordinator.cpp
     Source/app/PlaybackCheckpoint.cpp
     Source/app/PlayerController.cpp
-    Source/app/PlaybackEndDetector.cpp
     Source/app/AutoSaveScheduler.cpp
     Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
@@ -302,7 +301,6 @@ add_executable(MoonwakeTests
         Source/plugins/EffectChainState.cpp
         Source/plugins/PluginManager.cpp
         Source/plugins/PluginScanProcess.cpp
-        Source/app/PlaybackEndDetector.cpp
         Source/app/AutoSaveScheduler.cpp
         Source/app/NowPlayingCoordinator.cpp
         Source/audio/OutputLayout.cpp
@@ -355,7 +353,6 @@ add_executable(MoonwakeTests
         Tests/EffectChainStateTests.cpp
         Tests/EffectGraphTests.cpp
         Tests/EffectRackLayoutTests.cpp
-        Tests/PlaybackEndDetectorTests.cpp
         Tests/PlaybackCoordinatorTests.cpp
         Tests/PlaybackCheckpointTests.cpp
         Tests/PlayerComponentCatalogTests.cpp

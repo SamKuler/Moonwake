@@ -39,6 +39,7 @@ public:
     bool nextTrack();
     bool previousTrack();
     bool handlePlaybackFinished();
+    bool handlePlaybackReadError();
     bool removeTrack (int index);
     bool moveTrack (int fromIndex, int toIndex);
     void clearPlaylist();

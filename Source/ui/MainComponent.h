@@ -3,7 +3,6 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 
 #include "app/NowPlayingCoordinator.h"
-#include "app/PlaybackEndDetector.h"
 #include "app/PlayerController.h"
 #include "app/AutoSaveScheduler.h"
 #include "library/LibraryFilter.h"
@@ -81,7 +80,6 @@ private:
     PlayerController controller;
     NowPlayingCoordinator nowPlayingCoordinator;
     std::shared_ptr<std::atomic_bool> remoteCommandLifetime;
-    PlaybackEndDetector playbackEndDetector;
     AutoSaveScheduler autoSaveScheduler;
     StateSaveService stateSaveService;
     LibraryFilter libraryFilter;

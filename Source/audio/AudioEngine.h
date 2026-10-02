@@ -63,7 +63,7 @@ public:
     void play();
     void pause();
     void stop();
-    void seekToSeconds (double seconds);
+    bool seekToSeconds (double seconds);
     void setGain (double gain);
     juce::String setOutputLayout (OutputLayout layout);
     [[nodiscard]] AudioDeviceSettingsView getDeviceSettings() const;
@@ -84,6 +84,8 @@ public:
     void endEffectStateCapture() noexcept;
 
     [[nodiscard]] bool isPlaying() const;
+    [[nodiscard]] bool hasStreamFinished() const;
+    [[nodiscard]] bool hasReadError() const;
     [[nodiscard]] double getCurrentPositionSeconds() const;
     [[nodiscard]] double getLengthInSeconds() const;
     [[nodiscard]] double getGain() const;
@@ -132,6 +134,7 @@ private:
 
     std::unique_ptr<IAudioDeviceBackend> deviceBackend;
     juce::AudioFormatManager formatManager;
+    juce::TimeSliceThread readAheadThread { "Audio file read-ahead" };
     juce::AudioSourcePlayer sourcePlayer;
     juce::AudioTransportSource transportSource;
     std::array<std::atomic<float>, 10> outputPeakLevels {};

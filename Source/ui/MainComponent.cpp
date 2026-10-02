@@ -739,6 +739,7 @@ MainComponent::MainComponent()
     seekSlider.onDragEnd = [this]
     {
         controller.seekToRatio (seekSlider.getValue());
+        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
         updateTransportState();
     };
 
@@ -1031,10 +1032,11 @@ void MainComponent::closeDrawers()
 
 void MainComponent::timerCallback()
 {
+    if (controller.handlePlaybackReadError())
+        statusLabel.setText (controller.getLastStatusMessage(), juce::dontSendNotification);
+
     const auto playbackState = controller.getViewState();
-    if (playbackEndDetector.update (playbackState.isPlaying,
-                                    playbackState.positionSeconds,
-                                    playbackState.lengthSeconds)
+    if (playbackState.playbackFinished
         && playbackState.transportIntent == TransportIntent::playing)
     {
         controller.handlePlaybackFinished();
