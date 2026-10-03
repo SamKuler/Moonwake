@@ -4,7 +4,7 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.5.0、内置皮肤 1.0.0
+- 版本基线：应用 0.6.0、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
@@ -23,7 +23,9 @@ Skin API 不允许皮肤：
 - 改变 Play、Add Music、Scan Plug-ins 等操作的业务含义。
 - 注册新的业务事件或调用未公开的播放器方法。
 
-皮肤是一个声明式视图。播放器拥有数据与行为，皮肤只决定如何放置和绘制已经公开的组件。
+皮肤是一个声明式视图。播放器拥有数据、音频处理、操作行为、键盘语义和可访问性名称；皮肤定义公开组件的布局、绘制和 `focusOrder`。复合组件的行与槽位几何同时用于绘制、原生点击区域、滚动和拖放。
+
+macOS 文件选择器、系统窗口管理按钮和第三方插件编辑器由各自宿主管理，不受 Skin API 控制。
 
 一个皮肤包拥有 Studio、Listening、Effects 和 Settings 的完整体验。播放器在工作区之间切换时不会替换 active skin；皮肤作者通过不同布局入口引用不同 style，例如 Studio 使用 textButton.console，Listening 使用 textButton.lightPrimary。
 
@@ -54,7 +56,7 @@ Skin API 不允许皮肤：
   "author": {
     "name": "Example Studio"
   },
-  "minAppVersion": "0.1.0",
+  "minAppVersion": "0.6.0",
   "extends": "builtin.foundation",
   "capabilities": ["tokens", "renderers", "layouts"],
   "entrypoints": {
@@ -70,13 +72,13 @@ Skin API 不允许皮肤：
 }
 ~~~
 
-开发时在 Settings → Appearance / Skins → Developer Folder 中选择该目录。应用会自动验证并以开发预览模式加载；目录已选择后，按钮显示为 Reload Folder。独立验证使用 `MoonwakeSkinTool validate`。开发目录不能直接 Apply，发布前应先用 Skin Tool 打包为 `MyFirstSkin.moonwake-skin`，再通过 Import Package、Preview 和 Apply Preview 完成正式导入。
+开发时从内置皮肤的 Settings → Appearance → Developer folder 选择该目录。应用会验证并进入开发预览；已选择目录的入口显示为 Reload folder，对应可选组件 `settings.skins.reload`。独立验证使用 `MoonwakeSkinTool validate`。开发目录不能直接 Apply，发布前应先用 Skin Tool 打包为 `MyFirstSkin.moonwake-skin`，再通过 Import skin、Preview 和 Apply 导入并应用。
 
 schema/ 下的五个 JSON Schema 由播放器 SkinSchemaRegistry 通过 MoonwakeSkinTool schema 生成，是机器可读字段、类型和枚举的真源；本文解释其语义。发布验收会重新生成 Schema、验证本文全部 fenced JSON 与完整示例包，禁止手工维护两套字段集合。
 
 ### 2.1 可直接运行的完整示例
 
-`docs/skin-api/examples/CompleteThirdParty/` 是一个自包含、满足全部 required component 规则的 Skin API 1 最小开发目录，包含四个可验证布局、tokens、renderer index、按钮、surface、seek 和 volume renderer。它有意省略部分可选组件，完整列表见第 10 节 Component Catalog。它不是伪代码；从仓库根目录执行：
+`docs/skin-api/examples/CompleteThirdParty/` 是可直接加载的 Skin API 1 参考包，包含四个布局、tokens、renderer index，以及按钮、封面、效果链和输出仪表等 renderer。示例满足全部 required component 规则，并选用插件筛选、格式开关、输出 Mixer 等可选组件；完整目录见第 10 节 Component Catalog。从仓库根目录执行：
 
     ./build/MoonwakeSkinTool validate docs/skin-api/examples/CompleteThirdParty/
     ./build/MoonwakeSkinTool layout docs/skin-api/examples/CompleteThirdParty/ --workspace listening --size 1240x800
@@ -165,7 +167,7 @@ SVG 解析器禁用 DTD 与 entity。允许元素仅为 svg、g、path、rect、
   },
   "description": "A warm listening-room skin.",
   "license": "MIT",
-  "minAppVersion": "0.1.0",
+  "minAppVersion": "0.6.0",
   "extends": "builtin.foundation",
   "capabilities": ["tokens", "renderers", "layouts", "assets", "animations"],
   "entrypoints": {
@@ -301,22 +303,6 @@ manifest 声明了某项 capability，但未提供相应入口或内容时产生
 引用目标必须存在且类型兼容。引用在导入时解析，循环引用产生 TOKEN004。
 
 皮肤可以覆盖 builtin.foundation 的同名 token，也可以定义自有 token。第三方自有 token 应以 vendor. 前缀组织，例如 colors.vendor.meridian.recordRed。
-
-### 原生控件的皮肤度量（应用 0.5.0）
-
-renderer 可声明 `controlStyle`，为宿主的原生命中区域和附属窗口提供与绘制一致的度量。省略整个对象时继承 target.default；声明时须包含该 target 的完整字段，不能出现其他 target 的字段。
-
-| target | controlStyle 字段 |
-|---|---|
-| textButton | iconBounds：x、y、width、height |
-| linearSlider / rotarySlider | trackBounds：x、y、width、height；thumbRadius |
-| tooltip | maxWidth（含文字内边距）、offsetX、offsetY |
-| scrollBar | thickness、minThumbLength |
-| textEditor | selectionColour、selectedTextColour、caretColour |
-
-数值和颜色可以引用 token，几何字段可使用受限表达式。Slider 的 layers 以完整控件 bounds 绘制，trackBounds 描述原生输入映射使用的同一轨道；自定义滑块必须让两者一致。复合组件中原生子控件使用其 slot 映射出的 style。图标使用公开语义路径，尺寸和位置由 iconBounds 控制。Tooltip 会在父窗口边界内避让，滚动条 thickness 同时参与布局留白和原生滚动条宽度。TextEditor 的选区、选中文字和光标使用对应皮肤颜色。
-
-`scrollBar.thickness` 是布局级的逻辑像素度量，接受数值、token 引用和只依赖 token 的表达式，不读取控件 bounds、状态或显示器缩放 context。不同页面和断点可通过 `ancillaryStyles` 选择不同宽度，保证页面预留空间与所有原生滚动条使用相同值。
 
 ### 5.4 字体
 
@@ -550,7 +536,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 复合组件中逐行或逐槽变化的专属 Context 只在对应 slot 调用时有效，并会继承到该 slot 绑定的子 renderer；例如 pluginList 的 `plugin.*` 可用于 `row.surface` 绑定的 surface renderer 和 `row.name` 绑定的 label renderer。复合组件自身的主体 renderer 每个组件只调用一次，因此不能引用逐行字段。编译器分别校验主体与 slot 上下文，避免导入成功后才出现缺值。
 
-### 复合组件的行布局
+### 7.1 复合组件的行布局（应用 0.5.0）
 
 `table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
 
@@ -588,7 +574,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。无效尺寸、未知或缺少交互 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。Foundation 为内置复合组件提供完整布局，使旧皮肤也有可用的几何回退。
 
-### 7.1 Renderer 调用粒度与专属 Context
+### 7.2 Renderer 调用粒度与专属 Context
 
 | target | 调用粒度 | 额外 Context | 固定 slots |
 |---|---|---|---|
@@ -606,7 +592,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | surface | 每个 container 或 visual 节点一次 | bounds.* | 无 |
 | table | 表主体一次 | table.rowCount、table.columnCount | header.surface、header.text、row.surface、cell.title、cell.location、cell.duration |
 | artwork | 封面组件一次 | artwork.hasTrack、artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
-| effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator |
+| effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator；可选 slot.scope（应用 0.4.0 起） |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
 | channelMap | 只读输出端口映射 | channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected | row.surface、row.source、row.destination、header.label、empty.message |
 | channelMixer | 每声道混音行及原生控制槽位 | text.primary、value.*、state.* | row.surface、row.source、row.destination、row.peak、row.gain、row.mute、row.solo |
@@ -617,11 +603,29 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 scrollBar、popupMenu 和 tooltip 是 JuceSkinAdapter 使用的 ancillary target，不对应可放进 layout 的 Component ID。它们与其他 renderer target 使用相同的命名样式规则，可以在 components/index.json 注册 `studio`、`listening` 等样式，并通过布局的 `ancillaryStyles` 选择。每个完整皮肤仍必须提供或继承 scrollBar.default、popupMenu.default 和 tooltip.default；builtin.foundation 提供三者，确保未指定映射的 Viewport、菜单和提示使用稳定回退。ComboBox 的自身 style 不传播给 popup；ComboBox 与其他来源的菜单均使用当前布局解析出的 popupMenu 样式。使用这些命名附属样式及布局映射的皮肤要求应用 `0.3.0` 或更高。
 
+`combo.popupOpen` 表示原生弹出菜单正在显示，`combo.hasSelection` 表示有有效选项；两者要求应用 `0.5.0` 或更高。内置皮肤在菜单显示且有选项时隐藏被覆盖的触发器图层；无选项时菜单出现在触发器下方，触发器保持可见。菜单关闭后恢复触发器及焦点反馈。
+
 scroll.orientation 为 `horizontal` 或 `vertical`；scroll.thumbStart 与 scroll.thumbSize 是 target 本地轴上的逻辑像素；scroll.part 为 `bar`、`buttonStart` 或 `buttonEnd`。`bar` 一次绘制轨道与 thumb，两个 button part 分别绘制可选箭头。menu.part 为 `background`、`item`、`separator` 或 `sectionHeader`；普通 item 的 menu.itemIndex 是当次菜单绘制中从 0 开始、跳过 separator 与 sectionHeader 的稳定视觉序号，非 item 调用固定为 -1。table 的 row.surface 接收整行 bounds，cell.title、cell.location 与 cell.duration 分别接收其实际列 bounds；不要假定三个 cell slot 共享整行几何。tooltip 使用应用提供的 text.primary，皮肤不能替换其可访问性内容。
 
 原生 textEditor 的编辑内容、选区和光标由应用拥有。renderer 中 ID 为 `label` 的 text 层提供它们的 `font`、`fontSize`、`color`、`opacity`、`visible`、`frame` 和 `align`；这些值按当前状态 variants 和控件 bounds 解析。原生编辑区域采用该 frame 的控件坐标矩形及对齐方式，窗口改变尺寸或皮肤预览切换后会重新同步。`label` 应使用未变换的控件坐标；layer/group 的 transform 仍只影响声明式绘制，不改变原生编辑坐标。`maxLines`、`overflow` 不会更改应用决定的单行、多行、编辑或滚动行为。
 
 textEditor 的占位文字仍由应用设置。空内容且未聚焦时，该文字通过 `text.primary` 交给同一 `label` 层绘制；已有输入或获得焦点时，主体 renderer 的 `text.primary` 为空，由原生文字层负责内容。应用关闭原生占位文字的第二次绘制，字号、颜色与目标矩形均遵循上述 label 配置。popupMenu 和 tooltip 的原生尺寸测量也使用其 `label` 字体及 frame 内边距，tooltip 的可用行数遵循 `maxLines`。
+
+### 7.3 原生控件度量（应用 0.5.0）
+
+renderer 可声明 `controlStyle`，为宿主的原生命中区域和附属窗口提供与绘制一致的度量。省略整个对象时继承 target.default；声明时须包含该 target 的完整字段，不能出现其他 target 的字段。
+
+| target | controlStyle 字段 |
+|---|---|
+| textButton | iconBounds：x、y、width、height |
+| linearSlider / rotarySlider | trackBounds：x、y、width、height；thumbRadius |
+| tooltip | maxWidth（含文字内边距）、offsetX、offsetY |
+| scrollBar | thickness、minThumbLength |
+| textEditor | selectionColour、selectedTextColour、caretColour |
+
+数值和颜色可以引用 token，几何字段可使用受限表达式。Slider 的 layers 以完整控件 bounds 绘制，trackBounds 描述原生输入映射使用的同一轨道；自定义滑块必须让两者一致。复合组件中原生子控件使用其 slot 映射出的 style。图标使用公开语义路径，尺寸和位置由 iconBounds 控制。Tooltip 会在父窗口边界内避让，滚动条 thickness 同时参与布局留白和原生滚动条宽度。TextEditor 的选区、选中文字和光标使用对应皮肤颜色。
+
+`scrollBar.thickness` 是布局级的逻辑像素度量，接受数值、token 引用和只依赖 token 的表达式，不读取控件 bounds、状态或显示器缩放 context。不同页面和断点可通过 `ancillaryStyles` 选择不同宽度，保证页面预留空间与所有原生滚动条使用相同值。
 
 ## 8. Render Definition
 
@@ -815,7 +819,7 @@ repeat 只允许白名单数据源。输出仪表可以使用 meter.channels：
   "id": "channels",
   "type": "repeat",
   "source": "meter.channels",
-  "limit": 10,
+  "limit": 16,
   "template": {
     "id": "channel-bar",
     "type": "roundedRect",
@@ -1100,7 +1104,7 @@ auto 与固有尺寸：
 - component 的 auto 尺寸来自 PlayerComponentCatalog 的稳定 preferred size，不从当前文本测量，因此曲名、语言和动态状态不会改变布局。
 - visual 的 auto preferred size 为 0 × 0。
 - row、column、grid、stack 的 auto size 是子节点最小贡献、margin、padding 与 gap 的确定性合计。
-- scroll 的 viewport 由父布局确定；滚动轴 content extent 取 child 的测量尺寸。仅当主轴确实溢出时，运行时会在交叉轴内部预留固定 8 个逻辑像素的滚动条 gutter，并把 child 交叉轴约束到剩余可视区域；因此单轴滚动不会把末端内容压在滚动条下面，也不会暗中开启第二个滚动方向。皮肤通过当前布局解析出的 scrollBar 样式绘制这条 8 px gutter；未映射时使用 `scrollBar.default`，不应依赖平台默认宽度。
+- scroll 的 viewport 由父布局确定；滚动轴 content extent 取 child 的测量尺寸。主轴溢出时，运行时在交叉轴内部预留滚动条空间，并将 child 约束到剩余可视区域。预留宽度来自当前布局解析出的 scrollBar 样式的 `controlStyle.thickness`，与原生滚动条使用同一逻辑像素值；未映射时使用 `scrollBar.default`，内置默认值为 8。单轴滚动不会自动启用第二个滚动方向。
 
 Component Catalog 的 Skin API 1 默认尺寸：
 
@@ -1184,7 +1188,7 @@ Component ID 是 Skin API 的公共 ABI：
 | workspace.listening | textButton | Studio、Listening 必需 | 切换到 Listening |
 | settings.open | textButton | Studio、Listening 必需 | 打开 Settings |
 
-workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态。
+workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态。Effects 和 Settings 的关闭按钮为可选组件；内置皮肤通过顶部入口、工作区切换按钮和 Esc 返回主工作区。
 
 ### 10.3 曲库与队列
 
@@ -1355,7 +1359,7 @@ outputStage 提供：
 
 `meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。采样峰值来自效果链与输出增益之后的实际采样；RMS 使用 300 ms 窗口，LUFS 使用 K 加权及门限，Momentary / Short-term 分别为 400 ms / 3 s。LFE 不计入 LUFS，但保留独立峰值、RMS 与 True Peak。测量在后台工作线程进行，界面模式或 A/B 切换不重置测量。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
 
-`output.mixer` 使用 `channelMixer` target，最小尺寸 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
+`output.mixer` 使用 `channelMixer` target，要求应用 `0.5.0` 或更高；`channelMap` 仅用于只读设备声道映射。Mixer 最小尺寸为 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
 
 - `row.surface` → surface：行分割线与背景。
 - `row.source` → label：L、R、C、LFE 等扬声器简称。
@@ -1427,7 +1431,7 @@ outputStage 提供：
 
 队列表格另有固定列语义：`header.text` 的 Duration（column 3）为 `right`，Title 与 Location 表头为 `left`；`cell.duration` 为 `right`，`cell.title` 与 `cell.location` 为 `left`。这些值通过同一个 `text.align` 上下文传给 slot label renderer。
 
-应用内已绑定的公开 Component ID 以本表为准，即使内部 JUCE Label 临时使用了不同 justification。不是公开 Component ID 的原生 Label 才按其 JUCE justification 映射到相同九值集合。第三方 renderer 若声明字面 `align`，会明确覆盖上下文，既有皮肤因此不会被强制改变。
+公开 Component ID 的 `text.align` 遵循本表；未绑定公开 ID 的原生 Label 则按 JUCE justification 映射到相同九值集合。Renderer 中声明的字面 `align` 优先于上下文。
 
 ### 10.10 TextButton 语义图标
 
@@ -1445,7 +1449,7 @@ outputStage 提供：
 | scan / folderSearch | settings.plugins.scanAll、settings.plugins.scanFolder | leading icon + text |
 | import / reload / preview / remove | 对应 settings.skins.* 操作 | leading icon + text |
 
-`queue.clear`、workspace 模式、Cancel Scan、Apply Preview 和 Cancel Preview 没有图标语义：它们依赖对象范围、模式名或结果性文字，改成纯图标会降低可理解性。
+`queue.clear`、workspace 模式、Cancel Scan、Apply 和 Cancel preview 没有图标语义：它们依赖对象范围、模式名或结果性文字，改成纯图标会降低可理解性。
 
 推荐的第三方实现把 textButton style 写成复合 entry，将它需要支持的 slot 映射到 surface renderer。例如一个 add 按钮 style 可以声明 `"icon.add": "surface.actionIcon"`。`surface.actionIcon` 的 Path layer 可把 `data` 绑定到 `{ "$context": "icon.path" }`，并用以下 transform 把标准 24 × 24 path 放进应用提供的 icon bounds：pivotX/pivotY 为 0，scaleX 为 `bounds.width / 24`，scaleY 为 `bounds.height / 24`，translateX/translateY 分别为 `bounds.x` 与 `bounds.y`。这是 Path `data` 唯一允许的动态来源；任意 `$expr` 或 `text.primary` 动态 path 会被拒绝，避免把业务文本当图形语法解析。应用提供的 fallback path 在 catalog 初始化时预编译，正常 paint 不重新解析路径。
 
@@ -1486,9 +1490,7 @@ effects.chain
 
 如果皮肤 extends builtin.foundation，编译器可以从基础入口继承完整布局。但一旦皮肤提供某个布局入口，该入口必须独立满足 required rules，不会自动把缺少的组件隐式插入到任意位置。
 
-这样可以避免第三方布局看起来成功，实际却依靠不可预测的紧急浮层。
-
-Skin API 1 不允许在同一布局中重复同一个 Component ID。需要在空队列和标题栏同时放置两个 Add Music 按钮属于未来的可复制 command-view 能力；当前版本应把唯一的 library.add 放在始终可访问的 Queue 标题区。
+Skin API 1 不允许在同一布局中重复同一个 Component ID。应将唯一的 `library.add` 放在空队列和非空队列状态下都可访问的位置，例如 Queue 标题区。
 
 ## 12. 完整 Listening 布局示例
 
@@ -1835,26 +1837,13 @@ respectReduceMotion 默认 true。系统开启 Reduce Motion 时：
 
 ## 16. Settings 信息架构
 
-Settings 只应包含：
+Settings 的功能分区：
 
-1. Audio Output
-   - CoreAudio device
-   - Sample rate
-   - Buffer size
-   - Channel layout
-   - Optional channel map
-
-2. Plug-ins
-   - Supported formats
-   - Known plug-ins
-   - Scan standard locations
-   - Scan VST3 folder
-   - Cancel and progress
-
-3. Skins
-   - Installed library
-   - Import, preview, apply, remove
-   - Developer directory and reload
+| 分区 | 功能 |
+|---|---|
+| Audio | CoreAudio 设备、采样率、缓冲区、输出布局及可选的端口映射 |
+| Plug-ins | AU/VST3 格式开关、插件搜索和筛选、已扫描清单、标准位置与额外 VST3 文件夹扫描、取消及进度 |
+| Appearance | 皮肤库、导入、预览、应用、删除，以及开发目录加载和重载 |
 
 library.add 不得出现在 Settings 布局。它必须出现在 Studio 与 Listening 主工作区。
 
@@ -1902,9 +1891,9 @@ minAppVersion 高于当前播放器时拒绝导入。皮肤不应根据 app vers
 11. Recheck snapshot digest
 12. Atomic install from snapshot
 
-Import Package 成功不代表立即应用。Preview 创建临时 Skin Session，Apply Preview 持久化，Cancel Preview 恢复此前皮肤。预览期间播放器同时保护预览版本和此前已确认版本，不允许删除它们；为避免版本保留清理破坏 Cancel，预览期间也拒绝导入这两个 skin id 的另一版本。先 Apply Preview 或 Cancel Preview 再导入即可。
+Import skin 成功不代表立即应用。Preview 创建临时 Skin Session，Apply 持久化，Cancel preview 恢复此前皮肤。预览期间播放器同时保护预览版本和此前已确认版本，不允许删除它们；为避免版本保留清理破坏 Cancel，预览期间也拒绝导入这两个 skin id 的另一版本。先 Apply 或 Cancel preview 再导入即可。
 
-导入开始后应用不再读取用户选择的原文件或目录。即使原路径在验证期间被替换，编译与安装仍只使用同一份私有不可变快照。Reload Folder 每次都重新捕获快照，且始终是只预览；开发目录中的版本不能直接 Apply Preview，作者必须先通过 Import Package 正式导入。
+导入开始后应用不再读取用户选择的原文件或目录。即使原路径在验证期间被替换，编译与安装仍只使用同一份私有不可变快照。Reload folder 每次都重新捕获快照，且始终是只预览；开发目录中的版本不能直接 Apply，作者必须先通过 Import skin 正式导入。
 
 播放器会用安装时记录的 SHA-256 发现意外的安装后内容变化，并拒绝链接、超长或畸形完整性记录。这个检查面向不受信任的声明式皮肤输入和意外文件损坏，不是本机账户入侵防护：拥有同一 macOS 用户文件系统写权限的恶意进程能够同时改写包和应用本地元数据，皮肤格式不承诺抵御该攻击者。
 
@@ -1917,7 +1906,7 @@ Import Package 成功不代表立即应用。Preview 创建临时 Skin Session�
 
 发生 fatal 回退时，SkinManager 在切换到 `builtin.foundation` 之前复制失败 Skin Session 的 selection、health 与完整 runtime report，作为 last failed session record 保留到下一次失败或宿主清除。该记录目前作为宿主内部诊断接口保留；回退后的 active session 不会覆盖失败证据。
 
-每个 Preview 或 active skin 都有独立 Skin Session，拥有自己的资源缓存、动画、运行时报告和 health。Renderer 通过 fault sink 报告，不能在 paint 内直接替换 session。切换与回退不会停止音频，也不会重建 PlayerController。
+每个 Preview 或 active skin 都有独立 Skin Session，拥有自己的资源缓存、动画、运行时报告和 health。Renderer 通过 fault sink 报告，不能在 paint 内直接替换 session。切换与回退保持音频播放和应用状态。
 
 meter 数据是 UI 读取的最多 16 个声道测量快照。皮肤只看到 SkinRenderContext 中的副本，不能访问 AudioEngine、callback buffer、锁或实时线程；复杂 renderer 只可能影响 UI 帧率，不会进入音频处理路径。
 
@@ -1979,7 +1968,6 @@ Suggestion: add one visible component node with component "library.add".
 
 `layout` 与 `snapshot` 的 `--workspace` 选择四个布局入口，`--theme studio|listening` 选择断点匹配的当前工作区。`--theme` 可省略，默认按入口推导；也可在两个主入口上显式覆盖，便于检查条件分支。未知值、重复参数或其他命令使用此参数均报 `TOOL001`，缺少参数值报 `TOOL002`。
 
-
 导出当前应用的规范 Schema：
 
     ./build/MoonwakeSkinTool schema --output-dir SkinAPI1Schema/ [--force]
@@ -2005,7 +1993,7 @@ Suggestion: add one visible component node with component "library.add".
 - 包中没有未引用的大型资源。
 - 字体和图片具有分发许可。
 - validate 无 error。
-- Preview 可以通过 Settings → Appearance / Skins → Cancel Preview 取消；fatal renderer 会自动回退随应用内置的 `builtin.foundation`。
+- Preview 可以通过 Settings → Appearance → Cancel preview 取消；fatal renderer 会自动回退随应用内置的 `builtin.foundation`。
 
 ## 22. Skin API 1 的兼容承诺
 
@@ -2020,18 +2008,3 @@ Suggestion: add one visible component node with component "library.add".
 - 不执行任意代码的安全模型。
 
 实现可以从 JUCE Component 重构为其他内部结构，但只要 Skin API 仍为 1，以上契约不会因内部 C++ 类名或布局实现变化而改变。
-
-
-## 自绘视觉与宿主行为边界
-
-Moonwake 自己绘制的视觉通过 Skin API 声明：顶层页面布局、复合组件内的行与槽位布局、控件几何、文字、图标、颜色、轮廓、状态和动效。宿主负责音频、数据、动作、焦点顺序、键盘语义和可访问性名称。视觉槽位的解析结果同时用于绘制、原生控件的点击区域、滚动和拖放。
-
-行布局 `rowLayout`、原生控件度量 `controlStyle` 及下拉框 `combo.*` context 要求应用 `0.5.0` 或更高。
-
-应用 0.5.0 起，`output.mixer` 对应独立的 `channelMixer` target。`channelMap` 表示只读的设备声道映射。第三方 Mixer renderer 和组件索引需使用 `channelMixer`，并将 `minAppVersion` 设为 `0.5.0`。两者均可使用 `rowLayout`，具有不同的槽位目录与默认布局。
-
-Effects 和 Settings 的页面关闭按钮为可选组件。内置皮肤使用顶部入口、工作区切换和 Esc 返回，避免重复导航。作者信息保留在应用元数据，主导航使用产品名称与皮肤绘制的标志。
-
-macOS 文件选择器、系统窗口管理按钮和第三方插件自行绘制的编辑器由各自宿主管理。皮肤不修改这些外部界面。
-
-`combo.popupOpen` 表示原生弹出菜单正在显示，`combo.hasSelection` 表示有有效选项。内置皮肤在菜单显示且有选项时隐藏被覆盖的触发器图层；无选项时菜单出现在触发器下方，触发器保持可见。菜单关闭后恢复触发器及焦点反馈，避免透明圆角露出下面的边框。

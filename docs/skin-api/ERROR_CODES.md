@@ -121,7 +121,7 @@
 | RENDER006 | error | token 类型与绘制属性不兼容 |
 | RENDER007 | error | asset path 非法 |
 | RENDER008 | error | repeat.template 内再次出现 repeat |
-| RENDER009 | error | repeat source 或 limit 超出 10/3/10 |
+| RENDER009 | error | repeat source 未知或不适用于当前 target，或 limit 不在该数据源允许的范围内：meter.channels 为 1–16、table.visibleColumns 为 1–3、output.channelLabels 为 1–16 |
 | RENDER010 | error | 最坏展开绘制操作超过 5000 |
 | RENDER011 | error | transition、from 或插值类型非法 |
 | RENDER012 | error | variant property path 引用未知 layer/field |
