@@ -140,14 +140,6 @@ public:
         repaint();
     }
 
-    void mouseWheelMove (const juce::MouseEvent&,
-                         const juce::MouseWheelDetails& wheel) override
-    {
-        if (wheel.deltaY == 0.0f)
-            return;
-        setFirstVisibleRow (firstVisibleRow + (wheel.deltaY > 0.0f ? -1 : 1));
-    }
-
     bool keyPressed (const juce::KeyPress& key) override
     {
         if (selections.empty()) return false;

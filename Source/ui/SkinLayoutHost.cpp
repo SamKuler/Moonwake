@@ -42,18 +42,143 @@ class LayoutViewport final : public juce::Viewport,
                              private juce::FocusChangeListener
 {
 public:
-    explicit LayoutViewport (const juce::String& name) : juce::Viewport (name)
+    explicit LayoutViewport (const juce::String& name)
+        : juce::Viewport (name), wheelListener (*this)
     {
         setWantsKeyboardFocus (false);
+        setInterceptsMouseClicks (true, true);
         juce::Desktop::getInstance().addFocusChangeListener (this);
+        juce::Desktop::getInstance().addGlobalMouseListener (&wheelListener);
     }
 
     ~LayoutViewport() override
     {
+        juce::Desktop::getInstance().removeGlobalMouseListener (&wheelListener);
         juce::Desktop::getInstance().removeFocusChangeListener (this);
     }
 
+    void watchNestedViewports()
+    {
+        wheelListener.clear();
+        if (auto* content = getViewedComponent()) wheelListener.observe (*content);
+    }
+
 private:
+    class NestedWheelListener final : public juce::MouseListener,
+                                      private juce::ComponentListener
+    {
+    public:
+        explicit NestedWheelListener (LayoutViewport& viewport) : owner (viewport) {}
+        ~NestedWheelListener() override { clear(); }
+        void clear()
+        {
+            for (const auto& observed : contents)
+                if (observed.component != nullptr) observed.component->removeComponentListener (this);
+            contents.clear();
+        }
+        void observe (juce::Component& component)
+        {
+            if (auto* viewport = dynamic_cast<juce::Viewport*> (&component))
+                if (auto* content = viewport->getViewedComponent())
+                {
+                    contents.push_back ({ content, -1 });
+                    content->addComponentListener (this);
+                }
+            for (auto* child : component.getChildren()) observe (*child);
+        }
+        bool movedDuringWheel (const juce::Viewport& viewport) const
+        {
+            // Global listeners run after the target. A wheel event that moved the
+            // inner viewport to its limit must not also move the outer page.
+            for (const auto& observed : contents)
+                if (observed.component == viewport.getViewedComponent())
+                    return observed.wheel == juce::Desktop::getInstance().getMouseWheelMoveCounter();
+            return false;
+        }
+        void mouseWheelMove (const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override
+        {
+            owner.forwardWheelAtBoundary (event, wheel);
+        }
+    private:
+        void componentMovedOrResized (juce::Component& component, bool moved, bool) override
+        {
+            if (moved)
+                for (auto& observed : contents)
+                    if (observed.component == &component)
+                        observed.wheel = juce::Desktop::getInstance().getMouseWheelMoveCounter();
+        }
+        struct ObservedContent
+        {
+            juce::Component::SafePointer<juce::Component> component;
+            int wheel;
+        };
+        LayoutViewport& owner;
+        std::vector<ObservedContent> contents;
+    };
+
+    static juce::Point<int> wheelDirection (juce::Viewport& viewport,
+                                           const juce::MouseEvent& event,
+                                           const juce::MouseWheelDetails& wheel)
+    {
+        const auto horizontal = viewport.getHorizontalScrollBar().isVisible();
+        const auto vertical = viewport.getVerticalScrollBar().isVisible();
+        const auto direction = [] (float delta) { return delta > 0.0f ? -1 : delta < 0.0f ? 1 : 0; };
+        if (horizontal && vertical && wheel.deltaX != 0.0f && wheel.deltaY != 0.0f)
+            return { direction (wheel.deltaX), direction (wheel.deltaY) };
+        if (horizontal && (wheel.deltaX != 0.0f || event.mods.isShiftDown() || ! vertical))
+            return { direction (wheel.deltaX != 0.0f ? wheel.deltaX : wheel.deltaY), 0 };
+        return { 0, vertical ? direction (wheel.deltaY) : 0 };
+    }
+
+    static bool canMove (const juce::Viewport& viewport, juce::Point<int> direction)
+    {
+        const auto* content = viewport.getViewedComponent();
+        if (content == nullptr) return false;
+        const auto view = viewport.getViewArea();
+        return (direction.x < 0 && view.getX() > 0)
+            || (direction.x > 0 && view.getRight() < content->getWidth())
+            || (direction.y < 0 && view.getY() > 0)
+            || (direction.y > 0 && view.getBottom() < content->getHeight());
+    }
+
+    void forwardWheelAtBoundary (const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+    {
+        if (! isShowing() || ! isParentOf (event.eventComponent)
+            || event.mods.isAltDown() || event.mods.isCtrlDown() || event.mods.isCommandDown()) return;
+        auto* nested = event.eventComponent;
+        while (nested != nullptr && dynamic_cast<juce::Viewport*> (nested) == nullptr)
+            nested = nested->getParentComponent();
+        if (nested == nullptr || nested == this) return;
+        auto* page = nested->getParentComponent();
+        while (page != nullptr && dynamic_cast<LayoutViewport*> (page) == nullptr)
+            page = page->getParentComponent();
+        if (page != this) return;
+
+        // Native viewports consume wheel events at their limits. Route only that
+        // blocked case; ordinary bubbling and a child's remaining range stay native.
+        bool blocked = false;
+        for (auto* current = nested; current != this; current = current->getParentComponent())
+            if (auto* viewport = dynamic_cast<juce::Viewport*> (current))
+            {
+                const auto direction = wheelDirection (*viewport, event, wheel);
+                if (direction.isOrigin()) continue;
+                if (wheelListener.movedDuringWheel (*viewport)) return;
+                if (canMove (*viewport, direction)) return;
+                blocked = true;
+                break;
+            }
+        if (! blocked) return;
+        for (juce::Component* current = this; current != nullptr; current = current->getParentComponent())
+            if (auto* viewport = dynamic_cast<juce::Viewport*> (current))
+                if (canMove (*viewport, wheelDirection (*viewport, event, wheel)))
+                {
+                    viewport->mouseWheelMove (event.getEventRelativeTo (viewport), wheel);
+                    return;
+                }
+    }
+
+    NestedWheelListener wheelListener;
+
     void globalFocusChanged (juce::Component* focused) override
     {
         if (focused == nullptr || ! isShowing() || ! isParentOf (focused)) return;
@@ -757,6 +882,11 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
                         if (const auto target = skinRenderTargetFromName (descriptor->defaultRendererTarget))
                             adapter->configureListContentClip (*list, *target);
             placement.component->setVisible (placement.visible);
+        }
+        for (const auto& [id, viewport] : value.scrollViewports)
+        {
+            juce::ignoreUnused (id);
+            static_cast<LayoutViewport*> (viewport.get())->watchNestedViewports();
         }
         value.root->toFront (false);
         return true;

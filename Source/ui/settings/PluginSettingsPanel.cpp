@@ -70,10 +70,6 @@ public:
             applyRows (availableWidth);
             juce::ListBox::resized();
         }
-        auto* viewport = getViewport();
-        const auto bounds = viewport->getBounds();
-        const auto completeRowsHeight = bounds.getHeight() / getRowHeight() * getRowHeight();
-        viewport->setBounds (bounds.withHeight (completeRowsHeight > 0 ? completeRowsHeight : bounds.getHeight()));
         setFirstVisibleRow (first);
         if (adapter != nullptr)
             adapter->configureListContentClip (*this, SkinRenderTarget::pluginList);
@@ -96,15 +92,6 @@ public:
             if (const auto layout = rowLayout (getWidth()))
                 drawTextSlot (graphics, *layout, "empty.message",
                     emptyMessage, "empty");
-    }
-
-    void mouseWheelMove (const juce::MouseEvent&,
-                         const juce::MouseWheelDetails& wheel) override
-    {
-        if (wheel.deltaY == 0.0f)
-            return;
-        const auto step = wheel.deltaY > 0.0f ? -1 : 1;
-        setFirstVisibleRow (firstVisibleRow + step);
     }
 
     bool keyPressed (const juce::KeyPress& key) override
@@ -204,9 +191,6 @@ private:
         {
             firstVisibleRow = juce::jmax (
                 0, viewport->getViewPositionY() / getRowHeight());
-            const auto alignedY = firstVisibleRow * getRowHeight();
-            if (viewport->getViewPositionY() != alignedY)
-                viewport->setViewPosition (viewport->getViewPositionX(), alignedY);
         }
     }
 

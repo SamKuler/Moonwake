@@ -14,6 +14,43 @@
 
 namespace
 {
+// Deliver JUCE pointer events without depending on foreground macOS windows.
+class SettingsTestPeer final : public juce::ComponentPeer
+{
+public:
+    SettingsTestPeer (juce::Component& owner, int flags)
+        : juce::ComponentPeer (owner, flags), bounds (owner.getBounds()) {}
+    void* getNativeHandle() const override { return nullptr; }
+    void setVisible (bool value) override { visible = value; }
+    void setTitle (const juce::String&) override {}
+    void setBounds (const juce::Rectangle<int>& value, bool) override { bounds = value; }
+    juce::Rectangle<int> getBounds() const override { return bounds; }
+    juce::Point<float> localToGlobal (juce::Point<float> point) override { return point + bounds.getPosition().toFloat(); }
+    juce::Point<float> globalToLocal (juce::Point<float> point) override { return point - bounds.getPosition().toFloat(); }
+    void setMinimised (bool) override {}
+    bool isMinimised() const override { return false; }
+    bool isShowing() const override { return visible; }
+    void setFullScreen (bool) override {}
+    bool isFullScreen() const override { return false; }
+    void setIcon (const juce::Image&) override {}
+    bool contains (juce::Point<int> point, bool) const override { return bounds.withPosition (0, 0).contains (point); }
+    OptionalBorderSize getFrameSizeIfPresent() const override { return OptionalBorderSize (juce::BorderSize<int>()); }
+    juce::BorderSize<int> getFrameSize() const override { return {}; }
+    bool setAlwaysOnTop (bool) override { return true; }
+    void toFront (bool) override {}
+    void toBehind (juce::ComponentPeer*) override {}
+    bool isFocused() const override { return false; }
+    void grabFocus() override {}
+    void repaint (const juce::Rectangle<int>&) override {}
+    void performAnyPendingRepaintsNow() override {}
+    void setAlpha (float) override {}
+    juce::StringArray getAvailableRenderingEngines() override { return {}; }
+    void textInputRequired (juce::Point<int>, juce::TextInputTarget&) override {}
+private:
+    juce::Rectangle<int> bounds;
+    bool visible = false;
+};
+
 class PanelAudioBackend final : public IAudioDeviceBackend
 {
 public:
@@ -1008,16 +1045,20 @@ public:
                 {
                     list->setSize (360, height);
                     const auto visibleHeight = viewport->getMaximumVisibleHeight();
-                    expectEquals (visibleHeight % list->getRowHeight(), 0,
-                                  "Only complete plugin rows may occupy the viewport");
+                    expectEquals (visibleHeight, height - list->getHeaderComponent()->getHeight(),
+                                  "The list uses all available space, including partial rows.");
                     expect (visibleHeight > 0);
                     list->keyPressed (juce::KeyPress (juce::KeyPress::endKey));
                     expectEquals (viewport->getViewPositionY() + visibleHeight,
                                   panel.knownPluginCount() * list->getRowHeight(),
                                   "The final plugin must remain fully reachable");
                     viewport->setViewPosition (0, 53);
-                    expectEquals (viewport->getViewPositionY() % list->getRowHeight(), 0,
-                                  "Dragging the scroll bar must retain complete rows");
+                    expectEquals (viewport->getViewPositionY(), 53,
+                                  "Dragging the scroll bar must preserve pixel movement.");
+                    viewport->setViewPosition (0, 0);
+                    viewport->mouseWheelMove (wheelEventFor (*viewport), { 0.0f, -0.01f, false, true, false });
+                    expect (viewport->getViewPositionY() > 0 && viewport->getViewPositionY() < list->getRowHeight(),
+                            "Small trackpad deltas must scroll rather than snapping back.");
                 }
                 list->keyPressed (juce::KeyPress (juce::KeyPress::homeKey));
                 list->keyPressed (juce::KeyPress (juce::KeyPress::downKey));
@@ -1037,9 +1078,11 @@ public:
             const auto wheelEvent = wheelEventFor (panel.knownListControl());
             panel.knownListControl().mouseWheelMove (
                 wheelEvent, { 0.0f, -1.0f, false, false, false });
-            expectEquals (panel.knownListScrollPosition(), 1);
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
+            expect (panel.knownListScrollPosition() > 0);
             panel.knownListControl().mouseWheelMove (
                 wheelEvent, { 0.0f, 1.0f, false, false, false });
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
             expectEquals (panel.knownListScrollPosition(), 0);
 
             expect (panel.knownListControl().keyPressed (
@@ -1111,14 +1154,16 @@ public:
             const auto wheelEvent = wheelEventFor (panel.libraryControl());
             panel.libraryControl().mouseWheelMove (
                 wheelEvent, { 0.0f, -1.0f, false, false, false });
-            expectEquals (panel.libraryScrollPosition(), 1);
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
+            expect (panel.libraryScrollPosition() > 0);
             if (auto* list = dynamic_cast<juce::ListBox*> (
                     &panel.libraryControl()))
-                expectEquals (list->getViewport()->getViewPositionY(), 56);
+                expect (list->getViewport()->getViewPositionY() > 0);
             else
                 expect (false, "Skin library control must remain a native ListBox.");
             panel.libraryControl().mouseWheelMove (
                 wheelEvent, { 0.0f, 1.0f, false, false, false });
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
             expectEquals (panel.libraryScrollPosition(), 0);
 
             expect (panel.libraryControl().keyPressed (
@@ -1170,10 +1215,15 @@ public:
             expect (manager.initialise (rootDirectory.getChildFile ("installed"), report),
                     report.toText());
             PlayerController controller (std::make_unique<PanelAudioBackend>());
+            expect (controller.selectOutputDevice ("Aggregate 10ch").isEmpty());
+            expect (controller.setOutputLayout (OutputLayout::sevenOneTwo).isEmpty());
             AudioSettingsPanel audio (controller, &foundationSkin.adapter);
             PluginSettingsPanel plugins (controller, &foundationSkin.adapter);
             SkinLibraryPanel skins (manager, &foundationSkin.adapter);
-            juce::Component root;
+            struct SettingsTestRoot final : juce::Component
+            {
+                juce::ComponentPeer* createNewPeer (int flags, void*) override { return new SettingsTestPeer (*this, flags); }
+            } root;
             juce::Label title;
             juce::TextButton close { "Close" };
             juce::Label brand, status;
@@ -1214,7 +1264,8 @@ public:
                 &plugins.formatsControl(), plugins.formatsControl().getLocalBounds());
             const auto skinHeadingBounds = root.getLocalArea (
                 &skins.headingControl(), skins.headingControl().getLocalBounds());
-            expectEquals (audioHeadingBounds.getY(), pluginHeadingBounds.getY());
+            expect (audioHeadingBounds.getY() < pluginHeadingBounds.getY());
+            expectEquals (audioHeadingBounds.getX(), pluginHeadingBounds.getX());
             expect (skinHeadingBounds.getY() > pluginHeadingBounds.getY(),
                     "Skins must be stacked below plug-ins; plugin y="
                         + juce::String (pluginHeadingBounds.getY())
@@ -1222,7 +1273,7 @@ public:
                         + juce::String (skinHeadingBounds.getY()));
             expectEquals (pluginHeadingBounds.getX(), skinHeadingBounds.getX());
             expect (audio.deviceControl().getBounds().getWidth() > 340,
-                    "Audio column must retain a usable width.");
+                    "Audio settings must use the full page width.");
             expect (plugins.knownListControl().isVisible(),
                     "Plug-in list must be visible.");
             expect (plugins.knownListControl().getBounds().getHeight() > 180,
@@ -1262,10 +1313,69 @@ public:
             const auto compactSkins = root.getLocalArea (
                 &skins.libraryControl(), skins.libraryControl().getLocalBounds());
             expect (compactAudio.getWidth() >= 330);
-            expect (compactPlugins.getX() > compactAudio.getX());
+            expectEquals (compactPlugins.getX(), compactAudio.getX());
+            expect (compactPlugins.getY() > compactAudio.getY());
             expect (compactSkins.getX() == compactPlugins.getX());
             expect (compactSkins.getY() > compactPlugins.getY());
             expect (! compactPlugins.intersects (compactSkins));
+
+            const auto outerViewport = [] (juce::Component& component)
+            {
+                for (auto* parent = component.getParentComponent(); parent != nullptr; parent = parent->getParentComponent())
+                    if (auto* viewport = dynamic_cast<juce::Viewport*> (parent)) return viewport;
+                return static_cast<juce::Viewport*> (nullptr);
+            };
+            auto* page = outerViewport (audio.headingControl());
+            expect (page != nullptr && page == outerViewport (plugins.formatsControl())
+                    && page == outerViewport (skins.headingControl()), "All three sections share one page scroller.");
+            if (page != nullptr)
+            {
+                root.setVisible (true);
+                root.addToDesktop (0);
+                page->setViewPosition (0, 0);
+                const auto gap = root.getLocalPoint (page, juce::Point<int> (page->getMaximumVisibleWidth() - 8, 16));
+                auto* hit = root.getComponentAt (gap);
+                expect (hit == page, "Blank page space receives wheel events.");
+                if (hit != nullptr) hit->mouseWheelMove (wheelEventFor (*hit), { 0.0f, -0.25f, false, true, false });
+                expect (page->getViewPositionY() > 0, "Wheel over blank space moves the page.");
+                page->setViewPosition (0, 0);
+
+                auto* routingList = dynamic_cast<juce::ListBox*> (&audio.routingControl());
+                expect (routingList != nullptr);
+                if (routingList != nullptr)
+                {
+                    auto* inner = routingList->getViewport();
+                    inner->setViewPosition (0, 100000);
+                    const auto innerEnd = inner->getViewPositionY();
+                    const auto point = root.getLocalPoint (inner, juce::Point<int> (20, 20)).toFloat();
+                    auto* peer = root.getPeer();
+                    auto time = juce::Time::currentTimeMillis();
+                    expect (root.contains (point.toInt()), "The native test window receives pointer events.");
+                    peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0.0f, 0.0f, time);
+                    inner->setViewPosition (0, 0);
+                    peer->handleMouseWheel (juce::MouseInputSource::InputSourceType::mouse, point, time + 1,
+                                             { 0.0f, -0.05f, false, true, false });
+                    expect (inner->getViewPositionY() > 0 && inner->getViewPositionY() < innerEnd);
+                    expectEquals (page->getViewPositionY(), 0, "The inner list consumes its own available range.");
+                    inner->setViewPosition (0, innerEnd - 1);
+                    peer->handleMouseWheel (juce::MouseInputSource::InputSourceType::mouse, point, time + 2,
+                                             { 0.0f, -0.25f, false, true, false });
+                    expectEquals (inner->getViewPositionY(), innerEnd);
+                    expectEquals (page->getViewPositionY(), 0, "Reaching the list boundary must not scroll two containers at once.");
+                    peer->handleMouseWheel (juce::MouseInputSource::InputSourceType::mouse, point, time + 3,
+                                             { 0.0f, -0.25f, false, true, false });
+                    expectEquals (inner->getViewPositionY(), innerEnd);
+                    expect (page->getViewPositionY() > 0, "A nested list at its boundary passes wheel movement to the page.");
+                }
+                page->getVerticalScrollBar().setCurrentRangeStart (100000, juce::sendNotificationSync);
+                expect (page->getViewArea().contains (page->getViewedComponent()->getLocalArea (
+                    &skins.applyControl(), skins.applyControl().getLocalBounds())), "The page scrollbar reaches Appearance actions.");
+                const auto end = page->getViewPositionY();
+                skins.libraryControl().mouseWheelMove (wheelEventFor (skins.libraryControl()),
+                                                       { 0.0f, 0.25f, false, true, false });
+                expect (page->getViewPositionY() < end, "A short skin list must not swallow page scrolling.");
+                root.removeFromDesktop();
+            }
             host.clear();
             static_cast<void> (rootDirectory.deleteRecursively());
         }
