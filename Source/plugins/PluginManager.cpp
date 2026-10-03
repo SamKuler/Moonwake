@@ -45,16 +45,6 @@ PluginManager::~PluginManager()
         static_cast<void> (stopThread (1000));
 }
 
-int PluginManager::scanDirectory (const juce::File& directory, bool recursive)
-{
-    juce::ignoreUnused (recursive);
-    if (! startScan (directory))
-        return 0;
-    while (isThreadRunning())
-        juce::Thread::sleep (5);
-    return getScanStatus().discovered;
-}
-
 bool PluginManager::startScan (const juce::File& customVst3Directory)
 {
     if (isThreadRunning())
@@ -276,21 +266,6 @@ juce::Array<juce::PluginDescription> PluginManager::filterInsertEffects (const j
             effects.add (plugin);
 
     return effects;
-}
-
-juce::String PluginManager::getDisplayGroup (const juce::PluginDescription& description)
-{
-    auto category = description.category.trim();
-    if (category.isEmpty())
-        category = "Uncategorised";
-
-    category = category.replace ("|", " / ");
-
-    auto manufacturer = description.manufacturerName.trim();
-    if (manufacturer.isEmpty())
-        manufacturer = "Unknown";
-
-    return category + " - " + manufacturer;
 }
 
 juce::File PluginManager::getDefaultScannerExecutable()

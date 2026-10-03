@@ -77,6 +77,16 @@ public:
             expectEquals (received.gain, 0.0f);
             gain->setValue (6.0, juce::sendNotificationSync);
             expectWithinAbsoluteError (received.gain, juce::Decibels::decibelsToGain (6.0f), 0.00001f);
+
+            beginTest ("channel faders support keyboard adjustment and report the correct speaker");
+            expect (gain->getWantsKeyboardFocus());
+            const auto beforeKey = notifications;
+            expect (gain->keyPressed (juce::KeyPress (juce::KeyPress::leftKey)));
+            expectEquals (notifications, beforeKey + 1);
+            expectEquals (received.channel, juce::AudioChannelSet::left);
+            expectWithinAbsoluteError (received.gain, juce::Decibels::decibelsToGain (5.9f), 0.00001f);
+            expect (gain->keyPressed (juce::KeyPress (juce::KeyPress::rightKey)));
+            expectWithinAbsoluteError (received.gain, juce::Decibels::decibelsToGain (6.0f), 0.00001f);
         }
 
         beginTest ("all 16 speakers have independently named controls and layout changes restore roles");

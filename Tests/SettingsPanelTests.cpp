@@ -703,6 +703,49 @@ public:
             expectEquals (panel.knownPluginCount(), controller.getKnownPlugins().size());
         }
 
+        beginTest ("completed scans refresh the catalog once even before the first UI poll");
+        {
+            const auto root = freshPanelDirectory ("completed-plugin-scan");
+            juce::KnownPluginList known;
+            for (int index = 0; index < 2; ++index)
+            {
+                juce::PluginDescription plugin;
+                plugin.name = index == 0 ? "Zulu" : "Alpha";
+                plugin.pluginFormatName = "VST3";
+                plugin.fileOrIdentifier = "completed-scan-fixture-" + juce::String (index);
+                plugin.uniqueId = 900 + index;
+                known.addType (plugin);
+            }
+            PlayerController controller (std::make_unique<PanelAudioBackend>());
+            StateRestoreResult initial;
+            initial.pluginCache = known.createXml();
+            expect (controller.applyPreparedState (std::move (initial)));
+            PluginSettingsPanel panel (controller, &foundationSkin.adapter);
+            auto* list = dynamic_cast<juce::ListBox*> (&panel.knownListControl());
+            expect (list != nullptr);
+            if (list != nullptr)
+                expect (list->getListBoxModel()->getNameForRow (0).startsWith ("Zulu"));
+
+            int catalogChanges = 0;
+            panel.onCatalogChanged = [&] { ++catalogChanges; };
+            expect (controller.startPluginScan (root));
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 3000.0;
+            while (controller.getPluginScanStatus().scanning
+                   && juce::Time::getMillisecondCounterHiRes() < deadline)
+                juce::Thread::sleep (1);
+            expect (! controller.getPluginScanStatus().scanning);
+            expectEquals (controller.getKnownPlugins()[0].name, juce::String ("Alpha"));
+
+            panel.refreshScanState();
+            expectEquals (catalogChanges, 1);
+            if (list != nullptr)
+                expect (list->getListBoxModel()->getNameForRow (0).startsWith ("Alpha"));
+            panel.refreshScanState();
+            panel.refreshScanState();
+            expectEquals (catalogChanges, 1);
+            static_cast<void> (root.deleteRecursively());
+        }
+
         beginTest ("plug-in filters compose and format preferences survive a controller restart");
         {
             const auto root = freshPanelDirectory ("plugin-filters");

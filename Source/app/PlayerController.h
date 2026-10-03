@@ -62,11 +62,10 @@ public:
     juce::String setAudioSampleRate (double sampleRate);
     juce::String setAudioBufferSize (int bufferSize);
     void setWorkspaceMode (WorkspaceMode mode);
-    int scanPluginsInDirectory (const juce::File& directory);
     bool startPluginScan (const juce::File& customVst3Directory = {});
     void cancelPluginScan();
     [[nodiscard]] PluginScanStatus getPluginScanStatus() const;
-    void addPluginByIndexAsync (int pluginIndex, PluginInsertionCallback callback,
+    void addPluginByIdentifierAsync (const juce::String& identifier, PluginInsertionCallback callback,
                                 EffectScope scope = {});
     bool removeEffectAtIndex (int effectIndex);
     bool moveEffect (int fromIndex, int toIndex);

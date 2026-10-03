@@ -20,7 +20,7 @@ public:
     ~PluginSettingsPanel();
 
     void refreshInventory();
-    bool refreshScanState();
+    void refreshScanState();
     void setStatusCallback (StatusCallback);
     void setScanFolderCallback (ActionCallback);
     void addTo (juce::Component&);
@@ -37,7 +37,7 @@ public:
     [[nodiscard]] int knownListScrollPosition() const noexcept;
     PluginFilterControls filters;
     juce::ToggleButton vst3Enabled { "VST3" }, auEnabled { "AU" };
-    ActionCallback onFormatsChanged;
+    ActionCallback onCatalogChanged;
 
 private:
     class PluginListView;
@@ -52,7 +52,6 @@ private:
     juce::TextButton cancelButton { "Cancel Scan" };
     double progress = 0.0;
     juce::ProgressBar progressBar { progress };
-    bool wasScanning = false;
     uint64_t lastRevision = 0;
     juce::Array<juce::PluginDescription> inventory;
     void refreshFilteredPlugins();

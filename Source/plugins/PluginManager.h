@@ -38,7 +38,6 @@ public:
     explicit PluginManager (PluginScannerConfiguration);
     ~PluginManager() override;
 
-    int scanDirectory (const juce::File& directory, bool recursive = true);
     bool startScan (const juce::File& customVst3Directory = {});
     void cancelScan();
     bool cancelAndWaitForScan (int timeoutMilliseconds = 15000);
@@ -64,7 +63,6 @@ public:
     [[nodiscard]] PluginFormatPreferences getFormatPreferences() const noexcept { return formatPreferences; }
     bool setFormatPreferences (PluginFormatPreferences);
     static juce::Array<juce::PluginDescription> filterInsertEffects (const juce::Array<juce::PluginDescription>& plugins);
-    static juce::String getDisplayGroup (const juce::PluginDescription& description);
     static juce::File getDefaultScannerExecutable();
 
 private:

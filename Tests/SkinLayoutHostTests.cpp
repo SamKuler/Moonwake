@@ -3,10 +3,14 @@
 #include "ui/JuceSkinAdapter.h"
 #include "ui/SkinLayoutHost.h"
 #include "ui/SkinTableListBox.h"
+#include "ui/OutputMixerComponent.h"
+#include "ui/SkinEffectChainViewport.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <algorithm>
 #include <map>
+#include <limits>
 #include <memory>
 
 namespace
@@ -131,10 +135,18 @@ std::unique_ptr<juce::Component> componentFor (juce::StringRef id)
             return std::make_unique<juce::TextEditor>();
         case SkinComponentKind::linearSlider:
         case SkinComponentKind::slider:
-            return std::make_unique<juce::Slider>();
+        {
+            auto slider = std::make_unique<juce::Slider>();
+            slider->setWantsKeyboardFocus (true);
+            return slider;
+        }
         case SkinComponentKind::table:
             return std::make_unique<PaintedTable>();
         case SkinComponentKind::progressBar:
+        {
+            static double progress = 0.0;
+            return std::make_unique<juce::ProgressBar> (progress);
+        }
         case SkinComponentKind::artwork:
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:
@@ -191,6 +203,165 @@ public:
 
     void runTest() override
     {
+        beginTest ("keyboard traversal follows declared order across nested layouts and composite controls");
+        {
+            const auto storage = freshHostDirectory();
+            SkinValidationReport report;
+            SkinManager manager;
+            expect (manager.initialise (storage.getChildFile ("installs"), report), report.toText());
+            juce::Component root;
+            root.setBounds (0, 0, 1240, 800);
+            root.setVisible (true);
+            root.setFocusContainerType (juce::Component::FocusContainerType::keyboardFocusContainer);
+            SkinComponentBindings bindings;
+            std::map<juce::String, std::unique_ptr<juce::Component>> components;
+            juce::Component effectContent;
+            juce::TextButton effectEdit ("Edit"), effectRemove ("Remove");
+            effectContent.addAndMakeVisible (effectEdit);
+            effectContent.addAndMakeVisible (effectRemove);
+            effectEdit.setBounds (0, 0, 60, 30);
+            effectRemove.setBounds (70, 0, 60, 30);
+            for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+            {
+                auto component = componentFor (descriptor.id);
+                if (descriptor.id == "output.mixer")
+                {
+                    auto mixer = std::make_unique<OutputMixerComponent>();
+                    mixer->setState (OutputLayout::stereo, {}, {});
+                    component = std::move (mixer);
+                }
+                if (descriptor.id == "effects.chain")
+                {
+                    auto chain = std::make_unique<SkinEffectChainViewport>();
+                    chain->setViewedComponent (&effectContent, false);
+                    component = std::move (chain);
+                }
+                root.addAndMakeVisible (*component);
+                expect (bindings.bind (descriptor.id, *component, report), report.toText());
+                components.emplace (descriptor.id, std::move (component));
+            }
+            SkinLayoutHost host (manager, bindings);
+            const auto ownerFor = [&] (juce::Component* component)
+            {
+                for (auto* current = component; current != nullptr; current = current->getParentComponent())
+                    if (current->getProperties().contains (SkinComponentBindings::componentIdProperty))
+                        return current;
+                return component;
+            };
+            const auto checkTraversal = [&]
+            {
+                auto traverser = host.createKeyboardFocusTraverser();
+                const auto actual = traverser->getAllComponents (&root);
+                expect (! actual.empty());
+                if (actual.empty()) return;
+                expect (traverser->getDefaultComponent (&root) == actual.front());
+                expect (actual.front()->createKeyboardFocusTraverser()->getAllComponents (&root) == actual,
+                        "component-driven Tab traversal must use the skin scene's traverser");
+                int previousOrder = 0;
+                for (size_t index = 0; index < actual.size(); ++index)
+                {
+                    auto* component = actual[index];
+                    const auto declaredOrder = ownerFor (component)->getExplicitFocusOrder();
+                    const auto order = declaredOrder > 0 ? declaredOrder : std::numeric_limits<int>::max();
+                    expect (order >= previousOrder, component->getName());
+                    previousOrder = order;
+                    expect (traverser->getNextComponent (component)
+                                == (index + 1 < actual.size() ? actual[index + 1] : nullptr));
+                    expect (traverser->getPreviousComponent (component)
+                                == (index > 0 ? actual[index - 1] : nullptr));
+                }
+                auto native = juce::KeyboardFocusTraverser().getAllComponents (&root);
+                expectEquals (static_cast<int> (actual.size()), static_cast<int> (native.size()));
+                for (auto* component : native)
+                    expect (std::find (actual.begin(), actual.end(), component) != actual.end());
+            };
+            for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+                for (const auto entry : { SkinLayoutEntry::studio, SkinLayoutEntry::listening,
+                                          SkinLayoutEntry::effects, SkinLayoutEntry::settings })
+                {
+                    expect (host.apply (entry, root.getLocalBounds(), 1.0f, report, workspace), report.toText());
+                    checkTraversal();
+                    if (entry == SkinLayoutEntry::studio)
+                    {
+                        const auto mixerChildren = juce::KeyboardFocusTraverser().getAllComponents (components.at ("output.mixer").get());
+                        expect (mixerChildren.size() >= 6, "both channels must expose gain, mute and solo");
+                    }
+                    if (entry == SkinLayoutEntry::effects)
+                    {
+                        const auto actual = host.createKeyboardFocusTraverser()->getAllComponents (&root);
+                        expect (std::find (actual.begin(), actual.end(), &effectEdit) != actual.end());
+                        expect (std::find (actual.begin(), actual.end(), &effectRemove) != actual.end());
+                        expect (std::find (actual.begin(), actual.end(), &effectEdit)
+                                    < std::find (actual.begin(), actual.end(), &effectRemove));
+                        components.at ("effects.chain")->setEnabled (false);
+                        const auto disabled = host.createKeyboardFocusTraverser()->getAllComponents (&root);
+                        expect (std::find (disabled.begin(), disabled.end(), &effectEdit) == disabled.end());
+                        expect (std::find (disabled.begin(), disabled.end(), &effectRemove) == disabled.end());
+                        components.at ("effects.chain")->setEnabled (true);
+                    }
+                }
+            components.at ("workspace.studio")->setEnabled (false);
+            components.at ("workspace.listening")->setVisible (false);
+            checkTraversal();
+            const auto filtered = host.createKeyboardFocusTraverser()->getAllComponents (&root);
+            expect (std::find (filtered.begin(), filtered.end(), components.at ("workspace.studio").get()) == filtered.end());
+            expect (std::find (filtered.begin(), filtered.end(), components.at ("workspace.listening").get()) == filtered.end());
+            components.at ("workspace.studio")->setEnabled (true);
+            components.at ("workspace.listening")->setVisible (true);
+
+            beginTest ("relayout preserves live focus without restoring controls removed by the next page");
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            root.addToDesktop (0);
+            root.toFront (true);
+            auto& search = dynamic_cast<juce::TextEditor&> (*components.at ("library.search"));
+            search.setText ("Moonwake", false);
+            search.grabKeyboardFocus();
+            expect (search.hasKeyboardFocus (false), "native focus requires a visible test peer");
+            expect (host.apply (SkinLayoutEntry::listening, { 0, 0, 1040, 700 }, 1.0f, report), report.toText());
+            expect (search.hasKeyboardFocus (false), "same-page resize must retain the focused editor");
+            expect (manager.preview ({ "builtin.foundation", "1.0.0" }, report), report.toText());
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            expect (search.hasKeyboardFocus (false), "skin preview must retain a still-visible editor");
+            manager.cancelPreview();
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            expect (search.hasKeyboardFocus (false));
+            expect (host.apply (SkinLayoutEntry::settings, root.getLocalBounds(), 1.0f, report), report.toText());
+            expect (! search.hasKeyboardFocus (true), "a hidden editor must not reclaim focus after changing page");
+            root.removeFromDesktop();
+
+            beginTest ("declared order interleaves clipped groups and a scroll viewport");
+            const auto source = writeScrollableHostSkin (storage);
+            const auto file = source.getChildFile ("layouts/listening.json");
+            auto document = juce::JSON::parse (file);
+            const std::map<juce::String, int> orders {
+                { "transport.volume", 10 }, { "queue.table", 20 }, { "transport.previous", 30 },
+                { "transport.playPause", 40 }, { "workspace.listening", 50 }, { "settings.open", 60 },
+                { "library.add", 70 }, { "transport.next", 80 }, { "workspace.studio", 90 }, { "transport.seek", 100 }
+            };
+            const auto reorder = [&] (const auto& self, juce::var node) -> void
+            {
+                if (! node.isObject()) return;
+                const auto id = node.getProperty ("component", {}).toString();
+                if (const auto found = orders.find (id); found != orders.end())
+                    node.getDynamicObject()->setProperty ("focusOrder", found->second);
+                if (node.getProperty ("id", {}).toString() == "host-header")
+                    node.getDynamicObject()->setProperty ("clip", true);
+                if (const auto* children = node.getProperty ("children", {}).getArray())
+                    for (const auto& child : *children) self (self, child);
+                self (self, node.getProperty ("child", {}));
+            };
+            reorder (reorder, document.getProperty ("root", {}));
+            expect (file.replaceWithText (juce::JSON::toString (document)));
+            const auto imported = manager.importSkin (source);
+            expect (! imported.hasErrors(), imported.toText());
+            expect (manager.activate ({ "com.example.scroll-host", "1.0.0" }, false, report), report.toText());
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            checkTraversal();
+            expect (host.createKeyboardFocusTraverser()->getDefaultComponent (&root)
+                        == components.at ("transport.volume").get());
+            static_cast<void> (storage.deleteRecursively());
+        }
+
         beginTest ("workspace context switches the resolved tree without changing the layout entry");
         {
             const auto storage = freshHostDirectory();

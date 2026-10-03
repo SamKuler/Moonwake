@@ -51,6 +51,7 @@ public:
         gain.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
         gain.setDoubleClickReturnValue (true, 0.0);
         gain.setScrollWheelEnabled (false);
+        gain.setWantsKeyboardFocus (true);
         gain.setTitle (name + " gain"); gain.setTooltip ("Channel gain; double-click to reset to 0 dB");
         mute.setTitle ("Mute " + name); mute.setTooltip ("Mute " + name);
         solo.setTitle ("Solo " + name); solo.setTooltip ("Solo " + name + "; multiple channels may be soloed");

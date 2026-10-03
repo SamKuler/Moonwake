@@ -5,6 +5,8 @@
 #include "app/ProductIdentity.h"
 #include "app/ProductPaths.h"
 
+#include <algorithm>
+
 namespace
 {
 void appendReport (SkinValidationReport& destination,
@@ -122,30 +124,16 @@ private:
 class MainComponent::EffectSlotRow final : public juce::Component
 {
 public:
-    EffectSlotRow (MainComponent& ownerToUse, int indexToUse, const EffectSlotState& slot)
+    EffectSlotRow (MainComponent& ownerToUse, int slotIdToUse)
         : owner (ownerToUse),
-          index (indexToUse),
-          slotCount (ownerToUse.controller.getEffectChain().size()),
-          bypassed (slot.bypassed),
-          hasError (! slot.available || slot.errorMessage.isNotEmpty()),
-          slotName (slot.pluginName)
+          slotId (slotIdToUse)
     {
-        const auto formatSuffix = slot.pluginFormat.isNotEmpty() ? "  /  " + slot.pluginFormat : juce::String{};
-        nameLabel.setText (slot.pluginName + formatSuffix + (slot.available ? juce::String{} : "  /  Unavailable"),
-                           juce::dontSendNotification);
         nameLabel.setJustificationType (juce::Justification::centredLeft);
-        nameLabel.setTooltip (nameLabel.getText());
         nameLabel.setInterceptsMouseClicks (false, false);
 
-        bypassButton.setTooltip (slot.bypassed ? "Enable effect" : "Bypass effect");
         bypassButton.setClickingTogglesState (true);
-        bypassButton.setToggleState (slot.bypassed, juce::dontSendNotification);
         editorButton.setTooltip ("Open plugin editor");
         removeButton.setTooltip ("Remove effect");
-        bypassButton.setEnabled (slot.available);
-        editorButton.setEnabled (slot.available);
-        if (! slot.available && slot.errorMessage.isNotEmpty())
-            nameLabel.setTooltip (slot.errorMessage);
 
         bypassButton.onClick = [this]
         {
@@ -154,10 +142,8 @@ public:
         };
         editorButton.onClick = [this] { owner.openPluginEditor (index); };
         removeButton.onClick = [this] { owner.removeEffect (index); };
-        scopeButton.setButtonText (::effectScopeLabel (slot.scope));
         scopeButton.setTooltip ("Choose the channels processed by this effect");
-        scopeButton.setEnabled (slot.available);
-        scopeButton.onClick = [this, id = slot.id]
+        scopeButton.onClick = [this, id = slotIdToUse]
         {
             auto choices = EffectScopeMenu (toAudioChannelSet (owner.controller.getViewState().outputLayout));
             choices.menu.setLookAndFeel (&owner.skinAdapter);
@@ -217,6 +203,29 @@ public:
         addAndMakeVisible (editorButton);
         addAndMakeVisible (removeButton);
         addAndMakeVisible (scopeButton);
+    }
+
+    [[nodiscard]] int getSlotId() const noexcept { return slotId; }
+
+    void updateState (int indexToUse, int count, const EffectSlotState& slot)
+    {
+        index = indexToUse;
+        slotCount = count;
+        bypassed = slot.bypassed;
+        hasError = ! slot.available || slot.errorMessage.isNotEmpty();
+        slotName = slot.pluginName;
+        const auto formatSuffix = slot.pluginFormat.isNotEmpty() ? "  /  " + slot.pluginFormat : juce::String{};
+        nameLabel.setText (slot.pluginName + formatSuffix + (slot.available ? juce::String{} : "  /  Unavailable"),
+                           juce::dontSendNotification);
+        nameLabel.setTooltip (! slot.available && slot.errorMessage.isNotEmpty()
+                                  ? slot.errorMessage : nameLabel.getText());
+        bypassButton.setTooltip (slot.bypassed ? "Enable effect" : "Bypass effect");
+        bypassButton.setToggleState (slot.bypassed, juce::dontSendNotification);
+        bypassButton.setEnabled (slot.available);
+        editorButton.setEnabled (slot.available);
+        scopeButton.setButtonText (::effectScopeLabel (slot.scope));
+        scopeButton.setEnabled (slot.available);
+        repaint();
     }
 
     void mouseDown (const juce::MouseEvent& event) override
@@ -318,6 +327,7 @@ private:
     }
 
     MainComponent& owner;
+    const int slotId;
     int index = -1;
     int slotCount = 0;
     bool bypassed = false;
@@ -514,9 +524,11 @@ MainComponent::MainComponent()
     volumeSlider.setValue (0.8, juce::dontSendNotification);
     volumeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     volumeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    volumeSlider.setWantsKeyboardFocus (true);
 
     seekSlider.setRange (0.0, 1.0, 0.001);
     seekSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    seekSlider.setWantsKeyboardFocus (true);
 
     previousButton.setButtonText ("Prev");
     playPauseButton.setButtonText ("Play");
@@ -718,8 +730,8 @@ MainComponent::MainComponent()
         pluginInsertionInProgress = true;
         addEffectButton.setEnabled (false);
         showStatus ("Loading plug-in...");
-        controller.addPluginByIndexAsync (
-            pluginCombo.getSelectedId() - 1,
+        controller.addPluginByIdentifierAsync (
+            catalogPluginIdentifiers[pluginCombo.getSelectedId() - 1],
             [safeThis = juce::Component::SafePointer<MainComponent> (this)]
             (bool inserted, const juce::String& message)
             {
@@ -733,7 +745,7 @@ MainComponent::MainComponent()
             }, effectScopeChoices[static_cast<size_t> (effectScopeBox.getSelectedId() - 1)]);
     };
     pluginFilters.onChange = [this] { refreshPlugins(); };
-    pluginSettingsPanel.onFormatsChanged = [this] { refreshPlugins(); };
+    pluginSettingsPanel.onCatalogChanged = [this] { refreshPlugins(); };
     playPauseButton.onClick = [this]
     {
         if (! controller.playOrPause())
@@ -1111,8 +1123,13 @@ void MainComponent::resized()
     if (statusLabel.isVisible()) statusLabel.toFront (false);
     updateEmptyQueueState();
     updateOutputView();
-    refreshEffects();
+    layoutEffects();
     repaint();
+}
+
+std::unique_ptr<juce::ComponentTraverser> MainComponent::createKeyboardFocusTraverser()
+{
+    return skinLayoutHost.createKeyboardFocusTraverser();
 }
 
 bool MainComponent::keyPressed (const juce::KeyPress& key)
@@ -1150,6 +1167,12 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 
     if (key.getModifiers().isCommandDown() && (key.getKeyCode() == 'f' || key.getKeyCode() == 'F'))
     {
+        if (settingsDrawerOpen && pluginSettingsPanel.filters.search.isShowing())
+        {
+            pluginSettingsPanel.filters.search.grabKeyboardFocus();
+            pluginSettingsPanel.filters.search.selectAll();
+            return true;
+        }
         if (effectsDrawerOpen && pluginFilters.search.isShowing())
         {
             pluginFilters.search.grabKeyboardFocus();
@@ -1262,15 +1285,11 @@ void MainComponent::timerCallback (int timerID)
                     + controller.getLastStatusMessage(), true);
 
     controller.checkpointPlaybackPosition();
-    if (pluginSettingsPanel.refreshScanState())
-        refreshPlugins();
+    pluginSettingsPanel.refreshScanState();
 
     const auto effectRevision = controller.getEffectChainRevision();
     if (effectRevision != lastEffectChainRevision)
-    {
-        lastEffectChainRevision = effectRevision;
         refreshEffects();
-    }
 
     const auto nowSeconds = juce::Time::getMillisecondCounterHiRes() / 1000.0;
     const auto revision = controller.getStateRevision();
@@ -1677,23 +1696,34 @@ void MainComponent::refreshEffectScopes()
 
 void MainComponent::refreshEffects()
 {
-    for (auto& row : effectRows)
-        effectRackContent.removeChildComponent (row.get());
-
-    effectRows.clear();
-
     const auto& chain = controller.getEffectChain();
+    std::vector<std::unique_ptr<EffectSlotRow>> nextRows;
+    nextRows.reserve (static_cast<size_t> (chain.size()));
     effectRackViewport.setSlotCount (chain.size());
     for (int i = 0; i < chain.size(); ++i)
     {
         if (const auto* slot = chain.getSlot (i))
         {
-            auto row = std::make_unique<EffectSlotRow> (*this, i, *slot);
-            effectRackContent.addAndMakeVisible (*row);
-            effectRows.push_back (std::move (row));
+            const auto existing = std::find_if (effectRows.begin(), effectRows.end(), [slot] (const auto& row)
+            {
+                return row != nullptr && row->getSlotId() == slot->id;
+            });
+            // Stable slot identity preserves each row's focus and local control state.
+            auto row = existing != effectRows.end() ? std::move (*existing)
+                : std::make_unique<EffectSlotRow> (*this, slot->id);
+            if (existing == effectRows.end()) effectRackContent.addAndMakeVisible (*row);
+            row->updateState (i, chain.size(), *slot);
+            nextRows.push_back (std::move (row));
         }
     }
+    effectRows = std::move (nextRows);
+    lastEffectChainRevision = controller.getEffectChainRevision();
+    layoutEffects();
+}
 
+void MainComponent::layoutEffects()
+{
+    const auto& chain = controller.getEffectChain();
     if (effectRackViewport.getLocalBounds().isEmpty()) return;
     SkinRenderContext layoutContext;
     layoutContext.bounds = effectRackViewport.getLocalBounds().toFloat();
@@ -1723,6 +1753,7 @@ void MainComponent::refreshEffects()
     for (auto& row : effectRows)
     {
         row->setBounds (0, y, contentWidth, effectRowHeight);
+        row->resized();
         y += effectRowHeight + effectRowGap;
     }
 

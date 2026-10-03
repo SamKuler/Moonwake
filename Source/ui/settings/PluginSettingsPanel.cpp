@@ -385,10 +385,10 @@ void PluginSettingsPanel::changeFormats()
         statusCallback (controller.getLastStatusMessage(), true);
     refreshInventory();
     refreshScanState();
-    if (onFormatsChanged) onFormatsChanged();
+    if (onCatalogChanged) onCatalogChanged();
 }
 
-bool PluginSettingsPanel::refreshScanState()
+void PluginSettingsPanel::refreshScanState()
 {
     const auto state = controller.getPluginScanStatus();
     progress = state.progress;
@@ -402,17 +402,17 @@ bool PluginSettingsPanel::refreshScanState()
     scanFolderButton.setEnabled (! state.scanning && preferences.vst3);
     cancelButton.setEnabled (state.scanning);
 
-    const auto justFinished = wasScanning && ! state.scanning;
-    wasScanning = state.scanning;
     if (state.revision != lastRevision)
     {
         lastRevision = state.revision;
-        if (statusCallback && ! state.scanning && state.message.isNotEmpty())
-            statusCallback (state.message, state.failed > 0);
+        if (! state.scanning)
+        {
+            refreshInventory();
+            if (onCatalogChanged) onCatalogChanged();
+            if (statusCallback && state.message.isNotEmpty())
+                statusCallback (state.message, state.failed > 0);
+        }
     }
-    if (justFinished)
-        refreshInventory();
-    return justFinished;
 }
 
 juce::Label& PluginSettingsPanel::formatsControl() noexcept { return formatsLabel; }

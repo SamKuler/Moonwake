@@ -37,6 +37,7 @@ public:
 
     void resized() override;
     bool keyPressed (const juce::KeyPress& key) override;
+    std::unique_ptr<juce::ComponentTraverser> createKeyboardFocusTraverser() override;
     void mouseUp (const juce::MouseEvent&) override;
     void importFilesAndFolders (const juce::Array<juce::File>&);
 private:
@@ -64,6 +65,7 @@ private:
     void updateEmptyQueueState();
     void refreshPlugins();
     void refreshEffects();
+    void layoutEffects();
     void refreshEffectScopes();
     void updateTransportState();
     void updateOutputView();

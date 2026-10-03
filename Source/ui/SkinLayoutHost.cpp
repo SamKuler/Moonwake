@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <set>
 #include <stdexcept>
 #include <utility>
@@ -29,6 +30,54 @@ public:
     LayoutLayer()
     {
         setInterceptsMouseClicks (false, true);
+    }
+};
+
+class LayoutFocusTraverser final : public juce::KeyboardFocusTraverser
+{
+public:
+    std::vector<juce::Component*> getAllComponents (juce::Component* parent) override
+    {
+        auto components = juce::KeyboardFocusTraverser::getAllComponents (parent);
+        const auto order = [parent] (const juce::Component* component)
+        {
+            for (auto* current = component; current != nullptr && current != parent;
+                 current = current->getParentComponent())
+                if (current->getProperties().contains (SkinComponentBindings::componentIdProperty))
+                {
+                    const auto declared = current->getExplicitFocusOrder();
+                    return declared > 0 ? declared : std::numeric_limits<int>::max();
+                }
+            return std::numeric_limits<int>::max();
+        };
+        // Keep JUCE's order inside each public composite control.
+        std::stable_sort (components.begin(), components.end(), [&] (auto* first, auto* second)
+        {
+            return order (first) < order (second);
+        });
+        return components;
+    }
+
+    juce::Component* getDefaultComponent (juce::Component* parent) override
+    {
+        const auto components = getAllComponents (parent);
+        return components.empty() ? nullptr : components.front();
+    }
+
+    juce::Component* getNextComponent (juce::Component* current) override
+    {
+        const auto components = getAllComponents (current->findKeyboardFocusContainer());
+        const auto found = std::find (components.begin(), components.end(), current);
+        return found != components.end() && std::next (found) != components.end()
+                   ? *std::next (found) : nullptr;
+    }
+
+    juce::Component* getPreviousComponent (juce::Component* current) override
+    {
+        const auto components = getAllComponents (current->findKeyboardFocusContainer());
+        const auto found = std::find (components.begin(), components.end(), current);
+        return found != components.end() && found != components.begin()
+                   ? *std::prev (found) : nullptr;
     }
 };
 
@@ -151,6 +200,11 @@ public:
     {
         setName ("Declarative skin scene");
         setInterceptsMouseClicks (false, true);
+    }
+
+    std::unique_ptr<juce::ComponentTraverser> createKeyboardFocusTraverser() override
+    {
+        return std::make_unique<LayoutFocusTraverser>();
     }
 };
 
@@ -383,6 +437,7 @@ private:
         auto content = std::make_unique<LayoutLayer>();
         auto* viewportPointer = viewport.get();
         auto* contentPointer = content.get();
+        viewportPointer->setWantsKeyboardFocus (false);
         viewportPointer->setBounds (relativeBounds (node.scrollViewportBounds,
                                                     parentOrigin));
         viewportPointer->setVisible (visible);
@@ -714,11 +769,21 @@ bool SkinLayoutHost::apply (SkinLayoutEntry entry,
         return false;
     }
 
+    const juce::Component::SafePointer<juce::Component> focused (
+        scene->isParentOf (juce::Component::getCurrentlyFocusedComponent())
+            ? juce::Component::getCurrentlyFocusedComponent() : nullptr);
+    const auto restoreFocus = [&]
+    {
+        if (focused != nullptr && scene->isParentOf (focused.getComponent())
+            && focused->isShowing() && focused->isEnabled())
+            focused->grabKeyboardFocus();
+    };
     auto previous = std::move (runtime);
     if (previous) detachRuntime (*previous);
     if (attachRuntime (*prepared, report))
     {
         runtime = std::move (prepared);
+        restoreFocus();
         return true;
     }
 
@@ -741,7 +806,13 @@ bool SkinLayoutHost::apply (SkinLayoutEntry entry,
         if (scene->getParentComponent() != nullptr)
             scene->getParentComponent()->removeChildComponent (scene.get());
     }
+    restoreFocus();
     return false;
+}
+
+std::unique_ptr<juce::ComponentTraverser> SkinLayoutHost::createKeyboardFocusTraverser() const
+{
+    return scene->createKeyboardFocusTraverser();
 }
 
 juce::String SkinLayoutHost::ancillaryStyleFor (SkinRenderTarget target) const

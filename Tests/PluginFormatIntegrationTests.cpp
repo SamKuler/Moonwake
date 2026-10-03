@@ -200,6 +200,40 @@ public:
             expectEquals (descriptions.size(), 1, error);
             if (! descriptions.isEmpty())
             {
+                {
+                    PlayerController catalogController (std::make_unique<ScopeOfflineBackend>());
+                    juce::KnownPluginList displayedCatalog;
+                    displayedCatalog.addType (descriptions[0]);
+                    StateRestoreResult displayed;
+                    displayed.state.emplace();
+                    displayed.pluginCache = displayedCatalog.createXml();
+                    expect (catalogController.applyPreparedState (std::move (displayed)));
+                    const auto selectedIdentifier = catalogController.getInsertEffectPlugins()[0].createIdentifierString();
+
+                    auto newlyDiscovered = descriptions[0];
+                    newlyDiscovered.name = "AAA Newly Discovered Effect";
+                    newlyDiscovered.fileOrIdentifier = "/missing/newly-discovered.vst3";
+                    newlyDiscovered.uniqueId = 91234;
+                    juce::KnownPluginList refreshedCatalog;
+                    refreshedCatalog.addType (newlyDiscovered);
+                    refreshedCatalog.addType (descriptions[0]);
+                    StateRestoreResult refreshed;
+                    refreshed.state.emplace();
+                    refreshed.pluginCache = refreshedCatalog.createXml();
+                    expect (catalogController.applyPreparedState (std::move (refreshed)));
+                    expect (catalogController.getInsertEffectPlugins()[0].createIdentifierString() != selectedIdentifier);
+                    bool done = false, insertedSelection = false;
+                    catalogController.addPluginByIdentifierAsync (selectedIdentifier, [&] (bool inserted, const juce::String& message)
+                    {
+                        done = true;
+                        insertedSelection = inserted;
+                        error = message;
+                    });
+                    expect (dispatchScopeUntil ([&] { return done; }));
+                    expect (insertedSelection, "A displayed selection must survive catalog reordering: " + error);
+                    if (insertedSelection)
+                        expectEquals (catalogController.getEffectChain().getSlot (0)->pluginIdentifier, selectedIdentifier);
+                }
                 juce::KnownPluginList known;
                 known.addType (descriptions[0]);
                 {
@@ -209,7 +243,7 @@ public:
                     initialPending.pluginCache = known.createXml();
                     expect (pending.applyPreparedState (std::move (initialPending)));
                     bool finished = false, accepted = false;
-                    pending.addPluginByIndexAsync (0, [&] (bool ok, const juce::String& message)
+                    pending.addPluginByIdentifierAsync (descriptions[0].createIdentifierString(), [&] (bool ok, const juce::String& message)
                     {
                         finished = true;
                         accepted = ok;
@@ -231,7 +265,7 @@ public:
                 const EffectScope sides { juce::AudioChannelSet::leftSurroundSide, juce::AudioChannelSet::rightSurroundSide };
                 bool completed = false;
                 bool inserted = false;
-                controller.addPluginByIndexAsync (0, [&] (bool ok, const juce::String& message)
+                controller.addPluginByIdentifierAsync (descriptions[0].createIdentifierString(), [&] (bool ok, const juce::String& message)
                 {
                     completed = true;
                     inserted = ok;

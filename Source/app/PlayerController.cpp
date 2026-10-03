@@ -642,11 +642,6 @@ void PlayerController::setWorkspaceMode (WorkspaceMode mode)
     ++stateRevision;
 }
 
-int PlayerController::scanPluginsInDirectory (const juce::File& directory)
-{
-    return pluginManager.scanDirectory (directory);
-}
-
 bool PlayerController::startPluginScan (const juce::File& customVst3Directory)
 {
     const auto started = pluginManager.startScan (customVst3Directory);
@@ -664,13 +659,16 @@ PluginScanStatus PlayerController::getPluginScanStatus() const
     return pluginManager.getScanStatus();
 }
 
-void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCallback callback,
+void PlayerController::addPluginByIdentifierAsync (const juce::String& identifier, PluginInsertionCallback callback,
                                              EffectScope scope)
 {
     const auto plugins = getInsertEffectPlugins();
-    if (pluginIndex < 0 || pluginIndex >= plugins.size())
+    const auto selected = std::find_if (plugins.begin(), plugins.end(), [&] (const auto& plugin)
+        { return plugin.createIdentifierString() == identifier; });
+    if (selected == plugins.end())
     {
-        callback (false, "No plug-in selected.");
+        callback (false, identifier.isEmpty() ? "No plug-in selected."
+            : "The selected plug-in is no longer available for insertion.");
         return;
     }
 
@@ -686,7 +684,7 @@ void PlayerController::addPluginByIndexAsync (int pluginIndex, PluginInsertionCa
         callback (false, scopeError);
         return;
     }
-    const auto description = plugins[pluginIndex];
+    const auto description = *selected;
     const auto alive = lifetimeFlag;
     const auto generation = effectRestoreGeneration;
     pluginManager.createPluginInstanceAsync (

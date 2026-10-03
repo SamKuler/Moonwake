@@ -333,7 +333,6 @@ public:
 
             expectEquals (effects.size(), 1);
             expectEquals (effects[0].name, juce::String ("Clean EQ"));
-            expectEquals (PluginManager::getDisplayGroup (effects[0]), juce::String ("Fx / EQ - Tools"));
         }
 
         beginTest ("known plug-in cache is written and read atomically");
