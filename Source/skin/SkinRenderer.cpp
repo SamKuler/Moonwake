@@ -21,6 +21,29 @@ double meterPeakDecibels (double peak)
     return peak > 0.001 ? 20.0 * std::log10 (peak) : -60.0;
 }
 
+void drawShapedGlyphs (juce::Graphics& graphics, const juce::detail::ShapedText& text,
+                       juce::AffineTransform transform)
+{
+    const juce::Graphics::ScopedSaveState state (graphics);
+    auto& context = graphics.getInternalContext();
+    text.accessTogetherWith ([&] (auto glyphs, auto positions, const auto& font, auto, auto)
+    {
+        std::vector<uint16_t> ids;
+        std::vector<juce::Point<float>> anchors;
+        ids.reserve (glyphs.size());
+        anchors.reserve (glyphs.size());
+        for (size_t index = 0; index < glyphs.size(); ++index)
+        {
+            // Ligature placeholders carry caret advances, not another drawable glyph.
+            if (glyphs[index].isPlaceholderForLigature()) continue;
+            ids.push_back (static_cast<uint16_t> (glyphs[index].glyphId));
+            anchors.push_back (positions[index]);
+        }
+        context.setFont (font);
+        context.drawGlyphs (ids, anchors, transform);
+    });
+}
+
 struct RepeatItem
 {
     int index = 0;
@@ -848,7 +871,7 @@ private:
                 shaped = juce::detail::ShapedText (
                     text.substring (0, end).trimEnd() + juce::String::charToString (0x2026), options);
         }
-        shaped.draw (graphics, juce::AffineTransform::translation (frame.getPosition()));
+        drawShapedGlyphs (graphics, shaped, juce::AffineTransform::translation (frame.getPosition()));
     }
 
     void drawAsset (const SkinRenderLayer& layer, juce::Rectangle<float> frame,

@@ -1,4 +1,6 @@
 #include "skin/SkinRenderer.h"
+#include "skin/SkinAssetCache.h"
+#include "skin/SkinBuiltInPackages.h"
 
 #include <juce_graphics/juce_graphics.h>
 
@@ -82,17 +84,16 @@ juce::Image referenceLines (const juce::String& text, float fontSize, juce::Rect
     return image;
 }
 
-juce::Image referenceShapedParagraphs (const juce::String& text, float fontSize, juce::Rectangle<float> frame)
+juce::Image referenceGlyphParagraphs (const juce::String& text, const juce::Font& font, juce::Rectangle<float> frame)
 {
     auto image = blankImage (frame);
     juce::Graphics graphics (image);
     graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
     graphics.setColour (juce::Colours::white);
-    juce::detail::ShapedText shaped (text, juce::detail::ShapedText::Options {}
-        .withFont (juce::Font (juce::FontOptions (fontSize)))
-        .withWordWrapWidth (frame.getWidth()).withHeight (frame.getHeight())
-        .withJustification (juce::Justification::topLeft).withTrailingWhitespacesShouldFit (false));
-    shaped.draw (graphics, juce::AffineTransform::translation (frame.getPosition()));
+    juce::GlyphArrangement glyphs;
+    glyphs.addJustifiedText (font, text, 0.0f, 0.0f, frame.getWidth(), juce::Justification::left);
+    glyphs.justifyGlyphs (0, glyphs.getNumGlyphs(), frame.getX(), frame.getY(), frame.getWidth(), frame.getHeight(), juce::Justification::topLeft);
+    glyphs.draw (graphics);
     return image;
 }
 
@@ -103,6 +104,48 @@ public:
 
     void runTest() override
     {
+        beginTest ("ligatures are drawn once in skin text, including centred buttons and ellipsis");
+        {
+            SkinValidationReport report;
+            const auto package = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::foundation, report);
+            expect (package.has_value(), report.toText());
+            if (package)
+            {
+                SkinFontValue requested;
+                requested.families = { "Avenir Next", "DejaVu Sans", "serif" };
+                requested.weight = 500;
+                const auto assets = SkinAssetCache::create (*package, "ligature-test", "1.0.0", {}, { requested }, report);
+                expect (assets.has_value(), report.toText());
+                if (assets)
+                {
+                    const auto font = (*assets)->makeFont (requested, 36.0f);
+                    for (const auto& text : { juce::String ("Configure device..."), juce::String ("fi fl ff ffi ffl office affinity") })
+                        for (const auto width : { 520.0f, 150.0f })
+                        {
+                            const juce::Rectangle<float> frame (8, 6, width, 60);
+                            auto program = textProgram (text, "ellipsis", 36, 1, frame);
+                            program.baseLayers[0].properties["font"].value = requested;
+                            program.baseLayers[0].properties["align"].value = juce::String ("center");
+                            auto actual = blankImage (frame);
+                            juce::Graphics graphics (actual);
+                            SkinRenderContext context;
+                            context.bounds = actual.getBounds().toFloat();
+                            context.contentBounds = context.bounds;
+                            TextFaultSink sink;
+                            SkinRenderer renderer (*assets);
+                            expect (renderer.draw (graphics, program, context, true, sink) == SkinRenderStatus::ok);
+                            auto expected = blankImage (frame);
+                            juce::Graphics reference (expected);
+                            reference.reduceClipRegion (frame.getSmallestIntegerContainer());
+                            reference.setFont (font);
+                            reference.setColour (juce::Colours::white);
+                            reference.drawText (text, frame, juce::Justification::centred, true);
+                            expect (samePixels (actual, expected), text + " / " + juce::String (width));
+                        }
+                }
+            }
+        }
+
         beginTest ("clip and ellipsis retain the requested font in a short multi-line frame");
         {
             const juce::Rectangle<float> frame (8, 6, 170, 32);
@@ -151,11 +194,11 @@ public:
                                          juce::String::fromUTF8 ("שלום עולם\nمرحبا بالعالم") })
             {
                 const auto clipped = render (visible + "\nHidden", "clip", 20, 2, frame);
-                expect (samePixels (clipped, referenceShapedParagraphs (visible + "\n", 20, frame)),
+                expect (samePixels (clipped, referenceGlyphParagraphs (visible + "\n", juce::Font (juce::FontOptions (20.0f)), frame)),
                         "Clipped Unicode paragraphs must match the same complete paragraphs without a line limit.");
                 const auto expected = visible + juce::String::charToString (0x2026);
                 const auto ellipsis = render (visible + "\nHidden", "ellipsis", 20, 2, frame);
-                expect (samePixels (ellipsis, referenceShapedParagraphs (expected, 20, frame)),
+                expect (samePixels (ellipsis, referenceGlyphParagraphs (expected, juce::Font (juce::FontOptions (20.0f)), frame)),
                         "Unicode ellipsis must preserve the unscaled shaping of the expected visible paragraphs.");
             }
         }
