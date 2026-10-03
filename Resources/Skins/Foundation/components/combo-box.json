@@ -5,9 +5,6 @@
     {
       "id": "trigger",
       "type": "group",
-      "visible": {
-        "$expr": "not (combo.popupOpen and combo.hasSelection)"
-      },
       "children": [
         {
           "id": "body",
@@ -67,7 +64,7 @@
               "$expr": "bounds.height"
             }
           },
-          "text": "⌄",
+          "text": "\u2304",
           "font": {
             "$ref": "fonts.medium"
           },

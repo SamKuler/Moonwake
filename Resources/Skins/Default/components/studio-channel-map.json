@@ -88,10 +88,9 @@
   "contentClip": "body",
   "variants": {
     "focused": {
-      "body.stroke.color": {
-        "$ref": "colors.studio.focus"
-      },
-      "body.stroke.width": 1.5
+      "body.fill": {
+        "$expr": "alpha(token.colors.studio.focus, token.metrics.focusSurfaceOpacity)"
+      }
     }
   }
 }

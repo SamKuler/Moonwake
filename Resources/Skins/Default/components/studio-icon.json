@@ -37,7 +37,7 @@
   "variants": {
     "selected": {
       "icon.stroke.color": {
-        "$ref": "colors.studio.text"
+        "$ref": "colors.studio.onActive"
       }
     },
     "pressed": {
@@ -47,11 +47,6 @@
     },
     "disabled": {
       "icon.opacity": 0.55
-    },
-    "hover": {
-      "icon.stroke.color": {
-        "$ref": "colors.studio.text"
-      }
     }
   }
 }

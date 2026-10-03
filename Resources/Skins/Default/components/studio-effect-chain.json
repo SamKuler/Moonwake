@@ -21,27 +21,6 @@
         },
         "width": 1
       }
-    },
-    {
-      "id": "focus",
-      "type": "roundedRect",
-      "visible": {
-        "$context": "state.focused"
-      },
-      "frame": {
-        "anchor": "bounds",
-        "inset": 1.5
-      },
-      "radius": {
-        "$ref": "metrics.studioSurfaceRadius"
-      },
-      "fill": "#00000000",
-      "stroke": {
-        "color": {
-          "$ref": "colors.studio.focus"
-        },
-        "width": 2
-      }
     }
   ],
   "variants": {
@@ -49,7 +28,9 @@
       "body.opacity": 0.45
     },
     "focused": {
-      "body.stroke.width": 0
+      "body.fill": {
+        "$expr": "mix(token.colors.studio.surface, token.colors.studio.focus, token.metrics.focusSurfaceOpacity)"
+      }
     }
   },
   "rowLayout": {

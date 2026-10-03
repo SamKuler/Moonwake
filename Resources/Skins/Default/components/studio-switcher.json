@@ -10,9 +10,7 @@
         "inset": 0
       },
       "radius": 22,
-      "fill": {
-        "$ref": "colors.studio.control"
-      }
+      "fill": "#00000000"
     }
   ]
 }

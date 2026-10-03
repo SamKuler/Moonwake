@@ -89,31 +89,20 @@
         "$ref": "colors.studio.onActive"
       },
       "width": 1
-    },
-    {
-      "id": "focus",
-      "type": "roundedRect",
-      "visible": {
-        "$context": "state.focused"
-      },
-      "frame": {
-        "anchor": "bounds",
-        "inset": 1.5
-      },
-      "radius": 5,
-      "fill": "#00000000",
-      "stroke": {
-        "color": {
-          "$ref": "colors.studio.focus"
-        },
-        "width": 2
-      }
     }
   ],
   "variants": {
     "disabled": {
       "track.opacity": 0.4,
-      "value.opacity": 0.4
+      "value.opacity": 0.4,
+      "thumb.opacity": 0.4,
+      "thumb-line.opacity": 0.4
+    },
+    "focused": {
+      "thumb.frame.height": 22,
+      "thumb.frame.y": {
+        "$expr": "bounds.y + (bounds.height - 22) * 0.5"
+      }
     }
   },
   "controlStyle": {

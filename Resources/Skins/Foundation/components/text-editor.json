@@ -1,10 +1,64 @@
 {
-  "apiVersion": 1, "target": "textEditor",
+  "apiVersion": 1,
+  "target": "textEditor",
   "layers": [
-    { "id": "body", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 0.5 }, "radius": { "$ref": "metrics.radius" }, "fill": { "$ref": "colors.surfaceRaised" }, "stroke": { "color": { "$ref": "colors.border" }, "width": 1, "placement": "inside" } },
-    { "id": "label", "type": "text", "frame": { "anchor": "contentBounds", "inset": { "left": 10, "right": 10 } }, "text": { "$context": "text.primary" }, "font": { "$ref": "fonts.body" }, "fontSize": 13, "color": { "$ref": "colors.text" }, "align": "left", "maxLines": 1, "overflow": "ellipsis" }
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$ref": "colors.surfaceRaised"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.border"
+        },
+        "width": 1,
+        "placement": "inside"
+      }
+    },
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 10,
+          "right": 10
+        }
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.body"
+      },
+      "fontSize": 13,
+      "color": {
+        "$ref": "colors.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    }
   ],
-  "variants": { "focused": { "body.stroke.color": { "$ref": "colors.focus" }, "body.stroke.width": 2 }, "disabled": { "body.opacity": 0.4, "label.opacity": 0.55 } },
+  "variants": {
+    "focused": {
+      "body.fill": {
+        "$expr": "mix(token.colors.surfaceRaised, token.colors.focus, token.metrics.focusOverlayOpacity)"
+      }
+    },
+    "disabled": {
+      "body.opacity": 0.4,
+      "label.opacity": 0.55
+    }
+  },
   "controlStyle": {
     "selectionColour": {
       "$expr": "alpha(token.colors.text, 0.18)"

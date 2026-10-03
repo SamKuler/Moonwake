@@ -24,10 +24,9 @@
   ],
   "variants": {
     "focused": {
-      "body.stroke.color": {
-        "$ref": "colors.listening.focus"
-      },
-      "body.stroke.width": 1.5
+      "body.fill": {
+        "$expr": "alpha(token.colors.listening.focus, token.metrics.focusSurfaceOpacity)"
+      }
     }
   },
   "rowLayout": {

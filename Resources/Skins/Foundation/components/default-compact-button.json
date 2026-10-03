@@ -24,6 +24,23 @@
       }
     },
     {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$expr": "alpha(token.colors.focus, token.metrics.focusOverlayOpacity)"
+      }
+    },
+    {
       "id": "label",
       "type": "text",
       "frame": {
@@ -43,30 +60,6 @@
       "align": "center",
       "maxLines": 1,
       "overflow": "ellipsis"
-    },
-    {
-      "id": "focus",
-      "type": "roundedRect",
-      "visible": {
-        "$context": "state.focused"
-      },
-      "frame": {
-        "anchor": "bounds",
-        "inset": 1.5
-      },
-      "radius": {
-        "$ref": "metrics.radius"
-      },
-      "fill": {
-        "$ref": "colors.transparent"
-      },
-      "stroke": {
-        "color": {
-          "$ref": "colors.focus"
-        },
-        "width": 2,
-        "placement": "inside"
-      }
     }
   ],
   "variants": {
@@ -80,6 +73,9 @@
     "selected": {
       "body.fill": {
         "$ref": "colors.controlActive"
+      },
+      "focus.fill": {
+        "$expr": "alpha(token.colors.background, token.metrics.focusOverlayOpacity)"
       }
     },
     "disabled": {

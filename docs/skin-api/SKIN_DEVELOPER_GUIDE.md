@@ -615,6 +615,8 @@ scroll.orientation 为 `horizontal` 或 `vertical`；scroll.thumbStart 与 scrol
 
 scrollBar 的 bounds 与 contentBounds 表示轨道绘制区域。滑块沿对应轴使用 scroll.thumbStart 与 scroll.thumbSize 定位，主轴尺寸与原生拖动命中区域一致；视觉留白放在交叉轴，thumbSize 为 0 时隐藏滑块。内置样式的 thickness 为 12、minThumbLength 为 24，水平与垂直滚动条遵循同一规则。
 
+`combo.popupOpen` 表示菜单已打开，`combo.hasSelection` 表示控件存在选中值；两者不表示菜单在屏幕上是否覆盖触发控件。菜单位置会根据可用空间调整，内置皮肤在菜单打开期间保持按钮、文字与箭头可见。
+
 原生 textEditor 的编辑内容、选区和光标由应用拥有。renderer 中 ID 为 `label` 的 text 层提供它们的 `font`、`fontSize`、`color`、`opacity`、`visible`、`frame` 和 `align`；这些值按当前状态 variants 和控件 bounds 解析。原生编辑区域采用该 frame 的控件坐标矩形及对齐方式，窗口改变尺寸或皮肤预览切换后会重新同步。`label` 应使用未变换的控件坐标；layer/group 的 transform 仍只影响声明式绘制，不改变原生编辑坐标。`maxLines`、`overflow` 不会更改应用决定的单行、多行、编辑或滚动行为。
 
 textEditor 的占位文字仍由应用设置。空内容且未聚焦时，该文字通过 `text.primary` 交给同一 `label` 层绘制；已有输入或获得焦点时，主体 renderer 的 `text.primary` 为空，由原生文字层负责内容。应用关闭原生占位文字的第二次绘制，字号、颜色与目标矩形均遵循上述 label 配置。popupMenu 和 tooltip 的原生尺寸测量也使用其 `label` 字体及 frame 内边距，tooltip 的可用行数遵循 `maxLines`。

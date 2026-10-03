@@ -955,6 +955,50 @@ public:
                     }
         }
 
+        beginTest ("built-in focus feedback never adds a control outline");
+        for (const auto* skin : { foundation.get(), defaultSkin.get() })
+            if (skin != nullptr)
+                for (const auto& [name, style] : skin->renderers)
+                {
+                    expect (numberProperty (style, "focus", "stroke.width").value_or (0.0) == 0.0, name);
+                    for (const auto& [property, binding] : style.renderer.variants[4].properties)
+                    {
+                        juce::ignoreUnused (binding);
+                        expect (! property.startsWith ("body.stroke.")
+                                && ! property.startsWith ("dial.stroke."), name + ": " + property);
+                    }
+                }
+
+        beginTest ("effect drag handles stay inside their slot and remain hidden at rest");
+        for (const auto& source : { std::pair { foundation.get(), juce::String ("effectChain.default") },
+                                   std::pair { defaultSkin.get(), juce::String ("effectChain.studio") },
+                                   std::pair { defaultSkin.get(), juce::String ("effectChain.listening") } })
+        {
+            if (source.first == nullptr) continue;
+            const auto* owner = source.first->resolveStyle (SkinRenderTarget::effectChain, source.second);
+            const auto* handle = owner != nullptr ? source.first->resolveSlotStyle (
+                *owner, "slot.dragIndicator", SkinRenderTarget::surface) : nullptr;
+            expect (handle != nullptr);
+            if (handle == nullptr) continue;
+            for (const auto hover : { false, true })
+            {
+                juce::Image image (juce::Image::ARGB, 80, 60, true);
+                juce::Graphics graphics (image);
+                SkinRenderContext context;
+                context.bounds = context.contentBounds = { 20.0f, 18.0f, 4.0f, 16.0f };
+                context.state.hover = hover;
+                SkinRenderer renderer (handle->assets);
+                SilentFaultSink sink;
+                renderer.draw (graphics, handle->renderer, context, true, sink);
+                juce::Rectangle<int> painted;
+                for (int y = 0; y < image.getHeight(); ++y)
+                    for (int x = 0; x < image.getWidth(); ++x)
+                        if (! image.getPixelAt (x, y).isTransparent()) painted = painted.getUnion ({ x, y, 1, 1 });
+                expect (hover ? ! painted.isEmpty() && context.bounds.toNearestInt().contains (painted)
+                              : painted.isEmpty(), source.second);
+            }
+        }
+
         beginTest ("scrollbar skins draw the native thumb instead of the full track");
         if (foundation && defaultSkin)
             for (const auto& source : { std::pair { foundation.get(), juce::String ("scrollBar.default") },

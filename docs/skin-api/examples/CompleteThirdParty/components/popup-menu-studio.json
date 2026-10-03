@@ -34,12 +34,7 @@
       },
       "frame": {
         "anchor": "bounds",
-        "inset": {
-          "top": 2,
-          "right": 6,
-          "bottom": 2,
-          "left": 6
-        }
+        "inset": 2
       },
       "radius": 6,
       "fill": "#D6976224"
@@ -134,7 +129,7 @@
           "$expr": "bounds.height"
         }
       },
-      "text": "✓",
+      "text": "\u2713",
       "font": {
         "$ref": "fonts.medium"
       },
@@ -161,7 +156,7 @@
           "$expr": "bounds.height"
         }
       },
-      "text": "›",
+      "text": "\u203a",
       "font": {
         "$ref": "fonts.medium"
       },
@@ -181,7 +176,7 @@
       "frame": {
         "anchor": "bounds"
       },
-      "text": "▲",
+      "text": "\u25b2",
       "font": {
         "$ref": "fonts.body"
       },
@@ -201,7 +196,7 @@
       "frame": {
         "anchor": "bounds"
       },
-      "text": "▼",
+      "text": "\u25bc",
       "font": {
         "$ref": "fonts.body"
       },

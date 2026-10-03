@@ -32,14 +32,9 @@
       },
       "frame": {
         "anchor": "bounds",
-        "inset": {
-          "top": 3,
-          "right": 5,
-          "bottom": 3,
-          "left": 5
-        }
+        "inset": 2
       },
-      "radius": 5,
+      "radius": 6,
       "fill": "#31576620"
     },
     {

@@ -47,24 +47,6 @@
         "width": 3,
         "cap": "round"
       }
-    },
-    {
-      "id": "focus",
-      "type": "ellipse",
-      "visible": {
-        "$context": "state.focused"
-      },
-      "frame": {
-        "anchor": "bounds",
-        "inset": 2
-      },
-      "fill": "#00000000",
-      "stroke": {
-        "color": {
-          "$ref": "colors.listening.focus"
-        },
-        "width": 2
-      }
     }
   ],
   "variants": {
@@ -73,8 +55,9 @@
       "arc.opacity": 0.4
     },
     "focused": {
-      "dial.stroke.width": 0,
-      "arc.stroke.width": 0
+      "dial.fill": {
+        "$expr": "mix(token.colors.listening.control, token.colors.listening.focus, token.metrics.focusOverlayOpacity)"
+      }
     }
   },
   "controlStyle": {

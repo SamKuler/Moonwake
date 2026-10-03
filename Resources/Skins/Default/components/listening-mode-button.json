@@ -22,6 +22,21 @@
       }
     },
     {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": 18,
+      "fill": {
+        "$expr": "alpha(token.colors.listening.focus, token.metrics.focusOverlayOpacity)"
+      }
+    },
+    {
       "id": "label",
       "type": "text",
       "frame": {
@@ -41,36 +56,17 @@
         "$ref": "metrics.textControl"
       },
       "color": {
-        "$ref": "colors.listening.text"
+        "$ref": "colors.listening.muted"
       },
       "align": "center",
       "maxLines": 1,
       "overflow": "ellipsis"
-    },
-    {
-      "id": "focus",
-      "type": "roundedRect",
-      "visible": {
-        "$context": "state.focused"
-      },
-      "frame": {
-        "anchor": "bounds",
-        "inset": 1.5
-      },
-      "radius": 18,
-      "fill": "#00000000",
-      "stroke": {
-        "color": {
-          "$ref": "colors.listening.focus"
-        },
-        "width": 2
-      }
     }
   ],
   "variants": {
     "selected": {
       "body.fill": {
-        "$ref": "colors.listening.surface"
+        "$ref": "colors.listening.control"
       },
       "label.color": {
         "$ref": "colors.listening.text"
@@ -85,9 +81,6 @@
     "disabled": {
       "body.opacity": 0.4,
       "label.opacity": 0.55
-    },
-    "focused": {
-      "body.stroke.width": 0
     }
   },
   "transitions": {
@@ -99,18 +92,6 @@
       "properties": [
         "body.opacity"
       ]
-    }
-  },
-  "controlStyle": {
-    "iconBounds": {
-      "x": {
-        "$expr": "(bounds.width - 20) * 0.5"
-      },
-      "y": {
-        "$expr": "(bounds.height - 20) * 0.5"
-      },
-      "width": 20,
-      "height": 20
     }
   }
 }

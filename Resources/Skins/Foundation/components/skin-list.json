@@ -26,10 +26,9 @@
   ],
   "variants": {
     "focused": {
-      "body.stroke.color": {
-        "$ref": "colors.focus"
-      },
-      "body.stroke.width": 2
+      "body.fill": {
+        "$expr": "mix(token.colors.surfaceRaised, token.colors.focus, token.metrics.focusSurfaceOpacity)"
+      }
     }
   },
   "rowLayout": {

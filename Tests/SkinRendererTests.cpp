@@ -2096,7 +2096,7 @@ public:
             expect (sink.diagnostics.empty());
         }
 
-        beginTest ("built-in ComboBox triggers transfer their complete surface only to an overlapping selected menu");
+        beginTest ("built-in ComboBox triggers remain visible while menus are open");
         if (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() == nullptr)
         {
             expect (false, "native built-in ComboBox regression requires access to a display");
@@ -2159,10 +2159,8 @@ public:
                     expect (menu != nullptr, suffix + " native menu must be created");
                     if (menu != nullptr)
                     {
-                        const auto coversTrigger = menu->getScreenBounds().contains (combo.getScreenBounds());
-                        expect (coversTrigger == (selected > 0), suffix + " popup placement follows the selected item");
-                        expect ((opaquePixels() == 0) == coversTrigger,
-                                suffix + " the trigger surface is hidden only when the menu covers it");
+                        expect (opaquePixels() > 0,
+                                suffix + " opening a menu must preserve the trigger even when it is covered");
                         const auto popup = menu->createComponentSnapshot (menu->getLocalBounds());
                         expect (popup.getPixelAt (0, 0).isTransparent(), suffix + " menu corner stays transparent");
                         expect (! popup.getPixelAt (popup.getWidth() / 2, popup.getHeight() / 2).isTransparent());

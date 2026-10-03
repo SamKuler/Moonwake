@@ -327,7 +327,9 @@
     "studioSkinCard": "components/studio-skin-card.json",
     "studioReadOnlyRow": "components/studio-read-only-row.json",
     "studioRepeatIcon": "components/studio-repeat-icon.json",
-    "listeningRepeatIcon": "components/listening-repeat-icon.json"
+    "listeningRepeatIcon": "components/listening-repeat-icon.json",
+    "studioDragHandle": "components/studio-drag-handle.json",
+    "listeningDragHandle": "components/listening-drag-handle.json"
   },
   "artwork": {
     "listening": {
@@ -347,7 +349,7 @@
         "slot.bypass": "textButton.listeningNeutral",
         "slot.editor": "textButton.listeningNeutral",
         "slot.remove": "textButton.listeningCompact",
-        "slot.dragIndicator": "surface.listeningReadOnlyRow",
+        "slot.dragIndicator": "surface.listeningDragHandle",
         "slot.scope": "textButton.listeningNeutral"
       }
     },
@@ -359,7 +361,7 @@
         "slot.bypass": "textButton.studioNeutral",
         "slot.editor": "textButton.studioNeutral",
         "slot.remove": "textButton.studioCompact",
-        "slot.dragIndicator": "surface.studioReadOnlyRow",
+        "slot.dragIndicator": "surface.studioDragHandle",
         "slot.scope": "textButton.studioNeutral"
       }
     }

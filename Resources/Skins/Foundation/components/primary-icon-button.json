@@ -37,14 +37,7 @@
         "$ref": "metrics.radius"
       },
       "fill": {
-        "$expr": "alpha(token.colors.focus, 0.22)"
-      },
-      "stroke": {
-        "color": {
-          "$ref": "colors.focus"
-        },
-        "width": 0,
-        "placement": "inside"
+        "$expr": "alpha(token.colors.background, token.metrics.focusOverlayOpacity)"
       }
     }
   ],

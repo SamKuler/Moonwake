@@ -33,20 +33,17 @@
       },
       "radius": 10,
       "fill": {
-        "$expr": "alpha(token.colors.listening.focus, 0.22)"
-      },
-      "stroke": {
-        "color": {
-          "$ref": "colors.listening.focus"
-        },
-        "width": 0
+        "$expr": "alpha(token.colors.listening.focus, token.metrics.focusOverlayOpacity)"
       }
     }
   ],
   "variants": {
     "selected": {
       "body.fill": {
-        "$ref": "colors.listening.surface"
+        "$ref": "colors.listening.active"
+      },
+      "focus.fill": {
+        "$expr": "alpha(token.colors.listening.onActive, token.metrics.focusOverlayOpacity)"
       }
     },
     "hover": {
@@ -57,9 +54,6 @@
     },
     "disabled": {
       "body.opacity": 0.4
-    },
-    "focused": {
-      "body.stroke.width": 0
     }
   },
   "transitions": {

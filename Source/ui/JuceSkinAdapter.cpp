@@ -488,7 +488,7 @@ void JuceSkinAdapter::drawComboBox (
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
     context.contentBounds = context.bounds;
     context.state = stateFor (box, box.isMouseOver (true), down);
-    // The popup owns focus feedback while its rounded corners expose the trigger.
+    // Keep the trigger visible; the popup owns keyboard focus feedback while open.
     context.state.focused = context.state.focused && ! box.isPopupActive();
     context.primaryText = box.getText().isNotEmpty() ? box.getText() : box.getTextWhenNothingSelected();
     context.extraLookup = [open = box.isPopupActive(), selected = box.getSelectedId() > 0] (std::string_view path) -> std::optional<SkinExpressionValue>

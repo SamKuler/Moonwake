@@ -5,9 +5,6 @@
     {
       "id": "trigger",
       "type": "group",
-      "visible": {
-        "$expr": "not (combo.popupOpen and combo.hasSelection)"
-      },
       "children": [
         {
           "id": "body",

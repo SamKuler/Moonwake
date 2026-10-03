@@ -547,7 +547,6 @@ MainComponent::MainComponent()
     addFilesButton.setButtonText ("+ Music");
     settingsCloseButton.setButtonText ("Close");
     addFilesButton.setTooltip ("Add music files or folders");
-    settingsButton.setTooltip ("Open audio, plug-in, and skin settings");
     effectsButton.setTooltip ("Open the effects rack");
     effectsCloseButton.setTooltip ("Close the effects rack");
     settingsCloseButton.setTooltip ("Close settings");
@@ -1240,6 +1239,8 @@ void MainComponent::applyWorkspaceVisuals()
     studioModeButton.setToggleState (isStudio, juce::dontSendNotification);
     listeningModeButton.setToggleState (! isStudio, juce::dontSendNotification);
     settingsButton.setToggleState (settingsDrawerOpen, juce::dontSendNotification);
+    settingsButton.setTooltip (settingsDrawerOpen ? "Close settings"
+                                                 : "Open audio, plug-in, and skin settings");
     effectsButton.setToggleState (effectsDrawerOpen, juce::dontSendNotification);
     queueTitleLabel.setText (isStudio ? "Library" : "Up next",
                              juce::dontSendNotification);

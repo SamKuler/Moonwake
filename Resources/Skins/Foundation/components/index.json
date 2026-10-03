@@ -103,7 +103,8 @@
         "icon.repeat": "surface.onPrimaryIcon",
         "icon.repeatOne": "surface.onPrimaryIcon"
       }
-    }
+    },
+    "mode": "components/mode-button.json"
   },
   "toggleButton": {
     "default": "components/toggle-button.json",
@@ -164,7 +165,8 @@
     "skinRow": "components/skin-row.json",
     "icon": "components/icon.json",
     "onPrimaryIcon": "components/on-primary-icon.json",
-    "artworkOverlay": "components/artwork-overlay.json"
+    "artworkOverlay": "components/artwork-overlay.json",
+    "dragHandle": "components/drag-handle.json"
   },
   "artwork": {
     "default": {
@@ -186,7 +188,7 @@
         "slot.editor": "textButton.default",
         "slot.remove": "textButton.defaultCompact",
         "slot.scope": "textButton.default",
-        "slot.dragIndicator": "surface.default"
+        "slot.dragIndicator": "surface.dragHandle"
       }
     }
   },

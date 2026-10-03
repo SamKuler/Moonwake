@@ -52,10 +52,9 @@
   ],
   "variants": {
     "focused": {
-      "body.stroke.color": {
-        "$ref": "colors.listening.focus"
-      },
-      "body.stroke.width": 2
+      "body.fill": {
+        "$expr": "mix(token.colors.listening.surface, token.colors.listening.focus, token.metrics.focusOverlayOpacity)"
+      }
     },
     "disabled": {
       "body.opacity": 0.4,

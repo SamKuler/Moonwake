@@ -23,6 +23,23 @@
       }
     },
     {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.studioControlRadius"
+      },
+      "fill": {
+        "$expr": "alpha(token.colors.studio.onActive, token.metrics.focusOverlayOpacity)"
+      }
+    },
+    {
       "id": "label",
       "type": "text",
       "frame": {
@@ -47,27 +64,6 @@
       "align": "center",
       "maxLines": 1,
       "overflow": "ellipsis"
-    },
-    {
-      "id": "focus",
-      "type": "roundedRect",
-      "visible": {
-        "$context": "state.focused"
-      },
-      "frame": {
-        "anchor": "bounds",
-        "inset": 1.5
-      },
-      "radius": {
-        "$ref": "metrics.studioControlRadius"
-      },
-      "fill": "#00000000",
-      "stroke": {
-        "color": {
-          "$ref": "colors.studio.focus"
-        },
-        "width": 2
-      }
     }
   ],
   "variants": {
@@ -92,9 +88,6 @@
         "$ref": "colors.studio.muted"
       },
       "label.opacity": 0.62
-    },
-    "focused": {
-      "body.stroke.width": 0
     }
   },
   "transitions": {

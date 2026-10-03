@@ -41,7 +41,6 @@
               {
                 "id": "studio-studio-modes",
                 "type": "row",
-                "style": "surface.default",
                 "width": 248,
                 "height": 44,
                 "shrink": 0,
@@ -53,7 +52,7 @@
                     "id": "studio-workspace-studio",
                     "type": "component",
                     "component": "workspace.studio",
-                    "style": "textButton.default",
+                    "style": "textButton.mode",
                     "width": 118,
                     "height": 36,
                     "focusOrder": 10
@@ -62,7 +61,7 @@
                     "id": "studio-workspace-listening",
                     "type": "component",
                     "component": "workspace.listening",
-                    "style": "textButton.default",
+                    "style": "textButton.mode",
                     "width": 118,
                     "height": 36,
                     "focusOrder": 20

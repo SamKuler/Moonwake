@@ -21,34 +21,16 @@
         },
         "width": 1
       }
-    },
-    {
-      "id": "focus",
-      "type": "roundedRect",
-      "visible": {
-        "$context": "state.focused"
-      },
-      "frame": {
-        "anchor": "bounds",
-        "inset": 1.5
-      },
-      "radius": {
-        "$ref": "metrics.panelRadius"
-      },
-      "fill": {
-        "$ref": "colors.transparent"
-      },
-      "stroke": {
-        "color": {
-          "$ref": "colors.focus"
-        },
-        "width": 2
-      }
     }
   ],
   "variants": {
     "disabled": {
       "body.opacity": 0.4
+    },
+    "focused": {
+      "body.fill": {
+        "$expr": "mix(token.colors.surface, token.colors.focus, token.metrics.focusSurfaceOpacity)"
+      }
     }
   },
   "rowLayout": {

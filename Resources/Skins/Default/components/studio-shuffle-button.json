@@ -33,13 +33,7 @@
       },
       "radius": 10,
       "fill": {
-        "$expr": "alpha(token.colors.studio.focus, 0.22)"
-      },
-      "stroke": {
-        "color": {
-          "$ref": "colors.studio.focus"
-        },
-        "width": 0
+        "$expr": "alpha(token.colors.studio.focus, token.metrics.focusOverlayOpacity)"
       }
     },
     {
@@ -75,6 +69,9 @@
       },
       "shuffle.stroke.color": {
         "$ref": "colors.studio.onActive"
+      },
+      "focus.fill": {
+        "$expr": "alpha(token.colors.studio.onActive, token.metrics.focusOverlayOpacity)"
       }
     },
     "hover": {
@@ -86,9 +83,6 @@
     "disabled": {
       "body.opacity": 0.4,
       "shuffle.opacity": 0.4
-    },
-    "focused": {
-      "body.stroke.width": 0
     }
   },
   "transitions": {

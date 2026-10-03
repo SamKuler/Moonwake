@@ -52,10 +52,9 @@
   ],
   "variants": {
     "focused": {
-      "body.stroke.color": {
-        "$ref": "colors.studio.focus"
-      },
-      "body.stroke.width": 2
+      "body.fill": {
+        "$expr": "mix(token.colors.studio.control, token.colors.studio.focus, token.metrics.focusOverlayOpacity)"
+      }
     },
     "disabled": {
       "body.opacity": 0.4,
