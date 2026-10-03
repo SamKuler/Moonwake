@@ -398,6 +398,41 @@ public:
             expectEquals (fatalCallbacks, 1);
         }
 
+        beginTest ("Foundation remains an internal fallback and old selections restore the default skin");
+        {
+            const auto root = freshDirectory ("internal-foundation");
+            SkinManager manager;
+            SkinValidationReport report;
+            expect (manager.initialise (root.getChildFile ("installs"), report),
+                    report.toText());
+            const SkinSelection foundation { "builtin.foundation", "1.0.0" };
+            const SkinSelection defaultSkin { "builtin.default", "1.0.0" };
+            const auto installed = manager.installedSkins();
+            expect (std::find (installed.begin(), installed.end(), foundation)
+                    != installed.end());
+
+            const auto choices = manager.selectableSkinDescriptions();
+            expectEquals (static_cast<int> (choices.size()), 1);
+            expect (choices.front().selection == defaultSkin);
+            expect (manager.activate (foundation, false, report), report.toText());
+            expect (manager.activeSelection() == defaultSkin);
+            expect (manager.committedSelection() == defaultSkin);
+
+            manager.restoreFoundation();
+            expect (manager.activeSelection() == foundation);
+            expect (manager.activeSession()->health() == SkinSessionHealth::healthy);
+            const auto fallbackChoices = manager.selectableSkinDescriptions();
+            expectEquals (static_cast<int> (fallbackChoices.size()), 1);
+            expect (fallbackChoices.front().selection == defaultSkin);
+            expect (manager.preview (defaultSkin, report), report.toText());
+            manager.cancelPreview();
+            expect (manager.activeSelection() == foundation);
+            expect (manager.preview (defaultSkin, report), report.toText());
+            expect (manager.applyPreview (report), report.toText());
+            expect (manager.committedSelection() == defaultSkin);
+            static_cast<void> (root.deleteRecursively());
+        }
+
         beginTest ("preview apply cancel persistence and fatal fallback are atomic");
         {
             class Listener final : public SkinManager::Listener

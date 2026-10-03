@@ -408,6 +408,8 @@ public:
             SkinManager manager;
             SkinValidationReport report;
             expect (manager.initialise (root.getChildFile ("installed"), report), report.toText());
+            const auto importReport = manager.importSkin (writeImportableSkin (root, 0));
+            expect (! importReport.hasErrors(), importReport.toText());
             SkinLibraryPanel skins (manager, &adapter);
             skins.libraryControl().setBounds (0, 0, 520, 112);
             if (auto* list = dynamic_cast<juce::ListBox*> (&skins.libraryControl()))
@@ -1115,7 +1117,7 @@ public:
                     writeImportableSkin (root, index));
                 expect (! importReport.hasErrors(), importReport.toText());
             }
-            const auto descriptions = manager.installedSkinDescriptions();
+            const auto descriptions = manager.selectableSkinDescriptions();
             const auto imported = std::find_if (
                 descriptions.begin(), descriptions.end(), [] (const auto& description)
                 {
@@ -1139,7 +1141,7 @@ public:
             panel.importFile (root.getChildFile ("missing.moonwake-skin"));
             expect (! notices.empty() && notices.back().second,
                     "Skin import failures carry an explicit error flag.");
-            expect (panel.skinCount() >= 10);
+            expectEquals (panel.skinCount(), 9);
             panel.libraryControl().setBounds (0, 0, 320, 170);
             expect (panel.libraryControl().keyPressed (
                 juce::KeyPress (juce::KeyPress::homeKey)));
@@ -1177,14 +1179,19 @@ public:
             expect (panel.libraryControl().keyPressed (
                 juce::KeyPress (juce::KeyPress::endKey)));
             expect (panel.libraryScrollPosition() > 0);
-            expect (panel.selectedSkin() == manager.installedSkins().back());
+            expect (panel.selectedSkin() == descriptions.back().selection);
             expect (panel.libraryControl().keyPressed (
                 juce::KeyPress (juce::KeyPress::homeKey)));
             expectEquals (panel.libraryScrollPosition(), 0);
 
             const SkinSelection foundation { "builtin.foundation", "1.0.0" };
-            expect (panel.selectSkin (foundation));
+            expect (! panel.selectSkin (foundation));
+            expect (panel.selectSkin ({ "builtin.default", "1.0.0" }));
             expect (! panel.removeControl().isEnabled());
+            expect (! panel.previewControl().isEnabled());
+            const SkinSelection importedSelection { "com.example.settingsskin0", "1.0.0" };
+            expect (panel.selectSkin (importedSelection));
+            expect (panel.removeControl().isEnabled());
             expect (panel.previewControl().isEnabled());
             panel.previewControl().onClick();
             expect (manager.isPreviewing());
@@ -1197,11 +1204,23 @@ public:
             expect (manager.activeSelection()
                     == SkinSelection { "builtin.default", "1.0.0" });
 
-            expect (panel.selectSkin (foundation));
+            expect (panel.selectSkin (importedSelection));
             panel.previewControl().onClick();
             panel.applyControl().onClick();
             expect (! manager.isPreviewing());
-            expect (manager.committedSelection() == foundation);
+            expect (manager.committedSelection() == importedSelection);
+            expect (! panel.removeControl().isEnabled());
+
+            manager.restoreFoundation();
+            panel.refresh();
+            expectEquals (panel.skinCount(), 9);
+            expect (! panel.selectSkin (foundation));
+            expect (panel.selectSkin ({ "builtin.default", "1.0.0" }));
+            expect (panel.previewControl().isEnabled());
+            panel.previewControl().onClick();
+            panel.applyControl().onClick();
+            expect (manager.committedSelection()
+                    == SkinSelection { "builtin.default", "1.0.0" });
 
             const auto developer = writeDeveloperSkin (root);
             panel.setDeveloperDirectory (developer);

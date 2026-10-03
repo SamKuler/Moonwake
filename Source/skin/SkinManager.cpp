@@ -84,15 +84,15 @@ SkinValidationReport SkinManager::importSkin (const juce::File& source)
 std::optional<SkinManager::ResolvedSkin> SkinManager::compileSelection (
     const SkinSelection& requested, SkinValidationReport& report)
 {
-    const auto resolved = registry.resolve (requested);
+    // Older sessions may have selected Foundation before it became internal-only.
+    const auto resolved = registry.resolve (requested.id == "builtin.foundation"
+        ? SkinSelection { "builtin.default", {} } : requested);
     if (! resolved)
     {
         report.addError ("RUNTIME005", requested.id, requested.version,
                          "Skin preview selection is not installed.");
         return std::nullopt;
     }
-    if (resolved->id == "builtin.foundation")
-        return ResolvedSkin { *resolved, foundationSkin };
     if (resolved->id == "builtin.default")
         return ResolvedSkin { *resolved, defaultSkin };
 
@@ -353,13 +353,15 @@ std::vector<SkinSelection> SkinManager::installedSkins() const
     return result;
 }
 
-std::vector<InstalledSkinDescription> SkinManager::installedSkinDescriptions() const
+std::vector<InstalledSkinDescription> SkinManager::selectableSkinDescriptions() const
 {
     std::vector<InstalledSkinDescription> result;
     const auto entries = registry.entries();
     result.reserve (entries.size() + 1);
     for (const auto& entry : entries)
     {
+        if (entry.selection.id == "builtin.foundation") continue;
+
         InstalledSkinDescription description;
         description.selection = entry.selection;
         description.name = entry.name.isNotEmpty() ? entry.name
@@ -368,9 +370,7 @@ std::vector<InstalledSkinDescription> SkinManager::installedSkinDescriptions() c
         description.builtIn = entry.builtIn;
 
         const CompiledSkin* compiled = nullptr;
-        if (entry.selection.id == "builtin.foundation")
-            compiled = foundationSkin.get();
-        else if (entry.selection.id == "builtin.default")
+        if (entry.selection.id == "builtin.default")
             compiled = defaultSkin.get();
         else if (entry.selection == activeSelectionValue && active != nullptr)
             compiled = active->compiledSkin().get();
@@ -388,7 +388,8 @@ std::vector<InstalledSkinDescription> SkinManager::installedSkinDescriptions() c
         {
             return description.selection == activeSelectionValue;
         });
-    if (! activeInstalled && active != nullptr && active->compiledSkin() != nullptr)
+    if (! activeInstalled && activeSelectionValue.id != "builtin.foundation"
+        && active != nullptr && active->compiledSkin() != nullptr)
     {
         const auto& manifest = active->compiledSkin()->manifest;
         result.push_back ({ activeSelectionValue, manifest.name,

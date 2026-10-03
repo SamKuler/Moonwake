@@ -60,7 +60,7 @@ public:
     [[nodiscard]] std::optional<SkinFailedSessionRecord> lastFailedSession() const;
     void clearLastFailedSession();
     [[nodiscard]] std::vector<SkinSelection> installedSkins() const;
-    [[nodiscard]] std::vector<InstalledSkinDescription> installedSkinDescriptions() const;
+    [[nodiscard]] std::vector<InstalledSkinDescription> selectableSkinDescriptions() const;
     void setPersistenceCallback (std::function<void (const SkinSelection&)>);
     void addListener (Listener*);
     void removeListener (Listener*);

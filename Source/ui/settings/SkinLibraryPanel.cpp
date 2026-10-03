@@ -310,7 +310,6 @@ private:
         const auto& selection = description.selection;
         if (description.name.isNotEmpty()) return description.name;
         if (selection.id == "builtin.default") return "Listening B";
-        if (selection.id == "builtin.foundation") return "Studio A Foundation";
         return selection.id;
     }
 
@@ -446,7 +445,7 @@ void SkinLibraryPanel::setVisible (bool shouldBeVisible)
 
 void SkinLibraryPanel::refresh()
 {
-    library->setSelections (manager.installedSkinDescriptions(),
+    library->setSelections (manager.selectableSkinDescriptions(),
                             manager.activeSelection(), manager.isPreviewing());
     reloadButton.setButtonText (
         manager.developerDirectory() == juce::File()
