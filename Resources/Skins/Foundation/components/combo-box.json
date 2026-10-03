@@ -67,7 +67,7 @@
               "$expr": "bounds.height"
             }
           },
-          "text": "\u2304",
+          "text": "⌄",
           "font": {
             "$ref": "fonts.medium"
           },
@@ -89,10 +89,9 @@
       "body.opacity": 0.76
     },
     "focused": {
-      "body.stroke.color": {
-        "$ref": "colors.focus"
-      },
-      "body.stroke.width": 2
+      "body.fill": {
+        "$expr": "mix(token.colors.control, token.colors.focus, 0.22)"
+      }
     },
     "disabled": {
       "body.opacity": 0.4,

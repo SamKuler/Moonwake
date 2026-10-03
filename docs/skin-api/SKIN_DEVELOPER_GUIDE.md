@@ -600,7 +600,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | artwork | 封面组件一次 | artwork.hasTrack、artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
 | effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator；可选 slot.scope（应用 0.4.0 起） |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
-| channelMap | 只读输出端口映射 | channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected | row.surface、row.source、row.destination、header.label、empty.message |
+| channelMap | 输出端口映射 | 绘制行 slots：channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected；row.output：标准 comboBox context | row.surface、row.source、row.destination、row.output（routing 的 comboBox）、header.label、empty.message |
 | channelMixer | 每声道混音行及原生控制槽位 | text.primary、value.*、state.* | row.surface、row.source、row.destination、row.peak、row.gain、row.mute、row.solo |
 | pluginList | 主体一次；每个可见插件调用 slots | slots：plugin.index、plugin.name、plugin.manufacturer、plugin.format、plugin.enabled | row.surface、row.name、row.manufacturer、row.format、row.status、header.label、empty.message |
 | skinList | 主体一次；每个可见皮肤分别调用 slots | 行 slots：skin.index、skin.id、skin.name、skin.author、skin.version、skin.builtin、skin.active、skin.previewed | row.surface、row.name、row.author、row.version、row.status、empty.message |
@@ -612,6 +612,8 @@ scrollBar、popupMenu 和 tooltip 是 JuceSkinAdapter 使用的 ancillary target
 `combo.popupOpen` 表示原生弹出菜单正在显示，`combo.hasSelection` 表示有有效选项；两者要求应用 `0.5.0` 或更高。内置皮肤在菜单显示且有选项时隐藏被覆盖的触发器图层；无选项时菜单出现在触发器下方，触发器保持可见。菜单关闭后恢复触发器及焦点反馈。
 
 scroll.orientation 为 `horizontal` 或 `vertical`；scroll.thumbStart 与 scroll.thumbSize 是 target 本地轴上的逻辑像素；scroll.part 为 `bar`、`buttonStart` 或 `buttonEnd`。`bar` 一次绘制轨道与 thumb，两个 button part 分别绘制可选箭头。menu.part 为 `background`、`item`、`separator` 或 `sectionHeader`；普通 item 的 menu.itemIndex 是当次菜单绘制中从 0 开始、跳过 separator 与 sectionHeader 的稳定视觉序号，非 item 调用固定为 -1。table 的 row.surface 接收整行 bounds，cell.title、cell.location 与 cell.duration 分别接收其实际列 bounds；不要假定三个 cell slot 共享整行几何。tooltip 使用应用提供的 text.primary，皮肤不能替换其可访问性内容。
+
+scrollBar 的 bounds 与 contentBounds 表示轨道绘制区域。滑块沿对应轴使用 scroll.thumbStart 与 scroll.thumbSize 定位，主轴尺寸与原生拖动命中区域一致；视觉留白放在交叉轴，thumbSize 为 0 时隐藏滑块。内置样式的 thickness 为 12、minThumbLength 为 24，水平与垂直滚动条遵循同一规则。
 
 原生 textEditor 的编辑内容、选区和光标由应用拥有。renderer 中 ID 为 `label` 的 text 层提供它们的 `font`、`fontSize`、`color`、`opacity`、`visible`、`frame` 和 `align`；这些值按当前状态 variants 和控件 bounds 解析。原生编辑区域采用该 frame 的控件坐标矩形及对齐方式，窗口改变尺寸或皮肤预览切换后会重新同步。`label` 应使用未变换的控件坐标；layer/group 的 transform 仍只影响声明式绘制，不改变原生编辑坐标。`maxLines`、`overflow` 不会更改应用决定的单行、多行、编辑或滚动行为。
 
@@ -1110,7 +1112,7 @@ auto 与固有尺寸：
 - component 的 auto 尺寸来自 PlayerComponentCatalog 的稳定 preferred size，不从当前文本测量，因此曲名、语言和动态状态不会改变布局。
 - visual 的 auto preferred size 为 0 × 0。
 - row、column、grid、stack 的 auto size 是子节点最小贡献、margin、padding 与 gap 的确定性合计。
-- scroll 的 viewport 由父布局确定；滚动轴 content extent 取 child 的测量尺寸。主轴溢出时，运行时在交叉轴内部预留滚动条空间，并将 child 约束到剩余可视区域。预留宽度来自当前布局解析出的 scrollBar 样式的 `controlStyle.thickness`，与原生滚动条使用同一逻辑像素值；未映射时使用 `scrollBar.default`，内置默认值为 8。单轴滚动不会自动启用第二个滚动方向。
+- scroll 的 viewport 由父布局确定；滚动轴 content extent 取 child 的测量尺寸。主轴溢出时，运行时在交叉轴内部预留滚动条空间，并将 child 约束到剩余可视区域。预留宽度来自当前布局解析出的 scrollBar 样式的 `controlStyle.thickness`，与原生滚动条使用同一逻辑像素值；未映射时使用 `scrollBar.default`，内置默认值为 12。单轴滚动不会自动启用第二个滚动方向。
 
 Component Catalog 的 Skin API 1 默认尺寸：
 
@@ -1390,7 +1392,7 @@ outputStage 提供：
 | settings.audio.bufferSize | comboBox | 是 | 选择缓冲区 |
 | settings.audio.channelLayout | comboBox | 是 | 选择受支持的扬声器布局，受实际设备输出能力约束 |
 | settings.audio.channelMap | channelMap | 否 | 只读查看逻辑声道到当前设备实际启用端口的映射；优先使用设备端口名，缺失时显示物理编号 Output N；端口不可在皮肤内重排 |
-| settings.audio.routing | channelMap | 否 | 为每个逻辑声道选择物理输出或 Disconnected，点击或 Return 打开选择菜单；0.6.1 起 |
+| settings.audio.routing | channelMap | 否 | 为每个逻辑声道选择物理输出或 Disconnected，通过各行的原生 ComboBox 选择；0.6.1 起 |
 | settings.plugins.formats | label | 否 | 插件分区标题 |
 | settings.plugins.enableVst3 | toggleButton | 否 | 启用 VST3 扫描和新增插件，0.6.0 起 |
 | settings.plugins.enableAu | toggleButton | 否 | 启用 Audio Unit 扫描和新增插件，0.6.0 起 |
@@ -1416,7 +1418,7 @@ outputStage 提供：
 | settings.skins.cancelPreview | textButton | 是 | 恢复预览前皮肤；未预览时 disabled |
 | settings.skins.reload | textButton | 否 | 开发目录 Reload |
 
-`settings.audio.routing` 的目标是当前设备的真实物理端口；输出布局决定逻辑扬声器顺序，效果链和 Mixer 保持该逻辑顺序。端口一对一分配，也可断开；其他声道已占用的端口不可重复选择。设置按设备身份和逻辑布局持久化，设备能力变化导致已保存路由不可用时，将输出断开并显示诊断，保留原配置以供设备恢复；没有保存路由的设备采用默认顺序。组件使用 channelMap 的行 slots 和所在 layout 的 popupMenu renderer，需声明正数且唯一的 focusOrder，内置布局为 140；推荐最小尺寸为 180×100。旧 `settings.audio.channelMap` 继续提供只读投影。
+`settings.audio.routing` 的目标是当前设备的真实物理端口；输出布局决定逻辑扬声器顺序，效果链和 Mixer 保持该逻辑顺序。端口一对一分配，也可断开；其他声道已占用的端口不可重复选择。设置按设备身份和逻辑布局持久化，设备能力变化导致已保存路由不可用时，将输出断开并显示诊断，保留原配置以供设备恢复；没有保存路由的设备采用默认顺序。组件使用 channelMap 的行 slots。`row.output` 为 comboBox 槽位，使用标准 comboBox context（不提供 channel.*），几何由 rowLayout 决定，未声明时沿用 `row.destination` 的矩形；style 未映射时使用 comboBox.default。各行按扬声器顺序遍历，组件需声明正数且唯一的 focusOrder，内置布局为 140；推荐最小尺寸为 180×100。焦点反馈由各行 ComboBox 提供，容器无需重复绘制焦点；交互 slot 的可见焦点仍由编译器校验。下拉菜单使用所在 layout 的 popupMenu renderer。旧 `settings.audio.channelMap` 继续提供只读投影。
 
 `transport.repeatCycle` 最小尺寸为 28×28，使用 textButton 的 state.selected 表示循环开启，icon.repeatOne 表示单曲循环。应用提供状态名称与 tooltip；皮肤负责图形、尺寸及位置，推荐 focusOrder 为 235。一个布局选择 repeat 或 repeatCycle 即可。内置布局将 Shuffle、Previous、Play/Pause、Next、Repeat 放在同一播放控制组。
 

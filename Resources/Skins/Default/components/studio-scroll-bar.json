@@ -12,38 +12,87 @@
       "radius": 4,
       "fill": {
         "$ref": "colors.studio.surface"
+      },
+      "visible": {
+        "$expr": "scroll.part == 'bar'"
+      },
+      "opacity": 0.35
+    },
+    {
+      "id": "thumb-vertical",
+      "type": "roundedRect",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 3"
+        },
+        "y": {
+          "$context": "scroll.thumbStart"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 6)"
+        },
+        "height": {
+          "$context": "scroll.thumbSize"
+        }
+      },
+      "radius": 3,
+      "fill": {
+        "$ref": "colors.studio.muted"
+      },
+      "visible": {
+        "$expr": "scroll.part == 'bar' and scroll.orientation == 'vertical' and scroll.thumbSize > 0"
       }
     },
     {
-      "id": "thumb",
+      "id": "thumb-horizontal",
       "type": "roundedRect",
       "frame": {
-        "anchor": "contentBounds",
-        "inset": 3
+        "x": {
+          "$context": "scroll.thumbStart"
+        },
+        "y": {
+          "$expr": "bounds.y + 3"
+        },
+        "width": {
+          "$context": "scroll.thumbSize"
+        },
+        "height": {
+          "$expr": "max(0, bounds.height - 6)"
+        }
       },
-      "radius": 4,
+      "radius": 3,
       "fill": {
         "$ref": "colors.studio.muted"
+      },
+      "visible": {
+        "$expr": "scroll.part == 'bar' and scroll.orientation == 'horizontal' and scroll.thumbSize > 0"
       }
     }
   ],
   "variants": {
     "hover": {
-      "thumb.fill": {
+      "thumb-vertical.fill": {
+        "$ref": "colors.studio.text"
+      },
+      "thumb-horizontal.fill": {
         "$ref": "colors.studio.text"
       }
     },
     "pressed": {
-      "thumb.fill": {
+      "thumb-vertical.fill": {
+        "$ref": "colors.studio.active"
+      },
+      "thumb-horizontal.fill": {
         "$ref": "colors.studio.active"
       }
     },
     "disabled": {
-      "thumb.opacity": 0.35
+      "thumb-vertical.opacity": 0.35,
+      "thumb-horizontal.opacity": 0.35
     }
   },
   "controlStyle": {
-    "thickness": 8,
-    "minThumbLength": 20
+    "thickness": 12,
+    "minThumbLength": 24
   }
 }

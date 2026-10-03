@@ -39,6 +39,7 @@ public:
         firstVisibleRow = 0;
         resized();
         updateContent();
+        repaint();
         setFirstVisibleRow (0);
         if (auto* handler = getAccessibilityHandler())
             handler->notifyAccessibilityEvent (

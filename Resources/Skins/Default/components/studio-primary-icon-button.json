@@ -28,15 +28,17 @@
       },
       "frame": {
         "anchor": "bounds",
-        "inset": 1.5
+        "inset": 0.5
       },
       "radius": 28,
-      "fill": "#00000000",
+      "fill": {
+        "$expr": "alpha(token.colors.studio.onActive, 0.22)"
+      },
       "stroke": {
         "color": {
           "$ref": "colors.studio.focus"
         },
-        "width": 2
+        "width": 0
       }
     }
   ],

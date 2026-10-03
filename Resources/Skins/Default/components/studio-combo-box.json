@@ -88,10 +88,9 @@
       "body.opacity": 0.76
     },
     "focused": {
-      "body.stroke.color": {
-        "$ref": "colors.studio.focus"
-      },
-      "body.stroke.width": 1.5
+      "body.fill": {
+        "$expr": "mix(token.colors.studio.control, token.colors.studio.focus, 0.22)"
+      }
     },
     "disabled": {
       "body.opacity": 0.4,

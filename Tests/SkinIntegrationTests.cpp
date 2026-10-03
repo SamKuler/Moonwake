@@ -955,6 +955,43 @@ public:
                     }
         }
 
+        beginTest ("scrollbar skins draw the native thumb instead of the full track");
+        if (foundation && defaultSkin)
+            for (const auto& source : { std::pair { foundation.get(), juce::String ("scrollBar.default") },
+                                       std::pair { defaultSkin.get(), juce::String ("scrollBar.studio") },
+                                       std::pair { defaultSkin.get(), juce::String ("scrollBar.listening") } })
+            {
+                SkinRenderer renderer;
+                JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding { source.first->resolveStyle (target, source.second) };
+                }, renderer);
+                for (const auto vertical : { true, false })
+                {
+                    juce::ScrollBar bar (vertical);
+                    const auto render = [&] (int start, int size)
+                    {
+                        juce::Image image (juce::Image::ARGB, vertical ? 12 : 220, vertical ? 220 : 12, true);
+                        juce::Graphics graphics (image);
+                        adapter.drawScrollbar (graphics, bar, vertical ? 0 : 10, vertical ? 10 : 0,
+                            vertical ? 12 : 200, vertical ? 200 : 12, vertical, start, size, false, false);
+                        return image;
+                    };
+                    const auto first = render (20, 30), middle = render (90, 30), last = render (170, 40);
+                    const auto pixel = [vertical] (const juce::Image& image, int position)
+                    { return image.getPixelAt (vertical ? 6 : position, vertical ? position : 6); };
+                    const auto track = pixel (first, 130);
+                    expect (pixel (first, 35) != track, source.second + " first thumb is distinct from its track");
+                    expect (pixel (first, 105) == track);
+                    expect (pixel (middle, 105) != track, source.second + " thumb follows native scroll position");
+                    expect (pixel (middle, 35) == track);
+                    expect (pixel (last, 190) != track);
+                    expect (pixel (last, 105) == track);
+                    const auto empty = render (20, 0);
+                    expect (pixel (empty, 35) == track, "A zero-sized native thumb remains hidden.");
+                }
+            }
+
         beginTest ("workspace navigation and transport anchors stay fixed across Default routes");
         if (defaultSkin)
             for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
@@ -1406,6 +1443,12 @@ public:
         }
 
         beginTest ("composite contexts are exact to each owner and slot");
+        {
+            const auto routingContext = skinRenderContextForCompositeSlot (
+                SkinRenderTarget::channelMap, "row.output", SkinRenderTarget::comboBox);
+            expect (routingContext.contains ("combo.popupOpen"));
+            expect (! routingContext.contains ("channel.index"));
+        }
         if (foundation)
         {
             SkinValidationReport exactReport;

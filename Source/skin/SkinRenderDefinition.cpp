@@ -499,6 +499,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
             break;
         case SkinRenderTarget::channelMixer:
         case SkinRenderTarget::channelMap:
+            if (slotName == "row.output") break;
             addContext (result, {
                 { "channel.index", Type::number },
                 { "channel.sourceLabel", Type::string },

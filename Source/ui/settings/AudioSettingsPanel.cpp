@@ -62,6 +62,7 @@ public:
         setEnabled (! outputs.empty());
         resized();
         updateContent();
+        repaint();
         if (auto* handler = getAccessibilityHandler())
             handler->notifyAccessibilityEvent (
                 juce::AccessibilityEvent::structureChanged);
@@ -73,10 +74,10 @@ public:
         const auto editable = static_cast<bool> (onRouteChange);
         setName (editable ? "Output routing" : "Read-only output channel map");
         setDescription (editable
-            ? "Select a speaker and press Return, or click its row, to choose a physical output or disconnect it."
+            ? "Choose a physical output or disconnect each speaker using its output selector."
             : "Shows how the selected multichannel layout maps to CoreAudio outputs.");
-        setWantsKeyboardFocus (editable);
-        setMouseClickGrabsKeyboardFocus (editable);
+        setWantsKeyboardFocus (false);
+        setMouseClickGrabsKeyboardFocus (false);
         getViewport()->getViewedComponent()->setInterceptsMouseClicks (editable, editable);
     }
 
@@ -156,12 +157,12 @@ private:
         if (! juce::isPositiveAndBelow (row, names.size()))
             return {};
         return names[row] + " to " + destinationLabel (row)
-            + (onRouteChange ? ". Press Return to change output."
+            + (onRouteChange ? ". Choose an output using the selector."
                              : (isConnected (row) ? ", connected" : ", unavailable"));
     }
 
     void paintListBoxItem (int rowNumber, juce::Graphics& graphics,
-                           int width, int height, bool selected) override
+                           int width, int height, bool) override
     {
         if (! juce::isPositiveAndBelow (rowNumber, names.size()))
             return;
@@ -174,8 +175,6 @@ private:
         const auto sourceLabel = names[rowNumber];
         const auto deviceLabel = destinationLabel (rowNumber);
         rowContext.state.enabled = onRouteChange ? isEnabled() : connected;
-        rowContext.state.selected = onRouteChange && selected;
-        rowContext.state.focused = onRouteChange && selected && hasKeyboardFocus (true);
         rowContext.extraLookup = [rowNumber, sourceLabel,
                                   deviceLabel, connected] (std::string_view path)
             -> std::optional<SkinExpressionValue>
@@ -195,8 +194,9 @@ private:
         }
         drawTextSlot (graphics, *layout, "row.source", sourceLabel,
                       rowKey, &rowContext);
-        drawTextSlot (graphics, *layout, "row.destination", deviceLabel,
-                      rowKey, &rowContext);
+        if (! onRouteChange)
+            drawTextSlot (graphics, *layout, "row.destination", deviceLabel,
+                          rowKey, &rowContext);
     }
 
     bool isConnected (int row) const
@@ -222,37 +222,85 @@ private:
         return "Output " + juce::String (physical + 1) + " (unavailable)";
     }
 
-    void listBoxItemClicked (int row, const juce::MouseEvent&) override { showRouteMenu (row); }
-    void returnKeyPressed (int row) override { showRouteMenu (row); }
-
-    void showRouteMenu (int row)
+    class RoutingRow final : public juce::Component
     {
-        if (! onRouteChange || ! isEnabled()
-            || ! juce::isPositiveAndBelow (row, static_cast<int> (routing.size()))) return;
-        juce::PopupMenu menu;
-        menu.setLookAndFeel (adapter != nullptr ? adapter : &getLookAndFeel());
-        const auto selected = routing[static_cast<size_t> (row)];
-        menu.addItem (1, "Disconnected", true, selected < 0);
-        for (const auto& output : outputs)
+    public:
+        explicit RoutingRow (ChannelMapView& ownerToUse) : owner (ownerToUse)
         {
-            const auto occupied = std::find (routing.begin(), routing.end(), output.deviceChannelIndex);
-            const auto available = occupied == routing.end() || selected == output.deviceChannelIndex;
-            menu.addItem (output.deviceChannelIndex + 2, portLabel (output), available,
-                          selected == output.deviceChannelIndex);
-        }
-        auto requestedRouting = routing;
-        const auto expectedDevice = deviceIdentifier;
-        const auto expectedLayout = logicalLayout;
-        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this)
-            .withTargetScreenArea (localAreaToGlobal (getRowPosition (row, true))),
-            [safe = juce::Component::SafePointer<ChannelMapView> (this), row,
-             requestedRouting, expectedDevice, expectedLayout] (int result) mutable
+            addAndMakeVisible (output);
+            output.onChange = [this]
             {
-                if (safe == nullptr || result == 0) return;
-                requestedRouting[static_cast<size_t> (row)] = result - 2;
-                if (safe->onRouteChange)
-                    safe->onRouteChange (requestedRouting, expectedDevice, expectedLayout);
-            });
+                if (output.getSelectedId() == 0 || ! owner.onRouteChange) return;
+                auto requested = currentRouting;
+                requested[static_cast<size_t> (row)] = output.getSelectedId() - 2;
+                owner.onRouteChange (requested, device, layout);
+            };
+        }
+
+        void update (int index)
+        {
+            if (row != index || device != owner.deviceIdentifier
+                || layout != owner.logicalLayout || currentRouting != owner.routing)
+                output.hidePopup();
+            row = index;
+            currentRouting = owner.routing;
+            device = owner.deviceIdentifier;
+            layout = owner.logicalLayout;
+            output.setTitle ("Output for " + owner.names[row]);
+            output.setTooltip ("Choose the physical output for " + owner.names[row]);
+            output.clear (juce::dontSendNotification);
+            const auto selected = currentRouting[static_cast<size_t> (row)];
+            output.addItem ("Disconnected", 1);
+            for (const auto& port : owner.outputs)
+            {
+                const auto id = port.deviceChannelIndex + 2;
+                output.addItem (owner.portLabel (port), id);
+                output.setItemEnabled (id, port.deviceChannelIndex == selected
+                    || std::find (currentRouting.begin(), currentRouting.end(), port.deviceChannelIndex) == currentRouting.end());
+            }
+            output.setSelectedId (selected + 2, juce::dontSendNotification);
+            if (output.getSelectedId() == 0)
+                output.setText (owner.destinationLabel (row), juce::dontSendNotification);
+            resized();
+        }
+
+        void resized() override
+        {
+            if (const auto geometry = owner.rowLayout (getWidth()))
+            {
+                auto slot = geometry->slots.find ("row.output");
+                if (slot == geometry->slots.end()) slot = geometry->slots.find ("row.destination");
+                if (slot != geometry->slots.end()) output.setBounds (slot->second.toNearestInt());
+            }
+            if (owner.adapter != nullptr)
+                owner.adapter->applySlotStyle (output, owner, SkinRenderTarget::channelMap, "row.output");
+        }
+
+        void focusOfChildComponentChanged (FocusChangeType) override
+        {
+            if (hasKeyboardFocus (true)) owner.scrollToEnsureRowIsOnscreen (row);
+        }
+
+    private:
+        ChannelMapView& owner;
+        juce::ComboBox output;
+        std::vector<int> currentRouting;
+        juce::String device;
+        OutputLayout layout = OutputLayout::stereo;
+        int row = 0;
+    };
+
+    juce::Component* refreshComponentForRow (int row, bool, juce::Component* existing) override
+    {
+        if (! onRouteChange || ! juce::isPositiveAndBelow (row, static_cast<int> (routing.size())))
+        {
+            delete existing;
+            return nullptr;
+        }
+        auto* control = dynamic_cast<RoutingRow*> (existing);
+        if (control == nullptr) control = new RoutingRow (*this);
+        control->update (row);
+        return control;
     }
 
     [[nodiscard]] std::optional<SkinResolvedRowLayout> rowLayout (int width) const

@@ -1,12 +1,98 @@
 {
-  "apiVersion": 1, "target": "scrollBar",
+  "apiVersion": 1,
+  "target": "scrollBar",
   "layers": [
-    { "id": "track", "type": "roundedRect", "frame": { "anchor": "bounds", "inset": 2 }, "radius": 4, "fill": { "$ref": "colors.surface" } },
-    { "id": "thumb", "type": "roundedRect", "frame": { "anchor": "contentBounds", "inset": 3 }, "radius": 4, "fill": { "$ref": "colors.textMuted" } }
+    {
+      "id": "track",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 2
+      },
+      "radius": 4,
+      "fill": {
+        "$ref": "colors.surface"
+      },
+      "visible": {
+        "$expr": "scroll.part == 'bar'"
+      },
+      "opacity": 0.35
+    },
+    {
+      "id": "thumb-vertical",
+      "type": "roundedRect",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 3"
+        },
+        "y": {
+          "$context": "scroll.thumbStart"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 6)"
+        },
+        "height": {
+          "$context": "scroll.thumbSize"
+        }
+      },
+      "radius": 3,
+      "fill": {
+        "$ref": "colors.textMuted"
+      },
+      "visible": {
+        "$expr": "scroll.part == 'bar' and scroll.orientation == 'vertical' and scroll.thumbSize > 0"
+      }
+    },
+    {
+      "id": "thumb-horizontal",
+      "type": "roundedRect",
+      "frame": {
+        "x": {
+          "$context": "scroll.thumbStart"
+        },
+        "y": {
+          "$expr": "bounds.y + 3"
+        },
+        "width": {
+          "$context": "scroll.thumbSize"
+        },
+        "height": {
+          "$expr": "max(0, bounds.height - 6)"
+        }
+      },
+      "radius": 3,
+      "fill": {
+        "$ref": "colors.textMuted"
+      },
+      "visible": {
+        "$expr": "scroll.part == 'bar' and scroll.orientation == 'horizontal' and scroll.thumbSize > 0"
+      }
+    }
   ],
-  "variants": { "hover": { "thumb.fill": { "$ref": "colors.text" } }, "pressed": { "thumb.fill": { "$ref": "colors.controlActive" } }, "disabled": { "thumb.opacity": 0.35 } },
+  "variants": {
+    "hover": {
+      "thumb-vertical.fill": {
+        "$ref": "colors.text"
+      },
+      "thumb-horizontal.fill": {
+        "$ref": "colors.text"
+      }
+    },
+    "pressed": {
+      "thumb-vertical.fill": {
+        "$ref": "colors.controlActive"
+      },
+      "thumb-horizontal.fill": {
+        "$ref": "colors.controlActive"
+      }
+    },
+    "disabled": {
+      "thumb-vertical.opacity": 0.35,
+      "thumb-horizontal.opacity": 0.35
+    }
+  },
   "controlStyle": {
-    "thickness": 8,
-    "minThumbLength": 16
+    "thickness": 12,
+    "minThumbLength": 24
   }
 }

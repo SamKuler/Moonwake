@@ -41,6 +41,7 @@ public:
             selectedIndex = 0;
         resized();
         updateContent();
+        repaint();
         juce::SparseSet<int> selectedRows;
         if (selectedIndex >= 0)
             selectedRows.addRange ({ selectedIndex, selectedIndex + 1 });

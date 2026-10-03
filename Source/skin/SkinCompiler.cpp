@@ -537,7 +537,13 @@ bool validateLayoutStyles (const CompiledSkin& skin, SkinValidationReport& repor
                                      "Component style cannot be resolved.");
                     ok = false;
                 }
-                else if (descriptor->interactive && ! rendersVisibleFocus (*style))
+                else if (descriptor->interactive
+                         && std::none_of (descriptor->slots.begin(), descriptor->slots.end(), [] (const auto& slot)
+                            {
+                                const auto slotTarget = skinRenderTargetFromName (slot.rendererTarget);
+                                return slotTarget && isInteractiveRendererTarget (*slotTarget);
+                            })
+                         && ! rendersVisibleFocus (*style))
                 {
                     report.addError ("RENDER004", "layout.json", node.common.id,
                                      "Interactive component style has no visible focus state.");

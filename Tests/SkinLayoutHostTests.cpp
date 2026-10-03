@@ -309,6 +309,40 @@ public:
             components.at ("workspace.studio")->setEnabled (true);
             components.at ("workspace.listening")->setVisible (true);
 
+            beginTest ("focus changes invalidate the entire skinned list rather than selected-row fragments");
+            {
+                expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+                root.addToDesktop (0);
+                root.toFront (true);
+                auto* list = components.at ("queue.table").get();
+                auto* wrapper = list->getParentComponent();
+                auto* other = components.at ("transport.next").get();
+                struct DirtyRegion final : juce::CachedComponentImage
+                {
+                    explicit DirtyRegion (juce::Component& component) : owner (component) {}
+                    void paint (juce::Graphics& graphics) override { owner.paintEntireComponent (graphics, false); }
+                    bool invalidateAll() override { dirty = owner.getLocalBounds(); return true; }
+                    bool invalidate (const juce::Rectangle<int>& area) override { dirty = dirty.getUnion (area); return true; }
+                    void releaseResources() override {}
+                    juce::Component& owner;
+                    juce::Rectangle<int> dirty;
+                };
+                other->grabKeyboardFocus();
+                auto* probe = new DirtyRegion (*wrapper);
+                wrapper->setCachedComponentImage (probe);
+                probe->dirty = {};
+                list->grabKeyboardFocus();
+                expect (list->hasKeyboardFocus (true));
+                expect (probe->dirty.contains (wrapper->getLocalBounds()),
+                        "The whole focus frame must be repainted on focus gain.");
+                probe->dirty = {};
+                other->grabKeyboardFocus();
+                expect (probe->dirty.contains (wrapper->getLocalBounds()),
+                        "The whole focus frame must be removed on focus loss.");
+                wrapper->setCachedComponentImage (nullptr);
+                root.removeFromDesktop();
+            }
+
             beginTest ("relayout preserves live focus without restoring controls removed by the next page");
             expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
             root.addToDesktop (0);
@@ -806,7 +840,7 @@ public:
             auto* viewport = ancestorViewport (queue);
             expect (viewport != nullptr);
             expect (queue.isVisible(), "queue hidden");
-            expect (queue.getBounds() == juce::Rectangle<int> (0, 0, 1116, 200),
+            expect (queue.getBounds() == juce::Rectangle<int> (0, 0, 1112, 200),
                     "queue=" + queue.getBounds().toString());
             expect (dynamic_cast<juce::Slider&> (
                         *components.at ("transport.volume")).getSliderStyle()
@@ -817,7 +851,7 @@ public:
                 expect (root.getLocalArea (viewport, viewport->getLocalBounds())
                         == juce::Rectangle<int> (49, 85, 1124, 68));
                 expectEquals (viewport->getHeight(), 68);
-                expectEquals (viewport->getScrollBarThickness(), 8);
+                expectEquals (viewport->getScrollBarThickness(), 12);
                 expectEquals (viewport->getMaximumVisibleWidth(),
                               queue.getWidth(),
                               "vertical scrollbar must not cover queue content");

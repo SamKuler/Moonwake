@@ -257,6 +257,12 @@ public:
                     { "row.surface", "surface" }, { "row.source", "label" },
                     { "row.destination", "label" }, { "header.label", "label" }, { "empty.message", "label" }
                 }));
+        expect (slotsOf ("settings.audio.routing")
+                == std::map<juce::String, juce::String> ({
+                    { "row.surface", "surface" }, { "row.source", "label" },
+                    { "row.destination", "label" }, { "row.output", "comboBox" },
+                    { "header.label", "label" }, { "empty.message", "label" }
+                }));
         expect (slotsOf ("settings.plugins.knownList")
                 == std::map<juce::String, juce::String> ({
                     { "row.surface", "surface" }, { "row.name", "label" },

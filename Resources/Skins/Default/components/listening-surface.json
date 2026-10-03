@@ -9,7 +9,9 @@
         "anchor": "bounds",
         "inset": 0.5
       },
-      "radius": 18,
+      "radius": {
+        "$ref": "metrics.workspaceRadius"
+      },
       "fill": {
         "$ref": "colors.listening.surface"
       },

@@ -389,23 +389,25 @@
       }
     },
     "studioRouting": {
-      "renderer": "components/studio-channel-map.json",
+      "renderer": "components/routing-list.json",
       "slots": {
-        "row.surface": "surface.studioSkinCard",
+        "row.surface": "surface.studioListRow",
         "row.source": "label.studio",
         "row.destination": "label.studioRoutingDestination",
         "header.label": "label.studioData",
-        "empty.message": "label.studioData"
+        "empty.message": "label.studioData",
+        "row.output": "comboBox.studio"
       }
     },
     "listeningRouting": {
-      "renderer": "components/listening-channel-map.json",
+      "renderer": "components/routing-list.json",
       "slots": {
-        "row.surface": "surface.listeningSkinCard",
+        "row.surface": "surface.listeningListRow",
         "row.source": "label.listening",
         "row.destination": "label.listeningRoutingDestination",
         "header.label": "label.listeningData",
-        "empty.message": "label.listeningData"
+        "empty.message": "label.listeningData",
+        "row.output": "comboBox.listening"
       }
     }
   },

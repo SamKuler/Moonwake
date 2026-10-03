@@ -156,6 +156,15 @@ juce::MouseEvent wheelEventFor (juce::Component& component)
              &component, &component, now, { 1.0f, 1.0f }, now, 1, false };
 }
 
+juce::ComboBox* routingSelector (juce::ListBox& list, int row)
+{
+    auto* component = list.getComponentForRowNumber (row);
+    if (component != nullptr)
+        for (auto* child : component->getChildren())
+            if (auto* selector = dynamic_cast<juce::ComboBox*> (child)) return selector;
+    return nullptr;
+}
+
 SkinRenderStyleEntry geometrySlot (juce::Colour colour)
 {
     SkinRenderStyleEntry entry;
@@ -540,6 +549,7 @@ public:
         beginTest ("channel routing presents the active device ports in callback order");
         {
             auto backend = std::make_unique<PanelAudioBackend>();
+            auto* fake = backend.get();
             PlayerController controller (std::move (backend));
             expect (controller.selectOutputDevice ("Aggregate 10ch").isEmpty());
             expect (controller.setOutputRouting ({ 2, 7 }).isEmpty());
@@ -549,12 +559,35 @@ public:
             expect (list != nullptr);
             if (list)
             {
-                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to 3 - Line Output 3. Press Return to change output."));
-                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to 8 - Line Output 8. Press Return to change output."));
+                list->setBounds (0, 0, 420, 180);
+                list->setVisible (true);
+                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to 3 - Line Output 3. Choose an output using the selector."));
+                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to 8 - Line Output 8. Choose an output using the selector."));
                 expect (controller.setOutputRouting ({ -1, -1 }).isEmpty());
                 panel.refresh();
-                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to Disconnected. Press Return to change output."));
-                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to Disconnected. Press Return to change output."));
+                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to Disconnected. Choose an output using the selector."));
+                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to Disconnected. Choose an output using the selector."));
+                auto* left = routingSelector (*list, 0);
+                auto* right = routingSelector (*list, 1);
+                expect (left != nullptr && right != nullptr);
+                if (left != nullptr && right != nullptr)
+                {
+                    expectEquals (left->getText(), juce::String ("Disconnected"),
+                                  "Same-count refresh updates the displayed destination immediately.");
+                    left->setSelectedId (4, juce::sendNotificationSync);
+                    expect (controller.getAudioDeviceSettings().outputRouting == std::vector<int> ({ 2, -1 }));
+                    expectEquals (left->getText(), juce::String ("3 - Line Output 3"));
+                    expect (! right->isItemEnabled (4), "A port occupied by another speaker is unavailable.");
+                    left->setSelectedId (1, juce::sendNotificationSync);
+                    expect (right->isItemEnabled (4), "Disconnecting frees the port in other selectors immediately.");
+                    right->setSelectedId (4, juce::sendNotificationSync);
+                    expect (controller.getAudioDeviceSettings().outputRouting == std::vector<int> ({ -1, 2 }));
+                    expect (! left->isItemEnabled (4));
+                    fake->nextError = "Routing rejected.";
+                    right->setSelectedId (5, juce::sendNotificationSync);
+                    expect (controller.getAudioDeviceSettings().outputRouting == std::vector<int> ({ -1, 2 }));
+                    expectEquals (right->getSelectedId(), 4, "A rejected route restores the committed selection.");
+                }
             }
         }
 
@@ -592,7 +625,7 @@ public:
             panel.channelLayoutControl().setSelectedId (4, juce::sendNotificationSync);
             expectEquals (panel.displayedChannelCount(), 10);
             panel.routingControl().setBounds (0, 0, 420, 460);
-            expect (panel.routingControl().getWantsKeyboardFocus());
+            expect (! panel.routingControl().getWantsKeyboardFocus(), "Focus belongs to each output selector.");
             expectAccessibleList (panel.routingControl(), 10, "L", false);
 
             auto* map = dynamic_cast<juce::ListBox*> (&panel.routingControl());
@@ -619,9 +652,30 @@ public:
                 expectEquals (viewport->getViewArea().getBottom(),
                               viewport->getViewedComponent()->getHeight(),
                               "Scrolling reaches the final output channel.");
-                map->selectRow (0);
-                expectEquals (map->getSelectedRow(), 0,
-                              "Output routing supports keyboard row selection.");
+                if (auto* selector = routingSelector (*map, 9))
+                    expect (selector->getWantsKeyboardFocus(), "Each visible output supports keyboard focus.");
+                else
+                    expect (false, "The final visible channel has an output selector.");
+                {
+                    juce::Component focusHost;
+                    focusHost.setSize (420, 180);
+                    focusHost.addAndMakeVisible (*map);
+                    focusHost.addToDesktop (0);
+                    focusHost.setVisible (true);
+                    focusHost.toFront (true);
+                    map->scrollToEnsureRowIsOnscreen (0);
+                    auto* lower = routingSelector (*map, 6);
+                    expect (lower != nullptr);
+                    if (lower != nullptr)
+                    {
+                        lower->grabKeyboardFocus();
+                        expect (lower->hasKeyboardFocus (true));
+                        expect (viewport->getViewArea().contains (
+                            viewport->getViewedComponent()->getLocalArea (lower, lower->getLocalBounds())),
+                            "Keyboard focus reveals the output selector inside its native list.");
+                    }
+                }
+
             }
 
             panel.sampleRateControl().setSelectedItemIndex (1, juce::sendNotificationSync);

@@ -31,6 +31,11 @@ public:
     {
         setInterceptsMouseClicks (false, true);
     }
+
+    void focusOfChildComponentChanged (FocusChangeType) override
+    {
+        repaint();
+    }
 };
 
 class LayoutViewport final : public juce::Viewport,

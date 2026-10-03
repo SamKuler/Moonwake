@@ -1,0 +1,98 @@
+{
+  "apiVersion": 1,
+  "target": "channelMap",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$ref": "colors.surfaceRaised"
+      }
+    }
+  ],
+  "rowLayout": {
+    "rowHeight": {
+      "$ref": "metrics.routingRowHeight"
+    },
+    "rowGap": 0,
+    "headerHeight": {
+      "$ref": "metrics.routingHeaderHeight"
+    },
+    "slots": {
+      "header.label": {
+        "x": 10,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "layout.headerHeight"
+        }
+      },
+      "empty.message": {
+        "x": 10,
+        "y": {
+          "$expr": "layout.headerHeight + 10"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 20)"
+        },
+        "height": {
+          "$expr": "max(0, container.height - layout.headerHeight - 20)"
+        }
+      },
+      "row.surface": {
+        "x": 2,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 4)"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.source": {
+        "x": 10,
+        "y": 0,
+        "width": {
+          "$expr": "max(52, (bounds.width - 20) / 3)"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.destination": {
+        "x": {
+          "$expr": "22 + max(52, (bounds.width - 20) / 3)"
+        },
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 32 - max(52, (bounds.width - 20) / 3))"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.output": {
+        "x": {
+          "$expr": "22 + max(52, (bounds.width - 20) / 3)"
+        },
+        "y": 4,
+        "width": {
+          "$expr": "max(0, bounds.width - 32 - max(52, (bounds.width - 20) / 3))"
+        },
+        "height": {
+          "$expr": "max(0, layout.rowHeight - 8)"
+        }
+      }
+    }
+  },
+  "contentClip": "body"
+}

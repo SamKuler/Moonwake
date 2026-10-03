@@ -205,13 +205,14 @@
       }
     },
     "routing": {
-      "renderer": "components/channel-map.json",
+      "renderer": "components/routing-list.json",
       "slots": {
-        "row.surface": "surface.skinRow",
+        "row.surface": "surface.listRow",
         "row.source": "label.data",
         "row.destination": "label.routingDestination",
         "header.label": "label.data",
-        "empty.message": "label.muted"
+        "empty.message": "label.muted",
+        "row.output": "comboBox.default"
       }
     }
   },
