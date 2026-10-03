@@ -47,9 +47,7 @@
               "id": "settings-content-audio-section",
               "type": "column",
               "shrink": 0,
-              "padding": {
-                "bottom": 24
-              },
+              "padding": 20,
               "gap": 12,
               "children": [
                 {
@@ -137,15 +135,13 @@
                   "shrink": 0
                 }
               ],
-              "style": "surface.listRow"
+              "style": "surface.default"
             },
             {
               "id": "settings-content-plugins-section",
               "type": "column",
               "shrink": 0,
-              "padding": {
-                "bottom": 24
-              },
+              "padding": 20,
               "gap": 12,
               "children": [
                 {
@@ -336,15 +332,13 @@
                   "shrink": 0
                 }
               ],
-              "style": "surface.listRow"
+              "style": "surface.default"
             },
             {
               "id": "settings-content-appearance-section",
               "type": "column",
               "shrink": 0,
-              "padding": {
-                "bottom": 24
-              },
+              "padding": 20,
               "gap": 12,
               "children": [
                 {
@@ -444,7 +438,8 @@
                     }
                   ]
                 }
-              ]
+              ],
+              "style": "surface.default"
             }
           ]
         }
