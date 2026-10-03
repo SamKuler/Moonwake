@@ -128,6 +128,7 @@ public:
         : owner (ownerToUse),
           slotId (slotIdToUse)
     {
+        setRepaintsOnMouseActivity (true);
         nameLabel.setJustificationType (juce::Justification::centredLeft);
         nameLabel.setInterceptsMouseClicks (false, false);
 
@@ -264,12 +265,12 @@ public:
         auto bounds = frame ("slot.surface");
         if (! bounds.isEmpty())
             static_cast<void> (drawSlot (g, *this, "slot.surface", SkinRenderTarget::surface,
-                {}, {}, isMouseOver (true), isMouseButtonDown(), false, bounds));
+                {}, {}, isMouseOver (false), isMouseButtonDown(), false, bounds));
 
         const auto indicator = frame ("slot.dragIndicator");
         if (! indicator.isEmpty()) static_cast<void> (drawSlot (
             g, *this, "slot.dragIndicator", SkinRenderTarget::surface,
-            {}, "drag", isMouseOver (true), isMouseButtonDown(),
+            {}, "drag", isMouseOver (false), isMouseButtonDown(),
             false, indicator));
     }
 
