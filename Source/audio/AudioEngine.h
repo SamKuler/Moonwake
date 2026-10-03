@@ -88,7 +88,8 @@ public:
 
     bool loadFile (const juce::File& file);
     bool loadPlaybackPlan (AudioPlaybackPlan plan, double startSeconds = 0.0);
-    bool setUpcomingPlayback (std::vector<AudioPlaybackItem> items, int repeatFrom = -1);
+    bool setUpcomingPlayback (std::vector<AudioPlaybackItem> items, int repeatFrom = -1,
+                              std::optional<AudioPlaybackProgress> expected = {});
     [[nodiscard]] AudioPlaybackProgress getPlaybackProgress() const;
     std::vector<AudioPreparationFailure> drainPreparationFailures();
     void unload();

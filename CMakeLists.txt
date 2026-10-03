@@ -375,6 +375,7 @@ add_executable(MoonwakeTests
         Tests/TestMain.cpp
         Tests/AppStateStoreTests.cpp
         Tests/AudioEngineTests.cpp
+        Tests/QueuePublicationTests.cpp
         Tests/OutputMeterTests.cpp
         Tests/AudioDeviceSettingsTests.cpp
         Tests/ChannelRouterTests.cpp

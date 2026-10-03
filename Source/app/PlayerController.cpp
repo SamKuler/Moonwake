@@ -221,6 +221,7 @@ bool PlayerController::handlePlaybackReadError()
     playlist.setTrackAvailable (id, false);
     playbackCheckpoint.reset (id, audioEngine.getCurrentPositionSeconds());
     audioEngine.unload();
+    upcomingPlaybackDirty = false;
     playbackCoordinator.loadFailed();
     ++stateRevision;
     if (shouldPlay && navigatePlayback (PlaylistNavigation::manualNext, true)) return true;
@@ -250,14 +251,14 @@ bool PlayerController::navigatePlayback (PlaylistNavigation kind, bool shouldPla
 
 bool PlayerController::refreshUpcomingPlayback()
 {
-    audioEngine.pause();
-    const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
-    synchronizePlayback();
+    upcomingPlaybackDirty = false;
+    const auto expected = audioEngine.getPlaybackProgress();
+    synchronizePlayback (expected, true, nullptr);
     const auto currentId = playbackCoordinator.getLoadedTrackId();
     const auto* current = playlist.getTrack (playlist.indexOfId (currentId));
     if (current == nullptr)
         return true;
-    const auto currentToken = audioEngine.getPlaybackProgress().token;
+    const auto currentToken = expected.token;
     AudioPlaybackPlan nextPlan;
     std::unordered_map<uint64_t, juce::String> ids;
     nextPlan.items.push_back ({ current->file, currentToken });
@@ -280,8 +281,16 @@ bool PlayerController::refreshUpcomingPlayback()
     }
     nextPlan.repeatFrom = navigation.repeatFrom;
     std::vector<AudioPlaybackItem> upcoming (nextPlan.items.begin() + 1, nextPlan.items.end());
-    if (! audioEngine.setUpcomingPlayback (std::move (upcoming), nextPlan.repeatFrom))
+    if (! audioEngine.setUpcomingPlayback (std::move (upcoming), nextPlan.repeatFrom, expected))
     {
+        const auto latest = audioEngine.getPlaybackProgress();
+        if (latest.generation != expected.generation || latest.sequence != expected.sequence
+            || latest.token != expected.token)
+        {
+            synchronizePlayback (latest, false, nullptr);
+            upcomingPlaybackDirty = playbackCoordinator.getLoadedTrackId().isNotEmpty();
+            return true;
+        }
         lastStatusMessage = "Could not prepare continuous playback.";
         return false;
     }
@@ -298,9 +307,31 @@ bool PlayerController::refreshUpcomingPlayback()
 
 bool PlayerController::synchronizePlayback (bool finishQueue, bool* preparationFailed)
 {
+    const auto changed = synchronizePlayback (audioEngine.getPlaybackProgress(), finishQueue, preparationFailed);
+    if (upcomingPlaybackDirty) return refreshUpcomingPlayback() || changed;
+    return changed;
+}
+
+bool PlayerController::synchronizePlayback (const AudioPlaybackProgress& progress, bool finishQueue,
+                                             bool* preparationFailed)
+{
     if (preparationFailed != nullptr) *preparationFailed = false;
-    const auto progress = audioEngine.getPlaybackProgress();
     bool changed = false;
+    if (progress.generation == playbackGeneration)
+        if (const auto found = playbackTrackIds.find (progress.token);
+            found != playbackTrackIds.end() && playlist.indexOfId (found->second) < 0)
+        {
+            audioEngine.unload();
+            playbackCoordinator.loadFailed();
+            playbackCheckpoint.reset ({}, 0.0);
+            playbackPlan = {};
+            playbackTrackIds.clear();
+            failedPlaybackItems.clear();
+            playbackGeneration = playbackSequence = 0;
+            upcomingPlaybackDirty = false;
+            ++stateRevision;
+            return true;
+        }
     juce::StringArray failures;
     for (const auto& failure : audioEngine.drainPreparationFailures())
     {
@@ -366,29 +397,39 @@ bool PlayerController::synchronizePlayback (bool finishQueue, bool* preparationF
 
 bool PlayerController::removeTrack (int index)
 {
-    if (playlist.getTrack (index) == nullptr) return false;
-    audioEngine.pause();
-    const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
-    synchronizePlayback();
-    const auto* track = playlist.getTrack (index);
-    if (track == nullptr)
-        return false;
-
-    const auto removedLoadedTrack = track->id == playbackCoordinator.getLoadedTrackId();
-    const auto removedTitle = track->title;
-    const auto removedArtworkKey = track->artworkCacheKey;
-    if (! playlist.removeTrack (index))
-        return false;
-    static_cast<void> (artworkStore.remove (removedArtworkKey));
-    ++stateRevision;
-
-    if (removedLoadedTrack)
+    const auto* requested = playlist.getTrack (index);
+    if (requested == nullptr) return false;
+    const auto removedId = requested->id;
+    const auto removedTitle = requested->title;
+    const auto removedArtworkKey = requested->artworkCacheKey;
+    synchronizePlayback (audioEngine.getPlaybackProgress(), true, nullptr);
+    const auto remove = [&]
     {
-        audioEngine.unload();
-        playbackCoordinator.loadFailed();
-        playbackCheckpoint.reset ({}, 0.0);
+        if (! playlist.removeTrack (playlist.indexOfId (removedId))) return false;
+        ++stateRevision;
+        if (removedId == playbackCoordinator.getLoadedTrackId())
+        {
+            audioEngine.unload();
+            playbackCoordinator.loadFailed();
+            playbackCheckpoint.reset ({}, 0.0);
+            playbackPlan = {};
+            playbackTrackIds.clear();
+            failedPlaybackItems.clear();
+            playbackGeneration = playbackSequence = 0;
+            upcomingPlaybackDirty = false;
+        }
+        return true;
+    };
+    if (removedId == playbackCoordinator.getLoadedTrackId())
+    {
+        audioEngine.pause();
+        const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
+        synchronizePlayback (audioEngine.getPlaybackProgress(), true, nullptr);
+        if (! remove()) return false;
     }
+    else if (! remove()) return false;
 
+    static_cast<void> (artworkStore.remove (removedArtworkKey));
     refreshUpcomingPlayback();
     lastStatusMessage = "Removed " + removedTitle + ".";
     return true;
@@ -414,6 +455,7 @@ void PlayerController::clearPlaylist()
     failedPlaybackItems.clear();
     playbackGeneration = 0;
     playbackSequence = 0;
+    upcomingPlaybackDirty = false;
     playbackCoordinator.loadFailed();
     playbackCheckpoint.reset ({}, 0.0);
     for (const auto& track : playlist.getTracks())
@@ -1114,6 +1156,7 @@ bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPl
     if (track == nullptr) return false;
     const auto title = track->title;
     const auto path = track->file.getFullPathName();
+    upcomingPlaybackDirty = false;
     if (! audioEngine.loadFile (track->file))
     {
         playlist.setTrackAvailable (trackId, false);
@@ -1281,6 +1324,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     failedPlaybackItems.clear();
     playbackGeneration = 0;
     playbackSequence = 0;
+    upcomingPlaybackDirty = false;
 
     preferredOutputLayout = state.outputLayout;
     if (const auto deviceWarning = restoreAudioDeviceSettings (state);

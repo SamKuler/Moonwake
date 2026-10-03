@@ -193,10 +193,10 @@ bool AudioEngine::loadPlaybackPlan (AudioPlaybackPlan plan, double startSeconds)
     return loaded;
 }
 
-bool AudioEngine::setUpcomingPlayback (std::vector<AudioPlaybackItem> items, int repeatFrom)
+bool AudioEngine::setUpcomingPlayback (std::vector<AudioPlaybackItem> items, int repeatFrom,
+                                       std::optional<AudioPlaybackProgress> expected)
 {
-    const ScopedPlaybackEdit edit (*this);
-    return playbackSource.setUpcoming (std::move (items), repeatFrom);
+    return playbackSource.setUpcoming (std::move (items), repeatFrom, expected);
 }
 
 AudioPlaybackProgress AudioEngine::getPlaybackProgress() const

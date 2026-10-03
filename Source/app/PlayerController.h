@@ -128,6 +128,7 @@ private:
     std::unordered_map<uint64_t, uint64_t> failedPlaybackItems;
     uint64_t playbackGeneration = 0;
     uint64_t playbackSequence = 0;
+    bool upcomingPlaybackDirty = false;
     juce::StringArray restoreDiagnostics;
 
     bool execute (const PlaybackAction& action);
@@ -137,6 +138,7 @@ private:
                         std::optional<PlaylistNavigation> navigation = {});
     bool navigatePlayback (PlaylistNavigation, bool shouldPlay);
     bool refreshUpcomingPlayback();
+    bool synchronizePlayback (const AudioPlaybackProgress&, bool finishQueue, bool* preparationFailed);
     [[nodiscard]] juce::String getSelectedTrackId() const;
     void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override;
     void audioProcessorChanged (

@@ -694,7 +694,7 @@ public:
             device->render (block);
         }
 
-        beginTest ("removing the visible selection reconciles the final pause callback first");
+        beginTest ("removing the actual current track reconciles its final pause callback");
         {
             auto backend = std::make_unique<OfflineAudioDeviceBackend>();
             auto* device = backend.get();
@@ -703,9 +703,10 @@ public:
             expect (controller.selectTrack (1));
             controller.setRepeatMode (RepeatMode::all);
             expect (controller.playOrPause());
-            const auto visibleSelection = controller.getPlaylist().getSelectedIndex();
             juce::AudioBuffer<float> prefix (2, 175);
             device->render (prefix); // The audio is one frame before A returns to B.
+            controller.synchronizePlayback();
+            const auto visibleSelection = controller.getPlaylist().getSelectedIndex();
             std::atomic_bool observedPause { false };
             std::thread finalCallback ([&]
             {
@@ -720,13 +721,12 @@ public:
             expect (controller.removeTrack (visibleSelection));
             finalCallback.join();
             expect (observedPause.load());
-            expect (! controller.isPlaying());
-            expectWithinAbsoluteError (controller.getLengthInSeconds(), 0.0, 0.000001);
+            expect (controller.isPlaying());
+            expectWithinAbsoluteError (controller.getLengthInSeconds(), 159.0 / 48000.0, 0.000001);
             expectEquals (controller.getPlaylist().size(), 1);
-            expect (controller.playOrPause());
             juce::AudioBuffer<float> resumed (2, 64);
             device->render (resumed);
-            expectWithinAbsoluteError (resumed.getSample (0, 63), 0.016f, 0.0001f);
+            expectWithinAbsoluteError (resumed.getSample (0, 63), 0.032f, 0.0001f);
             controller.clearPlaylist();
         }
 
@@ -984,6 +984,60 @@ public:
             expectEquals (static_cast<int> (gapless.drainPreparationFailures().size()), 1);
             device->render (rendered);
             expect (gapless.drainPreparationFailures().empty());
+        }
+        beginTest ("live queue edits preserve dry output across every required device bus");
+        {
+            const auto current = writeSignal ("continuous-current", 192000, 48000.0, 0.25f, 2);
+            const auto future = writeSignal ("continuous-future", 192000, 48000.0, 0.25f, 2);
+            const auto appended = writeSignal ("continuous-appended", 192000, 48000.0, 0.25f, 2);
+            for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
+                                       OutputLayout::sevenOneTwo, OutputLayout::nineOneSix })
+            {
+                auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+                auto* device = backend.get();
+                PlayerController controller (std::move (backend));
+                expect (controller.setOutputLayout (layout).isEmpty());
+                controller.addFiles ({ current, future });
+                expect (controller.setPlaying (true));
+                std::atomic_bool running { true }, observing { true };
+                std::atomic<int> callbacks { 0 }, changedSamples { 0 };
+                std::thread audio ([&]
+                {
+                    juce::AudioBuffer<float> block (getChannelCount (layout), 256);
+                    while (running.load())
+                    {
+                        device->render (block);
+                        if (observing.load())
+                            for (int frame = 0; frame < 256; ++frame)
+                                if (std::abs (block.getSample (0, frame) - 0.2f) > 0.000001f)
+                                    ++changedSamples;
+                        ++callbacks;
+                        juce::Thread::sleep (5);
+                    }
+                });
+                const auto deadline = juce::Time::getMillisecondCounterHiRes() + 2000.0;
+                while (callbacks.load() < 2 && juce::Time::getMillisecondCounterHiRes() < deadline)
+                    juce::Thread::sleep (1);
+                controller.addFiles ({ appended });
+                controller.setShuffleEnabled (true);
+                controller.setRepeatMode (RepeatMode::all);
+                expect (controller.moveTrack (1, 2));
+                expect (controller.removeTrack (2));
+                for (int edit = 0; edit < 12; ++edit)
+                {
+                    controller.setShuffleEnabled (edit % 2 == 0);
+                    controller.setRepeatMode (edit % 2 == 0 ? RepeatMode::off : RepeatMode::all);
+                    juce::Thread::sleep (2);
+                }
+                observing.store (false);
+                expect (controller.setPlaying (false));
+                running.store (false);
+                audio.join();
+                expect (callbacks.load() >= 5, toString (layout));
+                expectEquals (changedSamples.load(), 0, toString (layout));
+                expectEquals (controller.getPlaylist().getSelectedTrack()->file.getFullPathName(), current.getFullPathName());
+            }
+            for (const auto& signalFile : { current, future, appended }) expect (signalFile.deleteFile());
         }
         for (const auto& signalFile : { first, second, third, shortLoop, differentRate })
             expect (signalFile.deleteFile());
