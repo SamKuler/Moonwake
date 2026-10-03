@@ -56,7 +56,27 @@ ctest --test-dir build --output-on-failure
 - `MoonwakeSkinTool`：皮肤验证、布局检查、快照与 Schema 工具。
 - `MoonwakeHostingFixture`：仅供测试使用的多声道 VST3 fixture。
 
-默认配置会对本地构建的应用包及其内嵌扫描器 helper 执行 ad-hoc 签名；关闭 `MOONWAKE_ADHOC_SIGN_LOCAL_BUILDS` 后不执行。正式分发仍需要使用开发者证书完成签名、公证与发布流程。
+macOS 默认配置会对本地构建的应用包及其内嵌扫描器 helper 执行 ad-hoc 签名；关闭 `MOONWAKE_ADHOC_SIGN_LOCAL_BUILDS` 后不执行。正式分发仍需要使用开发者证书完成签名、公证与发布流程。
+
+### Windows 适配
+
+macOS 是优先验证平台。Windows 已加入平台格式选择、扫描 helper 部署和文件读取适配，仍需完成 Windows 编译、设备播放及真实 VST3 插件验证。
+
+在安装 Visual Studio 2022 的“使用 C++ 的桌面开发”组件和 Windows SDK 后，可使用 PowerShell 构建 x64 版本：
+
+```powershell
+git submodule update --init --recursive
+cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
+cmake --build build-windows --config Debug --parallel 8
+ctest --test-dir build-windows -C Debug --output-on-failure
+& .\build-windows\Moonwake_artefacts\Debug\Moonwake.exe
+```
+
+构建会把 `MoonwakePluginScanner.exe` 和第三方许可证复制到 `Moonwake.exe` 所在目录。移动或分发应用时应保留这些文件；扫描始终在独立 helper 进程中执行。`MoonwakeScannerDeployment` 测试检查 helper 副本与当前构建一致，并验证它能启动。
+
+Windows 使用 VST3；Audio Unit 只在 macOS 注册，Windows 的 AU 开关不可用，扫描范围中不提供 AU。默认扫描目录由 JUCE 提供，包含 `%LOCALAPPDATA%\Programs\Common\VST3` 和当前进程对应的 `%ProgramFiles%\Common Files\VST3`；其他位置可在 Settings → Plug-ins 添加。已有缓存中的不支持格式保留为不可用记录。
+
+Windows 构建沿用 JUCE 的默认音频后端配置，包括 WASAPI；当前未启用 ASIO。Windows 的音频设备、驱动缓冲和多声道输出能力需要在目标设备上验证，macOS 的控制中心媒体集成不适用于 Windows。
 
 ## 开发第三方皮肤
 
@@ -89,6 +109,8 @@ Moonwake 会在当前用户目录写入以下数据：
 ├── Artwork/        # 从音乐标签或同目录图片生成的受限尺寸封面缓存
 └── Skins/          # 已安装的外部皮肤及内部校验元数据
 ```
+
+Windows 使用 `%APPDATA%\Moonwake\`，其文件和子目录结构相同。
 
 应用包本身不会把播放的音乐复制到该目录。需要彻底清理开发运行数据时，先退出 Moonwake，再删除上面的 `Moonwake` 目录；这会同时清空保存状态、封面缓存、插件缓存与已安装皮肤。
 

@@ -13,7 +13,7 @@ public:
           adapter (adapterToUse)
     {
         setName ("Known audio plug-ins");
-        setTitle ("Known VST3 and Audio Unit plug-ins");
+        setTitle ("Known audio plug-ins");
         setWantsKeyboardFocus (true);
         setModel (this);
         setOutlineThickness (0);
@@ -273,13 +273,18 @@ PluginSettingsPanel::PluginSettingsPanel (PlayerController& controllerToUse,
     cancelButton.setButtonText ("Cancel scan");
     scanFolderButton.setTitle ("Add a custom VST3 scan folder");
     cancelButton.setTitle ("Cancel the active plug-in scan");
-    scanFolderButton.setTooltip ("Save a custom VST3 location for future scans. Audio Units use system registration.");
+    const auto supportsAu = controller.getRegisteredPluginFormats().contains ("AudioUnit");
+    scanFolderButton.setTooltip (supportsAu
+        ? "Save a custom VST3 location for future scans. Audio Units use system registration."
+        : "Save a custom VST3 location for future scans.");
+    if (! supportsAu)
+        auEnabled.setTooltip ("Audio Units are available on macOS only.");
     cancelButton.setTooltip ("Cancel the active plug-in scan");
     scanScope.setTitle ("Formats for this scan");
     scanScope.setTooltip ("Choose which enabled formats to scan. This does not change the display filter.");
     scanScope.addItem ("Enabled formats", 1);
     scanScope.addItem ("VST3 only", 2);
-    scanScope.addItem ("AU only", 3);
+    if (supportsAu) scanScope.addItem ("AU only", 3);
     scanScope.setSelectedId (1, juce::dontSendNotification);
     scanScope.onChange = [this] { refreshScanState(); };
     defaultLocations.setTitle ("Default plug-in scan locations");
@@ -408,9 +413,11 @@ void PluginSettingsPanel::refreshDirectories()
                                      juce::dontSendNotification);
     customDirectories.setTooltip (customDirectories.getText());
     const auto paths = controller.getDefaultVst3Directories();
+    const auto supportsAu = controller.getRegisteredPluginFormats().contains ("AudioUnit");
     const auto text = "VST3 defaults: " + paths.joinIntoString ("; ")
-                   + "\nAU: system-registered Audio Units";
-    defaultLocations.setText ("Default VST3 locations / System Audio Units", juce::dontSendNotification);
+                   + (supportsAu ? "\nAU: system-registered Audio Units" : "");
+    defaultLocations.setText (supportsAu ? "Default VST3 locations / System Audio Units"
+                                        : "Default VST3 locations", juce::dontSendNotification);
     defaultLocations.setTooltip (text);
 }
 

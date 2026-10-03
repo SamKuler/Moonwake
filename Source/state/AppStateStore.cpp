@@ -264,8 +264,8 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
     }
     state.volume = static_cast<double> (tree.getProperty (volumeProperty, state.volume));
     const auto formats = tree.getChildWithName ("PluginFormats");
-    state.pluginFormats.vst3 = static_cast<bool> (formats.getProperty ("vst3", true));
-    state.pluginFormats.audioUnit = static_cast<bool> (formats.getProperty ("audioUnit", true));
+    state.pluginFormats.vst3 = static_cast<bool> (formats.getProperty ("vst3", state.pluginFormats.vst3));
+    state.pluginFormats.audioUnit = static_cast<bool> (formats.getProperty ("audioUnit", state.pluginFormats.audioUnit));
     state.playbackPositionSeconds = finiteNonNegative (static_cast<double> (
         tree.getProperty (playbackPositionProperty,
                           state.playbackPositionSeconds)));

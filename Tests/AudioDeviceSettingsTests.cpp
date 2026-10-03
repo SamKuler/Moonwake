@@ -448,7 +448,7 @@ public:
             const auto previous = fake->setup;
 
             const auto channelError = engine.selectOutputDevice ("Built-in Output");
-            expect (channelError.contains ("CoreAudio"), channelError);
+            expect (channelError.contains ("audio device"), channelError);
             expect (fake->setup == previous);
             expect (fake->attachedCallback.load() != nullptr);
 

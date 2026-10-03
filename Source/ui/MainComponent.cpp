@@ -1891,7 +1891,9 @@ void MainComponent::updateTransportState()
     {
         nowPlayingLabel.setText ("No track loaded", juce::dontSendNotification);
         trackMetaLabel.setText ("Use + Music to add audio and begin", juce::dontSendNotification);
-        artworkMetaLabel.setText ("Local audio / VST3 + AU", juce::dontSendNotification);
+        auto formats = controller.getRegisteredPluginFormats();
+        for (auto& format : formats) if (format == "AudioUnit") format = "AU";
+        artworkMetaLabel.setText ("Local audio / " + formats.joinIntoString (" + "), juce::dontSendNotification);
         albumArtwork.setTrack ({}, {});
     }
 

@@ -5,7 +5,11 @@
 struct PluginFormatPreferences
 {
     bool vst3 = true;
+   #if JUCE_MAC
     bool audioUnit = true;
+   #else
+    bool audioUnit = false;
+   #endif
 
     [[nodiscard]] bool allows (const juce::String& format) const
     {

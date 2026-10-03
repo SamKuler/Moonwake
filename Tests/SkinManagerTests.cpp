@@ -354,11 +354,16 @@ public:
             static_cast<void> (root.deleteRecursively());
         }
 
-        beginTest ("default install root is the macOS application-support skin directory");
+        beginTest ("default install root is the platform's application-data skin directory");
         {
-            const auto path = SkinRegistry::defaultInstallRoot().getFullPathName();
-            expect (path.contains ("Application Support"));
-            expect (path.endsWith ("Application Support/Moonwake/Skins"));
+           #if JUCE_MAC
+            const auto root = juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                .getChildFile ("Library/Application Support/Moonwake");
+           #else
+            const auto root = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                .getChildFile ("Moonwake");
+           #endif
+            expect (SkinRegistry::defaultInstallRoot() == root.getChildFile ("Skins"));
         }
 
         beginTest ("session records each runtime diagnostic once and escalates health");

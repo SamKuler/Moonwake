@@ -38,15 +38,17 @@ PluginFilterControls::PluginFilterControls()
 
 void PluginFilterControls::setPlugins (const juce::Array<juce::PluginDescription>& plugins)
 {
-    juce::StringArray types, manufacturers;
+    juce::StringArray types, manufacturers, formats;
     for (const auto& plugin : plugins)
     {
         types.addArray (PluginFilter::types (plugin));
         manufacturers.add (PluginFilter::manufacturerName (plugin));
+        formats.add (plugin.pluginFormatName == "AudioUnit" ? "AU" : plugin.pluginFormatName);
     }
     populate (type, types, "All types");
     populate (manufacturer, manufacturers, "All manufacturers");
-    populate (format, { "VST3", "AU" }, "All formats");
+    formats.removeEmptyStrings();
+    populate (format, formats, "All formats");
 }
 
 PluginFilter PluginFilterControls::filter() const

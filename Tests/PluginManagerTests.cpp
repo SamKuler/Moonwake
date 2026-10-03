@@ -128,7 +128,8 @@ public:
             };
             PluginManager manager (configuration);
             expect (manager.setFormatPreferences ({ false, true }));
-            expect (manager.startScan());
+            const auto supportsAu = manager.getRegisteredFormatNames().contains ("AudioUnit");
+            expect (manager.startScan() == supportsAu);
             expect (waitForScanToFinish (manager, 3000));
             expect (manager.cancelAndWaitForScan());
             expect (! discoveredFormats.contains ("VST3"));
@@ -147,13 +148,47 @@ public:
             expect (! manager.startScan (configuration.resultDirectory));
             expect (manager.getScanStatus().message.contains ("VST3"));
         }
-        beginTest ("registers VST3 and AudioUnit formats on macOS");
+        beginTest ("registered formats and enabled preferences match platform support");
         {
             PluginManager manager;
 
             expect (manager.getRegisteredFormatNames().contains ("VST3"));
-           #if JUCE_MAC
+           #if JUCE_MAC && JUCE_PLUGINHOST_AU
             expect (manager.getRegisteredFormatNames().contains ("AudioUnit"));
+           #else
+            expect (! manager.getRegisteredFormatNames().contains ("AudioUnit"));
+            expect (! manager.getFormatPreferences().audioUnit);
+            expect (manager.setFormatPreferences ({ true, true }));
+            expect (! manager.getFormatPreferences().audioUnit);
+            expect (! manager.startScan ({}, PluginScanScope::audioUnit));
+            expect (manager.getScanStatus().message.contains ("not available"));
+           #endif
+        }
+
+        beginTest ("unregistered formats cannot remain enabled after preference restoration");
+        {
+            PluginManager manager;
+            expect (manager.setFormatPreferences ({ false, false }));
+            expect (manager.setFormatPreferences ({ true, true }));
+            expect (manager.getFormatPreferences().vst3);
+            const auto supportsAu = manager.getRegisteredFormatNames().contains ("AudioUnit");
+            expect (manager.getFormatPreferences().audioUnit == supportsAu);
+            expect (manager.getFormatPreferences().allows ("AudioUnit") == supportsAu);
+        }
+
+        beginTest ("default VST3 paths retain the platform's system and user locations");
+        {
+            PluginManager manager;
+            const auto paths = manager.getDefaultVst3Directories();
+           #if JUCE_WINDOWS
+            expect (paths.contains (juce::File::getSpecialLocation (juce::File::windowsLocalAppData)
+                .getChildFile ("Programs/Common/VST3").getFullPathName()));
+            expect (paths.contains (juce::File::getSpecialLocation (juce::File::globalApplicationsDirectory)
+                .getChildFile ("Common Files/VST3").getFullPathName()));
+           #elif JUCE_MAC
+            expect (paths.contains (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                .getChildFile ("Library/Audio/Plug-Ins/VST3").getFullPathName()));
+            expect (paths.contains ("/Library/Audio/Plug-Ins/VST3"));
            #endif
         }
 

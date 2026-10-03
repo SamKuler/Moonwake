@@ -27,6 +27,12 @@ add_subdirectory("${MOONWAKE_JUCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE")
 add_library(MoonwakeEbur128 STATIC ThirdParty/libebur128/ebur128.c)
 target_include_directories(MoonwakeEbur128 PUBLIC ThirdParty/libebur128)
 set_target_properties(MoonwakeEbur128 PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES)
+if (WIN32)
+    target_include_directories(MoonwakeEbur128 SYSTEM PRIVATE ThirdParty/libebur128/queue)
+endif()
+if (MSVC)
+    target_compile_definitions(MoonwakeEbur128 PRIVATE _USE_MATH_DEFINES)
+endif()
 
 if (APPLE)
     # Keep JUCE's recommended warnings enabled for Moonwake sources while
@@ -90,7 +96,7 @@ target_compile_definitions(MoonwakePluginScanner
     PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_PLUGINHOST_AU=1
+        JUCE_PLUGINHOST_AU=$<BOOL:${APPLE}>
         JUCE_PLUGINHOST_VST3=1
 )
 target_link_libraries(MoonwakePluginScanner
@@ -236,7 +242,7 @@ target_compile_definitions(Moonwake
     PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_PLUGINHOST_AU=1
+        JUCE_PLUGINHOST_AU=$<BOOL:${APPLE}>
         JUCE_PLUGINHOST_VST3=1
         JUCE_USE_MP3AUDIOFORMAT=1
 )
@@ -298,6 +304,23 @@ if (APPLE)
             VERBATIM
         )
     endif()
+elseif (WIN32)
+    add_custom_target(MoonwakeDeployScanner
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Moonwake>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:MoonwakePluginScanner>"
+            "$<TARGET_FILE_DIR:Moonwake>/$<TARGET_FILE_NAME:MoonwakePluginScanner>"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Moonwake>/licenses/libebur128"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/libebur128/COPYING"
+            "$<TARGET_FILE_DIR:Moonwake>/licenses/libebur128/COPYING"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/libebur128/queue/COPYING"
+            "$<TARGET_FILE_DIR:Moonwake>/licenses/libebur128/queue-COPYING"
+        DEPENDS MoonwakePluginScanner
+        VERBATIM
+    )
+    add_dependencies(Moonwake MoonwakeDeployScanner)
 endif()
 
 add_executable(MoonwakeTests
@@ -434,7 +457,7 @@ target_compile_definitions(MoonwakeTests
     PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_PLUGINHOST_AU=1
+        JUCE_PLUGINHOST_AU=$<BOOL:${APPLE}>
         JUCE_PLUGINHOST_VST3=1
         JUCE_MODAL_LOOPS_PERMITTED=1
         MOONWAKE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
@@ -494,6 +517,13 @@ if (APPLE)
         COMMAND ${CMAKE_COMMAND}
             -DINFO_PLIST=$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Info.plist
             -P ${CMAKE_CURRENT_SOURCE_DIR}/Tests/VerifyBundleDocumentRole.cmake)
+endif()
+if (WIN32)
+    add_test(NAME MoonwakeScannerDeployment
+        COMMAND ${CMAKE_COMMAND}
+            -DSCANNER=$<TARGET_FILE_DIR:Moonwake>/$<TARGET_FILE_NAME:MoonwakePluginScanner>
+            -DSOURCE_SCANNER=$<TARGET_FILE:MoonwakePluginScanner>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/Tests/VerifyScannerDeployment.cmake)
 endif()
 
 add_executable(MoonwakeSkinTool

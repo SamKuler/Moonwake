@@ -783,7 +783,13 @@ public:
             panel.refreshInventory();
             panel.refreshScanState();
             expectEquals (panel.formatsControl().getText(), juce::String ("Plug-ins"));
-            expect (panel.vst3Enabled.getToggleState() && panel.auEnabled.getToggleState());
+            const auto supportsAu = controller.getRegisteredPluginFormats().contains ("AudioUnit");
+            expect (panel.vst3Enabled.getToggleState());
+            expect (panel.auEnabled.getToggleState() == supportsAu);
+            expect (panel.auEnabled.isEnabled() == supportsAu);
+            expectEquals (panel.scanScopeControl().getNumItems(), supportsAu ? 3 : 2);
+            expect (panel.defaultLocationsControl().getTooltip().contains ("Audio Units") == supportsAu);
+            expectEquals (panel.filters.format.getNumItems(), 1);
             expect (panel.scanAllControl().isEnabled());
             expect (panel.scanFolderControl().isEnabled());
             expect (! panel.cancelControl().isEnabled());
@@ -795,16 +801,17 @@ public:
             PlayerController controller (std::make_unique<PanelAudioBackend>());
             PluginSettingsPanel panel (controller, &foundationSkin.adapter);
             panel.scanScopeControl().setVisible (true);
-            panel.scanScopeControl().setSelectedId (3, juce::sendNotificationSync);
-            expect (controller.setPluginFormatPreferences ({ true, false }));
+            panel.scanScopeControl().setSelectedId (2, juce::sendNotificationSync);
+            expect (controller.setPluginFormatPreferences ({ false, true }));
             panel.refreshScanState();
             expect (! panel.scanAllControl().isEnabled());
             panel.scanScopeControl().setVisible (false);
             panel.refreshScanState();
-            expect (panel.scanAllControl().isEnabled(), "Legacy layouts can still scan enabled VST3.");
+            expect (panel.scanAllControl().isEnabled() ==
+                          controller.getRegisteredPluginFormats().contains ("AudioUnit"));
             panel.scanScopeControl().setVisible (true);
             panel.refreshScanState();
-            expectEquals (panel.scanScopeControl().getSelectedId(), 3);
+            expectEquals (panel.scanScopeControl().getSelectedId(), 2);
             expect (! panel.scanAllControl().isEnabled());
         }
 
@@ -990,7 +997,8 @@ public:
             expectEquals (reopened.getKnownPlugins().size(), 4);
             expect (reopened.getInsertEffectPlugins().isEmpty());
             expect (reopened.setPluginFormatPreferences ({ false, true }));
-            expectEquals (reopened.getInsertEffectPlugins().size(), 1);
+            expectEquals (reopened.getInsertEffectPlugins().size(),
+                          reopened.getRegisteredPluginFormats().contains ("AudioUnit") ? 1 : 0);
             panel.filters.search.setVisible (true);
             panel.filters.search.setText ("Clean", false);
             for (auto* box : { &panel.filters.type, &panel.filters.manufacturer, &panel.filters.format })

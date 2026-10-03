@@ -51,7 +51,7 @@ private:
     ActionCallback scanFolderCallback;
     juce::Label formatsLabel;
     std::unique_ptr<PluginListView> knownList;
-    juce::TextButton scanAllButton { "Scan VST3 + AU" };
+    juce::TextButton scanAllButton { "Scan plug-ins" };
     juce::TextButton scanFolderButton { "Add VST3 Folder" };
     juce::TextButton cancelButton { "Cancel Scan" };
     juce::ComboBox scanScope;

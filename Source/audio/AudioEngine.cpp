@@ -155,6 +155,11 @@ public:
         if (application != "com.apple.audio.AudioMIDISetup"
             && openConfigurationBundle ("com.apple.audio.AudioMIDISetup")) return {};
         return "Could not open the device configuration application or Audio MIDI Setup.";
+#elif JUCE_WINDOWS
+        if (auto* device = manager.getCurrentAudioDevice(); device != nullptr && device->hasControlPanel())
+            if (device->showControlPanel()) return {};
+        return juce::Process::openDocument ("ms-settings:sound", {})
+            ? juce::String{} : "Could not open Windows sound settings.";
 #else
         return IAudioDeviceBackend::openDeviceConfiguration();
 #endif
@@ -210,7 +215,7 @@ juce::String setupFailureMessage (const juce::String& change,
                                   const juce::String& error,
                                   const juce::String& rollbackError)
 {
-    return "CoreAudio rejected " + change + ": " + error
+    return "The audio device rejected " + change + ": " + error
         + (rollbackError.isNotEmpty()
                ? " Previous device setup also reported: " + rollbackError
                : juce::String{});
@@ -234,7 +239,7 @@ std::vector<int> sequentialRouting (int channels)
 juce::String outputRoutingMask (const std::vector<int>& routing, int logicalChannels,
                                const AudioDeviceBackendState& state, juce::BigInteger& mask)
 {
-    if (! state.open) return "No CoreAudio output device is active.";
+    if (! state.open) return "No audio output device is active.";
     if (routing.size() != static_cast<size_t> (logicalChannels))
         return "Output routing must contain one destination for every logical speaker.";
     for (const auto port : routing)
@@ -462,7 +467,7 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout,
 
     const auto device = deviceBackend->getCurrentDeviceState();
     if (! device.open)
-        return "No CoreAudio output device is active.";
+        return "No audio output device is active.";
 
     const auto availableChannels = device.availableOutputChannels;
     if (availableChannels < requestedChannelLayout.size())
@@ -551,10 +556,10 @@ juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName,
 {
     if (routingWarning != nullptr) routingWarning->clear();
     if (! initialised || ! deviceBackend)
-        return "CoreAudio is not initialised.";
+        return "Audio is not initialised.";
     const auto devices = deviceBackend->getOutputDeviceNames();
     if (! devices.contains (deviceName))
-        return "CoreAudio output device is not available: " + deviceName;
+        return "Audio output device is not available: " + deviceName;
 
     const auto previous = deviceBackend->getAudioDeviceSetup();
     if (deviceBackend->getCurrentDeviceState().name == deviceName)
@@ -605,7 +610,7 @@ juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName,
 juce::String AudioEngine::setOutputRouting (const std::vector<int>& physicalOutputs)
 {
     if (! initialised || ! deviceBackend)
-        return "CoreAudio is not initialised.";
+        return "Audio is not initialised.";
     const auto state = deviceBackend->getCurrentDeviceState();
     juce::BigInteger mask;
     if (const auto error = outputRoutingMask (physicalOutputs, getChannelCount (outputLayout), state, mask);
@@ -681,12 +686,12 @@ juce::String AudioEngine::openDeviceConfiguration()
 juce::String AudioEngine::setSampleRate (double sampleRate)
 {
     if (! initialised || ! deviceBackend)
-        return "CoreAudio is not initialised.";
+        return "Audio is not initialised.";
     const auto state = deviceBackend->getCurrentDeviceState();
-    if (! state.open) return "No CoreAudio output device is active.";
+    if (! state.open) return "No audio output device is active.";
     if (! std::isfinite (sampleRate)
         || ! containsSampleRate (state.sampleRates, sampleRate))
-        return "The current CoreAudio device does not support "
+        return "The current audio device does not support "
             + juce::String (sampleRate, 0) + " Hz.";
     if (std::abs (state.sampleRate - sampleRate) < 0.01) return {};
 
@@ -764,11 +769,11 @@ void AudioEngine::RoutedSourcePlayer::audioDeviceAboutToStart (juce::AudioIODevi
 juce::String AudioEngine::setBufferSize (int bufferSize)
 {
     if (! initialised || ! deviceBackend)
-        return "CoreAudio is not initialised.";
+        return "Audio is not initialised.";
     const auto state = deviceBackend->getCurrentDeviceState();
-    if (! state.open) return "No CoreAudio output device is active.";
+    if (! state.open) return "No audio output device is active.";
     if (! state.bufferSizes.contains (bufferSize))
-        return "The current CoreAudio device does not support a "
+        return "The current audio device does not support a "
             + juce::String (bufferSize) + "-sample buffer.";
     if (state.bufferSize == bufferSize) return {};
 

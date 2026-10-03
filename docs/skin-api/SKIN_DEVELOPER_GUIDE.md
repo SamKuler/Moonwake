@@ -1391,7 +1391,7 @@ outputStage 提供：
 | settings.close | textButton | 否 | 关闭 Settings |
 | settings.audio.heading | label | 否 | Audio / Core Audio 分区标题 |
 | settings.audio.device | comboBox | 是 | 选择 CoreAudio 输出设备 |
-| settings.audio.deviceConfiguration | textButton | 否 | 打开设备声明的配置应用，失败时回退 Audio MIDI Setup；0.6.1 起 |
+| settings.audio.deviceConfiguration | textButton | 否 | 打开设备配置界面；macOS 回退 Audio MIDI Setup，Windows 回退系统声音设置；0.6.1 起 |
 | settings.audio.sampleRate | comboBox | 是 | 选择设备采样率 |
 | settings.audio.bufferSize | comboBox | 是 | 选择缓冲区 |
 | settings.audio.channelLayout | comboBox | 是 | 选择受支持的扬声器布局，受实际设备输出能力约束 |

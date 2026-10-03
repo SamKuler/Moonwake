@@ -52,12 +52,15 @@ public:
                           juce::String ("Moonwake"));
         }
 
-        beginTest ("uses the macOS Application Support location");
+        beginTest ("uses the platform's application-data location");
         {
             const auto root = ProductPaths::applicationDataRoot();
 #if JUCE_MAC
             expect (root.getFullPathName().endsWith (
                 "Library/Application Support/Moonwake"));
+#else
+            expect (root == juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                              .getChildFile ("Moonwake"));
 #endif
             expect (ProductPaths::installedSkinsRoot().getParentDirectory() == root);
             expectEquals (ProductPaths::installedSkinsRoot().getFileName(),

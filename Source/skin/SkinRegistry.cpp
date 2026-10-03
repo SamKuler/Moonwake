@@ -7,12 +7,23 @@
 #include "SkinCompatibilityChecker.h"
 
 #include <algorithm>
-#include <cerrno>
-#include <fcntl.h>
 #include <optional>
 #include <regex>
-#include <sys/stat.h>
-#include <unistd.h>
+
+#if JUCE_WINDOWS
+ #ifndef NOMINMAX
+  #define NOMINMAX
+ #endif
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN
+ #endif
+ #include <windows.h>
+#else
+ #include <cerrno>
+ #include <fcntl.h>
+ #include <sys/stat.h>
+ #include <unistd.h>
+#endif
 
 namespace
 {
@@ -59,6 +70,35 @@ struct RegistryMetadata
 std::optional<juce::String> readBoundedRegularFileNoFollow (
     const juce::File& file, juce::int64 maximumBytes)
 {
+   #if JUCE_WINDOWS
+    const auto handle = ::CreateFileW (file.getFullPathName().toWideCharPointer(), GENERIC_READ,
+                                      FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                                      FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) return std::nullopt;
+    struct ScopedHandle
+    {
+        HANDLE value;
+        ~ScopedHandle() { ::CloseHandle (value); }
+    } scoped { handle };
+
+    BY_HANDLE_FILE_INFORMATION information {};
+    LARGE_INTEGER size {};
+    if (::GetFileType (handle) != FILE_TYPE_DISK
+        || ! ::GetFileInformationByHandle (handle, &information)
+        || (information.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0
+        || ! ::GetFileSizeEx (handle, &size)
+        || size.QuadPart <= 0 || size.QuadPart > maximumBytes)
+        return std::nullopt;
+
+    juce::MemoryBlock bytes (static_cast<size_t> (size.QuadPart), true);
+    DWORD count = 0;
+    if (! ::ReadFile (handle, bytes.getData(), static_cast<DWORD> (bytes.getSize()), &count, nullptr)
+        || count != bytes.getSize())
+        return std::nullopt;
+    char overflow = 0;
+    if (! ::ReadFile (handle, &overflow, 1, &count, nullptr) || count != 0)
+        return std::nullopt;
+   #else
     const auto descriptor = ::open (file.getFullPathName().toRawUTF8(),
                                     O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (descriptor < 0) return std::nullopt;
@@ -94,6 +134,7 @@ std::optional<juce::String> readBoundedRegularFileNoFollow (
     }
     while (overflowCount < 0 && errno == EINTR);
     if (overflowCount != 0) return std::nullopt;
+   #endif
     return juce::String::fromUTF8 (
         static_cast<const char*> (bytes.getData()),
         static_cast<int> (bytes.getSize()));

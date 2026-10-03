@@ -36,6 +36,7 @@ PluginManager::PluginManager (PluginScannerConfiguration configuration)
    #if JUCE_MAC && JUCE_PLUGINHOST_AU
     formatManager.addFormat (std::make_unique<juce::AudioUnitPluginFormat>());
    #endif
+    setFormatPreferences (formatPreferences);
 }
 
 PluginManager::~PluginManager()
@@ -61,7 +62,9 @@ bool PluginManager::startScan (const juce::File& customVst3Directory, PluginScan
     {
         updateScanStatus ([&] (auto& status)
         {
-            status.message = customPath || scope == PluginScanScope::vst3
+            status.message = scope == PluginScanScope::audioUnit && ! formats.contains ("AudioUnit")
+                ? "Audio Unit plug-ins are not available on this platform."
+                : customPath || scope == PluginScanScope::vst3
                 ? "Enable VST3 to scan VST3 plug-ins."
                 : scope == PluginScanScope::audioUnit
                     ? "Enable Audio Unit to scan system-registered Audio Units."
@@ -284,6 +287,9 @@ juce::StringArray PluginManager::getRegisteredFormatNames() const
 bool PluginManager::setFormatPreferences (PluginFormatPreferences next)
 {
     if (isThreadRunning()) return false;
+    const auto formats = getRegisteredFormatNames();
+    next.vst3 = next.vst3 && formats.contains ("VST3");
+    next.audioUnit = next.audioUnit && formats.contains ("AudioUnit");
     formatPreferences = next;
     return true;
 }
@@ -345,7 +351,11 @@ juce::File PluginManager::getDefaultScannerExecutable()
             .getChildFile ("MacOS")
             .getChildFile ("MoonwakePluginScanner");
    #endif
+   #if JUCE_WINDOWS
+    return executable.getSiblingFile ("MoonwakePluginScanner.exe");
+   #else
     return executable.getSiblingFile ("MoonwakePluginScanner");
+   #endif
 }
 
 void PluginManager::run()
