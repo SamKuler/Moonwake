@@ -1,248 +1,662 @@
 {
   "apiVersion": 1,
   "root": {
-    "id": "studio-root",
-    "type": "column",
-    "padding": {
-      "top": 8,
-      "right": 0,
-      "bottom": 0,
-      "left": 0
-    },
-    "gap": 0,
+    "id": "studio-studio-root",
+    "type": "stack",
     "style": "surface.canvas",
     "children": [
       {
-        "id": "studio-header",
-        "type": "row",
-        "height": 60,
-        "padding": 12,
-        "gap": 8,
-        "align": "center",
+        "id": "studio-studio-root-shell",
+        "type": "column",
+        "padding": {
+          "top": 8,
+          "right": 24,
+          "bottom": 24,
+          "left": 24
+        },
+        "gap": 16,
+        "anchors": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
         "children": [
           {
-            "id": "studio-brand",
-            "type": "component",
-            "component": "app.brand.title",
-            "style": "label.title",
-            "grow": 1
-          },
-          {
-            "id": "studio-mode",
-            "type": "component",
-            "component": "workspace.studio",
-            "style": "textButton.primary",
-            "width": 108,
-            "height": 36,
-            "focusOrder": 10
-          },
-          {
-            "id": "studio-listening",
-            "type": "component",
-            "component": "workspace.listening",
-            "style": "textButton.default",
-            "width": 108,
-            "height": 36,
-            "focusOrder": 20
-          },
-          {
-            "id": "studio-settings",
-            "type": "component",
-            "component": "settings.open",
-            "style": "textButton.iconNeutral",
-            "width": 44,
-            "height": 36,
-            "focusOrder": 30
-          }
-        ]
-      },
-      {
-        "id": "studio-content",
-        "type": "row",
-        "padding": 12,
-        "gap": 12,
-        "grow": 1,
-        "children": [
-          {
-            "id": "studio-library",
-            "type": "column",
-            "width": "46%",
-            "padding": 10,
-            "gap": 8,
-            "style": "surface.default",
+            "id": "studio-studio-root-navigation",
+            "type": "row",
+            "height": 44,
+            "shrink": 0,
+            "gap": 12,
+            "align": "center",
             "children": [
               {
-                "id": "studio-queue-header",
-                "type": "row",
-                "height": 38,
-                "gap": 8,
-                "align": "center",
-                "children": [
-                  {
-                    "id": "studio-queue-title",
-                    "type": "component",
-                    "component": "queue.title",
-                    "grow": 1
-                  },
-                  {
-                    "id": "studio-queue-count",
-                    "type": "component",
-                    "component": "queue.count",
-                    "width": 72
-                  },
-                  {
-                    "id": "studio-add",
-                    "type": "component",
-                    "component": "library.add",
-                    "style": "textButton.iconPrimary",
-                    "width": 44,
-                    "height": 36,
-                    "focusOrder": 40
-                  }
-                ]
-              },
-              {
-                "id": "studio-library-search",
+                "id": "studio-app-brand-title",
                 "type": "component",
-                "component": "library.search",
-                "height": 34,
-                "focusOrder": 45
-              },
-              {
-                "id": "studio-queue-stack",
-                "type": "stack",
+                "component": "app.brand.title",
+                "style": "label.title",
                 "grow": 1,
+                "height": 40
+              },
+              {
+                "id": "studio-studio-modes",
+                "type": "row",
+                "style": "surface.default",
+                "width": 248,
+                "height": 44,
+                "shrink": 0,
+                "padding": 4,
+                "gap": 4,
+                "align": "center",
                 "children": [
                   {
-                    "id": "studio-queue",
+                    "id": "studio-workspace-studio",
                     "type": "component",
-                    "component": "queue.table",
-                    "anchors": {
-                      "top": 0,
-                      "right": 0,
-                      "bottom": 0,
-                      "left": 0
-                    },
-                    "focusOrder": 50
+                    "component": "workspace.studio",
+                    "style": "textButton.default",
+                    "width": 118,
+                    "height": 36,
+                    "focusOrder": 10
                   },
                   {
-                    "id": "studio-queue-empty",
+                    "id": "studio-workspace-listening",
                     "type": "component",
-                    "component": "queue.empty",
-                    "anchors": {
-                      "top": 0,
-                      "right": 0,
-                      "bottom": 0,
-                      "left": 0
-                    }
+                    "component": "workspace.listening",
+                    "style": "textButton.default",
+                    "width": 118,
+                    "height": 36,
+                    "focusOrder": 20
                   }
                 ]
+              },
+              {
+                "id": "studio-settings-open",
+                "type": "component",
+                "component": "settings.open",
+                "style": "textButton.iconNeutral",
+                "width": 44,
+                "height": 44,
+                "focusOrder": 40
               }
             ]
           },
           {
-            "id": "studio-transport",
-            "type": "column",
-            "gap": 10,
-            "padding": 14,
+            "id": "studio-body",
+            "type": "row",
+            "gap": 16,
             "grow": 1,
+            "children": [
+              {
+                "id": "studio-main-column",
+                "type": "column",
+                "width": "62%",
+                "shrink": 0,
+                "gap": 16,
+                "children": [
+                  {
+                    "id": "studio-studio-queue-panel",
+                    "type": "column",
+                    "gap": 8,
+                    "padding": 12,
+                    "style": "surface.default",
+                    "children": [
+                      {
+                        "id": "studio-studio-queue-heading",
+                        "type": "row",
+                        "height": 32,
+                        "gap": 6,
+                        "align": "center",
+                        "children": [
+                          {
+                            "id": "studio-studio-queue-title",
+                            "type": "component",
+                            "component": "queue.title",
+                            "style": "label.section",
+                            "height": 28,
+                            "width": 64
+                          },
+                          {
+                            "id": "studio-studio-search",
+                            "type": "component",
+                            "component": "library.search",
+                            "style": "textEditor.default",
+                            "height": 32,
+                            "focusOrder": 100,
+                            "shrink": 0,
+                            "grow": 1
+                          },
+                          {
+                            "id": "studio-studio-queue-count",
+                            "type": "component",
+                            "component": "queue.count",
+                            "style": "label.data",
+                            "width": 52,
+                            "height": 24
+                          },
+                          {
+                            "id": "studio-studio-add",
+                            "type": "component",
+                            "component": "library.add",
+                            "style": "textButton.iconNeutral",
+                            "width": 32,
+                            "height": 32,
+                            "focusOrder": 110
+                          }
+                        ],
+                        "shrink": 0
+                      },
+                      {
+                        "id": "studio-studio-queue-body",
+                        "type": "stack",
+                        "grow": 1,
+                        "children": [
+                          {
+                            "id": "studio-studio-queue",
+                            "type": "component",
+                            "component": "queue.table",
+                            "style": "table.default",
+                            "presentation": "table",
+                            "anchors": {
+                              "top": 0,
+                              "right": 0,
+                              "bottom": 0,
+                              "left": 0
+                            },
+                            "focusOrder": 120
+                          },
+                          {
+                            "id": "studio-studio-empty",
+                            "type": "component",
+                            "component": "queue.empty",
+                            "style": "label.muted",
+                            "anchors": {
+                              "top": 0,
+                              "right": 0,
+                              "bottom": 0,
+                              "left": 0
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "id": "studio-studio-queue-actions",
+                        "type": "row",
+                        "height": 32,
+                        "gap": 6,
+                        "align": "center",
+                        "children": [
+                          {
+                            "id": "studio-studio-remove",
+                            "type": "component",
+                            "component": "queue.remove",
+                            "style": "textButton.iconNeutral",
+                            "width": 32,
+                            "height": 32,
+                            "focusOrder": 130
+                          },
+                          {
+                            "id": "studio-studio-up",
+                            "type": "component",
+                            "component": "queue.moveUp",
+                            "style": "textButton.iconNeutral",
+                            "width": 32,
+                            "height": 32,
+                            "focusOrder": 140
+                          },
+                          {
+                            "id": "studio-studio-down",
+                            "type": "component",
+                            "component": "queue.moveDown",
+                            "style": "textButton.iconNeutral",
+                            "width": 32,
+                            "height": 32,
+                            "focusOrder": 150
+                          },
+                          {
+                            "id": "studio-studio-clear",
+                            "type": "component",
+                            "component": "queue.clear",
+                            "style": "textButton.default",
+                            "width": 70,
+                            "height": 32,
+                            "focusOrder": 160
+                          },
+                          {
+                            "id": "studio-studio-action-gap",
+                            "type": "visual",
+                            "style": "surface.default",
+                            "grow": 1
+                          }
+                        ],
+                        "shrink": 0
+                      }
+                    ],
+                    "shrink": 1,
+                    "grow": 1,
+                    "minHeight": 204
+                  },
+                  {
+                    "id": "studio-rack",
+                    "type": "column",
+                    "height": 260,
+                    "shrink": 0,
+                    "padding": 12,
+                    "gap": 8,
+                    "style": "surface.default",
+                    "children": [
+                      {
+                        "id": "studio-rack-header",
+                        "type": "row",
+                        "height": 28,
+                        "shrink": 0,
+                        "gap": 8,
+                        "children": [
+                          {
+                            "id": "studio-rack-title",
+                            "type": "component",
+                            "component": "effects.title",
+                            "style": "label.section",
+                            "grow": 1
+                          },
+                          {
+                            "id": "studio-rack-summary",
+                            "type": "component",
+                            "component": "effects.summary",
+                            "style": "label.data",
+                            "width": 136
+                          }
+                        ]
+                      },
+                      {
+                        "id": "studio-rack-filters",
+                        "type": "row",
+                        "height": 32,
+                        "shrink": 0,
+                        "gap": 6,
+                        "children": [
+                          {
+                            "id": "studio-rack-search",
+                            "type": "component",
+                            "component": "effects.filter",
+                            "style": "textEditor.default",
+                            "grow": 1,
+                            "focusOrder": 300
+                          },
+                          {
+                            "id": "studio-rack-type",
+                            "type": "component",
+                            "component": "effects.typeFilter",
+                            "style": "comboBox.default",
+                            "width": 100,
+                            "focusOrder": 310
+                          },
+                          {
+                            "id": "studio-rack-vendor",
+                            "type": "component",
+                            "component": "effects.manufacturerFilter",
+                            "style": "comboBox.default",
+                            "width": 142,
+                            "focusOrder": 320
+                          },
+                          {
+                            "id": "studio-rack-format",
+                            "type": "component",
+                            "component": "effects.formatFilter",
+                            "style": "comboBox.default",
+                            "width": 98,
+                            "focusOrder": 330
+                          }
+                        ]
+                      },
+                      {
+                        "id": "studio-rack-add",
+                        "type": "row",
+                        "height": 32,
+                        "shrink": 0,
+                        "gap": 6,
+                        "children": [
+                          {
+                            "id": "studio-rack-catalog",
+                            "type": "component",
+                            "component": "effects.catalog",
+                            "style": "comboBox.default",
+                            "grow": 1,
+                            "focusOrder": 340
+                          },
+                          {
+                            "id": "studio-rack-add-label",
+                            "type": "component",
+                            "component": "effects.scopeLabel",
+                            "style": "label.data",
+                            "width": 42
+                          },
+                          {
+                            "id": "studio-rack-scope",
+                            "type": "component",
+                            "component": "effects.scope",
+                            "style": "comboBox.default",
+                            "width": 148,
+                            "focusOrder": 350
+                          },
+                          {
+                            "id": "studio-rack-insert",
+                            "type": "component",
+                            "component": "effects.add",
+                            "style": "textButton.iconPrimary",
+                            "width": 32,
+                            "height": 32,
+                            "focusOrder": 360
+                          }
+                        ]
+                      },
+                      {
+                        "id": "studio-rack-content",
+                        "type": "stack",
+                        "grow": 1,
+                        "children": [
+                          {
+                            "id": "studio-rack-chain",
+                            "type": "component",
+                            "component": "effects.chain",
+                            "style": "effectChain.default",
+                            "anchors": {
+                              "left": 0,
+                              "right": 0,
+                              "top": 0,
+                              "bottom": 0
+                            },
+                            "focusOrder": 370
+                          },
+                          {
+                            "id": "studio-rack-empty",
+                            "type": "component",
+                            "component": "effects.empty",
+                            "style": "label.muted",
+                            "anchors": {
+                              "left": 0,
+                              "right": 0,
+                              "top": 0,
+                              "bottom": 0
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "studio-output-panel",
+                "type": "column",
+                "grow": 1,
+                "padding": 16,
+                "style": "surface.default",
+                "children": [
+                  {
+                    "id": "studio-output-controls",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "gap": 6,
+                    "children": [
+                      {
+                        "id": "studio-output-layout",
+                        "type": "component",
+                        "component": "effects.outputLayout",
+                        "style": "comboBox.default",
+                        "grow": 1,
+                        "focusOrder": 80
+                      },
+                      {
+                        "id": "studio-meter-mode",
+                        "type": "component",
+                        "component": "output.mode",
+                        "style": "comboBox.default",
+                        "grow": 1,
+                        "focusOrder": 85
+                      },
+                      {
+                        "id": "studio-meter-reset",
+                        "type": "component",
+                        "component": "output.reset",
+                        "style": "textButton.default",
+                        "width": 62,
+                        "focusOrder": 90
+                      }
+                    ]
+                  },
+                  {
+                    "id": "studio-output-view",
+                    "type": "stack",
+                    "grow": 1,
+                    "children": [
+                      {
+                        "id": "studio-output-stage",
+                        "type": "component",
+                        "component": "output.stage",
+                        "style": "outputStage.default",
+                        "anchors": {
+                          "left": 0,
+                          "right": 0,
+                          "top": 0,
+                          "bottom": 0
+                        }
+                      },
+                      {
+                        "id": "studio-output-mixer",
+                        "type": "component",
+                        "component": "output.mixer",
+                        "style": "channelMixer.default",
+                        "anchors": {
+                          "left": 0,
+                          "right": 0,
+                          "top": 0,
+                          "bottom": 0
+                        },
+                        "focusOrder": 95
+                      }
+                    ]
+                  }
+                ],
+                "gap": 8
+              }
+            ]
+          },
+          {
+            "id": "studio-studio-transport",
+            "type": "column",
+            "height": 112,
+            "shrink": 0,
+            "padding": 12,
+            "gap": 4,
             "style": "surface.default",
             "children": [
               {
-                "id": "studio-title-row",
+                "id": "studio-studio-seek-row",
                 "type": "row",
-                "height": 40,
-                "gap": 8,
-                "align": "center",
+                "height": 28,
+                "shrink": 0,
+                "gap": 12,
                 "children": [
                   {
-                    "id": "studio-title",
+                    "id": "studio-transport-seek",
                     "type": "component",
-                    "component": "nowPlaying.title",
-                    "style": "label.title",
-                    "grow": 1
+                    "component": "transport.seek",
+                    "style": "linearSlider.default",
+                    "presentation": "linearHorizontal",
+                    "grow": 1,
+                    "focusOrder": 200
                   },
                   {
-                    "id": "studio-effects",
+                    "id": "studio-transport-time",
                     "type": "component",
-                    "component": "effects.open",
-                    "style": "textButton.iconNeutral",
-                    "width": 44,
-                    "height": 36,
-                    "focusOrder": 110
+                    "component": "transport.time",
+                    "style": "label.data",
+                    "width": 120
                   }
                 ]
               },
               {
-                "id": "studio-seek",
-                "type": "component",
-                "component": "transport.seek",
-                "presentation": "linearHorizontal",
-                "height": 32,
-                "focusOrder": 90
-              },
-              {
-                "id": "studio-time",
-                "type": "component",
-                "component": "transport.time",
-                "height": 22
-              },
-              {
-                "id": "studio-controls",
-                "type": "row",
-                "height": 48,
-                "gap": 8,
+                "id": "studio-studio-controls",
+                "type": "stack",
+                "height": 56,
+                "shrink": 0,
                 "children": [
                   {
-                    "id": "studio-previous",
-                    "type": "component",
-                    "component": "transport.previous",
-                    "style": "textButton.iconNeutral",
-                    "width": 48,
-                    "focusOrder": 60
+                    "id": "studio-studio-track",
+                    "type": "column",
+                    "width": "30%",
+                    "height": 52,
+                    "anchors": {
+                      "left": 0,
+                      "centerY": 0
+                    },
+                    "gap": 2,
+                    "children": [
+                      {
+                        "id": "studio-nowPlaying-title",
+                        "type": "component",
+                        "component": "nowPlaying.title",
+                        "style": "label.title",
+                        "height": 30,
+                        "shrink": 0
+                      },
+                      {
+                        "id": "studio-nowPlaying-metadata",
+                        "type": "component",
+                        "component": "nowPlaying.metadata",
+                        "style": "label.data",
+                        "height": 20,
+                        "shrink": 0
+                      }
+                    ]
                   },
                   {
-                    "id": "studio-play",
-                    "type": "component",
-                    "component": "transport.playPause",
-                    "style": "textButton.iconPrimary",
-                    "width": 56,
-                    "focusOrder": 70
+                    "id": "studio-studio-playback",
+                    "type": "row",
+                    "width": 244,
+                    "height": 52,
+                    "anchors": {
+                      "centerX": 0,
+                      "centerY": 0
+                    },
+                    "gap": 8,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "studio-transport-shuffle",
+                        "type": "component",
+                        "component": "transport.shuffle",
+                        "style": "toggleButton.shuffle",
+                        "width": 36,
+                        "height": 36,
+                        "focusOrder": 205
+                      },
+                      {
+                        "id": "studio-transport-previous",
+                        "type": "component",
+                        "component": "transport.previous",
+                        "style": "textButton.iconNeutral",
+                        "width": 40,
+                        "height": 40,
+                        "focusOrder": 210
+                      },
+                      {
+                        "id": "studio-transport-playPause",
+                        "type": "component",
+                        "component": "transport.playPause",
+                        "style": "textButton.iconPrimary",
+                        "width": 52,
+                        "height": 52,
+                        "focusOrder": 220
+                      },
+                      {
+                        "id": "studio-transport-next",
+                        "type": "component",
+                        "component": "transport.next",
+                        "style": "textButton.iconNeutral",
+                        "width": 40,
+                        "height": 40,
+                        "focusOrder": 230
+                      },
+                      {
+                        "id": "studio-transport-repeat-cycle",
+                        "type": "component",
+                        "component": "transport.repeatCycle",
+                        "style": "textButton.iconNeutral",
+                        "width": 36,
+                        "height": 36,
+                        "focusOrder": 235
+                      }
+                    ]
                   },
                   {
-                    "id": "studio-next",
-                    "type": "component",
-                    "component": "transport.next",
-                    "style": "textButton.iconNeutral",
-                    "width": 48,
-                    "focusOrder": 80
+                    "id": "studio-studio-volume",
+                    "type": "column",
+                    "width": 180,
+                    "height": 56,
+                    "anchors": {
+                      "right": 0,
+                      "centerY": 0
+                    },
+                    "gap": 4,
+                    "children": [
+                      {
+                        "id": "studio-studio-volume-heading",
+                        "type": "row",
+                        "height": 24,
+                        "children": [
+                          {
+                            "id": "studio-transport-volumeLabel",
+                            "type": "component",
+                            "component": "transport.volumeLabel",
+                            "style": "label.data",
+                            "grow": 1
+                          },
+                          {
+                            "id": "studio-transport-volumeValue",
+                            "type": "component",
+                            "component": "transport.volumeValue",
+                            "style": "label.data",
+                            "width": 80
+                          }
+                        ]
+                      },
+                      {
+                        "id": "studio-transport-volume",
+                        "type": "component",
+                        "component": "transport.volume",
+                        "style": "linearSlider.default",
+                        "presentation": "linearHorizontal",
+                        "height": 28,
+                        "focusOrder": 240
+                      }
+                    ]
                   }
                 ]
-              },
-              {
-                "id": "studio-volume",
-                "type": "component",
-                "component": "transport.volume",
-                "presentation": "linearHorizontal",
-                "height": 34,
-                "focusOrder": 100
-              },
-              {
-                "id": "studio-output",
-                "type": "component",
-                "component": "output.stage",
-                "grow": 1
               }
             ]
           }
         ]
       },
       {
-        "id": "studio-status",
+        "id": "studio-app-status",
         "type": "component",
         "component": "app.status",
-        "height": 28
+        "style": "label.default",
+        "width": 360,
+        "height": 56,
+        "zIndex": 100,
+        "anchors": {
+          "top": 60,
+          "right": 24
+        }
       }
     ]
+  },
+  "ancillaryStyles": {
+    "popupMenu": "popupMenu.default",
+    "tooltip": "tooltip.default",
+    "scrollBar": "scrollBar.default"
   }
 }

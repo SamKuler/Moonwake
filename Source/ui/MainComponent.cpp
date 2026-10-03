@@ -491,7 +491,7 @@ MainComponent::MainComponent()
         "Search plug-ins",
         skinAdapter.findColour (juce::TextEditor::textColourId));
     pluginCombo.setTextWhenNothingSelected ("No matching effects");
-    effectScopeLabel.setText ("Process channels", juce::dontSendNotification);
+    effectScopeLabel.setText ("Add to", juce::dontSendNotification);
     effectScopeBox.setTitle ("Channels for the next effect");
     meterModeBox.addItem ("Peak", 1);
     meterModeBox.addItem ("Peak + RMS", 2);
@@ -596,6 +596,7 @@ MainComponent::MainComponent()
                                     &nextButton,
                                     &shuffleButton,
                                     &repeatModeBox,
+                                    &repeatButton,
                                     &seekSlider,
                                     &timeLabel,
                                     &volumeLabel,
@@ -742,7 +743,9 @@ MainComponent::MainComponent()
                 safeThis->addEffectButton.setEnabled (safeThis->pluginCombo.getSelectedId() > 0);
                 safeThis->showStatus (inserted ? juce::String{} : message, ! inserted);
                 safeThis->refreshEffects();
-            }, effectScopeChoices[static_cast<size_t> (effectScopeBox.getSelectedId() - 1)]);
+            }, effectScopeBox.isVisible()
+                   ? effectScopeChoices[static_cast<size_t> (effectScopeBox.getSelectedId() - 1)]
+                   : EffectScope {});
     };
     pluginFilters.onChange = [this] { refreshPlugins(); };
     pluginSettingsPanel.onCatalogChanged = [this] { refreshPlugins(); };
@@ -769,6 +772,13 @@ MainComponent::MainComponent()
     shuffleButton.onClick = [this]
     {
         controller.setShuffleEnabled (shuffleButton.getToggleState());
+        updateTransportState();
+    };
+    repeatButton.onClick = [this]
+    {
+        const auto mode = controller.getViewState().repeatMode;
+        controller.setRepeatMode (mode == RepeatMode::off ? RepeatMode::all
+                                  : mode == RepeatMode::all ? RepeatMode::one : RepeatMode::off);
         updateTransportState();
     };
     repeatModeBox.onChange = [this]
@@ -913,7 +923,7 @@ void MainComponent::setRestoreControlsEnabled (bool enabled)
     for (auto* component : std::initializer_list<juce::Component*> {
              &studioModeButton, &listeningModeButton, &settingsButton,
              &effectsButton, &volumeSlider,
-             &shuffleButton, &repeatModeBox, &outputLayoutBox })
+             &shuffleButton, &repeatModeBox, &repeatButton, &outputLayoutBox })
         component->setEnabled (enabled);
 }
 
@@ -1013,6 +1023,7 @@ void MainComponent::bindSkinComponents()
         { "transport.time", &timeLabel },
         { "transport.shuffle", &shuffleButton },
         { "transport.repeat", &repeatModeBox },
+        { "transport.repeatCycle", &repeatButton },
         { "transport.volumeLabel", &volumeLabel },
         { "transport.volumeValue", &volumeValueLabel },
         { "transport.volume", &volumeSlider },
@@ -1094,8 +1105,12 @@ void MainComponent::resized()
                 component->sendLookAndFeelChange();
                 component->resized();
             }
-        if (requestedEntry == SkinLayoutEntry::effects) pluginFilters.clearHiddenFilters();
-        if (requestedEntry == SkinLayoutEntry::settings) pluginSettingsPanel.filters.clearHiddenFilters();
+        if (pluginCombo.isVisible()) pluginFilters.clearHiddenFilters();
+        if (requestedEntry == SkinLayoutEntry::settings)
+        {
+            pluginSettingsPanel.filters.clearHiddenFilters();
+            pluginSettingsPanel.refreshScanState();
+        }
         hasAppliedSkinLayout = true;
         if ((requestedEntry == SkinLayoutEntry::studio || requestedEntry == SkinLayoutEntry::listening)
             && ! librarySearchEditor.isVisible() && librarySearchEditor.getText().isNotEmpty())
@@ -1553,7 +1568,7 @@ void MainComponent::setLibraryImportRunning (bool running)
 
 void MainComponent::choosePluginDirectory()
 {
-    fileChooser = std::make_unique<juce::FileChooser> ("Scan VST3 plugin folder",
+    fileChooser = std::make_unique<juce::FileChooser> ("Add VST3 plug-in folder",
                                                        juce::File::getSpecialLocation (juce::File::userHomeDirectory),
                                                        "*");
 
@@ -1569,8 +1584,11 @@ void MainComponent::choosePluginDirectory()
                                   if (! directory.isDirectory())
                                       return;
 
-                                  if (! safeThis->controller.startPluginScan (directory))
+                                  auto directories = safeThis->controller.getPluginCustomVst3Directories();
+                                  directories.addIfNotAlreadyThere (directory.getFullPathName());
+                                  if (! safeThis->controller.setPluginCustomVst3Directories (directories))
                                       safeThis->showStatus (safeThis->controller.getLastStatusMessage(), true);
+                                  safeThis->pluginSettingsPanel.refreshInventory();
                               });
 }
 
@@ -1692,6 +1710,7 @@ void MainComponent::refreshEffectScopes()
     const auto selectedId = choices.idFor (selected);
     effectScopeChoices = std::move (choices.scopes);
     effectScopeBox.setSelectedId (selectedId > 0 ? selectedId : 1, juce::dontSendNotification);
+    effectScopeBox.setTooltip ("Channels for the next effect. Existing effects keep their own channel selection.");
 }
 
 void MainComponent::refreshEffects()
@@ -1801,6 +1820,13 @@ void MainComponent::updateTransportState()
     timeLabel.setText (controller.getPlaybackTimeText(), juce::dontSendNotification);
     volumeSlider.setValue (state.volume, juce::dontSendNotification);
     shuffleButton.setToggleState (state.shuffleEnabled, juce::dontSendNotification);
+    shuffleButton.setTooltip (state.shuffleEnabled ? "Shuffle on" : "Shuffle off");
+    repeatButton.setToggleState (state.repeatMode != RepeatMode::off, juce::dontSendNotification);
+    repeatButton.setButtonText (state.repeatMode == RepeatMode::one ? "Repeat one"
+        : state.repeatMode == RepeatMode::all ? "Repeat all" : "Repeat off");
+    repeatButton.setTooltip (repeatButton.getButtonText() + "; click to cycle off, all, one");
+    repeatButton.getProperties().set (SkinComponentBindings::iconNameProperty,
+                                     state.repeatMode == RepeatMode::one ? "repeatOne" : "repeat");
 
     // Polling must not overwrite a choice before ComboBox delivers its asynchronous notification.
     if (lastSyncedRepeatMode != state.repeatMode)
@@ -1881,11 +1907,9 @@ void MainComponent::updateTransportState()
     for (const auto& slot : chain.getSlots())
         if (slot.available && ! slot.bypassed)
             activeEffects.add (slot.pluginName);
-    auto chainSummary = activeEffects.isEmpty() ? juce::String ("No active effects")
-                                                 : activeEffects.joinIntoString ("  /  ");
-    if (chainSummary.length() > 46)
-        chainSummary = chainSummary.substring (0, 43) + "...";
-    effectsSummaryLabel.setText ("Effects\n" + chainSummary, juce::dontSendNotification);
+    effectsSummaryLabel.setText (juce::String (activeEffects.size()) + " active / "
+                                 + juce::String (chain.size()) + " total", juce::dontSendNotification);
+    effectsSummaryLabel.setTooltip (activeEffects.joinIntoString ("\n"));
     effectsButton.setButtonText ("Effects  " + juce::String (chain.size()));
 
     const auto deviceName = state.audioDeviceName.isNotEmpty() ? state.audioDeviceName : "No audio device";

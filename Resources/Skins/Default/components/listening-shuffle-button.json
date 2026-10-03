@@ -1,0 +1,103 @@
+{
+  "apiVersion": 1,
+  "target": "toggleButton",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": 10,
+      "fill": {
+        "$ref": "colors.listening.control"
+      },
+      "stroke": {
+        "color": "#00000000",
+        "width": 0
+      },
+      "visible": {
+        "$expr": "state.selected or state.hover or state.pressed"
+      }
+    },
+    {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 1.5
+      },
+      "radius": 10,
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.focus"
+        },
+        "width": 2
+      }
+    },
+    {
+      "id": "shuffle",
+      "type": "path",
+      "data": "M3 6 L6 6 C10 6 14 18 18 18 L21 18 M18 15 L21 18 L18 21 M3 18 L6 18 C10 18 14 6 18 6 L21 6 M18 3 L21 6 L18 9",
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.text"
+        },
+        "width": 2.4,
+        "cap": "round"
+      },
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "scaleX": 0.8333333333333334,
+        "scaleY": 0.8333333333333334,
+        "translateX": {
+          "$expr": "(bounds.width - 20) * 0.5"
+        },
+        "translateY": {
+          "$expr": "(bounds.height - 20) * 0.5"
+        }
+      }
+    }
+  ],
+  "variants": {
+    "selected": {
+      "body.fill": {
+        "$ref": "colors.listening.active"
+      },
+      "shuffle.stroke.color": {
+        "$ref": "colors.listening.onActive"
+      }
+    },
+    "hover": {
+      "body.opacity": 0.9
+    },
+    "pressed": {
+      "body.opacity": 0.76
+    },
+    "disabled": {
+      "body.opacity": 0.4,
+      "shuffle.opacity": 0.4
+    },
+    "focused": {
+      "body.stroke.width": 0
+    }
+  },
+  "transitions": {
+    "hover": {
+      "durationMs": {
+        "$ref": "durations.workspaceFast"
+      },
+      "easing": "easeOut",
+      "properties": [
+        "body.opacity"
+      ]
+    }
+  }
+}

@@ -39,7 +39,14 @@ PlayerController::PlayerController()
 }
 
 PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend)
+    : PlayerController (std::move (backend), PluginScannerConfiguration {})
+{
+}
+
+PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend,
+                                    PluginScannerConfiguration scanner)
     : audioEngine (std::move (backend)),
+      pluginManager (std::move (scanner)),
       artworkStore (ProductPaths::artworkCacheRoot())
 {
     audioInitialisationError = audioEngine.initialise();
@@ -582,24 +589,28 @@ juce::String PlayerController::setOutputLayout (OutputLayout layout)
             return lastStatusMessage;
         }
     }
-    const auto error = audioEngine.setOutputLayout (layout);
+    juce::String routingWarning;
+    const auto error = audioEngine.setOutputLayout (layout, audioDevicePreferences.outputRoutes, &routingWarning);
     lastStatusMessage = error.isNotEmpty()
                             ? error
+                            : routingWarning.isNotEmpty() ? routingWarning
                             : "Output layout set to " + toString (audioEngine.getOutputLayout()) + ".";
     if (error.isEmpty())
     {
         preferredOutputLayout = layout;
         ++stateRevision;
     }
-    return error;
+    return error.isNotEmpty() ? error : routingWarning;
 }
 
 juce::String PlayerController::selectOutputDevice (
     const juce::String& deviceName)
 {
-    const auto error = audioEngine.selectOutputDevice (deviceName);
+    juce::String routingWarning;
+    const auto error = audioEngine.selectOutputDevice (deviceName, audioDevicePreferences.outputRoutes, &routingWarning);
     lastStatusMessage = error.isNotEmpty()
                             ? error
+                            : routingWarning.isNotEmpty() ? routingWarning
                             : "Output device set to "
                                 + audioEngine.getCurrentAudioDeviceName() + ".";
     if (error.isEmpty())
@@ -607,6 +618,32 @@ juce::String PlayerController::selectOutputDevice (
         rememberAudioDeviceSettings();
         ++stateRevision;
     }
+    return error.isNotEmpty() ? error : routingWarning;
+}
+
+juce::String PlayerController::setOutputRouting (const std::vector<int>& routing)
+{
+    const auto before = audioEngine.getDeviceSettings();
+    const auto error = audioEngine.setOutputRouting (routing);
+    if (error.isNotEmpty()) return lastStatusMessage = error;
+    auto& routes = audioDevicePreferences.outputRoutes;
+    const auto layout = audioEngine.getOutputLayout();
+    const auto found = std::find_if (routes.begin(), routes.end(), [&] (const auto& route)
+    {
+        return route.deviceIdentifier == before.currentDeviceIdentifier && route.layout == layout;
+    });
+    AudioOutputRoute route { before.currentDeviceIdentifier, layout, routing };
+    if (found == routes.end()) routes.push_back (std::move (route));
+    else *found = std::move (route);
+    ++stateRevision;
+    lastStatusMessage = "Output routing updated.";
+    return {};
+}
+
+juce::String PlayerController::openAudioDeviceConfiguration()
+{
+    const auto error = audioEngine.openDeviceConfiguration();
+    if (error.isNotEmpty()) lastStatusMessage = error;
     return error;
 }
 
@@ -642,9 +679,9 @@ juce::String PlayerController::setAudioBufferSize (int bufferSize)
 
 void PlayerController::rememberAudioDeviceSettings()
 {
-    audioDevicePreferences = { audioEngine.getCurrentAudioDeviceName(),
-                               audioEngine.getCurrentAudioSampleRate(),
-                               audioEngine.getCurrentAudioBufferSize() };
+    audioDevicePreferences.outputDeviceName = audioEngine.getCurrentAudioDeviceName();
+    audioDevicePreferences.sampleRate = audioEngine.getCurrentAudioSampleRate();
+    audioDevicePreferences.bufferSize = audioEngine.getCurrentAudioBufferSize();
 }
 
 juce::String PlayerController::restoreAudioDeviceSettings (const PlayerAppState& state)
@@ -684,11 +721,33 @@ void PlayerController::setWorkspaceMode (WorkspaceMode mode)
     ++stateRevision;
 }
 
-bool PlayerController::startPluginScan (const juce::File& customVst3Directory)
+bool PlayerController::startPluginScan (const juce::File& customVst3Directory, PluginScanScope scope)
 {
-    const auto started = pluginManager.startScan (customVst3Directory);
+    const auto started = pluginManager.startScan (customVst3Directory, scope);
     lastStatusMessage = started ? "Plug-in scan started." : "Could not start plug-in scan.";
     return started;
+}
+
+juce::StringArray PlayerController::getPluginCustomVst3Directories() const
+{
+    return pluginManager.getCustomVst3Directories();
+}
+
+juce::StringArray PlayerController::getDefaultVst3Directories() const
+{
+    return pluginManager.getDefaultVst3Directories();
+}
+
+bool PlayerController::setPluginCustomVst3Directories (juce::StringArray directories)
+{
+    const auto previous = pluginManager.getCustomVst3Directories();
+    if (! pluginManager.setCustomVst3Directories (std::move (directories)))
+    {
+        lastStatusMessage = "Finish or cancel the current scan before changing folders.";
+        return false;
+    }
+    if (previous != pluginManager.getCustomVst3Directories()) ++stateRevision;
+    return true;
 }
 
 void PlayerController::cancelPluginScan()
@@ -1200,6 +1259,7 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     state.playlist = playlist;
     state.effectChain = effectChain;
     state.pluginFormats = pluginManager.getFormatPreferences();
+    state.customVst3Directories = pluginManager.getCustomVst3Directories();
 
     const auto pluginRevision = pluginStateRevision.load (
         std::memory_order_acquire);
@@ -1313,6 +1373,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
         }
     }
 
+    static_cast<void> (pluginManager.setCustomVst3Directories (state.customVst3Directories));
     const auto generation = ++effectRestoreGeneration;
     effectChain = {};
     audioEngine.unload();

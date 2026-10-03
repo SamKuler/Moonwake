@@ -13,6 +13,31 @@ const juce::Identifier JuceSkinAdapter::styleProperty { "skinStyle" };
 const juce::Identifier JuceSkinAdapter::scaleFactorProperty { "skinScaleFactor" };
 const juce::Identifier JuceSkinAdapter::presentationProperty { "skinPresentation" };
 
+class SkinListContentPainter final : public juce::CachedComponentImage
+{
+public:
+    SkinListContentPainter (juce::Component& childToUse, juce::ListBox& ownerToUse,
+                            SkinRenderTarget targetToUse)
+        : child (childToUse), owner (&ownerToUse), target (targetToUse) {}
+
+    void paint (juce::Graphics& graphics) override
+    {
+        juce::Graphics::ScopedSaveState state (graphics);
+        if (owner != nullptr)
+            if (const auto* adapter = dynamic_cast<const JuceSkinAdapter*> (&owner->getLookAndFeel()))
+                adapter->clipListContent (graphics, *owner, child, target);
+        if (! graphics.isClipEmpty()) child.paintEntireComponent (graphics, false);
+    }
+    bool invalidateAll() override { return true; }
+    bool invalidate (const juce::Rectangle<int>&) override { return true; }
+    void releaseResources() override {}
+
+private:
+    juce::Component& child;
+    juce::Component::SafePointer<juce::ListBox> owner;
+    SkinRenderTarget target;
+};
+
 namespace
 {
 class NullFaultSink final : public SkinRuntimeFaultSink
@@ -1038,6 +1063,43 @@ void JuceSkinAdapter::configureListBox (juce::ListBox& list) const
     list.setOutlineThickness (0);
     list.setColour (juce::ListBox::backgroundColourId, juce::Colours::transparentBlack);
     list.setColour (juce::ListBox::outlineColourId, juce::Colours::transparentBlack);
+}
+
+void JuceSkinAdapter::configureListContentClip (juce::ListBox& list, SkinRenderTarget target) const
+{
+    for (auto* child : list.getChildren())
+        if (child->getCachedComponentImage() == nullptr)
+            child->setCachedComponentImage (new SkinListContentPainter (*child, list, target));
+}
+
+void JuceSkinAdapter::clipListContent (juce::Graphics& graphics, const juce::ListBox& list,
+                                      const juce::Component& child, SkinRenderTarget target) const
+{
+    const auto binding = bindingFor (list, target);
+    if (binding.styleEntry == nullptr || binding.styleEntry->renderer.contentClip.isEmpty()) return;
+    SkinRenderContext context;
+    context.bounds = context.contentBounds = list.getLocalBounds().toFloat();
+    context.scaleFactor = juce::jmax (0.01f, renderingScaleFactorFor (list));
+    context.state = stateFor (list, list.isMouseOver (true), false);
+    context.state.focused = list.hasKeyboardFocus (false);
+    if (auto* model = list.getListBoxModel()) context.tableRowCount = model->getNumRows();
+    if (const auto* table = dynamic_cast<const juce::TableListBox*> (&list))
+        context.tableColumnCount = table->getHeader().getNumColumns (true);
+    context.extraLookup = [presentation = list.getProperties().getWithDefault (presentationProperty, "table").toString()]
+        (std::string_view path) -> std::optional<SkinExpressionValue>
+    {
+        if (path == "table.presentation") return SkinExpressionValue (presentation);
+        return std::nullopt;
+    };
+    const auto origin = child.getLocalPoint (&list, juce::Point<float> {});
+    const auto xAxis = child.getLocalPoint (&list, juce::Point<float> { 1, 0 });
+    const auto yAxis = child.getLocalPoint (&list, juce::Point<float> { 0, 1 });
+    const juce::AffineTransform ownerToChild (
+        xAxis.x - origin.x, yAxis.x - origin.x, origin.x,
+        xAxis.y - origin.y, yAxis.y - origin.y, origin.y);
+    auto& sink = binding.faultSink != nullptr ? *binding.faultSink : nullFaultSink();
+    renderer.clipContent (graphics, binding.styleEntry->renderer, context, ownerToChild,
+                          binding.requiredComponent, sink);
 }
 
 bool JuceSkinAdapter::drawListBoxBackground (

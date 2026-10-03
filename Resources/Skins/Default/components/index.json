@@ -24,7 +24,9 @@
     "studioNotice": "components/studio-notice.json",
     "listeningNotice": "components/listening-notice.json",
     "studioMixerName": "components/studio-mixer-name.json",
-    "studioMixerData": "components/studio-mixer-data.json"
+    "studioMixerData": "components/studio-mixer-data.json",
+    "studioRoutingDestination": "components/studio-routing-destination.json",
+    "listeningRoutingDestination": "components/listening-routing-destination.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -48,7 +50,9 @@
         "icon.folderSearch": "surface.studioIcon",
         "icon.import": "surface.studioIcon",
         "icon.reload": "surface.studioIcon",
-        "icon.preview": "surface.studioIcon"
+        "icon.preview": "surface.studioIcon",
+        "icon.repeat": "surface.studioIcon",
+        "icon.repeatOne": "surface.studioIcon"
       }
     },
     "studioIconPrimary": {
@@ -69,7 +73,9 @@
         "icon.folderSearch": "surface.studioOnPrimaryIcon",
         "icon.import": "surface.studioOnPrimaryIcon",
         "icon.reload": "surface.studioOnPrimaryIcon",
-        "icon.preview": "surface.studioOnPrimaryIcon"
+        "icon.preview": "surface.studioOnPrimaryIcon",
+        "icon.repeat": "surface.studioOnPrimaryIcon",
+        "icon.repeatOne": "surface.studioOnPrimaryIcon"
       }
     },
     "listening": "components/listening-button.json",
@@ -93,7 +99,9 @@
         "icon.folderSearch": "surface.listeningIcon",
         "icon.import": "surface.listeningIcon",
         "icon.reload": "surface.listeningIcon",
-        "icon.preview": "surface.listeningIcon"
+        "icon.preview": "surface.listeningIcon",
+        "icon.repeat": "surface.listeningIcon",
+        "icon.repeatOne": "surface.listeningIcon"
       }
     },
     "listeningIconPrimary": {
@@ -114,7 +122,9 @@
         "icon.folderSearch": "surface.listeningOnPrimaryIcon",
         "icon.import": "surface.listeningOnPrimaryIcon",
         "icon.reload": "surface.listeningOnPrimaryIcon",
-        "icon.preview": "surface.listeningOnPrimaryIcon"
+        "icon.preview": "surface.listeningOnPrimaryIcon",
+        "icon.repeat": "surface.listeningOnPrimaryIcon",
+        "icon.repeatOne": "surface.listeningOnPrimaryIcon"
       }
     },
     "listeningLeadingNeutral": {
@@ -135,7 +145,9 @@
         "icon.folderSearch": "surface.listeningIcon",
         "icon.import": "surface.listeningIcon",
         "icon.reload": "surface.listeningIcon",
-        "icon.preview": "surface.listeningIcon"
+        "icon.preview": "surface.listeningIcon",
+        "icon.repeat": "surface.listeningIcon",
+        "icon.repeatOne": "surface.listeningIcon"
       }
     },
     "listeningLeadingPrimary": {
@@ -156,7 +168,9 @@
         "icon.folderSearch": "surface.listeningOnPrimaryIcon",
         "icon.import": "surface.listeningOnPrimaryIcon",
         "icon.reload": "surface.listeningOnPrimaryIcon",
-        "icon.preview": "surface.listeningOnPrimaryIcon"
+        "icon.preview": "surface.listeningOnPrimaryIcon",
+        "icon.repeat": "surface.listeningOnPrimaryIcon",
+        "icon.repeatOne": "surface.listeningOnPrimaryIcon"
       }
     },
     "studioMode": "components/studio-mode-button.json",
@@ -179,7 +193,9 @@
         "icon.folderSearch": "surface.studioIcon",
         "icon.import": "surface.studioIcon",
         "icon.reload": "surface.studioIcon",
-        "icon.preview": "surface.studioIcon"
+        "icon.preview": "surface.studioIcon",
+        "icon.repeat": "surface.studioIcon",
+        "icon.repeatOne": "surface.studioIcon"
       }
     },
     "studioLeadingPrimary": {
@@ -200,17 +216,35 @@
         "icon.folderSearch": "surface.studioOnPrimaryIcon",
         "icon.import": "surface.studioOnPrimaryIcon",
         "icon.reload": "surface.studioOnPrimaryIcon",
-        "icon.preview": "surface.studioOnPrimaryIcon"
+        "icon.preview": "surface.studioOnPrimaryIcon",
+        "icon.repeat": "surface.studioOnPrimaryIcon",
+        "icon.repeatOne": "surface.studioOnPrimaryIcon"
       }
     },
     "studioCompact": "components/studio-compact-button.json",
-    "listeningCompact": "components/listening-compact-button.json"
+    "listeningCompact": "components/listening-compact-button.json",
+    "studioRepeat": {
+      "renderer": "components/studio-repeat-button.json",
+      "slots": {
+        "icon.repeat": "surface.studioRepeatIcon",
+        "icon.repeatOne": "surface.studioRepeatIcon"
+      }
+    },
+    "listeningRepeat": {
+      "renderer": "components/listening-repeat-button.json",
+      "slots": {
+        "icon.repeat": "surface.listeningRepeatIcon",
+        "icon.repeatOne": "surface.listeningRepeatIcon"
+      }
+    }
   },
   "toggleButton": {
     "listening": "components/listening-toggle-button.json",
     "studio": "components/studio-toggle-button.json",
     "studioMixerMute": "components/studio-mixer-mute.json",
-    "studioMixerSolo": "components/studio-mixer-solo.json"
+    "studioMixerSolo": "components/studio-mixer-solo.json",
+    "studioShuffle": "components/studio-shuffle-button.json",
+    "listeningShuffle": "components/listening-shuffle-button.json"
   },
   "comboBox": {
     "listening": "components/listening-combo-box.json",
@@ -291,7 +325,9 @@
     "listeningPlain": "components/listening-plain.json",
     "listeningSwitcher": "components/listening-switcher.json",
     "studioSkinCard": "components/studio-skin-card.json",
-    "studioReadOnlyRow": "components/studio-read-only-row.json"
+    "studioReadOnlyRow": "components/studio-read-only-row.json",
+    "studioRepeatIcon": "components/studio-repeat-icon.json",
+    "listeningRepeatIcon": "components/listening-repeat-icon.json"
   },
   "artwork": {
     "listening": {
@@ -350,6 +386,26 @@
         "row.destination": "label.studioData",
         "header.label": "label.studioData",
         "empty.message": "label.studioData"
+      }
+    },
+    "studioRouting": {
+      "renderer": "components/studio-channel-map.json",
+      "slots": {
+        "row.surface": "surface.studioSkinCard",
+        "row.source": "label.studio",
+        "row.destination": "label.studioRoutingDestination",
+        "header.label": "label.studioData",
+        "empty.message": "label.studioData"
+      }
+    },
+    "listeningRouting": {
+      "renderer": "components/listening-channel-map.json",
+      "slots": {
+        "row.surface": "surface.listeningSkinCard",
+        "row.source": "label.listening",
+        "row.destination": "label.listeningRoutingDestination",
+        "header.label": "label.listeningData",
+        "empty.message": "label.listeningData"
       }
     }
   },

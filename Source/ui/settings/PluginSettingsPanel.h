@@ -33,6 +33,10 @@ public:
     [[nodiscard]] juce::TextButton& scanFolderControl() noexcept;
     [[nodiscard]] juce::TextButton& cancelControl() noexcept;
     [[nodiscard]] juce::ProgressBar& progressControl() noexcept;
+    [[nodiscard]] juce::ComboBox& scanScopeControl() noexcept { return scanScope; }
+    [[nodiscard]] juce::Label& defaultLocationsControl() noexcept { return defaultLocations; }
+    [[nodiscard]] juce::ComboBox& customDirectoriesControl() noexcept { return customDirectories; }
+    [[nodiscard]] juce::TextButton& removeDirectoryControl() noexcept { return removeDirectory; }
     [[nodiscard]] int knownPluginCount() const noexcept;
     [[nodiscard]] int knownListScrollPosition() const noexcept;
     PluginFilterControls filters;
@@ -50,10 +54,17 @@ private:
     juce::TextButton scanAllButton { "Scan VST3 + AU" };
     juce::TextButton scanFolderButton { "Add VST3 Folder" };
     juce::TextButton cancelButton { "Cancel Scan" };
+    juce::ComboBox scanScope;
+    juce::Label defaultLocations;
+    juce::ComboBox customDirectories;
+    juce::TextButton removeDirectory { "Remove folder" };
+    juce::StringArray customDirectoryPaths;
     double progress = 0.0;
     juce::ProgressBar progressBar { progress };
     uint64_t lastRevision = 0;
     juce::Array<juce::PluginDescription> inventory;
     void refreshFilteredPlugins();
     void changeFormats();
+    void refreshDirectories();
+    [[nodiscard]] PluginScanScope selectedScanScope() const;
 };

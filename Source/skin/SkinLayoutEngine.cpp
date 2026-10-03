@@ -222,6 +222,10 @@ private:
         {
             const auto& scroll = std::get<SkinScrollLayout> (node.payload);
             if (scroll.child != nullptr) result = measure (*scroll.child);
+            if (scroll.direction == SkinScrollLayout::Direction::vertical)
+                result.minimumHeight = 0.0f;
+            else
+                result.minimumWidth = 0.0f;
         }
 
         const auto padding = resolveInsets (node.common.padding);

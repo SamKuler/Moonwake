@@ -103,6 +103,7 @@ public:
     void drawLabel (juce::Graphics&, juce::Label&) override;
 
     void configureListBox (juce::ListBox&) const;
+    void configureListContentClip (juce::ListBox&, SkinRenderTarget) const;
     void configureTextEditor (juce::TextEditor&) const;
     [[nodiscard]] std::optional<SkinResolvedRowLayout> rowLayoutFor (
         const juce::Component&, SkinRenderTarget, SkinRenderContext = {}) const;
@@ -153,6 +154,9 @@ public:
                          const juce::String& instanceKey = {});
 
 private:
+    friend class SkinListContentPainter;
+    void clipListContent (juce::Graphics&, const juce::ListBox&,
+                          const juce::Component& child, SkinRenderTarget) const;
     struct TextStyle
     {
         juce::Font font { juce::FontOptions {} };

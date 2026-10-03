@@ -146,6 +146,7 @@ private:
     juce::TextButton nextButton { "Next" };
     juce::ToggleButton shuffleButton { "Shuffle" };
     juce::ComboBox repeatModeBox;
+    juce::TextButton repeatButton { "Repeat off" };
     juce::ComboBox outputLayoutBox;
     std::optional<RepeatMode> lastSyncedRepeatMode;
     std::optional<OutputLayout> lastSyncedOutputLayout;

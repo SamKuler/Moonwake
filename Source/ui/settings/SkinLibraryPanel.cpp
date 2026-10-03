@@ -117,6 +117,7 @@ public:
             juce::ListBox::resized();
         }
         setFirstVisibleRow (first);
+        if (adapter != nullptr) adapter->configureListContentClip (*this, SkinRenderTarget::skinList);
     }
 
     void focusGained (juce::Component::FocusChangeType cause) override

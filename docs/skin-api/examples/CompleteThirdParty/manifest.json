@@ -8,7 +8,7 @@
   },
   "description": "A complete Skin API 1 package with four layouts and custom controls.",
   "license": "MIT",
-  "minAppVersion": "0.6.0",
+  "minAppVersion": "0.6.1",
   "extends": "builtin.foundation",
   "capabilities": [
     "tokens",

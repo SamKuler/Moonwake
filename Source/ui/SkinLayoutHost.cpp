@@ -33,6 +33,53 @@ public:
     }
 };
 
+class LayoutViewport final : public juce::Viewport,
+                             private juce::FocusChangeListener
+{
+public:
+    explicit LayoutViewport (const juce::String& name) : juce::Viewport (name)
+    {
+        setWantsKeyboardFocus (false);
+        juce::Desktop::getInstance().addFocusChangeListener (this);
+    }
+
+    ~LayoutViewport() override
+    {
+        juce::Desktop::getInstance().removeFocusChangeListener (this);
+    }
+
+private:
+    void globalFocusChanged (juce::Component* focused) override
+    {
+        if (focused == nullptr || ! isShowing() || ! isParentOf (focused)) return;
+        auto* nearest = focused->getParentComponent();
+        while (nearest != nullptr && dynamic_cast<LayoutViewport*> (nearest) == nullptr)
+            nearest = nearest->getParentComponent();
+        if (nearest != this) return;
+
+        // Reveal inner content first so outer viewports use its updated position.
+        for (auto* ancestor = nearest; ancestor != nullptr; ancestor = ancestor->getParentComponent())
+            if (auto* viewport = dynamic_cast<LayoutViewport*> (ancestor))
+                viewport->reveal (*focused);
+    }
+
+    void reveal (juce::Component& focused)
+    {
+        const auto* content = getViewedComponent();
+        if (content == nullptr) return;
+        const auto target = content->getLocalArea (&focused, focused.getLocalBounds());
+        const auto view = getViewArea();
+        const auto offset = [] (int start, int size, int viewStart, int viewSize)
+        {
+            if (start < viewStart || size > viewSize) return start;
+            if (start + size > viewStart + viewSize) return start + size - viewSize;
+            return viewStart;
+        };
+        setViewPosition (offset (target.getX(), target.getWidth(), view.getX(), view.getWidth()),
+                         offset (target.getY(), target.getHeight(), view.getY(), view.getHeight()));
+    }
+};
+
 class LayoutFocusTraverser final : public juce::KeyboardFocusTraverser
 {
 public:
@@ -433,11 +480,10 @@ private:
                     SkinValidationReport& report)
     {
         if (node.children.empty()) return;
-        auto viewport = std::make_unique<juce::Viewport> (node.nodeId);
+        auto viewport = std::make_unique<LayoutViewport> (node.nodeId);
         auto content = std::make_unique<LayoutLayer>();
         auto* viewportPointer = viewport.get();
         auto* contentPointer = content.get();
-        viewportPointer->setWantsKeyboardFocus (false);
         viewportPointer->setBounds (relativeBounds (node.scrollViewportBounds,
                                                     parentOrigin));
         viewportPointer->setVisible (visible);
@@ -700,6 +746,11 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
                         &editor->getLookAndFeel()))
                     adapter->configureTextEditor (*editor);
             placement.component->resized();
+            if (auto* list = dynamic_cast<juce::ListBox*> (placement.component))
+                if (auto* adapter = dynamic_cast<JuceSkinAdapter*> (&list->getLookAndFeel()))
+                    if (const auto* descriptor = PlayerComponentCatalog::find (placement.id))
+                        if (const auto target = skinRenderTargetFromName (descriptor->defaultRendererTarget))
+                            adapter->configureListContentClip (*list, *target);
             placement.component->setVisible (placement.visible);
         }
         value.root->toFront (false);

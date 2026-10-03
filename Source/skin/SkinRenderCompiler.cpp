@@ -135,6 +135,23 @@ public:
         if (report.hasErrors()) return std::nullopt;
         result.transitions = compileTransitions (root.getProperty ("transitions", {}));
         if (report.hasErrors()) return std::nullopt;
+        if (root.hasProperty ("contentClip"))
+        {
+            result.contentClip = root.getProperty ("contentClip", {}).toString();
+            const auto layer = std::find_if (result.baseLayers.begin(), result.baseLayers.end(), [&] (const auto& candidate)
+            { return candidate.id == result.contentClip; });
+            if ((target != SkinRenderTarget::table && target != SkinRenderTarget::channelMap
+                 && target != SkinRenderTarget::pluginList && target != SkinRenderTarget::skinList)
+                || layer == result.baseLayers.end()
+                || (layer->primitive != SkinPrimitive::rectangle
+                    && layer->primitive != SkinPrimitive::roundedRectangle
+                    && layer->primitive != SkinPrimitive::ellipse))
+            {
+                fail ("RENDER004", "/contentClip",
+                      "List contentClip must reference a root rect, roundedRect or ellipse layer.");
+                return std::nullopt;
+            }
+        }
         if (root.hasProperty ("rowLayout"))
         {
             const auto renderContextPaths = usedContextPaths;

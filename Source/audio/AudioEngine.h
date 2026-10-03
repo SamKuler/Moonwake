@@ -8,6 +8,7 @@
 #include "audio/OutputLayout.h"
 #include "audio/OutputChannelMix.h"
 #include "audio/OutputMeter.h"
+#include "audio/AudioOutputRoute.h"
 
 #include <array>
 #include <atomic>
@@ -23,6 +24,7 @@ struct AudioDeviceOutputChannel
 struct AudioDeviceSettingsView
 {
     juce::String currentDevice;
+    juce::String currentDeviceIdentifier;
     juce::StringArray devices;
     double currentSampleRate = 0.0;
     juce::Array<double> sampleRates;
@@ -31,6 +33,9 @@ struct AudioDeviceSettingsView
     int availableOutputChannels = 0;
     // Ordered exactly like the packed output buffers supplied to the audio callback.
     std::vector<AudioDeviceOutputChannel> activeOutputChannels;
+    std::vector<AudioDeviceOutputChannel> outputChannels;
+    // Logical speaker order -> zero-based physical output, or -1 when disconnected.
+    std::vector<int> outputRouting;
 };
 
 struct AudioDeviceBackendState
@@ -44,6 +49,7 @@ struct AudioDeviceBackendState
     int availableOutputChannels = 0;
     juce::StringArray outputChannelNames {};
     juce::BigInteger activeOutputChannels {};
+    juce::String identifier {};
 };
 
 class IAudioDeviceBackend
@@ -60,6 +66,10 @@ public:
         const juce::AudioDeviceManager::AudioDeviceSetup&, bool chosen) = 0;
     virtual void addAudioCallback (juce::AudioIODeviceCallback*) = 0;
     virtual void removeAudioCallback (juce::AudioIODeviceCallback*) = 0;
+    virtual juce::String openDeviceConfiguration()
+    {
+        return "Device configuration is unavailable for this audio backend.";
+    }
 };
 
 class AudioEngine
@@ -101,11 +111,17 @@ public:
     [[nodiscard]] std::vector<OutputChannelMix> getOutputChannelMix() const;
     bool setOutputChannelMix (juce::AudioChannelSet::ChannelType, float gain, bool muted, bool solo);
     void resetOutputChannelMix();
-    juce::String setOutputLayout (OutputLayout layout);
+    juce::String setOutputLayout (OutputLayout layout,
+                                 const std::vector<AudioOutputRoute>& savedRoutes = {},
+                                 juce::String* routingWarning = nullptr);
     [[nodiscard]] AudioDeviceSettingsView getDeviceSettings() const;
-    juce::String selectOutputDevice (const juce::String& deviceName);
+    juce::String selectOutputDevice (const juce::String& deviceName,
+                                    const std::vector<AudioOutputRoute>& savedRoutes = {},
+                                    juce::String* routingWarning = nullptr);
     juce::String setSampleRate (double sampleRate);
     juce::String setBufferSize (int bufferSize);
+    juce::String setOutputRouting (const std::vector<int>& physicalOutputs);
+    juce::String openDeviceConfiguration();
     bool addEffectPlugin (int slotId,
                           std::unique_ptr<juce::AudioPluginInstance> plugin,
                           juce::String& errorMessage,
@@ -137,6 +153,32 @@ public:
     void resetOutputMeter() noexcept;
 
 private:
+    class DeviceOutputSource final : public juce::AudioSource
+    {
+    public:
+        explicit DeviceOutputSource (juce::AudioSource& source) : logicalSource (source) {}
+        void setRouting (const std::vector<int>&);
+        void setActiveOutputs (const juce::BigInteger&);
+        void prepareToPlay (int, double) override;
+        void releaseResources() override;
+        void getNextAudioBlock (const juce::AudioSourceChannelInfo&) override;
+
+    private:
+        juce::AudioSource& logicalSource;
+        juce::AudioBuffer<float> logicalBuffer;
+        std::vector<int> routes { 0, 1 }; // Changed only with the device callback detached.
+        std::array<int, maximumOutputChannels> packedDestinations {};
+    };
+
+    class RoutedSourcePlayer final : public juce::AudioSourcePlayer
+    {
+    public:
+        explicit RoutedSourcePlayer (DeviceOutputSource& source) : outputSource (source) {}
+        void audioDeviceAboutToStart (juce::AudioIODevice*) override;
+    private:
+        DeviceOutputSource& outputSource;
+    };
+
     class EffectProcessingSource final : public juce::AudioSource
     {
     public:
@@ -188,15 +230,20 @@ private:
     juce::AudioFormatManager formatManager;
     juce::TimeSliceThread readAheadThread { "Audio file read-ahead" };
     GaplessAudioSource playbackSource { formatManager, readAheadThread };
-    juce::AudioSourcePlayer sourcePlayer;
     juce::AudioTransportSource transportSource;
     std::array<std::atomic<float>, maximumOutputChannels> outputPeakLevels {};
     std::atomic<float> outputGain { 0.8f };
     OutputMeter outputMeter;
     EffectProcessingSource effectProcessingSource;
+    DeviceOutputSource deviceOutputSource;
+    RoutedSourcePlayer sourcePlayer;
 
     OutputLayout outputLayout = OutputLayout::stereo;
     std::vector<OutputChannelMix> outputChannelMix = defaultOutputChannelMix();
+    std::vector<int> outputRouting { 0, 1 };
     bool initialised = false;
     void updateOutputChannelMixTargets();
+    // These configuration steps require the device callback to be detached.
+    juce::String applyOutputRouting (const std::vector<int>&, const juce::BigInteger&);
+    juce::String restoreOutputRouting (const std::vector<AudioOutputRoute>&);
 };

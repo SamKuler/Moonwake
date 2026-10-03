@@ -70,15 +70,6 @@
                 ]
               },
               {
-                "id": "listening-effects-open",
-                "type": "component",
-                "component": "effects.open",
-                "style": "textButton.listeningIconNeutral",
-                "width": 44,
-                "height": 44,
-                "focusOrder": 30
-              },
-              {
                 "id": "listening-settings-open",
                 "type": "component",
                 "component": "settings.open",
@@ -204,16 +195,16 @@
           {
             "id": "listening-listening-transport",
             "type": "column",
-            "height": 128,
+            "height": 112,
             "shrink": 0,
-            "padding": 16,
-            "gap": 8,
+            "padding": 12,
+            "gap": 4,
             "style": "surface.listening",
             "children": [
               {
                 "id": "listening-listening-seek-row",
                 "type": "row",
-                "height": 32,
+                "height": 28,
                 "shrink": 0,
                 "gap": 12,
                 "children": [
@@ -232,26 +223,6 @@
                     "component": "transport.time",
                     "style": "label.listeningData",
                     "width": 120
-                  },
-                  {
-                    "id": "listening-listening-shuffle",
-                    "type": "component",
-                    "component": "transport.shuffle",
-                    "style": "toggleButton.listening",
-                    "width": 88,
-                    "height": 32,
-                    "focusOrder": 170,
-                    "shrink": 0
-                  },
-                  {
-                    "id": "listening-listening-repeat",
-                    "type": "component",
-                    "component": "transport.repeat",
-                    "style": "comboBox.listening",
-                    "width": 144,
-                    "height": 32,
-                    "focusOrder": 180,
-                    "shrink": 0
                   }
                 ]
               },
@@ -264,7 +235,7 @@
                   {
                     "id": "listening-listening-track",
                     "type": "column",
-                    "width": "34%",
+                    "width": "30%",
                     "height": 52,
                     "anchors": {
                       "left": 0,
@@ -293,15 +264,24 @@
                   {
                     "id": "listening-listening-playback",
                     "type": "row",
-                    "width": 156,
+                    "width": 244,
                     "height": 52,
                     "anchors": {
                       "centerX": 0,
                       "centerY": 0
                     },
-                    "gap": 12,
+                    "gap": 8,
                     "align": "center",
                     "children": [
+                      {
+                        "id": "listening-transport-shuffle",
+                        "type": "component",
+                        "component": "transport.shuffle",
+                        "style": "toggleButton.listeningShuffle",
+                        "width": 36,
+                        "height": 36,
+                        "focusOrder": 205
+                      },
                       {
                         "id": "listening-transport-previous",
                         "type": "component",
@@ -328,6 +308,15 @@
                         "width": 40,
                         "height": 40,
                         "focusOrder": 230
+                      },
+                      {
+                        "id": "listening-transport-repeat-cycle",
+                        "type": "component",
+                        "component": "transport.repeatCycle",
+                        "style": "textButton.listeningRepeat",
+                        "width": 36,
+                        "height": 36,
+                        "focusOrder": 235
                       }
                     ]
                   },

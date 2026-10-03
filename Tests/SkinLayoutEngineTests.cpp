@@ -290,6 +290,41 @@ public:
             }
         }
 
+        beginTest ("scrolling content does not impose its minimum along the scrolling axis");
+        for (const auto vertical : { true, false })
+        {
+            auto contents = visual ("contents", pixels (400), pixels (400));
+            if (vertical) contents.common.minHeight = 400;
+            else contents.common.minWidth = 400;
+            SkinLayoutNode viewport;
+            viewport.nodeType = SkinLayoutNodeType::scroll;
+            viewport.common.id = "viewport";
+            viewport.common.grow = 1;
+            SkinScrollLayout scroll;
+            scroll.direction = vertical ? SkinScrollLayout::Direction::vertical
+                                        : SkinScrollLayout::Direction::horizontal;
+            scroll.child = std::make_unique<SkinLayoutNode> (std::move (contents));
+            viewport.payload = std::move (scroll);
+            auto footer = visual ("fixed", pixels (40), pixels (40));
+            footer.common.shrink = 0;
+            auto root = flex (vertical ? SkinLayoutNodeType::column : SkinLayoutNodeType::row,
+                              "root", { std::move (viewport), std::move (footer) });
+            SkinValidationReport report;
+            const auto resolved = SkinLayoutEngine::resolve (definitionWith (std::move (root)),
+                { 0, 0, 180, 180 }, 1.0f, report);
+            expect (resolved.has_value(), report.toText());
+            if (resolved)
+            {
+                const auto* view = child (resolved->root, "viewport");
+                expect (view != nullptr);
+                if (view)
+                {
+                    expectWithinAbsoluteError (vertical ? view->bounds.getHeight() : view->bounds.getWidth(), 140.0f, 0.01f);
+                    expectWithinAbsoluteError (vertical ? view->scrollContentBounds.getHeight() : view->scrollContentBounds.getWidth(), 400.0f, 0.01f);
+                }
+            }
+        }
+
         beginTest ("horizontal scroll reserves its scrollbar without clipping content height");
         {
             SkinLayoutNode root;

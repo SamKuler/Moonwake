@@ -19,20 +19,21 @@ juce::StringArray exactIds()
         "artwork.cover", "artwork.metadata", "nowPlaying.eyebrow", "nowPlaying.title",
         "nowPlaying.metadata", "transport.previous", "transport.playPause",
         "transport.next", "transport.seek", "transport.time", "transport.shuffle",
-        "transport.repeat", "transport.volumeLabel", "transport.volumeValue",
+        "transport.repeat", "transport.repeatCycle", "transport.volumeLabel", "transport.volumeValue",
         "transport.volume", "effects.open", "effects.close", "effects.summary",
         "effects.title", "effects.filterLabel", "effects.filter",
         "effects.typeFilter", "effects.manufacturerFilter", "effects.formatFilter", "effects.catalog", "effects.scope", "effects.scopeLabel",
         "effects.add", "effects.chain", "effects.empty", "effects.outputLayout",
         "output.stage", "output.mixer", "output.mode", "output.reset", "settings.title", "settings.close", "settings.audio.heading",
-        "settings.audio.device",
+        "settings.audio.device", "settings.audio.deviceConfiguration",
         "settings.audio.sampleRate", "settings.audio.bufferSize",
-        "settings.audio.channelLayout", "settings.audio.channelMap",
+        "settings.audio.channelLayout", "settings.audio.channelMap", "settings.audio.routing",
         "settings.plugins.formats",
         "settings.plugins.enableVst3", "settings.plugins.enableAu", "settings.plugins.filter",
         "settings.plugins.typeFilter", "settings.plugins.manufacturerFilter", "settings.plugins.formatFilter", "settings.plugins.knownList",
         "settings.plugins.scanAll", "settings.plugins.scanFolder",
         "settings.plugins.cancel", "settings.plugins.progress",
+        "settings.plugins.scanScope", "settings.plugins.defaultLocations", "settings.plugins.customDirectories", "settings.plugins.removeDirectory",
         "settings.skins.heading", "settings.skins.library", "settings.skins.import", "settings.skins.remove",
         "settings.skins.preview", "settings.skins.apply",
         "settings.skins.cancelPreview", "settings.skins.reload"
@@ -161,7 +162,7 @@ public:
             const auto* outputMap = PlayerComponentCatalog::find (
                 "settings.audio.channelMap");
             expect (outputMap != nullptr && ! outputMap->interactive,
-                    "Audio Output Map is a read-only status view, not a control.");
+                    "The legacy channel map retains its read-only interaction contract.");
         }
 
         beginTest ("freezes semantic alignment for every label component");
@@ -193,12 +194,13 @@ public:
                 { "settings.open", "settings" }, { "library.add", "add" },
                 { "queue.remove", "remove" }, { "queue.moveUp", "moveUp" },
                 { "queue.moveDown", "moveDown" },
-                { "transport.previous", "previous" },
+                { "transport.previous", "previous" }, { "transport.repeatCycle", "repeat" },
                 { "transport.playPause", "play" }, { "transport.next", "next" },
                 { "effects.open", "effects" }, { "effects.close", "close" },
                 { "effects.add", "add" }, { "settings.close", "close" },
                 { "settings.plugins.scanAll", "scan" },
                 { "settings.plugins.scanFolder", "folderSearch" },
+                { "settings.plugins.removeDirectory", "remove" },
                 { "settings.skins.import", "import" },
                 { "settings.skins.remove", "remove" },
                 { "settings.skins.preview", "preview" },
@@ -214,7 +216,7 @@ public:
                 if (expected != expectedIcons.end())
                 {
                     const auto expectedPresentation =
-                        descriptor.id.startsWith ("settings.plugins.")
+                        (descriptor.id.startsWith ("settings.plugins.") && descriptor.id != "settings.plugins.removeDirectory")
                             || descriptor.id.startsWith ("settings.skins.")
                         ? juce::String ("leading") : juce::String ("only");
                     expectEquals (descriptor.iconPresentation,

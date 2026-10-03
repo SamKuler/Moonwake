@@ -116,7 +116,7 @@
 | RENDER001 | error | renderer target 未知 |
 | RENDER002 | error | layer type 未知 |
 | RENDER003 | error | layer id 重复 |
-| RENDER004 | error | layer property 类型或组合非法 |
+| RENDER004 | error | layer property 类型或组合非法，或 contentClip 未引用受支持列表 target 的根层 rect/roundedRect/ellipse |
 | RENDER005 | error | context path 或结果类型非法 |
 | RENDER006 | error | token 类型与绘制属性不兼容 |
 | RENDER007 | error | asset path 非法 |

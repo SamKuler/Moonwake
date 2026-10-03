@@ -45,19 +45,27 @@ PluginManager::~PluginManager()
         static_cast<void> (stopThread (1000));
 }
 
-bool PluginManager::startScan (const juce::File& customVst3Directory)
+bool PluginManager::startScan (const juce::File& customVst3Directory, PluginScanScope scope)
 {
     if (isThreadRunning())
         return false;
 
-    if ((! formatPreferences.vst3 && ! formatPreferences.audioUnit)
-        || (customVst3Directory != juce::File() && ! formatPreferences.vst3))
+    const auto customPath = customVst3Directory != juce::File();
+    const auto formats = getRegisteredFormatNames();
+    const PluginFormatPreferences requestedFormats {
+        formatPreferences.vst3 && scope != PluginScanScope::audioUnit && formats.contains ("VST3"),
+        formatPreferences.audioUnit && scope != PluginScanScope::vst3
+            && ! customPath && formats.contains ("AudioUnit")
+    };
+    if (! requestedFormats.vst3 && ! requestedFormats.audioUnit)
     {
         updateScanStatus ([&] (auto& status)
         {
-            status.message = customVst3Directory != juce::File()
-                ? "Enable VST3 to scan a plug-in folder."
-                : "Enable a plug-in format before scanning.";
+            status.message = customPath || scope == PluginScanScope::vst3
+                ? "Enable VST3 to scan VST3 plug-ins."
+                : scope == PluginScanScope::audioUnit
+                    ? "Enable Audio Unit to scan system-registered Audio Units."
+                    : "Enable a plug-in format before scanning.";
         });
         return false;
     }
@@ -73,11 +81,34 @@ bool PluginManager::startScan (const juce::File& customVst3Directory)
         return false;
     }
 
-    if (customVst3Directory.getFullPathName().isNotEmpty() && ! customVst3Directory.isDirectory())
+    if (customPath && ! customVst3Directory.isDirectory())
+    {
+        updateScanStatus ([&] (auto& status)
+        {
+            status.message = "The VST3 scan folder is unavailable: " + customVst3Directory.getFullPathName();
+        });
         return false;
+    }
 
-    customScanDirectory = customVst3Directory;
-    scanFormats = formatPreferences;
+    scanFormats = requestedFormats;
+    scanVst3Directories = juce::FileSearchPath {};
+    unavailableScanDirectories.clear();
+    if (scanFormats.vst3)
+    {
+        if (customPath)
+            scanVst3Directories.add (customVst3Directory);
+        else
+        {
+            for (const auto& path : getDefaultVst3Directories())
+                scanVst3Directories.addIfNotAlreadyThere (juce::File (path));
+            for (const auto& path : customVst3Directories)
+            {
+                const juce::File directory (path);
+                if (directory.isDirectory()) scanVst3Directories.addIfNotAlreadyThere (directory);
+                else unavailableScanDirectories.add (path);
+            }
+        }
+    }
     updateScanStatus ([] (auto& status)
     {
         status.scanning = true;
@@ -257,6 +288,32 @@ bool PluginManager::setFormatPreferences (PluginFormatPreferences next)
     return true;
 }
 
+bool PluginManager::setCustomVst3Directories (juce::StringArray directories)
+{
+    if (isThreadRunning()) return false;
+    juce::StringArray normalised;
+    for (const auto& directory : directories)
+    {
+        if (directory.isEmpty() || ! juce::File::isAbsolutePath (directory)) return false;
+        normalised.addIfNotAlreadyThere (juce::File (directory).getFullPathName());
+    }
+    customVst3Directories = std::move (normalised);
+    return true;
+}
+
+juce::StringArray PluginManager::getDefaultVst3Directories() const
+{
+    juce::StringArray result;
+    for (int index = 0; index < formatManager.getNumFormats(); ++index)
+        if (auto* format = formatManager.getFormat (index); format != nullptr && format->getName() == "VST3")
+        {
+            const auto paths = format->getDefaultLocationsToSearch();
+            for (int pathIndex = 0; pathIndex < paths.getNumPaths(); ++pathIndex)
+                result.add (paths[pathIndex].getFullPathName());
+        }
+    return result;
+}
+
 juce::Array<juce::PluginDescription> PluginManager::filterInsertEffects (const juce::Array<juce::PluginDescription>& plugins)
 {
     juce::Array<juce::PluginDescription> effects;
@@ -298,7 +355,6 @@ void PluginManager::run()
         const juce::ScopedLock lock (knownPluginLock);
         initialCount = knownPluginList.getNumTypes();
     }
-    const auto useCustomVst3Path = customScanDirectory.getFullPathName().isNotEmpty();
     struct FormatCandidates
     {
         juce::String format;
@@ -312,14 +368,11 @@ void PluginManager::run()
     {
         auto* format = formatManager.getFormat (index);
         if (format == nullptr || ! format->canScanForPlugins()
-            || ! scanFormats.allows (format->getName())
-            || (useCustomVst3Path && format->getName() != "VST3"))
+            || ! scanFormats.allows (format->getName()))
             continue;
 
-        const auto searchPath = useCustomVst3Path
-                                  ? juce::FileSearchPath (
-                                        customScanDirectory.getFullPathName())
-                                  : format->getDefaultLocationsToSearch();
+        const auto searchPath = format->getName() == "VST3"
+                                  ? scanVst3Directories : format->getDefaultLocationsToSearch();
         auto candidates = scannerConfiguration.candidateProvider
                             ? scannerConfiguration.candidateProvider (
                                   format->getName(), searchPath)
@@ -491,6 +544,9 @@ void PluginManager::run()
                                             + (failedCount == 1 ? " failed. " : "s failed. ")
                                             + lastFailure
                                         : juce::String{});
+        if (! unavailableScanDirectories.isEmpty())
+            status.message += " Skipped unavailable VST3 folders: "
+                            + unavailableScanDirectories.joinIntoString (", ") + ".";
     });
 }
 

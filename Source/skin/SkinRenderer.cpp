@@ -170,17 +170,7 @@ public:
 
     void draw()
     {
-        const auto finiteRectangle = [] (juce::Rectangle<float> rectangle)
-        {
-            return std::isfinite (rectangle.getX()) && std::isfinite (rectangle.getY())
-                && std::isfinite (rectangle.getWidth()) && std::isfinite (rectangle.getHeight());
-        };
-        if (! finiteRectangle (context.bounds) || ! finiteRectangle (context.contentBounds)
-            || ! std::isfinite (context.scaleFactor) || context.scaleFactor <= 0.0f
-            || context.scaleFactor > 64.0f
-            || ! std::isfinite (context.normalisedValue)
-            || ! std::isfinite (context.minimum) || ! std::isfinite (context.maximum))
-            throw RenderFailure ({}, "Render context contains non-finite geometry or values.");
+        validateContext();
 
         if (program.transitions.empty())
         {
@@ -226,12 +216,66 @@ public:
             drawLayer (layer, std::nullopt, false);
     }
 
+    void clipContent (const juce::AffineTransform& ownerToChild)
+    {
+        if (program.contentClip.isEmpty()) return;
+        validateContext();
+        const auto found = std::find_if (program.baseLayers.begin(), program.baseLayers.end(), [&] (const auto& layer)
+        { return layer.id == program.contentClip; });
+        if (found == program.baseLayers.end()
+            || (found->primitive != SkinPrimitive::rectangle
+                && found->primitive != SkinPrimitive::roundedRectangle
+                && found->primitive != SkinPrimitive::ellipse))
+            throw RenderFailure ("contentClip", "Content clipping shape is unavailable.");
+
+        const auto& layer = *found;
+        const auto frame = resolveFrame (layer, std::nullopt, false);
+        const auto colour = valueOr<juce::Colour> (
+            property (layer, "stroke.color", frame, std::nullopt, false), juce::Colours::transparentBlack);
+        const auto stroke = colour.isTransparent() ? 0.0f : std::max (0.0f, numberValue (
+            property (layer, "stroke.width", frame, std::nullopt, false)));
+        const auto placement = valueOr<juce::String> (
+            property (layer, "stroke.placement", frame, std::nullopt, false), "center");
+        const auto inset = placement == "inside" ? stroke : placement == "outside" ? 0.0f : stroke * 0.5f;
+        const auto interior = frame.reduced (inset);
+        juce::Path shape;
+        if (! interior.isEmpty())
+        {
+            if (layer.primitive == SkinPrimitive::roundedRectangle)
+            {
+                const auto radius = std::max (0.0f, numberValue (
+                    property (layer, "radius", frame, std::nullopt, false)) - std::min (inset, stroke * 0.5f));
+                shape.addRoundedRectangle (interior, radius);
+            }
+            else
+            {
+                shape = shapePath (layer, interior, std::nullopt, false);
+            }
+        }
+        graphics.reduceClipRegion (shape, layerTransform (layer, frame, std::nullopt, false).followedBy (ownerToChild));
+    }
+
     [[nodiscard]] const SkinValidationReport& warnings() const noexcept
     {
         return runtimeWarnings;
     }
 
 private:
+    void validateContext() const
+    {
+        const auto finiteRectangle = [] (juce::Rectangle<float> rectangle)
+        {
+            return std::isfinite (rectangle.getX()) && std::isfinite (rectangle.getY())
+                && std::isfinite (rectangle.getWidth()) && std::isfinite (rectangle.getHeight());
+        };
+        if (! finiteRectangle (context.bounds) || ! finiteRectangle (context.contentBounds)
+            || ! std::isfinite (context.scaleFactor) || context.scaleFactor <= 0.0f
+            || context.scaleFactor > 64.0f
+            || ! std::isfinite (context.normalisedValue)
+            || ! std::isfinite (context.minimum) || ! std::isfinite (context.maximum))
+            throw RenderFailure ({}, "Render context contains non-finite geometry or values.");
+    }
+
     juce::Rectangle<float> frameForPropertyPath (const juce::String& path) const
     {
         const juce::Rectangle<float>* result = nullptr;
@@ -1053,6 +1097,30 @@ SkinRenderStatus SkinRenderer::draw (
     SkinRuntimeFaultSink& sink) const
 {
     return draw (graphics, program, context, requiredComponent, sink, nullptr, {});
+}
+
+SkinRenderStatus SkinRenderer::clipContent (
+    juce::Graphics& graphics, const SkinRenderProgram& program,
+    const SkinRenderContext& context, const juce::AffineTransform& ownerToChild,
+    bool requiredComponent, SkinRuntimeFaultSink& sink) const
+{
+    try
+    {
+        RenderPass pass (graphics, program, context, assetCache, nullptr, {});
+        pass.clipContent (ownerToChild);
+        for (const auto& warning : pass.warnings().getDiagnostics())
+            sink.reportRenderFault (warning, SkinRenderStatus::ok);
+        return SkinRenderStatus::ok;
+    }
+    catch (...)
+    {
+        graphics.reduceClipRegion (juce::Rectangle<int>{});
+        const auto status = requiredComponent ? SkinRenderStatus::fatalFault : SkinRenderStatus::recoverableFault;
+        sink.reportRenderFault ({ requiredComponent ? SkinDiagnosticSeverity::error : SkinDiagnosticSeverity::warning,
+            requiredComponent ? "RUNTIME002" : "RUNTIME001", skinRenderTargetName (program.target), "contentClip",
+            "The list content clipping shape could not be resolved.", {} }, status);
+        return status;
+    }
 }
 
 SkinRenderStatus SkinRenderer::draw (

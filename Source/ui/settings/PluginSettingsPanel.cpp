@@ -74,6 +74,8 @@ public:
         const auto completeRowsHeight = bounds.getHeight() / getRowHeight() * getRowHeight();
         viewport->setBounds (bounds.withHeight (completeRowsHeight > 0 ? completeRowsHeight : bounds.getHeight()));
         setFirstVisibleRow (first);
+        if (adapter != nullptr)
+            adapter->configureListContentClip (*this, SkinRenderTarget::pluginList);
     }
 
     void paint (juce::Graphics& graphics) override
@@ -192,7 +194,7 @@ private:
                       manufacturer, rowKey, &rowContext);
         drawTextSlot (graphics, *layout, "row.format",
                       (plugin.pluginFormatName == "AudioUnit" ? "AU" : plugin.pluginFormatName)
-                          + (rowContext.state.enabled ? "" : " · off"), rowKey, &rowContext);
+                          + (rowContext.state.enabled ? "" : " (off)"), rowKey, &rowContext);
     }
 
     void listWasScrolled() override
@@ -284,16 +286,43 @@ PluginSettingsPanel::PluginSettingsPanel (PlayerController& controllerToUse,
     scanAllButton.setButtonText ("Scan plug-ins");
     scanFolderButton.setButtonText ("Add folder");
     cancelButton.setButtonText ("Cancel scan");
-    scanAllButton.setTitle ("Scan standard VST3 and Audio Unit locations");
-    scanFolderButton.setTitle ("Scan an additional VST3 folder");
+    scanFolderButton.setTitle ("Add a custom VST3 scan folder");
     cancelButton.setTitle ("Cancel the active plug-in scan");
-    scanAllButton.setTooltip ("Scan standard VST3 and Audio Unit locations");
-    scanFolderButton.setTooltip ("Scan an additional VST3 folder");
+    scanFolderButton.setTooltip ("Save a custom VST3 location for future scans. Audio Units use system registration.");
     cancelButton.setTooltip ("Cancel the active plug-in scan");
+    scanScope.setTitle ("Formats for this scan");
+    scanScope.setTooltip ("Choose which enabled formats to scan. This does not change the display filter.");
+    scanScope.addItem ("Enabled formats", 1);
+    scanScope.addItem ("VST3 only", 2);
+    scanScope.addItem ("AU only", 3);
+    scanScope.setSelectedId (1, juce::dontSendNotification);
+    scanScope.onChange = [this] { refreshScanState(); };
+    defaultLocations.setTitle ("Default plug-in scan locations");
+    defaultLocations.setJustificationType (juce::Justification::centredLeft);
+    customDirectories.setTitle ("Custom VST3 scan folders");
+    customDirectories.setTextWhenNothingSelected ("No custom VST3 folders");
+    customDirectories.onChange = [this]
+    {
+        customDirectories.setTooltip (customDirectories.getText());
+        refreshScanState();
+    };
+    removeDirectory.setTitle ("Remove the selected custom VST3 scan folder");
+    removeDirectory.setTooltip ("Stop scanning this custom folder. Known plug-ins and loaded effects are kept.");
+    removeDirectory.onClick = [this]
+    {
+        const auto index = customDirectories.getSelectedId() - 1;
+        if (! juce::isPositiveAndBelow (index, customDirectoryPaths.size())) return;
+        auto directories = customDirectoryPaths;
+        directories.remove (index);
+        if (! controller.setPluginCustomVst3Directories (std::move (directories)) && statusCallback)
+            statusCallback (controller.getLastStatusMessage(), true);
+        refreshDirectories();
+        refreshScanState();
+    };
 
     scanAllButton.onClick = [this]
     {
-        if (! controller.startPluginScan() && statusCallback)
+        if (! controller.startPluginScan ({}, selectedScanScope()) && statusCallback)
             statusCallback (controller.getLastStatusMessage(), true);
         refreshScanState();
     };
@@ -325,9 +354,10 @@ void PluginSettingsPanel::setScanFolderCallback (ActionCallback callback)
 
 void PluginSettingsPanel::addTo (juce::Component& parent)
 {
-    for (auto* component : std::array<juce::Component*, 8> {
+    for (auto* component : std::array<juce::Component*, 12> {
              &formatsLabel, knownList.get(), &scanAllButton, &scanFolderButton,
-             &cancelButton, &progressBar, &vst3Enabled, &auEnabled })
+             &cancelButton, &progressBar, &vst3Enabled, &auEnabled,
+             &scanScope, &defaultLocations, &customDirectories, &removeDirectory })
         parent.addAndMakeVisible (component);
     filters.addTo (parent);
 }
@@ -343,6 +373,10 @@ void PluginSettingsPanel::bind (SkinComponentBindings& bindings,
     static_cast<void> (bindings.bind ("settings.plugins.progress", progressBar, report));
     static_cast<void> (bindings.bind ("settings.plugins.enableVst3", vst3Enabled, report));
     static_cast<void> (bindings.bind ("settings.plugins.enableAu", auEnabled, report));
+    static_cast<void> (bindings.bind ("settings.plugins.scanScope", scanScope, report));
+    static_cast<void> (bindings.bind ("settings.plugins.defaultLocations", defaultLocations, report));
+    static_cast<void> (bindings.bind ("settings.plugins.customDirectories", customDirectories, report));
+    static_cast<void> (bindings.bind ("settings.plugins.removeDirectory", removeDirectory, report));
     filters.bind (bindings, "settings.plugins", report);
 }
 
@@ -354,8 +388,9 @@ void PluginSettingsPanel::setVisible (bool shouldBeVisible)
     scanFolderButton.setVisible (shouldBeVisible);
     cancelButton.setVisible (shouldBeVisible);
     progressBar.setVisible (shouldBeVisible);
-    for (auto* control : std::array<juce::Component*, 6> {
-             &vst3Enabled, &auEnabled, &filters.search, &filters.type, &filters.manufacturer, &filters.format })
+    for (auto* control : std::array<juce::Component*, 10> {
+             &vst3Enabled, &auEnabled, &filters.search, &filters.type, &filters.manufacturer, &filters.format,
+             &scanScope, &defaultLocations, &customDirectories, &removeDirectory })
         control->setVisible (shouldBeVisible);
 }
 
@@ -368,6 +403,41 @@ void PluginSettingsPanel::refreshInventory()
     inventory = controller.getKnownPlugins();
     filters.setPlugins (inventory);
     refreshFilteredPlugins();
+    refreshDirectories();
+}
+
+void PluginSettingsPanel::refreshDirectories()
+{
+    const auto previousIndex = customDirectories.getSelectedId() - 1;
+    const auto previous = juce::isPositiveAndBelow (previousIndex, customDirectoryPaths.size())
+        ? customDirectoryPaths[previousIndex] : juce::String {};
+    customDirectoryPaths = controller.getPluginCustomVst3Directories();
+    customDirectories.clear (juce::dontSendNotification);
+    for (int index = 0; index < customDirectoryPaths.size(); ++index)
+    {
+        const auto& path = customDirectoryPaths[index];
+        customDirectories.addItem (path + (juce::File (path).isDirectory() ? "" : " (unavailable)"), index + 1);
+    }
+    const auto selected = customDirectoryPaths.indexOf (previous);
+    customDirectories.setSelectedId (selected >= 0 ? selected + 1 : customDirectories.getItemId (0),
+                                     juce::dontSendNotification);
+    customDirectories.setTooltip (customDirectories.getText());
+    const auto paths = controller.getDefaultVst3Directories();
+    const auto text = "VST3 defaults: " + paths.joinIntoString ("; ")
+                   + "\nAU: system-registered Audio Units";
+    defaultLocations.setText ("Default VST3 locations / System Audio Units", juce::dontSendNotification);
+    defaultLocations.setTooltip (text);
+}
+
+PluginScanScope PluginSettingsPanel::selectedScanScope() const
+{
+    if (! scanScope.isVisible()) return PluginScanScope::enabledFormats;
+    switch (scanScope.getSelectedId())
+    {
+        case 2: return PluginScanScope::vst3;
+        case 3: return PluginScanScope::audioUnit;
+        default: return PluginScanScope::enabledFormats;
+    }
 }
 
 void PluginSettingsPanel::refreshFilteredPlugins()
@@ -398,8 +468,22 @@ void PluginSettingsPanel::refreshScanState()
     const auto formats = controller.getRegisteredPluginFormats();
     vst3Enabled.setEnabled (! state.scanning && formats.contains ("VST3"));
     auEnabled.setEnabled (! state.scanning && formats.contains ("AudioUnit"));
-    scanAllButton.setEnabled (! state.scanning && (preferences.vst3 || preferences.audioUnit));
-    scanFolderButton.setEnabled (! state.scanning && preferences.vst3);
+    const auto scope = selectedScanScope();
+    const auto scanVst3 = preferences.vst3 && formats.contains ("VST3") && scope != PluginScanScope::audioUnit;
+    const auto scanAu = preferences.audioUnit && formats.contains ("AudioUnit") && scope != PluginScanScope::vst3;
+    scanScope.setEnabled (! state.scanning);
+    scanScope.setItemEnabled (2, formats.contains ("VST3"));
+    scanScope.setItemEnabled (3, formats.contains ("AudioUnit"));
+    scanAllButton.setEnabled (! state.scanning && (scanVst3 || scanAu));
+    scanAllButton.setButtonText ("Scan");
+    scanAllButton.setTitle (scope == PluginScanScope::vst3 ? "Scan VST3"
+        : scope == PluginScanScope::audioUnit ? "Scan Audio Units" : "Scan enabled plug-in formats");
+    scanAllButton.setTooltip (scanVst3 && scanAu ? "Scan VST3 defaults, custom folders and system-registered Audio Units."
+        : scanVst3 ? "Scan VST3 defaults and custom folders."
+        : scanAu ? "Scan system-registered Audio Units." : "Enable the selected plug-in format before scanning.");
+    scanFolderButton.setEnabled (! state.scanning);
+    customDirectories.setEnabled (! state.scanning && ! customDirectoryPaths.isEmpty());
+    removeDirectory.setEnabled (! state.scanning && customDirectories.getSelectedId() > 0);
     cancelButton.setEnabled (state.scanning);
 
     if (state.revision != lastRevision)

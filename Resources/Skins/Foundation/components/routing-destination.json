@@ -1,0 +1,54 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "right": 24
+        }
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.body"
+      },
+      "fontSize": 13,
+      "color": {
+        "$ref": "colors.text"
+      },
+      "align": {
+        "$context": "text.align"
+      },
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "chevron",
+      "type": "path",
+      "data": "M0 0 L4 4 L8 0",
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.textMuted"
+        },
+        "width": 1.6,
+        "cap": "round"
+      },
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "translateX": {
+          "$expr": "bounds.x + bounds.width - 14"
+        },
+        "translateY": {
+          "$expr": "bounds.y + (bounds.height - 4) * 0.5"
+        }
+      }
+    }
+  ]
+}

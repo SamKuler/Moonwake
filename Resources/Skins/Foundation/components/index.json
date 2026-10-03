@@ -5,7 +5,8 @@
     "section": "components/section-label.json",
     "muted": "components/muted-label.json",
     "data": "components/data-label.json",
-    "skinStatus": "components/skin-status.json"
+    "skinStatus": "components/skin-status.json",
+    "routingDestination": "components/routing-destination.json"
   },
   "textButton": {
     "defaultCompact": "components/default-compact-button.json",
@@ -29,7 +30,9 @@
         "icon.folderSearch": "surface.icon",
         "icon.import": "surface.icon",
         "icon.reload": "surface.icon",
-        "icon.preview": "surface.icon"
+        "icon.preview": "surface.icon",
+        "icon.repeat": "surface.icon",
+        "icon.repeatOne": "surface.icon"
       }
     },
     "iconPrimary": {
@@ -50,7 +53,9 @@
         "icon.folderSearch": "surface.onPrimaryIcon",
         "icon.import": "surface.onPrimaryIcon",
         "icon.reload": "surface.onPrimaryIcon",
-        "icon.preview": "surface.onPrimaryIcon"
+        "icon.preview": "surface.onPrimaryIcon",
+        "icon.repeat": "surface.onPrimaryIcon",
+        "icon.repeatOne": "surface.onPrimaryIcon"
       }
     },
     "leadingNeutral": {
@@ -71,7 +76,9 @@
         "icon.folderSearch": "surface.icon",
         "icon.import": "surface.icon",
         "icon.reload": "surface.icon",
-        "icon.preview": "surface.icon"
+        "icon.preview": "surface.icon",
+        "icon.repeat": "surface.icon",
+        "icon.repeatOne": "surface.icon"
       }
     },
     "leadingPrimary": {
@@ -92,12 +99,15 @@
         "icon.folderSearch": "surface.onPrimaryIcon",
         "icon.import": "surface.onPrimaryIcon",
         "icon.reload": "surface.onPrimaryIcon",
-        "icon.preview": "surface.onPrimaryIcon"
+        "icon.preview": "surface.onPrimaryIcon",
+        "icon.repeat": "surface.onPrimaryIcon",
+        "icon.repeatOne": "surface.onPrimaryIcon"
       }
     }
   },
   "toggleButton": {
-    "default": "components/toggle-button.json"
+    "default": "components/toggle-button.json",
+    "shuffle": "components/shuffle-button.json"
   },
   "comboBox": {
     "default": "components/combo-box.json"
@@ -190,6 +200,16 @@
         "row.surface": "surface.listRow",
         "row.source": "label.data",
         "row.destination": "label.muted",
+        "header.label": "label.data",
+        "empty.message": "label.muted"
+      }
+    },
+    "routing": {
+      "renderer": "components/channel-map.json",
+      "slots": {
+        "row.surface": "surface.skinRow",
+        "row.source": "label.data",
+        "row.destination": "label.routingDestination",
         "header.label": "label.data",
         "empty.message": "label.muted"
       }

@@ -3,15 +3,85 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numeric>
+
+#if JUCE_MAC
+#include <CoreAudio/CoreAudio.h>
+#endif
 
 namespace
 {
+#if JUCE_MAC
+juce::String coreAudioString (AudioDeviceID device, AudioObjectPropertySelector selector)
+{
+    AudioObjectPropertyAddress address { selector, kAudioObjectPropertyScopeGlobal,
+                                        kAudioObjectPropertyElementMain };
+    CFStringRef value = nullptr;
+    UInt32 size = sizeof (value);
+    if (AudioObjectGetPropertyData (device, &address, 0, nullptr, &size, &value) != noErr
+        || value == nullptr)
+        return {};
+    const auto text = juce::String::fromCFString (value);
+    CFRelease (value);
+    return text;
+}
+
+AudioDeviceID coreAudioOutputDevice (const juce::String& displayName)
+{
+    AudioObjectPropertyAddress address { kAudioHardwarePropertyDevices,
+        kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    UInt32 size = 0;
+    if (AudioObjectGetPropertyDataSize (kAudioObjectSystemObject, &address, 0, nullptr, &size) != noErr)
+        return kAudioObjectUnknown;
+    std::vector<AudioDeviceID> devices (size / sizeof (AudioDeviceID));
+    if (AudioObjectGetPropertyData (kAudioObjectSystemObject, &address, 0, nullptr, &size, devices.data()) != noErr)
+        return kAudioObjectUnknown;
+    juce::StringArray names;
+    std::vector<AudioDeviceID> outputs;
+    for (const auto device : devices)
+    {
+        AudioObjectPropertyAddress streams { kAudioDevicePropertyStreamConfiguration,
+            kAudioDevicePropertyScopeOutput, kAudioObjectPropertyElementMain };
+        UInt32 streamSize = 0;
+        if (AudioObjectGetPropertyDataSize (device, &streams, 0, nullptr, &streamSize) != noErr)
+            continue;
+        juce::HeapBlock<char> storage (streamSize);
+        if (AudioObjectGetPropertyData (device, &streams, 0, nullptr, &streamSize, storage.getData()) != noErr)
+            continue;
+        const auto* buffers = reinterpret_cast<const AudioBufferList*> (storage.getData());
+        unsigned channelCount = 0;
+        for (UInt32 index = 0; index < buffers->mNumberBuffers; ++index)
+            channelCount += buffers->mBuffers[index].mNumberChannels;
+        if (channelCount == 0) continue;
+        const auto name = coreAudioString (device, kAudioDevicePropertyDeviceNameCFString);
+        if (name.isEmpty()) continue;
+        names.add (name);
+        outputs.push_back (device);
+    }
+    // JUCE disambiguates duplicate CoreAudio names in the same device order.
+    names.appendNumbersToDuplicates (false, true);
+    const auto index = names.indexOf (displayName);
+    return index >= 0 ? outputs[static_cast<size_t> (index)] : kAudioObjectUnknown;
+}
+
+bool openConfigurationBundle (const juce::String& identifier)
+{
+    if (identifier.isEmpty()) return false;
+    juce::ChildProcess launcher;
+    return launcher.start (juce::StringArray { "/usr/bin/open", "-b", identifier }, 0)
+        && launcher.waitForProcessToFinish (3000) && launcher.getExitCode() == 0;
+}
+#endif
+
 class AudioDeviceManagerBackend final : public IAudioDeviceBackend
 {
 public:
     juce::String initialiseWithDefaultDevices (int inputChannels,
                                                 int outputChannels) override
     {
+#if JUCE_MAC
+        nativeDevice = kAudioObjectUnknown;
+#endif
         return manager.initialiseWithDefaultDevices (inputChannels, outputChannels);
     }
 
@@ -39,6 +109,11 @@ public:
             result.outputChannelNames = device->getOutputChannelNames();
             result.availableOutputChannels = result.outputChannelNames.size();
             result.activeOutputChannels = device->getActiveOutputChannels();
+#if JUCE_MAC
+            const auto deviceId = currentNativeDevice (result.name);
+            if (deviceId != kAudioObjectUnknown)
+                result.identifier = coreAudioString (deviceId, kAudioDevicePropertyDeviceUID);
+#endif
         }
         return result;
     }
@@ -52,6 +127,9 @@ public:
         const juce::AudioDeviceManager::AudioDeviceSetup& setup,
         bool chosen) override
     {
+#if JUCE_MAC
+        nativeDevice = kAudioObjectUnknown;
+#endif
         return manager.setAudioDeviceSetup (setup, chosen);
     }
 
@@ -65,7 +143,38 @@ public:
         manager.removeAudioCallback (callback);
     }
 
+    juce::String openDeviceConfiguration() override
+    {
+#if JUCE_MAC
+        juce::String application;
+        if (auto* device = manager.getCurrentAudioDevice())
+            if (const auto deviceId = currentNativeDevice (device->getName());
+                deviceId != kAudioObjectUnknown)
+                application = coreAudioString (deviceId, kAudioDevicePropertyConfigurationApplication);
+        if (openConfigurationBundle (application)) return {};
+        if (application != "com.apple.audio.AudioMIDISetup"
+            && openConfigurationBundle ("com.apple.audio.AudioMIDISetup")) return {};
+        return "Could not open the device configuration application or Audio MIDI Setup.";
+#else
+        return IAudioDeviceBackend::openDeviceConfiguration();
+#endif
+    }
+
 private:
+#if JUCE_MAC
+    AudioDeviceID currentNativeDevice (const juce::String& name) const
+    {
+        if (nativeDeviceName != name || nativeDevice == kAudioObjectUnknown
+            || coreAudioString (nativeDevice, kAudioDevicePropertyDeviceUID).isEmpty())
+        {
+            nativeDeviceName = name;
+            nativeDevice = coreAudioOutputDevice (name);
+        }
+        return nativeDevice;
+    }
+    mutable juce::String nativeDeviceName;
+    mutable AudioDeviceID nativeDevice = kAudioObjectUnknown;
+#endif
     mutable juce::AudioDeviceManager manager;
 };
 
@@ -114,6 +223,34 @@ bool hasExactOutputRouting (
     return applied.useDefaultOutputChannels == requested.useDefaultOutputChannels
         && applied.outputChannels == requested.outputChannels;
 }
+
+std::vector<int> sequentialRouting (int channels)
+{
+    std::vector<int> result (static_cast<size_t> (channels));
+    std::iota (result.begin(), result.end(), 0);
+    return result;
+}
+
+juce::String outputRoutingMask (const std::vector<int>& routing, int logicalChannels,
+                               const AudioDeviceBackendState& state, juce::BigInteger& mask)
+{
+    if (! state.open) return "No CoreAudio output device is active.";
+    if (routing.size() != static_cast<size_t> (logicalChannels))
+        return "Output routing must contain one destination for every logical speaker.";
+    for (const auto port : routing)
+    {
+        if (port < -1 || port >= state.availableOutputChannels)
+            return "Output routing refers to an unavailable physical output.";
+        if (port < 0) continue;
+        if (mask[port]) return "Each physical output can be assigned to only one logical speaker.";
+        mask.setBit (port);
+    }
+    if (state.availableOutputChannels == 0)
+        return "The current audio device has no physical output ports.";
+    // An active silent output keeps the device clock running when all speakers are disconnected.
+    if (mask.isZero()) mask.setBit (0);
+    return {};
+}
 } // namespace
 
 AudioEngine::AudioEngine()
@@ -123,13 +260,14 @@ AudioEngine::AudioEngine()
 
 AudioEngine::AudioEngine (std::unique_ptr<IAudioDeviceBackend> backend)
     : deviceBackend (std::move (backend)),
-      effectProcessingSource (transportSource, outputPeakLevels, outputGain, outputMeter)
+      effectProcessingSource (transportSource, outputPeakLevels, outputGain, outputMeter),
+      deviceOutputSource (effectProcessingSource), sourcePlayer (deviceOutputSource)
 {
     jassert (deviceBackend != nullptr);
     formatManager.registerBasicFormats();
     updateOutputChannelMixTargets();
     transportSource.setSource (&playbackSource);
-    sourcePlayer.setSource (&effectProcessingSource);
+    sourcePlayer.setSource (&deviceOutputSource);
 }
 
 AudioEngine::~AudioEngine()
@@ -154,11 +292,11 @@ juce::String AudioEngine::initialise()
         return {};
 
     if (! deviceBackend) return "Audio device backend is unavailable.";
-    const auto error = deviceBackend->initialiseWithDefaultDevices (0, 2);
+    const auto error = deviceBackend->initialiseWithDefaultDevices (0, getChannelCount (outputLayout));
     if (error.isNotEmpty())
         return error;
 
-    sourcePlayer.setSource (&effectProcessingSource);
+    sourcePlayer.setSource (&deviceOutputSource);
     deviceBackend->addAudioCallback (&sourcePlayer);
     initialised = true;
     return {};
@@ -290,10 +428,21 @@ void AudioEngine::updateOutputChannelMixTargets()
     effectProcessingSource.setChannelGainTargets (targets);
 }
 
-juce::String AudioEngine::setOutputLayout (OutputLayout layout)
+juce::String AudioEngine::setOutputLayout (OutputLayout layout,
+                                          const std::vector<AudioOutputRoute>& savedRoutes,
+                                          juce::String* routingWarning)
 {
+    if (routingWarning != nullptr) routingWarning->clear();
     if (layout == outputLayout)
+    {
+        if (initialised && ! savedRoutes.empty())
+        {
+            ScopedAudioCallbackPause callbackPause (*deviceBackend, sourcePlayer);
+            const auto warning = restoreOutputRouting (savedRoutes);
+            if (routingWarning != nullptr) *routingWarning = warning;
+        }
         return {};
+    }
 
     const auto requestedChannelLayout = toAudioChannelSet (layout);
     const auto previousChannelLayout = toAudioChannelSet (outputLayout);
@@ -305,6 +454,8 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout)
 
         playbackSource.setDestinationLayout (requestedChannelLayout);
         outputLayout = layout;
+        outputRouting = sequentialRouting (requestedChannelLayout.size());
+        deviceOutputSource.setRouting (outputRouting);
         updateOutputChannelMixTargets();
         return {};
     }
@@ -353,7 +504,11 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout)
     }
 
     outputLayout = layout;
+    outputRouting = sequentialRouting (requestedChannelLayout.size());
+    deviceOutputSource.setRouting (outputRouting);
     updateOutputChannelMixTargets();
+    const auto warning = restoreOutputRouting (savedRoutes);
+    if (routingWarning != nullptr) *routingWarning = warning;
     return {};
 }
 
@@ -363,12 +518,21 @@ AudioDeviceSettingsView AudioEngine::getDeviceSettings() const
     if (! deviceBackend) return view;
     const auto state = deviceBackend->getCurrentDeviceState();
     view.currentDevice = state.name;
+    view.currentDeviceIdentifier = state.identifier.isNotEmpty() ? state.identifier : state.name;
     view.devices = deviceBackend->getOutputDeviceNames();
     view.currentSampleRate = state.sampleRate;
     view.sampleRates = state.sampleRates;
     view.currentBufferSize = state.bufferSize;
     view.bufferSizes = state.bufferSizes;
     view.availableOutputChannels = state.open ? state.availableOutputChannels : 0;
+    view.outputRouting = outputRouting;
+    for (int channel = 0; channel < view.availableOutputChannels; ++channel)
+    {
+        auto name = channel < state.outputChannelNames.size()
+                        ? state.outputChannelNames[channel].trim() : juce::String {};
+        if (name.isEmpty()) name = "Output " + juce::String (channel + 1);
+        view.outputChannels.push_back ({ channel, std::move (name) });
+    }
     if (state.open)
         for (auto channel = state.activeOutputChannels.findNextSetBit (0); channel >= 0;
              channel = state.activeOutputChannels.findNextSetBit (channel + 1))
@@ -381,8 +545,11 @@ AudioDeviceSettingsView AudioEngine::getDeviceSettings() const
     return view;
 }
 
-juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName)
+juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName,
+                                             const std::vector<AudioOutputRoute>& savedRoutes,
+                                             juce::String* routingWarning)
 {
+    if (routingWarning != nullptr) routingWarning->clear();
     if (! initialised || ! deviceBackend)
         return "CoreAudio is not initialised.";
     const auto devices = deviceBackend->getOutputDeviceNames();
@@ -390,7 +557,16 @@ juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName)
         return "CoreAudio output device is not available: " + deviceName;
 
     const auto previous = deviceBackend->getAudioDeviceSetup();
-    if (deviceBackend->getCurrentDeviceState().name == deviceName) return {};
+    if (deviceBackend->getCurrentDeviceState().name == deviceName)
+    {
+        if (! savedRoutes.empty())
+        {
+            ScopedAudioCallbackPause callbackPause (*deviceBackend, sourcePlayer);
+            const auto warning = restoreOutputRouting (savedRoutes);
+            if (routingWarning != nullptr) *routingWarning = warning;
+        }
+        return {};
+    }
     auto requested = previous;
     requested.outputDeviceName = deviceName;
     requested.sampleRate = 0.0;
@@ -410,7 +586,13 @@ juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName)
             && appliedSetup.outputDeviceName == deviceName
             && hasExactOutputRouting (appliedSetup, requested)
             && applied.availableOutputChannels >= getChannelCount (outputLayout))
+        {
+            outputRouting = sequentialRouting (getChannelCount (outputLayout));
+            deviceOutputSource.setRouting (outputRouting);
+            const auto warning = restoreOutputRouting (savedRoutes);
+            if (routingWarning != nullptr) *routingWarning = warning;
             return {};
+        }
     }
     const auto rollbackError = deviceBackend->setAudioDeviceSetup (previous, true);
     return setupFailureMessage ("output device " + deviceName,
@@ -418,6 +600,82 @@ juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName)
                                     ? error
                                     : "the device does not expose enough output channels",
                                 rollbackError);
+}
+
+juce::String AudioEngine::setOutputRouting (const std::vector<int>& physicalOutputs)
+{
+    if (! initialised || ! deviceBackend)
+        return "CoreAudio is not initialised.";
+    const auto state = deviceBackend->getCurrentDeviceState();
+    juce::BigInteger mask;
+    if (const auto error = outputRoutingMask (physicalOutputs, getChannelCount (outputLayout), state, mask);
+        error.isNotEmpty()) return error;
+    const auto previous = deviceBackend->getAudioDeviceSetup();
+    auto requested = previous;
+    requested.useDefaultOutputChannels = false;
+    requested.outputChannels = mask;
+    if (physicalOutputs == outputRouting && previous == requested
+        && state.activeOutputChannels == mask)
+        return {};
+    ScopedAudioCallbackPause callbackPause (*deviceBackend, sourcePlayer);
+    return applyOutputRouting (physicalOutputs, mask);
+}
+
+juce::String AudioEngine::applyOutputRouting (const std::vector<int>& physicalOutputs,
+                                             const juce::BigInteger& mask)
+{
+    const auto previous = deviceBackend->getAudioDeviceSetup();
+    auto requested = previous;
+    requested.useDefaultOutputChannels = false;
+    requested.outputChannels = mask;
+    auto error = deviceBackend->setAudioDeviceSetup (requested, true);
+    if (error.isEmpty()
+        && (deviceBackend->getAudioDeviceSetup() != requested
+            || deviceBackend->getCurrentDeviceState().activeOutputChannels != mask))
+        error = "the applied output routing did not match the request";
+    if (error.isNotEmpty())
+    {
+        auto rollbackError = deviceBackend->setAudioDeviceSetup (previous, true);
+        if (rollbackError.isEmpty() && deviceBackend->getAudioDeviceSetup() != previous)
+            rollbackError = "the previous output setup could not be restored";
+        return setupFailureMessage ("output routing", error, rollbackError);
+    }
+    outputRouting = physicalOutputs;
+    deviceOutputSource.setRouting (outputRouting);
+    return {};
+}
+
+juce::String AudioEngine::restoreOutputRouting (const std::vector<AudioOutputRoute>& savedRoutes)
+{
+    if (savedRoutes.empty()) return {};
+    const auto state = deviceBackend->getCurrentDeviceState();
+    const auto identifier = state.identifier.isNotEmpty() ? state.identifier : state.name;
+    const auto found = std::find_if (savedRoutes.begin(), savedRoutes.end(), [&] (const auto& route)
+    {
+        return route.deviceIdentifier == identifier && route.layout == outputLayout;
+    });
+    if (found == savedRoutes.end()) return {};
+    juce::BigInteger mask;
+    auto error = outputRoutingMask (found->channels, getChannelCount (outputLayout), state, mask);
+    if (error.isEmpty()) error = applyOutputRouting (found->channels, mask);
+    if (error.isEmpty()) return {};
+
+    const std::vector<int> silent (static_cast<size_t> (getChannelCount (outputLayout)), -1);
+    juce::BigInteger silentMask;
+    silentMask.setBit (0);
+    const auto fallbackError = state.open && state.availableOutputChannels > 0
+        ? applyOutputRouting (silent, silentMask) : juce::String {};
+    // Even a failed hardware rollback must not expose default output ports.
+    outputRouting = silent;
+    deviceOutputSource.setRouting (outputRouting);
+    return "Could not restore output routing. Outputs are disconnected; choose available ports in Settings. "
+        + error + (fallbackError.isNotEmpty() ? " " + fallbackError : juce::String {});
+}
+
+juce::String AudioEngine::openDeviceConfiguration()
+{
+    return deviceBackend ? deviceBackend->openDeviceConfiguration()
+                         : "Audio device backend is unavailable.";
 }
 
 juce::String AudioEngine::setSampleRate (double sampleRate)
@@ -447,6 +705,60 @@ juce::String AudioEngine::setSampleRate (double sampleRate)
                                 error.isNotEmpty()
                                     ? error : "the applied rate did not match",
                                 rollbackError);
+}
+
+void AudioEngine::DeviceOutputSource::setRouting (const std::vector<int>& mapping)
+{
+    routes = mapping;
+}
+
+void AudioEngine::DeviceOutputSource::setActiveOutputs (const juce::BigInteger& activeOutputs)
+{
+    packedDestinations.fill (-1);
+    for (size_t logical = 0; logical < routes.size(); ++logical)
+    {
+        const auto physical = routes[logical];
+        if (physical < 0 || ! activeOutputs[physical]) continue;
+        auto packed = 0;
+        for (auto port = activeOutputs.findNextSetBit (0); port >= 0 && port < physical;
+             port = activeOutputs.findNextSetBit (port + 1))
+            ++packed;
+        packedDestinations[logical] = packed;
+    }
+}
+
+void AudioEngine::DeviceOutputSource::prepareToPlay (int blockSize, double sampleRate)
+{
+    logicalBuffer.setSize (static_cast<int> (routes.size()), juce::jmax (1, blockSize));
+    logicalSource.prepareToPlay (blockSize, sampleRate);
+}
+
+void AudioEngine::DeviceOutputSource::releaseResources()
+{
+    logicalSource.releaseResources();
+}
+
+void AudioEngine::DeviceOutputSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& output)
+{
+    if (output.buffer == nullptr || output.numSamples <= 0) return;
+    output.clearActiveBufferRegion();
+    for (auto offset = 0; offset < output.numSamples;)
+    {
+        const auto samples = juce::jmin (logicalBuffer.getNumSamples(), output.numSamples - offset);
+        logicalSource.getNextAudioBlock ({ &logicalBuffer, 0, samples });
+        for (int logical = 0; logical < logicalBuffer.getNumChannels(); ++logical)
+            if (const auto packed = packedDestinations[static_cast<size_t> (logical)];
+                packed >= 0 && packed < output.buffer->getNumChannels())
+                output.buffer->copyFrom (packed, output.startSample + offset,
+                                         logicalBuffer, logical, 0, samples);
+        offset += samples;
+    }
+}
+
+void AudioEngine::RoutedSourcePlayer::audioDeviceAboutToStart (juce::AudioIODevice* device)
+{
+    outputSource.setActiveOutputs (device->getActiveOutputChannels());
+    juce::AudioSourcePlayer::audioDeviceAboutToStart (device);
 }
 
 juce::String AudioEngine::setBufferSize (int bufferSize)

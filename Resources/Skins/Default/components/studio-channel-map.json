@@ -84,5 +84,14 @@
         }
       }
     }
+  },
+  "contentClip": "body",
+  "variants": {
+    "focused": {
+      "body.stroke.color": {
+        "$ref": "colors.studio.focus"
+      },
+      "body.stroke.width": 1.5
+    }
   }
 }

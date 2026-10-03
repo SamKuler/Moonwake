@@ -1,6 +1,6 @@
 # Complete Third-Party Skin
 
-这是可直接加载的 Skin API 1 参考包，包含四个满足全部 required component 规则的布局，并展示插件筛选、格式开关和多声道仪表／混音控件。未覆盖的 renderer 继承自 `builtin.foundation`。可从内置皮肤的 Settings → Appearance → Developer folder 加载该目录并进入开发预览。
+这是可直接加载的 Skin API 1 参考包，包含四个满足全部 required component 规则的布局，并展示插件筛选、独立扫描范围、VST3 目录管理、设备配置、可编辑路由和多声道仪表／混音控件。未覆盖的 renderer 继承自 `builtin.foundation`。可从内置皮肤的 Settings → Appearance → Developer folder 加载该目录并进入开发预览。
 
 完整接口见 [开发者指南](../../SKIN_DEVELOPER_GUIDE.md)，机器可读约束见 [JSON Schema](../../schema/)。
 
@@ -29,7 +29,7 @@
 
 本示例省略部分可选组件，包括 `settings.plugins.formats`、`settings.skins.preview`、`settings.skins.remove` 与 `settings.skins.reload`。其他组件及其行为见开发者指南的 Component Catalog。
 
-Effects 与 Settings 的基础 root 用于 Listening；`when.workspace: "studio"` 分支提供完整的 Studio 布局，并选择 `surface.studio`。四个入口名称保持不变。示例要求应用 `0.6.0` 或更高。
+Effects 与 Settings 的基础 root 用于 Listening；`when.workspace: "studio"` 分支提供完整的 Studio 布局，并选择 `surface.studio`。四个入口名称保持不变。示例要求应用 `0.6.1` 或更高。
 
 Studio 的输出区域支持最多 16 声道仪表、LUFS / True Peak 读数与 Mixer。`output.mode` 在同一 stack 内切换 `output.stage` 和 `output.mixer`；Mixer 的增益、Mute、Solo 通过声明式 slots 绘制。
 

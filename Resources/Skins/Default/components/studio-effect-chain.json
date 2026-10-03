@@ -118,7 +118,7 @@
     "breakpoints": [
       {
         "when": {
-          "minWidth": 600
+          "minWidth": 480
         },
         "rowHeight": 52,
         "slots": {
@@ -126,24 +126,24 @@
             "x": 12,
             "y": 10,
             "width": {
-              "$expr": "max(0,bounds.width - 368)"
+              "$expr": "max(0,bounds.width - 322)"
             },
             "height": 32
           },
           "slot.scope": {
             "x": {
-              "$expr": "bounds.width - 340"
+              "$expr": "bounds.width - 300"
             },
             "y": 10,
-            "width": 144,
+            "width": 120,
             "height": 32
           },
           "slot.bypass": {
             "x": {
-              "$expr": "bounds.width - 188"
+              "$expr": "bounds.width - 172"
             },
             "y": 10,
-            "width": 80,
+            "width": 64,
             "height": 32
           },
           "slot.editor": {

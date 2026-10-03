@@ -1,0 +1,86 @@
+{
+  "apiVersion": 1,
+  "target": "textButton",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": 10,
+      "fill": {
+        "$ref": "colors.listening.control"
+      },
+      "stroke": {
+        "color": "#00000000",
+        "width": 0
+      },
+      "visible": {
+        "$expr": "state.selected or state.hover or state.pressed"
+      }
+    },
+    {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 1.5
+      },
+      "radius": 10,
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.focus"
+        },
+        "width": 2
+      }
+    }
+  ],
+  "variants": {
+    "selected": {
+      "body.fill": {
+        "$ref": "colors.listening.active"
+      }
+    },
+    "hover": {
+      "body.opacity": 0.9
+    },
+    "pressed": {
+      "body.opacity": 0.76
+    },
+    "disabled": {
+      "body.opacity": 0.4
+    },
+    "focused": {
+      "body.stroke.width": 0
+    }
+  },
+  "transitions": {
+    "hover": {
+      "durationMs": {
+        "$ref": "durations.workspaceFast"
+      },
+      "easing": "easeOut",
+      "properties": [
+        "body.opacity"
+      ]
+    }
+  },
+  "controlStyle": {
+    "iconBounds": {
+      "x": {
+        "$expr": "(bounds.width - 20) * 0.5"
+      },
+      "y": {
+        "$expr": "(bounds.height - 20) * 0.5"
+      },
+      "width": 20,
+      "height": 20
+    }
+  }
+}

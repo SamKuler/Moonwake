@@ -13,7 +13,7 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 10;
+constexpr int currentSchemaVersion = 11;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -119,6 +119,29 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
 {
     juce::ValueTree root (appStateType);
     root.setProperty (schemaVersionProperty, currentSchemaVersion, nullptr);
+    juce::ValueTree directories ("PluginDirectories");
+    for (const auto& path : state.customVst3Directories)
+    {
+        juce::ValueTree directory ("Directory");
+        directory.setProperty (pathProperty, path, nullptr);
+        directories.appendChild (directory, nullptr);
+    }
+    root.appendChild (directories, nullptr);
+    juce::ValueTree routes ("OutputRoutes");
+    for (const auto& route : state.audioDevice.outputRoutes)
+    {
+        juce::ValueTree entry ("Route");
+        entry.setProperty ("device", route.deviceIdentifier, nullptr);
+        entry.setProperty ("layout", toString (route.layout), nullptr);
+        for (const auto port : route.channels)
+        {
+            juce::ValueTree channel ("Channel");
+            channel.setProperty ("port", port, nullptr);
+            entry.appendChild (channel, nullptr);
+        }
+        routes.appendChild (entry, nullptr);
+    }
+    root.appendChild (routes, nullptr);
     juce::ValueTree formats ("PluginFormats");
     formats.setProperty ("vst3", state.pluginFormats.vst3, nullptr);
     formats.setProperty ("audioUnit", state.pluginFormats.audioUnit, nullptr);
@@ -220,6 +243,25 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
     if (! tree.hasType (appStateType))
         return state;
 
+    for (const auto directory : tree.getChildWithName ("PluginDirectories"))
+    {
+        const auto path = directory.getProperty (pathProperty).toString();
+        if (directory.hasType ("Directory") && juce::File::isAbsolutePath (path))
+            state.customVst3Directories.addIfNotAlreadyThere (path);
+    }
+    for (const auto entry : tree.getChildWithName ("OutputRoutes"))
+    {
+        if (! entry.hasType ("Route")) continue;
+        AudioOutputRoute route;
+        route.deviceIdentifier = entry.getProperty ("device").toString();
+        const auto layoutName = entry.getProperty ("layout").toString();
+        route.layout = outputLayoutFromString (layoutName);
+        if (route.deviceIdentifier.isEmpty() || toString (route.layout) != layoutName) continue;
+        for (const auto channel : entry)
+            if (channel.hasType ("Channel"))
+                route.channels.push_back (static_cast<int> (channel.getProperty ("port", -1)));
+        state.audioDevice.outputRoutes.push_back (std::move (route));
+    }
     state.volume = static_cast<double> (tree.getProperty (volumeProperty, state.volume));
     const auto formats = tree.getChildWithName ("PluginFormats");
     state.pluginFormats.vst3 = static_cast<bool> (formats.getProperty ("vst3", true));

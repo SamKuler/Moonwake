@@ -3,11 +3,19 @@
   "id": "builtin.foundation",
   "name": "Foundation",
   "version": "1.0.0",
-  "author": { "name": "Sam Kuler" },
+  "author": {
+    "name": "Sam Kuler"
+  },
   "description": "Accessible, complete and immutable fallback skin.",
   "license": "AGPL-3.0-only",
-  "minAppVersion": "0.6.0",
-  "capabilities": ["tokens", "renderers", "layouts", "assets", "animations"],
+  "minAppVersion": "0.6.1",
+  "capabilities": [
+    "tokens",
+    "renderers",
+    "layouts",
+    "assets",
+    "animations"
+  ],
   "entrypoints": {
     "tokens": "tokens.json",
     "components": "components/index.json",

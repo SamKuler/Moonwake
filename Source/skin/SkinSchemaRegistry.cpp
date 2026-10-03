@@ -874,6 +874,8 @@ juce::var renderSchema()
     properties.getDynamicObject()->setProperty ("variants", variants);
     properties.getDynamicObject()->setProperty ("transitions", transitions);
     properties.getDynamicObject()->setProperty ("rowLayout", rowLayout);
+    properties.getDynamicObject()->setProperty (
+        "contentClip", stringSchema (1, 128, R"(^[A-Za-z][A-Za-z0-9_.-]*$)"));
     properties.getDynamicObject()->setProperty ("controlStyle", typedSchema ("object"));
 
     juce::Array<juce::var> controlStyleConditions;

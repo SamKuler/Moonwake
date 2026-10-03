@@ -136,6 +136,7 @@ public:
         state.availableOutputChannels = found->second.outputs;
         state.outputChannelNames = found->second.outputChannelNames;
         state.activeOutputChannels = ioDevice.getActiveOutputChannels();
+        state.identifier = "test-device:" + state.name;
         return state;
     }
 
@@ -172,6 +173,7 @@ public:
             return "Requested output channels are unavailable.";
         if (narrowOutputMaskOnSuccess)
         {
+            narrowOutputMaskOnSuccess = false;
             applied.outputChannels.clear();
             applied.outputChannels.setRange (0, 2, true);
         }
@@ -188,6 +190,18 @@ public:
         ++addCallbackCalls;
         attachedCallback.store (callback, std::memory_order_release);
         if (callback != nullptr) callback->audioDeviceAboutToStart (&ioDevice);
+        if (callback != nullptr && renderOnAttach)
+        {
+            juce::AudioBuffer<float> output (devices.at (setup.outputDeviceName).outputs, 64);
+            output.clear();
+            std::array<float*, maximumOutputChannels> packed {};
+            int count = 0;
+            const auto active = ioDevice.getActiveOutputChannels();
+            for (auto port = active.findNextSetBit (0); port >= 0; port = active.findNextSetBit (port + 1))
+                packed[static_cast<size_t> (count++)] = output.getWritePointer (port);
+            callback->audioDeviceIOCallbackWithContext (nullptr, 0, packed.data(), count, 64, {});
+            attachOutputSnapshots.push_back (std::move (output));
+        }
     }
 
     void removeAudioCallback (juce::AudioIODeviceCallback* callback) override
@@ -198,6 +212,12 @@ public:
                 expected, nullptr, std::memory_order_acq_rel)
             && callback != nullptr)
             callback->audioDeviceStopped();
+    }
+
+    juce::String openDeviceConfiguration() override
+    {
+        ++configurationCalls;
+        return configurationError;
     }
 
     std::map<juce::String, Device> devices;
@@ -213,6 +233,10 @@ public:
     int setSetupCalls = 0;
     int addCallbackCalls = 0;
     int removeCallbackCalls = 0;
+    int configurationCalls = 0;
+    juce::String configurationError;
+    bool renderOnAttach = false;
+    std::vector<juce::AudioBuffer<float>> attachOutputSnapshots;
 };
 
 class AudioDeviceSettingsTests final : public juce::UnitTest
@@ -223,6 +247,57 @@ public:
 
     void runTest() override
     {
+        beginTest ("sparse routing validates before interrupting audio and rolls back rejected masks");
+        {
+            auto backend = std::make_unique<FakeAudioDeviceBackend>();
+            auto* fake = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            expect (engine.selectOutputDevice ("Aggregate 10ch").isEmpty());
+            const auto removals = fake->removeCallbackCalls;
+            for (const auto& invalid : std::vector<std::vector<int>> { { 0 }, { 2, 2 }, { -2, 1 }, { 1, 10 } })
+                expect (engine.setOutputRouting (invalid).isNotEmpty());
+            expectEquals (fake->removeCallbackCalls, removals);
+            expect (engine.setOutputRouting ({ 7, 2 }).isEmpty());
+            const auto expectedSetup = fake->setup;
+            expect (expectedSetup.outputChannels[2] && expectedSetup.outputChannels[7]);
+            expectEquals (expectedSetup.outputChannels.countNumberOfSetBits(), 2);
+            expectEquals (engine.getDeviceSettings().currentDeviceIdentifier,
+                          juce::String ("test-device:Aggregate 10ch"));
+            expectEquals (static_cast<int> (engine.getDeviceSettings().outputChannels.size()), 10);
+            fake->nextSetupError = "Device busy";
+            expect (engine.setOutputRouting ({ 3, -1 }).contains ("Device busy"));
+            expect (fake->setup == expectedSetup);
+            expect (engine.getDeviceSettings().outputRouting == std::vector<int> { 7, 2 });
+            fake->narrowOutputMaskOnSuccess = true;
+            expect (engine.setOutputRouting ({ 8, 9 }).contains ("did not match"));
+            expect (fake->setup == expectedSetup);
+            expect (engine.getDeviceSettings().outputRouting == std::vector<int> { 7, 2 });
+            fake->narrowOutputMaskOnSuccess = false;
+            expect (engine.setOutputRouting ({ 3, -1 }).isEmpty());
+            fake->devices.at ("Aggregate 10ch").outputs = 2;
+            const auto beforeUnavailableRoute = fake->removeCallbackCalls;
+            expect (engine.setOutputRouting ({ 3, -1 }).contains ("unavailable"));
+            expectEquals (fake->removeCallbackCalls, beforeUnavailableRoute);
+            expect (engine.selectOutputDevice ("Built-in Output").isEmpty());
+            expect (engine.getDeviceSettings().outputRouting == std::vector<int> { 0, 1 });
+        }
+
+        beginTest ("device configuration delegates to the backend without changing audio setup");
+        {
+            auto backend = std::make_unique<FakeAudioDeviceBackend>();
+            auto* fake = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            const auto before = fake->setup;
+            expect (engine.openDeviceConfiguration().isEmpty());
+            expectEquals (fake->configurationCalls, 1);
+            fake->configurationError = "Configuration application could not be opened.";
+            expect (engine.openDeviceConfiguration() == fake->configurationError);
+            expect (fake->setup == before);
+            expectEquals (fake->removeCallbackCalls, 0);
+        }
+
         beginTest ("output labels follow actual active physical ports in callback order");
         {
             auto backend = std::make_unique<FakeAudioDeviceBackend>();
@@ -403,6 +478,131 @@ public:
             expectEquals (view.audioBufferSize, 64);
         }
 
+        beginTest ("physical routes restore by device identity and logical layout with unavailable-port fallback");
+        {
+            const auto root = juce::File::getCurrentWorkingDirectory()
+                .getChildFile ("build").getNonexistentChildFile ("device-routing", {});
+            expect (root.createDirectory());
+            const auto stateFile = root.getChildFile ("state.xml");
+            const auto pluginFile = root.getChildFile ("plugins.xml");
+            {
+                PlayerController writer (std::make_unique<FakeAudioDeviceBackend>());
+                expect (writer.selectOutputDevice ("Aggregate 10ch").isEmpty());
+                expect (writer.setOutputRouting ({ 7, 2 }).isEmpty());
+                expect (writer.selectOutputDevice ("Built-in Output").isEmpty());
+                expect (writer.setOutputRouting ({ 1, 0 }).isEmpty());
+                expect (writer.selectOutputDevice ("Aggregate 10ch").isEmpty());
+                expect (writer.getAudioDeviceSettings().outputRouting == std::vector<int> { 7, 2 });
+                expect (writer.setOutputLayout (OutputLayout::fiveOne).isEmpty());
+                expect (writer.setOutputRouting ({ 9, 8, 7, 6, 5, -1 }).isEmpty());
+                expect (writer.setOutputLayout (OutputLayout::stereo).isEmpty());
+                expect (writer.getAudioDeviceSettings().outputRouting == std::vector<int> { 7, 2 });
+                expect (writer.saveState (stateFile, pluginFile));
+            }
+            PlayerController reader (std::make_unique<FakeAudioDeviceBackend>());
+            expect (reader.loadState (stateFile, pluginFile));
+            expect (reader.getAudioDeviceSettings().outputRouting == std::vector<int> { 7, 2 });
+            expect (reader.selectOutputDevice ("Built-in Output").isEmpty());
+            expect (reader.getAudioDeviceSettings().outputRouting == std::vector<int> { 1, 0 });
+            auto changed = std::make_unique<FakeAudioDeviceBackend>();
+            changed->devices.at ("Aggregate 10ch").outputs = 6;
+            PlayerController fallback (std::move (changed));
+            expect (fallback.loadState (stateFile, pluginFile));
+            expect (fallback.getLastStatusMessage().contains ("Could not restore output routing"));
+            expect (fallback.getAudioDeviceSettings().outputRouting == std::vector<int> { -1, -1 });
+            expect (root.deleteRecursively());
+        }
+
+        beginTest ("saved routing is committed before the first callback of a device or layout change");
+        {
+            const auto root = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
+                .getNonexistentChildFile ("atomic-output-routing", {});
+            expect (root.createDirectory());
+            const auto file = root.getChildFile ("signal.wav");
+            juce::WavAudioFormat wav;
+            auto stream = std::unique_ptr<juce::OutputStream> (file.createOutputStream());
+            auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions{}
+                .withSampleRate (48000.0).withNumChannels (2).withBitsPerSample (24));
+            expect (writer != nullptr);
+            if (writer != nullptr)
+            {
+                juce::AudioBuffer<float> signal (2, 96000);
+                for (int channel = 0; channel < 2; ++channel)
+                    std::fill_n (signal.getWritePointer (channel), signal.getNumSamples(), 0.25f);
+                expect (writer->writeFromAudioSampleBuffer (signal, 0, signal.getNumSamples()));
+                writer.reset();
+                auto backend = std::make_unique<FakeAudioDeviceBackend>();
+                auto* fake = backend.get();
+                PlayerController controller (std::move (backend));
+                expect (controller.selectOutputDevice ("Aggregate 10ch").isEmpty());
+                expect (controller.setOutputRouting ({ 7, 2 }).isEmpty());
+                for (const auto layout : { OutputLayout::fiveOne, OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+                {
+                    expect (controller.setOutputLayout (layout).isEmpty());
+                    std::vector<int> routes;
+                    for (int channel = 0; channel < getChannelCount (layout); ++channel)
+                        routes.push_back (9 - channel);
+                    expect (controller.setOutputRouting (routes).isEmpty());
+                }
+                expect (controller.setOutputLayout (OutputLayout::stereo).isEmpty());
+                expect (controller.selectOutputDevice ("Built-in Output").isEmpty());
+                controller.addFiles ({ file });
+                expect (controller.setPlaying (true));
+                fake->renderOnAttach = true;
+                const auto expectFirstOutput = [&] (std::vector<int> audiblePorts)
+                {
+                    expectEquals (static_cast<int> (fake->attachOutputSnapshots.size()), 1,
+                                  "A change must resume the callback only after applying its saved route.");
+                    for (const auto& output : fake->attachOutputSnapshots)
+                        for (int port = 0; port < output.getNumChannels(); ++port)
+                        {
+                            const auto peak = output.getMagnitude (port, 0, output.getNumSamples());
+                            if (std::find (audiblePorts.begin(), audiblePorts.end(), port) != audiblePorts.end())
+                                expect (peak > 0.1f, "Saved port " + juce::String (port) + " must receive playback immediately.");
+                            else
+                                expectWithinAbsoluteError (peak, 0.0f, 0.00001f,
+                                                           "Unexpected signal on physical port " + juce::String (port));
+                        }
+                    fake->attachOutputSnapshots.clear();
+                };
+                expect (controller.selectOutputDevice ("Aggregate 10ch").isEmpty());
+                expectFirstOutput ({ 7, 2 });
+                for (const auto layout : { OutputLayout::fiveOne, OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+                {
+                    expect (controller.setOutputLayout (layout).isEmpty());
+                    expectFirstOutput ({ 9, 8 });
+                }
+
+                fake->renderOnAttach = false;
+                expect (controller.setOutputLayout (OutputLayout::stereo).isEmpty());
+                expect (controller.selectOutputDevice ("Built-in Output").isEmpty());
+                fake->devices.at ("Aggregate 10ch").outputs = 6;
+                fake->renderOnAttach = true;
+                const auto beforeDevice = controller.getStateRevision();
+                expect (controller.selectOutputDevice ("Aggregate 10ch").contains ("Outputs are disconnected"));
+                expectFirstOutput ({});
+                expect (controller.getStateRevision() > beforeDevice);
+                const auto beforeLayout = controller.getStateRevision();
+                expect (controller.setOutputLayout (OutputLayout::fiveOne).contains ("Outputs are disconnected"));
+                expectFirstOutput ({});
+                expect (controller.getStateRevision() > beforeLayout);
+                expect (controller.getAudioDeviceSettings().outputRouting == std::vector<int> (6, -1));
+                PlayerAppState captured;
+                juce::String error;
+                expect (controller.captureStateSnapshot (captured, error), error);
+                expectEquals (captured.audioDevice.outputDeviceName, juce::String ("Aggregate 10ch"));
+                expect (captured.outputLayout == OutputLayout::fiveOne);
+                const auto saved = std::find_if (captured.audioDevice.outputRoutes.begin(), captured.audioDevice.outputRoutes.end(),
+                    [] (const auto& route) { return route.deviceIdentifier == "test-device:Aggregate 10ch"
+                                                && route.layout == OutputLayout::fiveOne; });
+                expect (saved != captured.audioDevice.outputRoutes.end());
+                if (saved != captured.audioDevice.outputRoutes.end())
+                    expect (saved->channels == std::vector<int> { 9, 8, 7, 6, 5, 4 }, "Keep saved intent after a temporary device capability change.");
+                fake->renderOnAttach = false;
+            }
+            expect (root.deleteRecursively());
+        }
+
         beginTest ("device preferences survive saving and a new controller");
         {
             const auto root = juce::File::getCurrentWorkingDirectory()
@@ -553,11 +753,13 @@ public:
 
             constexpr int samplesPerBlock = 64;
             constexpr int callbackTarget = 1000;
-            const auto audioDirectory = juce::File::getSpecialLocation (
-                    juce::File::tempDirectory)
+            const auto audioDirectory = juce::File::getCurrentWorkingDirectory()
+                    .getChildFile ("build")
                     .getNonexistentChildFile (
                         "moonwake-audio-device-stress", juce::String());
-            expect (audioDirectory.createDirectory());
+            const auto directoryResult = audioDirectory.createDirectory();
+            expect (directoryResult.wasOk(), directoryResult.getErrorMessage());
+            if (directoryResult.failed()) return;
             const auto audioFile = audioDirectory.getNonexistentChildFile (
                 "ten-channel", ".wav");
             juce::WavAudioFormat wav;

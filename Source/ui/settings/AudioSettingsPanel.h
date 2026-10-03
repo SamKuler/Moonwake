@@ -24,11 +24,13 @@ public:
     void setVisible (bool);
 
     [[nodiscard]] juce::ComboBox& deviceControl() noexcept;
+    [[nodiscard]] juce::TextButton& deviceConfigurationControl() noexcept;
     [[nodiscard]] juce::ComboBox& sampleRateControl() noexcept;
     [[nodiscard]] juce::ComboBox& bufferSizeControl() noexcept;
     [[nodiscard]] juce::ComboBox& channelLayoutControl() noexcept;
     [[nodiscard]] juce::Label& headingControl() noexcept;
     [[nodiscard]] juce::Component& channelMapControl() noexcept;
+    [[nodiscard]] juce::Component& routingControl() noexcept;
     [[nodiscard]] int displayedChannelCount() const noexcept;
 
 private:
@@ -44,10 +46,12 @@ private:
     StatusCallback statusCallback;
     juce::Label headingLabel;
     juce::ComboBox deviceBox;
+    juce::TextButton deviceConfigurationButton { "Configure device..." };
     juce::ComboBox sampleRateBox;
     juce::ComboBox bufferSizeBox;
     juce::ComboBox channelLayoutBox;
     std::unique_ptr<ChannelMapView> channelMap;
+    std::unique_ptr<ChannelMapView> routing;
     juce::StringArray availableDevices;
     juce::Array<double> availableSampleRates;
     juce::Array<int> availableBufferSizes;

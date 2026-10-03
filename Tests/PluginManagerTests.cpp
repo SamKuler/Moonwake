@@ -59,6 +59,30 @@ PluginScannerConfiguration fixtureConfiguration (juce::String mode,
     return configuration;
 }
 
+juce::StringArray pluginIdentifiers (const juce::Array<juce::PluginDescription>& plugins)
+{
+    juce::StringArray result;
+    for (const auto& plugin : plugins) result.add (plugin.createIdentifierString());
+    result.sort (false);
+    return result;
+}
+
+juce::StringArray seedPluginInventory (PluginManager& manager)
+{
+    for (const auto& format : juce::StringArray { "VST3", "AudioUnit" })
+    {
+        juce::PluginDescription plugin;
+        plugin.name = "Existing " + format + " Equalizer";
+        plugin.manufacturerName = "Existing Audio";
+        plugin.category = "Fx|EQ";
+        plugin.pluginFormatName = format;
+        plugin.fileOrIdentifier = "existing-" + format;
+        plugin.uniqueId = plugin.fileOrIdentifier.hashCode();
+        manager.getKnownPluginList().addType (plugin);
+    }
+    return pluginIdentifiers (manager.getKnownPlugins());
+}
+
 class PluginManagerTests final : public juce::UnitTest
 {
 public:
@@ -131,6 +155,84 @@ public:
            #if JUCE_MAC
             expect (manager.getRegisteredFormatNames().contains ("AudioUnit"));
            #endif
+        }
+
+        beginTest ("per-scan format scope leaves enabled preferences and other-format records intact");
+        {
+            auto configuration = fixtureConfiguration ("success", 2000);
+            juce::StringArray discoveredFormats;
+            configuration.candidateProvider = [&] (const juce::String& name, const juce::FileSearchPath&)
+            {
+                discoveredFormats.add (name);
+                return juce::StringArray { "/tmp/ScopedFixture-" + name };
+            };
+            PluginManager manager (configuration);
+            const auto previous = seedPluginInventory (manager);
+            expect (manager.startScan ({}, PluginScanScope::vst3));
+            expect (waitForScanToFinish (manager, 3000));
+            expect (manager.cancelAndWaitForScan());
+            expect (discoveredFormats == juce::StringArray { "VST3" });
+            expect (manager.getFormatPreferences() == PluginFormatPreferences {});
+            for (const auto& id : previous) expect (manager.findPluginByIdentifier (id) != nullptr);
+           #if JUCE_MAC && JUCE_PLUGINHOST_AU
+            discoveredFormats.clear();
+            expect (manager.startScan ({}, PluginScanScope::audioUnit));
+            expect (waitForScanToFinish (manager, 3000));
+            expect (manager.cancelAndWaitForScan());
+            expect (discoveredFormats == juce::StringArray { "AudioUnit" });
+            for (const auto& id : previous) expect (manager.findPluginByIdentifier (id) != nullptr);
+           #endif
+            expect (manager.setFormatPreferences ({ false, true }));
+            expect (! manager.startScan ({}, PluginScanScope::vst3));
+            expect (manager.getScanStatus().message.contains ("Enable VST3"));
+        }
+
+        beginTest ("saved VST3 directories join defaults once and unavailable folders remain recoverable");
+        {
+            const auto root = freshPluginTestDirectory ("moonwake-custom-plugin-folders");
+            const auto custom = root.getChildFile ("Custom VST3");
+            const auto unavailable = root.getChildFile ("Disconnected");
+            expect (custom.createDirectory());
+            auto configuration = fixtureConfiguration ("success", 2000);
+            juce::FileSearchPath discoveredPaths;
+            configuration.candidateProvider = [&] (const juce::String& format, const juce::FileSearchPath& paths)
+            {
+                if (format == "VST3") discoveredPaths = paths;
+                return juce::StringArray {};
+            };
+            PluginManager manager (configuration);
+            const auto existing = seedPluginInventory (manager);
+            auto customPaths = juce::StringArray { custom.getFullPathName(), custom.getFullPathName(),
+                                                 unavailable.getFullPathName() };
+            const auto defaults = manager.getDefaultVst3Directories();
+            expect (! defaults.isEmpty());
+            if (! defaults.isEmpty()) customPaths.add (defaults[0]);
+            expect (manager.setCustomVst3Directories (customPaths));
+            expectEquals (manager.getCustomVst3Directories().size(), defaults.isEmpty() ? 2 : 3);
+            expect (manager.startScan ({}, PluginScanScope::vst3));
+            expect (waitForScanToFinish (manager, 3000));
+            expect (manager.cancelAndWaitForScan());
+            for (const auto& path : defaults)
+            {
+                int occurrences = 0;
+                for (int index = 0; index < discoveredPaths.getNumPaths(); ++index)
+                    if (discoveredPaths[index] == juce::File (path)) ++occurrences;
+                expectEquals (occurrences, 1);
+            }
+            bool foundCustom = false, foundUnavailable = false;
+            for (int index = 0; index < discoveredPaths.getNumPaths(); ++index)
+            {
+                foundCustom = foundCustom || discoveredPaths[index] == custom;
+                foundUnavailable = foundUnavailable || discoveredPaths[index] == unavailable;
+            }
+            expect (foundCustom && ! foundUnavailable);
+            expect (manager.getScanStatus().message.contains (unavailable.getFullPathName()));
+            expect (manager.getCustomVst3Directories().contains (unavailable.getFullPathName()));
+            expect (manager.setCustomVst3Directories ({}));
+            expect (pluginIdentifiers (manager.getKnownPlugins()) == existing);
+            expect (! manager.setCustomVst3Directories ({ "relative/folder" }));
+            expect (manager.getCustomVst3Directories().isEmpty());
+            static_cast<void> (root.deleteRecursively());
         }
 
         beginTest ("scanner child process classifies completion and failure");
@@ -297,6 +399,50 @@ public:
             juce::String error;
             expect (manager.writeKnownPluginCacheAtomically (
                         root.getChildFile ("plugins.xml"), error), error);
+            static_cast<void> (root.deleteRecursively());
+        }
+
+        beginTest ("cancelling before or after a completed result preserves seeded inventory and the restart cache");
+        for (const auto partialResult : { false, true })
+        {
+            const auto root = freshPluginTestDirectory (partialResult ? "plugin-cancel-after-result" : "plugin-cancel-before-result");
+            auto configuration = fixtureConfiguration ("success-then-hang", 6000);
+            configuration.candidateProvider = [partialResult] (const juce::String& format, const juce::FileSearchPath&)
+            {
+                if (format != "VST3") return juce::StringArray {};
+                return partialResult ? juce::StringArray { "/tmp/CompletedFixture.vst3", "/tmp/PendingFixture.vst3" }
+                                     : juce::StringArray { "/tmp/PendingFixture.vst3" };
+            };
+            PluginManager manager (configuration);
+            const auto seeded = seedPluginInventory (manager);
+            expectEquals (manager.getKnownPlugins().size(), 2);
+            expect (manager.startScan ({}, PluginScanScope::vst3));
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 3000.0;
+            while (! manager.getScanStatus().currentItem.contains ("Pending")
+                   && juce::Time::getMillisecondCounterHiRes() < deadline)
+                juce::Thread::sleep (5);
+            expect (manager.getScanStatus().currentItem.contains ("Pending"));
+            const auto beforeCancel = pluginIdentifiers (manager.getKnownPlugins());
+            expectEquals (beforeCancel.size(), partialResult ? 3 : 2);
+            expect (! manager.setCustomVst3Directories ({ root.getFullPathName() }));
+            manager.cancelScan();
+            for (const auto& id : seeded) expect (manager.findPluginByIdentifier (id) != nullptr);
+            expect (manager.cancelAndWaitForScan (1500));
+            const auto afterCancel = manager.getKnownPlugins();
+            expect (pluginIdentifiers (afterCancel) == beforeCancel);
+            for (const auto& filter : { PluginFilter {}, PluginFilter { "existing", {}, {}, {} },
+                                      PluginFilter { {}, {}, {}, "AudioUnit" } })
+            {
+                auto matches = afterCancel;
+                matches.removeIf ([&] (const auto& plugin) { return ! filter.matches (plugin); });
+                expectEquals (matches.size(), filter.format.isNotEmpty() ? 1 : filter.search.isNotEmpty() ? 2 : beforeCancel.size());
+            }
+            const auto cache = root.getChildFile ("plugins.xml");
+            juce::String error;
+            expect (manager.writeKnownPluginCacheAtomically (cache, error), error);
+            PluginManager restarted;
+            expect (restarted.readKnownPluginCache (cache, error), error);
+            expect (pluginIdentifiers (restarted.getKnownPlugins()) == beforeCancel);
             static_cast<void> (root.deleteRecursively());
         }
 

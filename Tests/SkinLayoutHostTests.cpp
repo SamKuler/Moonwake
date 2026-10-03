@@ -362,6 +362,119 @@ public:
             static_cast<void> (storage.deleteRecursively());
         }
 
+        beginTest ("keyboard focus reveals nested scroll content and ignores unrelated components");
+        {
+            const auto storage = freshHostDirectory();
+            const auto source = writeScrollableHostSkin (storage);
+            const auto file = source.getChildFile ("layouts/listening.json");
+            auto document = juce::JSON::parse (file);
+            auto content = document.getProperty ("root", {});
+            content.getDynamicObject()->setProperty ("width", 1800);
+            content.getDynamicObject()->setProperty ("height", 1000);
+            const auto spaceContent = [&] (const auto& self, juce::var node) -> void
+            {
+                if (! node.isObject()) return;
+                if (auto* children = node.getProperty ("children", {}).getArray())
+                {
+                    if (node.getProperty ("id", {}).toString() == "host-content")
+                        children->insert (1, juce::JSON::parse (R"json({
+                            "id": "focus-vertical-space", "type": "visual", "style": "surface.default", "height": 650, "shrink": 0
+                        })json"));
+                    if (node.getProperty ("id", {}).toString() == "host-transport")
+                        children->insert (0, juce::JSON::parse (R"json({
+                            "id": "focus-horizontal-space", "type": "visual", "style": "surface.default", "grow": 1
+                        })json"));
+                    for (const auto& child : *children) self (self, child);
+                }
+                self (self, node.getProperty ("child", {}));
+            };
+            spaceContent (spaceContent, content);
+            auto horizontal = juce::JSON::parse (R"json({
+                "id": "focus-horizontal-scroll", "type": "scroll", "direction": "horizontal", "height": 1000
+            })json");
+            horizontal.getDynamicObject()->setProperty ("child", content);
+            auto vertical = juce::JSON::parse (R"json({
+                "id": "focus-vertical-scroll", "type": "scroll", "direction": "vertical"
+            })json");
+            vertical.getDynamicObject()->setProperty ("child", horizontal);
+            document.getDynamicObject()->setProperty ("root", vertical);
+            expect (file.replaceWithText (juce::JSON::toString (document)));
+            SkinValidationReport report;
+            SkinManager manager;
+            expect (manager.initialise (storage.getChildFile ("installs"), report), report.toText());
+            const auto imported = manager.importSkin (source);
+            expect (! imported.hasErrors(), imported.toText());
+            expect (manager.activate ({ "com.example.scroll-host", "1.0.0" }, false, report), report.toText());
+            juce::Component root;
+            root.setBounds (0, 0, 1040, 700);
+            root.setVisible (true);
+            root.setFocusContainerType (juce::Component::FocusContainerType::keyboardFocusContainer);
+            SkinComponentBindings bindings;
+            std::map<juce::String, std::unique_ptr<juce::Component>> components;
+            for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+            {
+                auto component = componentFor (descriptor.id);
+                root.addAndMakeVisible (*component);
+                expect (bindings.bind (descriptor.id, *component, report), report.toText());
+                components.emplace (descriptor.id, std::move (component));
+            }
+            juce::TextButton unrelated ("Unrelated");
+            root.addAndMakeVisible (unrelated);
+            unrelated.setBounds (0, 0, 80, 30);
+            SkinLayoutHost host (manager, bindings);
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            root.addToDesktop (0);
+            root.toFront (true);
+            auto& first = *components.at ("workspace.studio");
+            auto& last = *components.at ("transport.next");
+            std::vector<juce::Component::SafePointer<juce::Viewport>> viewports;
+            for (auto* parent = last.getParentComponent(); parent != nullptr; parent = parent->getParentComponent())
+                if (auto* viewport = dynamic_cast<juce::Viewport*> (parent))
+                    viewports.emplace_back (viewport);
+            expectEquals (static_cast<int> (viewports.size()), 2);
+            first.grabKeyboardFocus();
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            expect (first.hasKeyboardFocus (false));
+            juce::StringArray focusPath;
+            for (int step = 0; step < 20 && ! last.hasKeyboardFocus (false); ++step)
+            {
+                auto* current = juce::Component::getCurrentlyFocusedComponent();
+                if (current == nullptr) break;
+                focusPath.add (current->getProperties().getWithDefault (
+                    SkinComponentBindings::componentIdProperty, current->getName()).toString());
+                current->moveKeyboardFocusToSibling (true);
+                juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            }
+            expect (last.hasKeyboardFocus (false), "Tab reaches the offscreen button in the same scroll subtree: "
+                                                     + focusPath.joinIntoString (", "));
+            for (const auto& viewport : viewports)
+            {
+                const auto bounds = viewport->getViewedComponent()->getLocalArea (&last, last.getLocalBounds());
+                expect (viewport->getViewArea().contains (bounds),
+                        "every nested viewport must reveal the focused control: " + viewport->getName());
+                expect (viewport->getViewPosition() != juce::Point<int>());
+            }
+            for (const auto& viewport : viewports)
+                viewport->setViewPosition (0, 0);
+            unrelated.grabKeyboardFocus();
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            for (const auto& viewport : viewports)
+                expect (viewport->getViewPosition() == juce::Point<int>(), "unrelated focus must not move a skin viewport");
+            last.grabKeyboardFocus();
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            for (const auto& viewport : viewports)
+                expect (viewport->getViewPosition() != juce::Point<int>(), "direct focus also reveals content");
+            expect (manager.activate ({ "builtin.foundation", "1.0.0" }, false, report), report.toText());
+            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            for (const auto& viewport : viewports)
+                expect (viewport == nullptr, "replacing the skin destroys its viewport and focus subscription");
+            unrelated.grabKeyboardFocus();
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            expect (unrelated.hasKeyboardFocus (false));
+            root.removeFromDesktop();
+            static_cast<void> (storage.deleteRecursively());
+        }
+
         beginTest ("workspace context switches the resolved tree without changing the layout entry");
         {
             const auto storage = freshHostDirectory();

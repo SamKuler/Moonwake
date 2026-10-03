@@ -858,10 +858,10 @@ public:
             expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 16,
                     "Studio meters must use the actual channel list through 9.1.6");
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
-            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.6.0"));
+            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.6.1"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.6.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.6.1"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
@@ -985,13 +985,13 @@ public:
                             }
                         };
                         checkAnchors (navigation, std::array { "app.brand.title", "workspace.studio", "workspace.listening",
-                                                               "effects.open", "settings.open" });
+                                                               "settings.open" });
                         if (entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening)
                         {
                             checkAnchors (transport, std::array { "transport.previous", "transport.playPause", "transport.next",
                                                                  "transport.seek", "transport.time", "transport.volume",
                                                                  "transport.volumeLabel", "transport.volumeValue",
-                                                                 "transport.shuffle", "transport.repeat" });
+                                                                 "transport.shuffle", "transport.repeatCycle" });
                             const auto& cards = layout->root.children.at (0).children.at (1).children;
                             expectEquals (static_cast<int> (cards.size()), 2);
                             if (cards.size() == 2)
@@ -1086,7 +1086,10 @@ public:
                                 && parents.at ("library.add") == parents.at ("queue.title"),
                                 "Add Music must share the queue heading with its title");
                     expect (parents.contains ("settings.open"));
-                    expect (parents.contains ("effects.open"));
+                    expect (! parents.contains ("effects.open"));
+                    if (entry == SkinLayoutEntry::studio)
+                        expect (parents.contains ("effects.chain") && parents.contains ("output.stage"),
+                                "Studio exposes the effect chain beside output monitoring.");
                     if (skin == foundation.get())
                         expectWithinAbsoluteError (
                             skin->layouts.at (entry).base.common.padding.left.value,
@@ -1099,7 +1102,7 @@ public:
                          "settings.title",
                          "settings.audio.device", "settings.audio.sampleRate",
                          "settings.audio.bufferSize", "settings.audio.channelLayout",
-                         "settings.audio.channelMap", "settings.plugins.formats",
+                         "settings.audio.routing", "settings.audio.deviceConfiguration", "settings.plugins.formats",
                          "settings.plugins.knownList", "settings.plugins.scanAll",
                          "settings.plugins.scanFolder", "settings.plugins.cancel",
                          "settings.plugins.progress", "settings.skins.library",

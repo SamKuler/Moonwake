@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.6.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.6.1 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -403,7 +403,8 @@ add_executable(MoonwakeTests
         Tests/SkinLayoutEngineTests.cpp
         Tests/SkinPackageTests.cpp
         Tests/SkinRenderCompilerTests.cpp
-        Tests/SkinRendererTests.cpp
+        Tests/SkinContentClipTests.cpp
+    Tests/SkinRendererTests.cpp
         Tests/SkinTextLayoutTests.cpp
         Tests/OutputStageTests.cpp
         Tests/OutputMixerTests.cpp

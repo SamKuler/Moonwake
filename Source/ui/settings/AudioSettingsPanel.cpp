@@ -4,6 +4,7 @@
 
 #include "audio/OutputLayout.h"
 
+#include <algorithm>
 #include <array>
 
 namespace
@@ -27,17 +28,15 @@ class AudioSettingsPanel::ChannelMapView final : public juce::ListBox,
                                                  private juce::ListBoxModel
 {
 public:
+    using RouteChangeCallback = std::function<void (const std::vector<int>&, const juce::String&, OutputLayout)>;
+
     explicit ChannelMapView (JuceSkinAdapter* adapterToUse)
         : juce::ListBox ("Output channel map", nullptr),
           adapter (adapterToUse)
     {
-        setName ("Read-only output channel map");
         setTitle ("Output channel map");
-        setDescription ("Shows how the selected multichannel layout maps to CoreAudio outputs.");
-        setWantsKeyboardFocus (false);
-        setMouseClickGrabsKeyboardFocus (false);
         setInterceptsMouseClicks (true, true);
-        getViewport()->getViewedComponent()->setInterceptsMouseClicks (false, false);
+        setRouteChangeCallback ({});
         setModel (this);
         setOutlineThickness (0);
         setRowHeight (1);
@@ -52,15 +51,33 @@ public:
 
     ~ChannelMapView() override { setModel (nullptr); }
 
-    void setState (OutputLayout layoutToUse, const std::vector<AudioDeviceOutputChannel>& activeOutputs)
+    void setState (OutputLayout layoutToUse, const AudioDeviceSettingsView& settings)
     {
+        logicalLayout = layoutToUse;
         names = channelNames (layoutToUse);
-        outputs = activeOutputs;
+        outputs = settings.outputChannels;
+        activeOutputs = settings.activeOutputChannels;
+        routing = settings.outputRouting;
+        deviceIdentifier = settings.currentDeviceIdentifier;
+        setEnabled (! outputs.empty());
         resized();
         updateContent();
         if (auto* handler = getAccessibilityHandler())
             handler->notifyAccessibilityEvent (
                 juce::AccessibilityEvent::structureChanged);
+    }
+
+    void setRouteChangeCallback (RouteChangeCallback callback)
+    {
+        onRouteChange = std::move (callback);
+        const auto editable = static_cast<bool> (onRouteChange);
+        setName (editable ? "Output routing" : "Read-only output channel map");
+        setDescription (editable
+            ? "Select a speaker and press Return, or click its row, to choose a physical output or disconnect it."
+            : "Shows how the selected multichannel layout maps to CoreAudio outputs.");
+        setWantsKeyboardFocus (editable);
+        setMouseClickGrabsKeyboardFocus (editable);
+        getViewport()->getViewedComponent()->setInterceptsMouseClicks (editable, editable);
     }
 
     [[nodiscard]] int displayedCount() const noexcept
@@ -78,7 +95,7 @@ public:
         if (adapter != nullptr)
             static_cast<void> (adapter->drawCustomComponent (
                 graphics, *this, SkinRenderTarget::channelMap,
-                background, "settings.audio.channelMap"));
+                background, onRouteChange ? "settings.audio.routing" : "settings.audio.channelMap"));
 
         juce::ListBox::paint (graphics);
         if (names.isEmpty())
@@ -107,6 +124,8 @@ public:
             applyRows (availableWidth);
             juce::ListBox::resized();
         }
+        if (adapter != nullptr)
+            adapter->configureListContentClip (*this, SkinRenderTarget::channelMap);
     }
 
 private:
@@ -136,15 +155,13 @@ private:
     {
         if (! juce::isPositiveAndBelow (row, names.size()))
             return {};
-        const auto connected = static_cast<size_t> (row) < outputs.size();
-        return names[row] + " to "
-             + (connected ? outputs[static_cast<size_t> (row)].name
-                          : juce::String ("Unavailable"))
-             + (connected ? ", connected" : ", unavailable");
+        return names[row] + " to " + destinationLabel (row)
+            + (onRouteChange ? ". Press Return to change output."
+                             : (isConnected (row) ? ", connected" : ", unavailable"));
     }
 
     void paintListBoxItem (int rowNumber, juce::Graphics& graphics,
-                           int width, int height, bool) override
+                           int width, int height, bool selected) override
     {
         if (! juce::isPositiveAndBelow (rowNumber, names.size()))
             return;
@@ -153,12 +170,12 @@ private:
         SkinRenderContext rowContext;
         rowContext.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
         rowContext.contentBounds = rowContext.bounds;
-        const auto connected = static_cast<size_t> (rowNumber) < outputs.size();
+        const auto connected = isConnected (rowNumber);
         const auto sourceLabel = names[rowNumber];
-        const auto deviceLabel = connected
-                                   ? outputs[static_cast<size_t> (rowNumber)].name
-                                   : juce::String ("Unavailable");
-        rowContext.state.enabled = connected;
+        const auto deviceLabel = destinationLabel (rowNumber);
+        rowContext.state.enabled = onRouteChange ? isEnabled() : connected;
+        rowContext.state.selected = onRouteChange && selected;
+        rowContext.state.focused = onRouteChange && selected && hasKeyboardFocus (true);
         rowContext.extraLookup = [rowNumber, sourceLabel,
                                   deviceLabel, connected] (std::string_view path)
             -> std::optional<SkinExpressionValue>
@@ -180,6 +197,62 @@ private:
                       rowKey, &rowContext);
         drawTextSlot (graphics, *layout, "row.destination", deviceLabel,
                       rowKey, &rowContext);
+    }
+
+    bool isConnected (int row) const
+    {
+        const auto physical = routing[static_cast<size_t> (row)];
+        return std::any_of (activeOutputs.begin(), activeOutputs.end(),
+            [physical] (const auto& output) { return output.deviceChannelIndex == physical; });
+    }
+
+    juce::String portLabel (const AudioDeviceOutputChannel& output) const
+    {
+        return onRouteChange ? juce::String (output.deviceChannelIndex + 1) + " - " + output.name
+                             : output.name;
+    }
+
+    juce::String destinationLabel (int row) const
+    {
+        if (! juce::isPositiveAndBelow (row, static_cast<int> (routing.size()))) return "Unavailable";
+        const auto physical = routing[static_cast<size_t> (row)];
+        if (physical < 0) return "Disconnected";
+        for (const auto& output : outputs)
+            if (output.deviceChannelIndex == physical) return portLabel (output);
+        return "Output " + juce::String (physical + 1) + " (unavailable)";
+    }
+
+    void listBoxItemClicked (int row, const juce::MouseEvent&) override { showRouteMenu (row); }
+    void returnKeyPressed (int row) override { showRouteMenu (row); }
+
+    void showRouteMenu (int row)
+    {
+        if (! onRouteChange || ! isEnabled()
+            || ! juce::isPositiveAndBelow (row, static_cast<int> (routing.size()))) return;
+        juce::PopupMenu menu;
+        menu.setLookAndFeel (adapter != nullptr ? adapter : &getLookAndFeel());
+        const auto selected = routing[static_cast<size_t> (row)];
+        menu.addItem (1, "Disconnected", true, selected < 0);
+        for (const auto& output : outputs)
+        {
+            const auto occupied = std::find (routing.begin(), routing.end(), output.deviceChannelIndex);
+            const auto available = occupied == routing.end() || selected == output.deviceChannelIndex;
+            menu.addItem (output.deviceChannelIndex + 2, portLabel (output), available,
+                          selected == output.deviceChannelIndex);
+        }
+        auto requestedRouting = routing;
+        const auto expectedDevice = deviceIdentifier;
+        const auto expectedLayout = logicalLayout;
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this)
+            .withTargetScreenArea (localAreaToGlobal (getRowPosition (row, true))),
+            [safe = juce::Component::SafePointer<ChannelMapView> (this), row,
+             requestedRouting, expectedDevice, expectedLayout] (int result) mutable
+            {
+                if (safe == nullptr || result == 0) return;
+                requestedRouting[static_cast<size_t> (row)] = result - 2;
+                if (safe->onRouteChange)
+                    safe->onRouteChange (requestedRouting, expectedDevice, expectedLayout);
+            });
     }
 
     [[nodiscard]] std::optional<SkinResolvedRowLayout> rowLayout (int width) const
@@ -214,14 +287,20 @@ private:
     }
 
     JuceSkinAdapter* adapter = nullptr;
+    RouteChangeCallback onRouteChange;
     juce::StringArray names;
     std::vector<AudioDeviceOutputChannel> outputs;
+    std::vector<AudioDeviceOutputChannel> activeOutputs;
+    std::vector<int> routing;
+    juce::String deviceIdentifier;
+    OutputLayout logicalLayout = OutputLayout::stereo;
 };
 
 AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,
                                         JuceSkinAdapter* adapter)
     : controller (controllerToUse),
-      channelMap (std::make_unique<ChannelMapView> (adapter))
+      channelMap (std::make_unique<ChannelMapView> (adapter)),
+      routing (std::make_unique<ChannelMapView> (adapter))
 {
     headingLabel.setText ("Audio", juce::dontSendNotification);
     headingLabel.setName ("Audio settings");
@@ -234,6 +313,8 @@ AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,
     channelLayoutBox.setTextWhenNothingSelected ("Channel layout");
 
     deviceBox.setTitle ("CoreAudio output device");
+    deviceConfigurationButton.setTitle ("Configure audio device");
+    deviceConfigurationButton.setTooltip ("Open this device's configuration application or Audio MIDI Setup.");
     sampleRateBox.setTitle ("Audio sample rate");
     bufferSizeBox.setTitle ("Audio buffer size");
     channelLayoutBox.setTitle ("Multichannel output layout");
@@ -246,6 +327,25 @@ AudioSettingsPanel::AudioSettingsPanel (PlayerController& controllerToUse,
     sampleRateBox.onChange = [this] { applySampleRateSelection(); };
     bufferSizeBox.onChange = [this] { applyBufferSizeSelection(); };
     channelLayoutBox.onChange = [this] { applyChannelLayoutSelection(); };
+    deviceConfigurationButton.onClick = [this]
+    {
+        const auto error = controller.openAudioDeviceConfiguration();
+        if (error.isNotEmpty()) reportStatus (error, true);
+    };
+    routing->setRouteChangeCallback ([this] (const std::vector<int>& requestedRouting,
+                                           const juce::String& device, OutputLayout layout)
+    {
+        if (controller.getAudioDeviceSettings().currentDeviceIdentifier != device
+            || controller.getViewState().outputLayout != layout)
+        {
+            refresh();
+            reportStatus ("The output device or speaker layout changed. Choose the output again.", true);
+            return;
+        }
+        const auto error = controller.setOutputRouting (requestedRouting);
+        refresh();
+        reportStatus (error.isNotEmpty() ? error : "Output routing updated.", error.isNotEmpty());
+    });
     refresh();
 }
 
@@ -258,9 +358,9 @@ void AudioSettingsPanel::setStatusCallback (StatusCallback callback)
 
 void AudioSettingsPanel::addTo (juce::Component& parent)
 {
-    for (auto* component : std::array<juce::Component*, 6> {
-             &headingLabel, &deviceBox, &sampleRateBox, &bufferSizeBox, &channelLayoutBox,
-             channelMap.get() })
+    for (auto* component : std::array<juce::Component*, 8> {
+             &headingLabel, &deviceBox, &deviceConfigurationButton, &sampleRateBox, &bufferSizeBox, &channelLayoutBox,
+             channelMap.get(), routing.get() })
         parent.addAndMakeVisible (component);
 }
 
@@ -269,20 +369,24 @@ void AudioSettingsPanel::bind (SkinComponentBindings& bindings,
 {
     static_cast<void> (bindings.bind ("settings.audio.heading", headingLabel, report));
     static_cast<void> (bindings.bind ("settings.audio.device", deviceBox, report));
+    static_cast<void> (bindings.bind ("settings.audio.deviceConfiguration", deviceConfigurationButton, report));
     static_cast<void> (bindings.bind ("settings.audio.sampleRate", sampleRateBox, report));
     static_cast<void> (bindings.bind ("settings.audio.bufferSize", bufferSizeBox, report));
     static_cast<void> (bindings.bind ("settings.audio.channelLayout", channelLayoutBox, report));
     static_cast<void> (bindings.bind ("settings.audio.channelMap", *channelMap, report));
+    static_cast<void> (bindings.bind ("settings.audio.routing", *routing, report));
 }
 
 void AudioSettingsPanel::setVisible (bool shouldBeVisible)
 {
     headingLabel.setVisible (shouldBeVisible);
     deviceBox.setVisible (shouldBeVisible);
+    deviceConfigurationButton.setVisible (shouldBeVisible);
     sampleRateBox.setVisible (shouldBeVisible);
     bufferSizeBox.setVisible (shouldBeVisible);
     channelLayoutBox.setVisible (shouldBeVisible);
     channelMap->setVisible (shouldBeVisible);
+    routing->setVisible (shouldBeVisible);
 }
 
 void AudioSettingsPanel::refresh()
@@ -321,7 +425,8 @@ void AudioSettingsPanel::refresh()
                                          layout.channels.size() <= settings.availableOutputChannels);
     channelLayoutBox.setTooltip ("Speaker layout; this device provides "
         + juce::String (settings.availableOutputChannels) + " output channels.");
-    channelMap->setState (viewState.outputLayout, settings.activeOutputChannels);
+    channelMap->setState (viewState.outputLayout, settings);
+    routing->setState (viewState.outputLayout, settings);
 }
 
 void AudioSettingsPanel::applyDeviceSelection()
@@ -380,9 +485,11 @@ void AudioSettingsPanel::reportStatus (const juce::String& message, bool isError
 }
 
 juce::ComboBox& AudioSettingsPanel::deviceControl() noexcept { return deviceBox; }
+juce::TextButton& AudioSettingsPanel::deviceConfigurationControl() noexcept { return deviceConfigurationButton; }
 juce::ComboBox& AudioSettingsPanel::sampleRateControl() noexcept { return sampleRateBox; }
 juce::ComboBox& AudioSettingsPanel::bufferSizeControl() noexcept { return bufferSizeBox; }
 juce::ComboBox& AudioSettingsPanel::channelLayoutControl() noexcept { return channelLayoutBox; }
 juce::Label& AudioSettingsPanel::headingControl() noexcept { return headingLabel; }
 juce::Component& AudioSettingsPanel::channelMapControl() noexcept { return *channelMap; }
+juce::Component& AudioSettingsPanel::routingControl() noexcept { return *routing; }
 int AudioSettingsPanel::displayedChannelCount() const noexcept { return channelMap->displayedCount(); }

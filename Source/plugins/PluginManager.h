@@ -7,6 +7,13 @@
 
 #include <functional>
 
+enum class PluginScanScope
+{
+    enabledFormats,
+    vst3,
+    audioUnit
+};
+
 struct PluginScanStatus
 {
     bool scanning = false;
@@ -38,7 +45,8 @@ public:
     explicit PluginManager (PluginScannerConfiguration);
     ~PluginManager() override;
 
-    bool startScan (const juce::File& customVst3Directory = {});
+    bool startScan (const juce::File& customVst3Directory = {},
+                    PluginScanScope = PluginScanScope::enabledFormats);
     void cancelScan();
     bool cancelAndWaitForScan (int timeoutMilliseconds = 15000);
     [[nodiscard]] PluginScanStatus getScanStatus() const;
@@ -62,6 +70,9 @@ public:
     [[nodiscard]] juce::StringArray getRegisteredFormatNames() const;
     [[nodiscard]] PluginFormatPreferences getFormatPreferences() const noexcept { return formatPreferences; }
     bool setFormatPreferences (PluginFormatPreferences);
+    [[nodiscard]] juce::StringArray getCustomVst3Directories() const { return customVst3Directories; }
+    bool setCustomVst3Directories (juce::StringArray);
+    [[nodiscard]] juce::StringArray getDefaultVst3Directories() const;
     static juce::Array<juce::PluginDescription> filterInsertEffects (const juce::Array<juce::PluginDescription>& plugins);
     static juce::File getDefaultScannerExecutable();
 
@@ -72,7 +83,9 @@ private:
     juce::AudioPluginFormatManager formatManager;
     juce::KnownPluginList knownPluginList;
     PluginScannerConfiguration scannerConfiguration;
-    juce::File customScanDirectory;
+    juce::StringArray customVst3Directories;
+    juce::FileSearchPath scanVst3Directories;
+    juce::StringArray unavailableScanDirectories;
     mutable juce::CriticalSection knownPluginLock;
     mutable juce::CriticalSection scanStatusLock;
     PluginScanStatus scanStatus;

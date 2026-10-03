@@ -28,7 +28,7 @@ public:
     AudioDeviceBackendState getCurrentDeviceState() const override
     {
         return { true, getName(), setup.sampleRate, { setup.sampleRate },
-                 setup.bufferSize, { setup.bufferSize }, 16 };
+                 setup.bufferSize, { setup.bufferSize }, 16, {}, setup.outputChannels };
     }
     juce::AudioDeviceManager::AudioDeviceSetup getAudioDeviceSetup() const override
     {
@@ -60,6 +60,25 @@ public:
         attachedCallback->audioDeviceIOCallbackWithContext (
             nullptr, 0, output.getArrayOfWritePointers(), output.getNumChannels(),
             output.getNumSamples(), {});
+    }
+
+    void renderPhysicalOutputs (juce::AudioBuffer<float>& output)
+    {
+        output.clear();
+        std::array<float*, 16> packed {};
+        int active = 0;
+        for (auto port = setup.outputChannels.findNextSetBit (0); port >= 0;
+             port = setup.outputChannels.findNextSetBit (port + 1))
+            packed[static_cast<size_t> (active++)] = output.getWritePointer (port);
+        attachedCallback->audioDeviceIOCallbackWithContext (
+            nullptr, 0, packed.data(), active, output.getNumSamples(), {});
+    }
+
+    void disconnectPhysicalPort (int port)
+    {
+        attachedCallback->audioDeviceStopped();
+        setup.outputChannels.clearBit (port);
+        attachedCallback->audioDeviceAboutToStart (this);
     }
 
 private:
@@ -190,6 +209,70 @@ public:
 
     void runTest() override
     {
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+        {
+            beginTest ("physical routing follows logical effects and mixer in " + toString (layout));
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            expect (playback.initialise().isEmpty());
+            expect (playback.setOutputLayout (layout).isEmpty());
+            juce::String error;
+            expect (playback.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error), error);
+            const auto count = getChannelCount (layout);
+            std::vector<int> route;
+            for (int channel = 0; channel < count; ++channel)
+                route.push_back (15 - channel);
+            route[1] = -1;
+            expect (playback.setOutputRouting (route).isEmpty());
+            const auto channels = toAudioChannelSet (layout);
+            expect (playback.setOutputChannelMix (channels.getTypeOfChannel (0), 0.5f, false, false));
+            juce::AudioBuffer<float> packed (count - 1, 256);
+            for (int block = 0; block < 5; ++block) device->render (packed);
+            {
+                juce::UnitTestAllocationChecker allocationChecker (*this);
+                device->render (packed);
+            }
+            int packedIndex = 0;
+            for (int logical = count - 1; logical >= 0; --logical)
+            {
+                if (logical == 1) continue;
+                expectWithinAbsoluteError (packed.getSample (packedIndex++, 128),
+                    0.08f * static_cast<float> (logical + 1) * (logical == 0 ? 0.5f : 1.0f), 0.00001f);
+            }
+            expect (playback.getDeviceSettings().outputRouting == route);
+            juce::AudioBuffer<float> physicalOutputs (16, 256);
+            {
+                juce::UnitTestAllocationChecker allocationChecker (*this);
+                device->renderPhysicalOutputs (physicalOutputs);
+            }
+            for (int physical = 0; physical < 16; ++physical)
+            {
+                const auto mapped = std::find (route.begin(), route.end(), physical);
+                const auto logical = static_cast<int> (std::distance (route.begin(), mapped));
+                const auto expected = mapped == route.end() ? 0.0f
+                    : 0.08f * static_cast<float> (logical + 1) * (logical == 0 ? 0.5f : 1.0f);
+                expectWithinAbsoluteError (physicalOutputs.getSample (physical, 128), expected, 0.00001f);
+            }
+            if (count > 2)
+            {
+                device->disconnectPhysicalPort (15);
+                device->renderPhysicalOutputs (physicalOutputs);
+                expectWithinAbsoluteError (physicalOutputs.getSample (15, 128), 0.0f, 0.00001f);
+                expectWithinAbsoluteError (physicalOutputs.getSample (13, 128), 0.24f, 0.00001f);
+            }
+            expect (playback.setOutputRouting (std::vector<int> (static_cast<size_t> (count), -1)).isEmpty());
+            juce::AudioBuffer<float> silent (1, 256);
+            {
+                juce::UnitTestAllocationChecker allocationChecker (*this);
+                device->render (silent);
+            }
+            expectWithinAbsoluteError (silent.getMagnitude (0, 256), 0.0f, 0.00001f);
+            expect (playback.getOutputPeakLevels()[0] > 0.0f,
+                    "The logical bus remains active with every physical route disconnected.");
+        }
+
         for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
                                    OutputLayout::sevenOneTwo, OutputLayout::sevenOneFour,
                                    OutputLayout::sevenOneSix, OutputLayout::nineOneSix })

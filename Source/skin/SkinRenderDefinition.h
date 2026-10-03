@@ -184,6 +184,7 @@ struct SkinRenderProgram
     int pathCommandCount = 0;
     std::optional<SkinRowLayoutDefinition> rowLayout;
     std::optional<SkinControlStyleDefinition> controlStyle;
+    juce::String contentClip;
 };
 
 struct SkinRenderStyleEntry

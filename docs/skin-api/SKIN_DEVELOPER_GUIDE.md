@@ -4,7 +4,7 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.6.0、内置皮肤 1.0.0
+- 版本基线：应用 0.6.1、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
@@ -56,7 +56,7 @@ macOS 文件选择器、系统窗口管理按钮和第三方插件编辑器由�
   "author": {
     "name": "Example Studio"
   },
-  "minAppVersion": "0.6.0",
+  "minAppVersion": "0.6.1",
   "extends": "builtin.foundation",
   "capabilities": ["tokens", "renderers", "layouts"],
   "entrypoints": {
@@ -167,7 +167,7 @@ SVG 解析器禁用 DTD 与 entity。允许元素仅为 svg、g、path、rect、
   },
   "description": "A warm listening-room skin.",
   "license": "MIT",
-  "minAppVersion": "0.6.0",
+  "minAppVersion": "0.6.1",
   "extends": "builtin.foundation",
   "capabilities": ["tokens", "renderers", "layouts", "assets", "animations"],
   "entrypoints": {
@@ -537,6 +537,12 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 复合组件中逐行或逐槽变化的专属 Context 只在对应 slot 调用时有效，并会继承到该 slot 绑定的子 renderer；例如 pluginList 的 `plugin.*` 可用于 `row.surface` 绑定的 surface renderer 和 `row.name` 绑定的 label renderer。复合组件自身的主体 renderer 每个组件只调用一次，因此不能引用逐行字段。编译器分别校验主体与 slot 上下文，避免导入成功后才出现缺值。
 
 ### 7.1 复合组件的行布局（应用 0.5.0）
+
+### 列表内容裁切
+
+应用 0.6.1 起，table、channelMap、pluginList、skinList renderer 可声明顶层 `"contentClip": "body"`，引用该 renderer 根层的 rect、roundedRect 或 ellipse。原生列表的内容、表头和滚动条按该形状的描边内缘裁切；外层背景与焦点反馈保持完整。几何随 frame、radius、transform 和状态 variants 解析。被引用层的 visible/opacity 不影响裁切形状，因此可使用透明专用层。
+
+未声明 contentClip 的皮肤保留矩形内容区域。引用未知层、嵌套层或不支持的形状／target 会产生 RENDER004。声明该字段的包将 minAppVersion 设为 0.6.1 或更高。
 
 `table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
 
@@ -1053,7 +1059,7 @@ scroll 必须恰好包含一个 child：
 }
 ~~~
 
-direction 为 vertical 或 horizontal。Skin API 1 不支持双向滚动容器。
+direction 为 vertical 或 horizontal。Skin API 1 不支持双向滚动容器。滚动轴上的内容最小尺寸不会强迫视口扩张；内容保留自身尺寸，并通过滚动访问。键盘焦点进入视口外的子控件时，宿主自动滚动使其可见，包括同一容器内连续 Tab 和嵌套滚动区域。
 
 ### 9.7 Component Node
 
@@ -1280,7 +1286,8 @@ artwork renderer 还可声明一个顶层 `roundedRect` layer，ID 为 `image-am
 | transport.seek | linearSlider | Studio、Listening 必需 | 播放位置 |
 | transport.time | label | Studio、Listening 必需 | 当前时间与总时长 |
 | transport.shuffle | toggleButton | 可选 | 随机播放 |
-| transport.repeat | comboBox | 可选 | Repeat Off、All、One |
+| transport.repeat | comboBox | 可选 | Repeat Off、All、One；保留既有下拉框接口 |
+| transport.repeatCycle | textButton | 可选 | 点击循环切换 Off → All → One；0.6.1 起，图标 slots 为 icon.repeat / icon.repeatOne |
 | transport.volumeLabel | label | 可选 | VOLUME |
 | transport.volumeValue | label | 可选 | 格式化音量 |
 | transport.volume | slider | Studio、Listening 必需 | 主输出音量 |
@@ -1359,7 +1366,7 @@ outputStage 提供：
 
 `meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。采样峰值来自效果链与输出增益之后的实际采样；RMS 使用 300 ms 窗口，LUFS 使用 K 加权及门限，Momentary / Short-term 分别为 400 ms / 3 s。LFE 不计入 LUFS，但保留独立峰值、RMS 与 True Peak。测量在后台工作线程进行，界面模式或 A/B 切换不重置测量。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
 
-`output.mixer` 使用 `channelMixer` target，要求应用 `0.5.0` 或更高；`channelMap` 仅用于只读设备声道映射。Mixer 最小尺寸为 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
+`output.mixer` 使用 `channelMixer` target，要求应用 `0.5.0` 或更高；`channelMap` 用于设备声道映射，旧 channelMap 组件只读，routing 组件可编辑。Mixer 最小尺寸为 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
 
 - `row.surface` → surface：行分割线与背景。
 - `row.source` → label：L、R、C、LFE 等扬声器简称。
@@ -1368,7 +1375,7 @@ outputStage 提供：
 - `row.gain` → linearSlider：`value.normalized` 为 -60 至 +6 dB 的位置，最低位置为静音；双击恢复 0 dB。
 - `row.mute` / `row.solo` → toggleButton：`state.selected` 表示是否启用；`text.primary` 分别为 M / S，应用提供完整可访问性名称和提示。
 
-每声道设置以扬声器身份持久化。Solo 可多选，Mute 优先于 Solo，未出现在当前布局内的 Solo 不参与当前总线选择。增益位于效果链后、主音量与仪表前，使用 20 ms 平滑。只读 `settings.audio.channelMap` 的行为保持不变。
+每声道设置以扬声器身份持久化。Solo 可多选，Mute 优先于 Solo，未出现在当前布局内的 Solo 不参与当前总线选择。增益位于效果链后、主音量与仪表前，使用 20 ms 平滑。只读 `settings.audio.channelMap` 保留旧皮肤接口；可编辑端口使用 `settings.audio.routing`。
 
 ### 10.8 Settings
 
@@ -1378,10 +1385,12 @@ outputStage 提供：
 | settings.close | textButton | 否 | 关闭 Settings |
 | settings.audio.heading | label | 否 | Audio / Core Audio 分区标题 |
 | settings.audio.device | comboBox | 是 | 选择 CoreAudio 输出设备 |
+| settings.audio.deviceConfiguration | textButton | 否 | 打开设备声明的配置应用，失败时回退 Audio MIDI Setup；0.6.1 起 |
 | settings.audio.sampleRate | comboBox | 是 | 选择设备采样率 |
 | settings.audio.bufferSize | comboBox | 是 | 选择缓冲区 |
 | settings.audio.channelLayout | comboBox | 是 | 选择受支持的扬声器布局，受实际设备输出能力约束 |
 | settings.audio.channelMap | channelMap | 否 | 只读查看逻辑声道到当前设备实际启用端口的映射；优先使用设备端口名，缺失时显示物理编号 Output N；端口不可在皮肤内重排 |
+| settings.audio.routing | channelMap | 否 | 为每个逻辑声道选择物理输出或 Disconnected，点击或 Return 打开选择菜单；0.6.1 起 |
 | settings.plugins.formats | label | 否 | 插件分区标题 |
 | settings.plugins.enableVst3 | toggleButton | 否 | 启用 VST3 扫描和新增插件，0.6.0 起 |
 | settings.plugins.enableAu | toggleButton | 否 | 启用 Audio Unit 扫描和新增插件，0.6.0 起 |
@@ -1390,10 +1399,14 @@ outputStage 提供：
 | settings.plugins.manufacturerFilter | comboBox | 否 | 按厂商筛选，0.6.0 起 |
 | settings.plugins.formatFilter | comboBox | 否 | 按 AU/VST3 格式筛选，0.6.0 起 |
 | settings.plugins.knownList | pluginList | 否 | 已发现插件 |
-| settings.plugins.scanAll | textButton | 是 | 扫描标准 VST3/AU 位置 |
-| settings.plugins.scanFolder | textButton | 是 | 选择额外 VST3 文件夹 |
+| settings.plugins.scanAll | textButton | 是 | 扫描选定格式的默认位置及已保存的 VST3 目录 |
+| settings.plugins.scanFolder | textButton | 是 | 添加并保存额外 VST3 文件夹，由 Scan 开始扫描 |
 | settings.plugins.cancel | textButton | 是 | 取消扫描 |
 | settings.plugins.progress | progressBar | 是 | 扫描进度 |
+| settings.plugins.scanScope | comboBox | 否 | 本次扫描范围：已启用格式、仅 VST3、仅 AU；0.6.1 起 |
+| settings.plugins.defaultLocations | label | 否 | 默认扫描位置摘要，tooltip 显示完整路径；0.6.1 起 |
+| settings.plugins.customDirectories | comboBox | 否 | 已保存的自定义 VST3 目录；0.6.1 起 |
+| settings.plugins.removeDirectory | textButton | 否 | 移除所选扫描目录，保留已知插件与已加载实例；0.6.1 起 |
 | settings.skins.heading | label | 否 | Appearance / Skins 分区标题 |
 | settings.skins.library | skinList | 是 | 已安装与内置皮肤 |
 | settings.skins.import | textButton | 是 | 导入 .moonwake-skin |
@@ -1403,9 +1416,15 @@ outputStage 提供：
 | settings.skins.cancelPreview | textButton | 是 | 恢复预览前皮肤；未预览时 disabled |
 | settings.skins.reload | textButton | 否 | 开发目录 Reload |
 
+`settings.audio.routing` 的目标是当前设备的真实物理端口；输出布局决定逻辑扬声器顺序，效果链和 Mixer 保持该逻辑顺序。端口一对一分配，也可断开；其他声道已占用的端口不可重复选择。设置按设备身份和逻辑布局持久化，设备能力变化导致已保存路由不可用时，将输出断开并显示诊断，保留原配置以供设备恢复；没有保存路由的设备采用默认顺序。组件使用 channelMap 的行 slots 和所在 layout 的 popupMenu renderer，需声明正数且唯一的 focusOrder，内置布局为 140；推荐最小尺寸为 180×100。旧 `settings.audio.channelMap` 继续提供只读投影。
+
+`transport.repeatCycle` 最小尺寸为 28×28，使用 textButton 的 state.selected 表示循环开启，icon.repeatOne 表示单曲循环。应用提供状态名称与 tooltip；皮肤负责图形、尺寸及位置，推荐 focusOrder 为 235。一个布局选择 repeat 或 repeatCycle 即可。内置布局将 Shuffle、Previous、Play/Pause、Next、Repeat 放在同一播放控制组。
+
+Studio 可直接绑定 effects.chain 及添加插件组件，和 Output／Mixer 共用工作区。内置 Studio 集成效果链；Effects entrypoint 继续供兼容皮肤使用。effects.scope 决定下一次插入的处理范围，旧布局缺少该控件时新增效果使用全逻辑总线；slot.scope 决定单个现有效果的范围；All channels 对应逻辑输出总线。两者均不修改物理设备路由。
+
 插件筛选维度采用交集；文字搜索按空白拆分，所有词均需命中名称、厂商、类型或格式。类型来自插件元数据，VST3 的 `Fx` 显示为 `Effect`；缺失类型显示 `Uncategorised`，缺失厂商显示 `Unknown manufacturer`。Effects 只提供已启用格式的非乐器插件；Settings 保留全部已扫描记录，关闭格式的条目通过 `plugin.enabled: false` 和 `state.enabled: false` 交给皮肤绘制。
 
-格式开关使用 `state.selected` 显示当前偏好，扫描期间 disabled；开关关闭后不再扫描该格式，也不能新增该格式的插件。偏好随会话保存，旧会话默认启用 AU 和 VST3。已加载效果继续处理音频，已保存效果链恢复时仍允许载入原有实例。关闭两种格式后扫描入口 disabled，额外文件夹扫描只在 VST3 启用时可用。筛选组件采用标准 comboBox/textEditor 的最小尺寸和焦点行为；内置 Effects 筛选焦点顺序为搜索、类型、厂商、格式、插件目录，Settings 为格式开关、筛选、清单和扫描动作。皮肤预览保留可见筛选控件的值，进入缺少相应控件的旧布局时清除不可操作的条件。
+格式开关使用 `state.selected` 显示当前偏好，扫描期间 disabled；开关关闭后不再扫描该格式，也不能新增该格式的插件。偏好随会话保存，旧会话默认启用 AU 和 VST3。已加载效果继续处理音频，已保存效果链恢复时仍允许载入原有实例。显示格式筛选只影响列表，本次扫描范围不会修改格式启用偏好。关闭两种格式后扫描入口 disabled；目录管理在空闲时仍可使用，扫描期间禁用。AU 从系统注册表发现，自定义目录只用于 VST3。取消扫描保留已有记录与本次已完成的有效结果。筛选组件采用标准 comboBox/textEditor 的最小尺寸和焦点行为；内置 Effects 筛选焦点顺序为搜索、类型、厂商、格式、插件目录，Settings 为格式开关、筛选、清单和扫描动作。旧布局缺少 scanScope 时，本次扫描使用已启用格式，隐藏的单格式选择不会限制扫描。皮肤预览保留可见筛选控件的值，进入缺少相应控件的旧布局时清除不可操作的条件。
 
 内置皮肤的 remove 始终 disabled。音频设备选项由 CoreAudio 提供；皮肤不能添加虚假设备或改变设备配置值。
 

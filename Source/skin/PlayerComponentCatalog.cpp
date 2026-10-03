@@ -98,6 +98,8 @@ SkinComponentDescriptor makeIconDescriptor (
     result.iconName = std::move (iconName);
     result.iconPresentation = std::move (iconPresentation);
     result.slots.push_back ({ "icon." + result.iconName, "surface" });
+    if (result.iconName == "repeat")
+        result.slots.push_back ({ "icon.repeatOne", "surface" });
     if (result.iconName == "play")
         result.slots.push_back ({ "icon.pause", "surface" });
     return result;
@@ -125,6 +127,8 @@ const std::map<juce::String, juce::String>& iconPathData()
         { "previous", "M18 5 L9 12 L18 19 L18 5 M7 5 L7 19" },
         { "play", "M8 5 L19 12 L8 19 L8 5" },
         { "pause", "M9 5 L9 19 M15 5 L15 19" },
+        { "repeat", "M4 9 L4 7 L19 7 M16 4 L19 7 L16 10 M20 15 L20 17 L5 17 M8 14 L5 17 L8 20" },
+        { "repeatOne", "M3 9 L3 6 L20 6 M17 3 L20 6 L17 9 M21 15 L21 18 L4 18 M7 15 L4 18 L7 21 M10 11 L12 9 L12 15" },
         { "next", "M6 5 L15 12 L6 19 L6 5 M17 5 L17 19" },
         { "remove", "M7 7 L17 7 L16 20 L8 20 L7 7 M5 7 L19 7 M9 4 L15 4 M10 10 L10 17 M14 10 L14 17" },
         { "moveUp", "M5 14 L12 7 L19 14 M12 7 L12 20" },
@@ -186,6 +190,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeLabelDescriptor ("transport.time", "center", workspaces()),
         makeDescriptor ("transport.shuffle", Kind::toggleButton),
         makeDescriptor ("transport.repeat", Kind::comboBox),
+        makeIconDescriptor ("transport.repeatCycle", "repeat"),
         makeLabelDescriptor ("transport.volumeLabel", "right"),
         makeLabelDescriptor ("transport.volumeValue", "right"),
         makeDescriptor ("transport.volume", Kind::slider, workspaces(),
@@ -229,10 +234,16 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeIconDescriptor ("settings.close", "close"),
         makeLabelDescriptor ("settings.audio.heading"),
         makeDescriptor ("settings.audio.device", Kind::comboBox, { Entry::settings }),
+        makeDescriptor ("settings.audio.deviceConfiguration", Kind::textButton),
         makeDescriptor ("settings.audio.sampleRate", Kind::comboBox, { Entry::settings }),
         makeDescriptor ("settings.audio.bufferSize", Kind::comboBox, { Entry::settings }),
         makeDescriptor ("settings.audio.channelLayout", Kind::comboBox, { Entry::settings }),
         makeReadOnlyDescriptor ("settings.audio.channelMap", Kind::channelMap, {
+            Slot { "row.surface", "surface" }, Slot { "row.source", "label" },
+            Slot { "row.destination", "label" },
+            Slot { "header.label", "label" }, Slot { "empty.message", "label" }
+        }),
+        makeDescriptor ("settings.audio.routing", Kind::channelMap, {}, {}, {}, {
             Slot { "row.surface", "surface" }, Slot { "row.source", "label" },
             Slot { "row.destination", "label" },
             Slot { "header.label", "label" }, Slot { "empty.message", "label" }
@@ -254,6 +265,10 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeIconDescriptor ("settings.plugins.scanFolder", "folderSearch", { Entry::settings }, "leading"),
         makeDescriptor ("settings.plugins.cancel", Kind::textButton, { Entry::settings }),
         makeDescriptor ("settings.plugins.progress", Kind::progressBar, { Entry::settings }),
+        makeDescriptor ("settings.plugins.scanScope", Kind::comboBox),
+        makeLabelDescriptor ("settings.plugins.defaultLocations"),
+        makeDescriptor ("settings.plugins.customDirectories", Kind::comboBox),
+        makeIconDescriptor ("settings.plugins.removeDirectory", "remove"),
         makeLabelDescriptor ("settings.skins.heading"),
         makeDescriptor ("settings.skins.library", Kind::skinList, { Entry::settings }, {}, {}, {
             Slot { "row.surface", "surface" }, Slot { "row.name", "label" },

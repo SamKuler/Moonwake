@@ -61,6 +61,8 @@ public:
             state.playbackPositionSeconds = 37.25;
             state.outputLayout = OutputLayout::fiveOneTwo;
             state.audioDevice = { "Aggregate Output", 96000.0, 128 };
+            state.customVst3Directories = { "/plugins/Custom VST3", "/offline/Plug-ins" };
+            state.audioDevice.outputRoutes.push_back ({ "device-uid", OutputLayout::stereo, { 7, -1 } });
             state.workspaceMode = WorkspaceMode::studio;
             state.activeSkinId = "com.example.skin";
             state.activeSkinVersion = "2.3.4";
@@ -76,7 +78,14 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 10);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 11);
+            expect (restored.customVst3Directories == state.customVst3Directories);
+            expectEquals (static_cast<int> (restored.audioDevice.outputRoutes.size()), 1);
+            if (! restored.audioDevice.outputRoutes.empty())
+            {
+                expectEquals (restored.audioDevice.outputRoutes[0].deviceIdentifier, juce::String ("device-uid"));
+                expect (restored.audioDevice.outputRoutes[0].channels == std::vector<int> { 7, -1 });
+            }
             expectEquals (restored.playlist.size(), 2);
             expectEquals (restored.playlist.getSelectedIndex(), 1);
             expectEquals (restored.playlist.getTrack (0)->file.getFullPathName(),

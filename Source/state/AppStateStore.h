@@ -4,6 +4,7 @@
 
 #include "audio/OutputLayout.h"
 #include "audio/OutputChannelMix.h"
+#include "audio/AudioOutputRoute.h"
 #include "app/WorkspaceMode.h"
 #include "playlist/PlaylistModel.h"
 #include "plugins/EffectChainState.h"
@@ -14,6 +15,7 @@ struct AudioDevicePreferences
     juce::String outputDeviceName;
     double sampleRate = 0.0;
     int bufferSize = 0;
+    std::vector<AudioOutputRoute> outputRoutes {};
 };
 
 struct PlayerAppState
@@ -21,6 +23,7 @@ struct PlayerAppState
     PlaylistModel playlist;
     EffectChainState effectChain;
     PluginFormatPreferences pluginFormats;
+    juce::StringArray customVst3Directories;
     double volume = 0.8;
     double playbackPositionSeconds = 0.0;
     OutputLayout outputLayout = OutputLayout::stereo;

@@ -391,7 +391,7 @@ public:
                 expect (status.getX() - version.getRight() >= 8);
                 expect (status.getRight() <= width - 14);
             }
-            expectEquals (effects.scanAllControl().getButtonText(), juce::String ("Scan plug-ins"));
+            expectEquals (effects.scanAllControl().getButtonText(), juce::String ("Scan"));
             expectEquals (effects.scanFolderControl().getButtonText(), juce::String ("Add folder"));
             expectEquals (skins.importControl().getButtonText(), juce::String ("Import skin"));
             expectEquals (skins.applyControl().getButtonText(), juce::String ("Apply"));
@@ -540,24 +540,21 @@ public:
         beginTest ("channel routing presents the active device ports in callback order");
         {
             auto backend = std::make_unique<PanelAudioBackend>();
-            auto* fake = backend.get();
             PlayerController controller (std::move (backend));
             expect (controller.selectOutputDevice ("Aggregate 10ch").isEmpty());
-            fake->setup.outputChannels.clear();
-            fake->setup.outputChannels.setBit (2);
-            fake->setup.outputChannels.setBit (7);
+            expect (controller.setOutputRouting ({ 2, 7 }).isEmpty());
             AudioSettingsPanel panel (controller, &foundationSkin.adapter);
             panel.refresh();
-            auto* list = dynamic_cast<juce::ListBox*> (&panel.channelMapControl());
+            auto* list = dynamic_cast<juce::ListBox*> (&panel.routingControl());
             expect (list != nullptr);
             if (list)
             {
-                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to Line Output 3, connected"));
-                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to Line Output 8, connected"));
-                fake->setup.outputChannels.clear();
+                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to 3 - Line Output 3. Press Return to change output."));
+                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to 8 - Line Output 8. Press Return to change output."));
+                expect (controller.setOutputRouting ({ -1, -1 }).isEmpty());
                 panel.refresh();
-                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to Unavailable, unavailable"));
-                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to Unavailable, unavailable"));
+                expectEquals (list->getListBoxModel()->getNameForRow (0), juce::String ("L to Disconnected. Press Return to change output."));
+                expectEquals (list->getListBoxModel()->getNameForRow (1), juce::String ("R to Disconnected. Press Return to change output."));
             }
         }
 
@@ -594,11 +591,11 @@ public:
 
             panel.channelLayoutControl().setSelectedId (4, juce::sendNotificationSync);
             expectEquals (panel.displayedChannelCount(), 10);
-            panel.channelMapControl().setBounds (0, 0, 420, 460);
-            expect (! panel.channelMapControl().getWantsKeyboardFocus());
-            expectAccessibleList (panel.channelMapControl(), 10, "L", false);
+            panel.routingControl().setBounds (0, 0, 420, 460);
+            expect (panel.routingControl().getWantsKeyboardFocus());
+            expectAccessibleList (panel.routingControl(), 10, "L", false);
 
-            auto* map = dynamic_cast<juce::ListBox*> (&panel.channelMapControl());
+            auto* map = dynamic_cast<juce::ListBox*> (&panel.routingControl());
             expect (map != nullptr);
             if (map != nullptr)
             {
@@ -606,8 +603,8 @@ public:
                 auto* viewport = map->getViewport();
                 auto& scrollbar = viewport->getVerticalScrollBar();
                 expect (scrollbar.isVisible(), "Compact channel maps need scrolling.");
-                expect (map->getComponentAt (viewport->getBounds().getCentre()) == map,
-                        "Read-only rows pass pointer events to the scrolling list.");
+                expect (map->isParentOf (map->getComponentAt (viewport->getBounds().getCentre())),
+                        "Routing rows receive pointer events for port selection.");
                 const auto scrollbarPoint = map->getLocalArea (
                     &scrollbar, scrollbar.getLocalBounds()).getCentre();
                 expect (map->getComponentAt (scrollbarPoint) == &scrollbar,
@@ -622,10 +619,9 @@ public:
                 expectEquals (viewport->getViewArea().getBottom(),
                               viewport->getViewedComponent()->getHeight(),
                               "Scrolling reaches the final output channel.");
-                map->mouseDown (wheelEventFor (*map));
-                map->mouseUp (wheelEventFor (*map));
-                expectEquals (map->getSelectedRow(), -1,
-                              "Output channel information stays read-only.");
+                map->selectRow (0);
+                expectEquals (map->getSelectedRow(), 0,
+                              "Output routing supports keyboard row selection.");
             }
 
             panel.sampleRateControl().setSelectedItemIndex (1, juce::sendNotificationSync);
@@ -703,6 +699,24 @@ public:
             expectEquals (panel.knownPluginCount(), controller.getKnownPlugins().size());
         }
 
+        beginTest ("a hidden scan scope cannot restrict scanning in a legacy skin");
+        {
+            PlayerController controller (std::make_unique<PanelAudioBackend>());
+            PluginSettingsPanel panel (controller, &foundationSkin.adapter);
+            panel.scanScopeControl().setVisible (true);
+            panel.scanScopeControl().setSelectedId (3, juce::sendNotificationSync);
+            expect (controller.setPluginFormatPreferences ({ true, false }));
+            panel.refreshScanState();
+            expect (! panel.scanAllControl().isEnabled());
+            panel.scanScopeControl().setVisible (false);
+            panel.refreshScanState();
+            expect (panel.scanAllControl().isEnabled(), "Legacy layouts can still scan enabled VST3.");
+            panel.scanScopeControl().setVisible (true);
+            panel.refreshScanState();
+            expectEquals (panel.scanScopeControl().getSelectedId(), 3);
+            expect (! panel.scanAllControl().isEnabled());
+        }
+
         beginTest ("completed scans refresh the catalog once even before the first UI poll");
         {
             const auto root = freshPanelDirectory ("completed-plugin-scan");
@@ -743,6 +757,85 @@ public:
             panel.refreshScanState();
             panel.refreshScanState();
             expectEquals (catalogChanges, 1);
+            static_cast<void> (root.deleteRecursively());
+        }
+
+        beginTest ("cancelling a scan preserves seeded inventory, filtered rows and cache after restart");
+        for (const auto filtered : { false, true })
+        {
+            const auto root = freshPanelDirectory ("cancel-populated-scan");
+            PluginScannerConfiguration scanner;
+            scanner.executable = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+            scanner.resultDirectory = root;
+            scanner.argumentsBeforeProtocol = { "--plugin-scan-fixture", "hang" };
+            scanner.perCandidateTimeoutMilliseconds = 5000;
+            scanner.candidateProvider = [] (const juce::String& format, const juce::FileSearchPath&)
+            {
+                return format == "VST3" ? juce::StringArray { "/tmp/Pending.vst3" } : juce::StringArray {};
+            };
+            PlayerController controller (std::make_unique<PanelAudioBackend>(), scanner);
+            juce::KnownPluginList known;
+            for (int i = 0; i < 2; ++i)
+            {
+                juce::PluginDescription plugin;
+                plugin.name = i == 0 ? "Saved AU" : "Saved VST3";
+                plugin.pluginFormatName = i == 0 ? "AudioUnit" : "VST3";
+                plugin.fileOrIdentifier = "saved-plugin-" + juce::String (i);
+                plugin.uniqueId = i + 50;
+                known.addType (plugin);
+            }
+            StateRestoreResult initial;
+            initial.pluginCache = known.createXml();
+            expect (controller.applyPreparedState (std::move (initial)));
+            PluginSettingsPanel panel (controller, &foundationSkin.adapter);
+            panel.knownListControl().setBounds (0, 0, 560, 180);
+            panel.knownListControl().setLookAndFeel (&foundationSkin.adapter);
+            if (filtered)
+            {
+                panel.filters.search.setText ("Saved", false);
+                panel.filters.format.setText ("AU", juce::sendNotificationSync);
+            }
+            const auto expected = filtered ? 1 : 2;
+            expectEquals (panel.knownPluginCount(), expected);
+            const auto beforeScan = panel.knownListControl().createComponentSnapshot (
+                panel.knownListControl().getLocalBounds());
+            const auto waitUntil = [] (const std::function<bool()>& done)
+            {
+                const auto deadline = juce::Time::getMillisecondCounterHiRes() + 3000.0;
+                while (! done() && juce::Time::getMillisecondCounterHiRes() < deadline)
+                    juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+                return done();
+            };
+            expect (controller.startPluginScan());
+            expect (waitUntil ([&] { return controller.getPluginScanStatus().currentItem.isNotEmpty(); }));
+            panel.refreshScanState();
+            expect (panel.cancelControl().isEnabled());
+            panel.cancelControl().triggerClick();
+            expect (waitUntil ([&] { return ! controller.getPluginScanStatus().scanning; }));
+            panel.refreshScanState();
+            expectEquals (controller.getKnownPlugins().size(), 2);
+            expectEquals (panel.knownPluginCount(), expected);
+            auto* list = dynamic_cast<juce::ListBox*> (&panel.knownListControl());
+            expect (list != nullptr);
+            if (list)
+            {
+                expectEquals (list->getListBoxModel()->getNumRows(), expected);
+                expect (list->getRowPosition (0, true).intersects (list->getViewport()->getBounds()));
+                const auto image = list->createComponentSnapshot (list->getLocalBounds());
+                expect (image.isValid());
+                int changedPixels = 0;
+                for (int y = 0; y < image.getHeight(); ++y)
+                    for (int x = 0; x < image.getWidth(); ++x)
+                        if (image.getPixelAt (x, y) != beforeScan.getPixelAt (x, y)) ++changedPixels;
+                expectEquals (changedPixels, 0, "Cancelling retains the rendered inventory, not only its row count.");
+                expect (list->getListBoxModel()->getNameForRow (0).contains ("Saved"));
+            }
+            panel.knownListControl().setLookAndFeel (nullptr);
+            const auto state = root.getChildFile ("state.xml"), cache = root.getChildFile ("plugins.xml");
+            expect (controller.saveState (state, cache));
+            PlayerController reopened (std::make_unique<PanelAudioBackend>());
+            expect (reopened.loadState (state, cache));
+            expectEquals (reopened.getKnownPlugins().size(), 2);
             static_cast<void> (root.deleteRecursively());
         }
 
@@ -797,7 +890,7 @@ public:
             auto* list = dynamic_cast<juce::ListBox*> (&panel.knownListControl());
             expect (list && list->getListBoxModel()->getNameForRow (0).contains ("format disabled"));
             panel.vst3Enabled.setToggleState (false, juce::sendNotificationSync);
-            expect (! panel.scanAllControl().isEnabled() && ! panel.scanFolderControl().isEnabled());
+            expect (! panel.scanAllControl().isEnabled() && panel.scanFolderControl().isEnabled());
             expect (controller.getInsertEffectPlugins().isEmpty());
             expect (controller.saveState (stateFile, cache));
             PlayerController reopened (std::make_unique<PanelAudioBackend>());

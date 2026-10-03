@@ -77,7 +77,8 @@ int runPluginScannerFixture (int argc, char* argv[])
     if (mode == "failure")
         return 76;
 
-    if (mode == "hang")
+    if (mode == "hang"
+        || (mode == "success-then-hang" && juce::String (argv[protocolIndex + 2]).contains ("Pending")))
     {
         juce::Thread::sleep (10000);
         return 0;
@@ -137,7 +138,7 @@ int runPluginScannerFixture (int argc, char* argv[])
         return 0;
     }
 
-    if (mode != "success")
+    if (mode != "success" && mode != "success-then-hang")
         return 77;
 
     return writeResult() ? 0 : 78;

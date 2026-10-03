@@ -32,6 +32,7 @@ public:
 
     PlayerController();
     explicit PlayerController (std::unique_ptr<IAudioDeviceBackend>);
+    PlayerController (std::unique_ptr<IAudioDeviceBackend>, PluginScannerConfiguration);
     ~PlayerController() override;
 
     juce::String addFiles (const juce::Array<juce::File>& files);
@@ -62,7 +63,11 @@ public:
     juce::String setAudioSampleRate (double sampleRate);
     juce::String setAudioBufferSize (int bufferSize);
     void setWorkspaceMode (WorkspaceMode mode);
-    bool startPluginScan (const juce::File& customVst3Directory = {});
+    bool startPluginScan (const juce::File& customVst3Directory = {},
+                          PluginScanScope scope = PluginScanScope::enabledFormats);
+    [[nodiscard]] juce::StringArray getPluginCustomVst3Directories() const;
+    [[nodiscard]] juce::StringArray getDefaultVst3Directories() const;
+    bool setPluginCustomVst3Directories (juce::StringArray);
     void cancelPluginScan();
     [[nodiscard]] PluginScanStatus getPluginScanStatus() const;
     void addPluginByIdentifierAsync (const juce::String& identifier, PluginInsertionCallback callback,
@@ -94,6 +99,8 @@ public:
     [[nodiscard]] double getLengthInSeconds() const;
     [[nodiscard]] juce::String getLastStatusMessage() const;
     [[nodiscard]] AudioDeviceSettingsView getAudioDeviceSettings() const;
+    juce::String setOutputRouting (const std::vector<int>&);
+    juce::String openAudioDeviceConfiguration();
     [[nodiscard]] bool isPlaying() const;
     [[nodiscard]] PlayerViewState getViewState() const;
     [[nodiscard]] OutputMeterReadings getOutputMeterReadings() const { return audioEngine.getOutputMeterReadings(); }

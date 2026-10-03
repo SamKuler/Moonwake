@@ -86,6 +86,10 @@ public:
                            SkinRuntimeFaultSink&, SkinAnimationEngine*,
                            const juce::String& animationKey) const;
 
+    SkinRenderStatus clipContent (juce::Graphics&, const SkinRenderProgram&,
+                                  const SkinRenderContext&, const juce::AffineTransform&,
+                                  bool requiredComponent, SkinRuntimeFaultSink&) const;
+
 private:
     std::shared_ptr<const SkinAssetCache> assetCache;
 };

@@ -70,15 +70,6 @@
                 ]
               },
               {
-                "id": "effects-effects-open",
-                "type": "component",
-                "component": "effects.open",
-                "style": "textButton.listeningIconNeutral",
-                "width": 44,
-                "height": 44,
-                "focusOrder": 30
-              },
-              {
                 "id": "effects-settings-open",
                 "type": "component",
                 "component": "settings.open",
@@ -349,15 +340,6 @@
                         "focusOrder": 20
                       }
                     ]
-                  },
-                  {
-                    "id": "themed-effects-effects-open",
-                    "type": "component",
-                    "component": "effects.open",
-                    "style": "textButton.studioIconNeutral",
-                    "width": 44,
-                    "height": 44,
-                    "focusOrder": 30
                   },
                   {
                     "id": "themed-effects-settings-open",
