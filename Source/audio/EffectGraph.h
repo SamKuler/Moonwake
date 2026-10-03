@@ -19,6 +19,7 @@ public:
                         const juce::AudioChannelSet& channelLayout);
     void releaseResources();
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi);
+    bool clearTails (juce::String& errorMessage);
     bool beginStateCapture (int timeoutMilliseconds = 1000);
     void endStateCapture() noexcept;
 

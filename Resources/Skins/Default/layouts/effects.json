@@ -101,6 +101,26 @@
                     "grow": 1,
                     "height": 36,
                     "shrink": 0
+                  },
+                  {
+                    "id": "effects-effects-page-heading-clearTails",
+                    "type": "component",
+                    "component": "effects.clearTails",
+                    "style": "textButton.listeningNeutral",
+                    "width": 104,
+                    "height": 28,
+                    "shrink": 0,
+                    "focusOrder": 90
+                  },
+                  {
+                    "id": "effects-effects-page-heading-bypassAll",
+                    "type": "component",
+                    "component": "effects.bypassAll",
+                    "style": "textButton.listeningNeutral",
+                    "width": 104,
+                    "height": 28,
+                    "shrink": 0,
+                    "focusOrder": 95
                   }
                 ],
                 "shrink": 0
@@ -373,6 +393,26 @@
                         "grow": 1,
                         "height": 36,
                         "shrink": 0
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-page-heading-clearTails",
+                        "type": "component",
+                        "component": "effects.clearTails",
+                        "style": "textButton.studioNeutral",
+                        "width": 104,
+                        "height": 28,
+                        "shrink": 0,
+                        "focusOrder": 90
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-page-heading-bypassAll",
+                        "type": "component",
+                        "component": "effects.bypassAll",
+                        "style": "textButton.studioNeutral",
+                        "width": 104,
+                        "height": 28,
+                        "shrink": 0,
+                        "focusOrder": 95
                       }
                     ],
                     "shrink": 0

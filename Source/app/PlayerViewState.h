@@ -33,6 +33,7 @@ struct PlayerViewState
 
     TransportIntent transportIntent = TransportIntent::stopped;
     bool isPlaying = false;
+    bool allEffectsBypassed = false;
     bool playbackFinished = false;
     bool canPlay = false;
     bool canGoNext = false;

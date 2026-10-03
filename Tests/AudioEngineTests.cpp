@@ -670,6 +670,83 @@ public:
         const auto third = writeSignal ("gapless-third", 2000, 48000.0, 0.06f);
         const auto shortLoop = writeSignal ("gapless-loop", 17, 48000.0, 0.02f);
         const auto differentRate = writeSignal ("gapless-rate", 147, 44100.0, 0.04f);
+
+        beginTest ("global monitoring bypass preserves multichannel source, slot bypass and transport while clear tails remains independent");
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+        {
+            const auto channels = getChannelCount (layout);
+            const auto source = writeSignal ("bypass-" + juce::String (channels), 48000, 48000.0, 0.02f, channels);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            expect (playback.initialise().isEmpty());
+            expect (playback.setOutputLayout (layout).isEmpty());
+            expect (playback.loadFile (source));
+            juce::String error;
+            playback.play();
+            juce::AudioBuffer<float> block (channels, 1024);
+            device->render (block);
+            // The source may not contain every speaker in the selected output layout.
+            std::vector<float> dry;
+            for (int channel = 0; channel < channels; ++channel) dry.push_back (block.getSample (channel, 1023));
+            expect (playback.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error), error);
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 1023), 0.08f, 0.0001f);
+            const auto position = playback.getCurrentPositionSeconds();
+            playback.setAllEffectsBypassed (true);
+            {
+                juce::UnitTestAllocationChecker allocations (*this);
+                device->render (block);
+            }
+            expect (playback.areAllEffectsBypassed());
+            expect (block.getSample (0, 0) < 0.08f && block.getSample (0, 0) > 0.016f,
+                    "The monitoring switch fades rather than jumping.");
+            for (int channel = 0; channel < channels; ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 1023), dry[static_cast<size_t> (channel)], 0.0001f);
+            expect (playback.getCurrentPositionSeconds() > position && playback.isPlaying());
+            expect (playback.clearEffectTails (error), error);
+            expect (playback.areAllEffectsBypassed());
+            expect (playback.setEffectBypassed (1, true));
+            playback.setAllEffectsBypassed (false);
+            device->render (block);
+            for (int channel = 0; channel < channels; ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 1023), dry[static_cast<size_t> (channel)], 0.0001f);
+            expect (playback.setEffectBypassed (1, false));
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 1023), 0.08f, 0.0001f);
+            playback.setAllEffectsBypassed (true);
+            expect (playback.clearEffectPlugins());
+            expect (playback.addEffectPlugin (2, std::make_unique<MixProbePlugin>(), error), error);
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 1023), 0.016f, 0.0001f,
+                                       "New effects respect the active master bypass.");
+            playback.seekToSeconds (playback.getLengthInSeconds());
+            device->render (block);
+            expect (! playback.isPlaying());
+            expect (playback.clearEffectTails (error), error);
+            device->render (block);
+            expectEquals (block.getMagnitude (0, 1024), 0.0f);
+            playback.unload();
+            expect (source.deleteFile());
+        }
+
+        beginTest ("effect monitoring state survives workspace switches and is absent from saved sessions");
+        {
+            PlayerController controller (std::make_unique<OfflineAudioDeviceBackend>());
+            controller.setAllEffectsBypassed (true);
+            controller.setWorkspaceMode (WorkspaceMode::studio);
+            expect (controller.getViewState().allEffectsBypassed);
+            controller.setWorkspaceMode (WorkspaceMode::listening);
+            expect (controller.getViewState().allEffectsBypassed);
+            PlayerAppState snapshot;
+            juce::String error;
+            expect (controller.captureStateSnapshot (snapshot, error), error);
+            StateRestoreResult restored;
+            restored.state = std::move (snapshot);
+            expect (controller.applyPreparedState (std::move (restored)));
+            expect (! controller.getViewState().allEffectsBypassed);
+        }
         const auto missing = directory.getNonexistentChildFile ("missing", ".wav");
 
         beginTest ("output meter observes rendered gain and resets on explicit playback discontinuities");

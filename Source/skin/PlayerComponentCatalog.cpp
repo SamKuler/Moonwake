@@ -211,6 +211,8 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("effects.scope", Kind::comboBox),
         makeLabelDescriptor ("effects.scopeLabel"),
         makeIconDescriptor ("effects.add", "add", { Entry::effects }),
+        makeDescriptor ("effects.clearTails", Kind::textButton),
+        makeDescriptor ("effects.bypassAll", Kind::textButton),
         makeDescriptor ("effects.chain", Kind::effectChain, { Entry::effects }, {}, {}, {
             Slot { "slot.surface", "surface" }, Slot { "slot.name", "label" },
             Slot { "slot.bypass", "textButton" }, Slot { "slot.editor", "textButton" },

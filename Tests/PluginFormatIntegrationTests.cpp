@@ -183,6 +183,35 @@ bool processAudioUnitAcrossTenChannels (juce::AudioPluginInstance& instance,
     return true;
 }
 
+bool clearNativeTails (std::unique_ptr<juce::AudioPluginInstance> instance, juce::String& error)
+{
+    auto* processor = instance.get();
+    EffectGraph graph;
+    graph.prepareToPlay (48000.0, 64, juce::AudioChannelSet::create7point1point2());
+    if (! graph.addProcessor (1, std::move (instance), error)) return false;
+    std::vector<float> parameters;
+    for (auto* parameter : processor->getParameters()) parameters.push_back (parameter->getValue());
+    if (! graph.clearTails (error)) return false;
+    for (int i = 0; i < processor->getParameters().size(); ++i)
+        if (std::abs (processor->getParameters()[i]->getValue() - parameters[static_cast<size_t> (i)]) > 0.00001f)
+        {
+            error = "Clearing native effect tails changed a parameter.";
+            return false;
+        }
+    juce::AudioBuffer<float> buffer (10, 64);
+    for (int channel = 0; channel < 10; ++channel)
+        std::fill_n (buffer.getWritePointer (channel), 64, 0.1f);
+    juce::MidiBuffer midi;
+    graph.processBlock (buffer, midi);
+    for (int channel = 0; channel < 10; ++channel)
+        if (! std::isfinite (buffer.getMagnitude (channel, 0, 64)) || buffer.getMagnitude (channel, 0, 64) <= 0.0f)
+        {
+            error = "The native effect did not resume processing after clearing tails.";
+            return false;
+        }
+    return true;
+}
+
 class PluginFormatIntegrationTests final : public juce::UnitTest
 {
 public:
@@ -418,7 +447,10 @@ public:
                     descriptions.getReference (0), 48000.0, 64, error);
                 expect (instance != nullptr, error);
                 if (instance != nullptr)
+                {
                     expect (processFixtureAcrossTenChannels (*instance, error), error);
+                    expect (clearNativeTails (std::move (instance), error), error);
+                }
             }
         }
 
@@ -452,7 +484,10 @@ public:
                         discovered.getReference (0), 48000.0, 64, error);
                     expect (instance != nullptr, error);
                     if (instance != nullptr)
+                    {
                         expect (processAudioUnitAcrossTenChannels (*instance, error), error);
+                        expect (clearNativeTails (std::move (instance), error), error);
+                    }
                 }
             }
         }

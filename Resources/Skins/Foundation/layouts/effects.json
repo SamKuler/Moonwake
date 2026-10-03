@@ -25,6 +25,26 @@
             "component": "effects.title",
             "style": "label.title",
             "grow": 1
+          },
+          {
+            "id": "effects-header-clearTails",
+            "type": "component",
+            "component": "effects.clearTails",
+            "style": "textButton.default",
+            "width": 104,
+            "height": 28,
+            "shrink": 0,
+            "focusOrder": 90
+          },
+          {
+            "id": "effects-header-bypassAll",
+            "type": "component",
+            "component": "effects.bypassAll",
+            "style": "textButton.default",
+            "width": 104,
+            "height": 28,
+            "shrink": 0,
+            "focusOrder": 95
           }
         ]
       },

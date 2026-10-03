@@ -131,6 +131,9 @@ public:
     bool moveEffectPlugin (int fromIndex, int toIndex);
     bool setEffectPluginOrder (const std::vector<int>& orderedSlotIds);
     bool setEffectBypassed (int slotId, bool shouldBypass);
+    void setAllEffectsBypassed (bool) noexcept;
+    [[nodiscard]] bool areAllEffectsBypassed() const noexcept;
+    bool clearEffectTails (juce::String& errorMessage);
     bool setEffectScope (int slotId, const EffectScope&, juce::String& errorMessage);
     [[nodiscard]] int getEffectPluginCount() const;
     [[nodiscard]] juce::AudioPluginInstance* getEffectPlugin (int slotId) const;
@@ -200,6 +203,9 @@ private:
         bool movePlugin (int fromIndex, int toIndex);
         bool setPluginOrder (const std::vector<int>& orderedSlotIds);
         bool setBypassed (int slotId, bool shouldBypass);
+        void setAllBypassed (bool value) noexcept { allBypassed.store (value, std::memory_order_relaxed); }
+        [[nodiscard]] bool areAllBypassed() const noexcept { return allBypassed.load (std::memory_order_relaxed); }
+        bool clearTails (juce::String& errorMessage) { return effectGraph.clearTails (errorMessage); }
         bool setScope (int slotId, const EffectScope&, juce::String& errorMessage);
         bool setChannelLayout (const juce::AudioChannelSet& layout, juce::String& errorMessage);
         void setChannelGainTargets (const std::array<float, maximumOutputChannels>&) noexcept;
@@ -219,6 +225,9 @@ private:
         std::atomic<float>& outputGain;
         OutputMeter& outputMeter;
         juce::SmoothedValue<float> smoothedGain;
+        std::atomic_bool allBypassed { false };
+        juce::SmoothedValue<float> effectWetMix { 1.0f };
+        juce::AudioBuffer<float> dryBuffer;
         std::array<std::atomic<float>, maximumOutputChannels> channelGainTargets;
         std::array<juce::SmoothedValue<float>, maximumOutputChannels> smoothedChannelGains;
         std::atomic_bool playbackEditRequested { false };

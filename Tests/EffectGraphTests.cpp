@@ -32,6 +32,7 @@ public:
         delayPosition = 0;
     }
     void releaseResources() override {}
+    void reset() override { delay.clear(); delayPosition = 0; }
     void changeLatency (int samples)
     {
         latency = samples;
@@ -200,6 +201,47 @@ public:
             graph.endStateCapture();
             graph.processBlock (buffer, midi);
             expectWithinAbsoluteError (buffer.getSample (0, 0), 2.0f, 0.0001f);
+        }
+
+        beginTest ("clearing tails resets scoped effects and compensation buffers without changing bypass or parameters");
+        for (const auto& layout : { juce::AudioChannelSet::stereo(), juce::AudioChannelSet::create5point1(),
+                                   juce::AudioChannelSet::create5point1point2(), juce::AudioChannelSet::create7point1point2() })
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, layout);
+            juce::String error;
+            expect (graph.addProcessor (1, std::make_unique<TestEffect> (2.0f, true, 0.0f, false, 128),
+                                        error, { juce::AudioChannelSet::left }), error);
+            expect (graph.addProcessor (2, std::make_unique<TestEffect> (3.0f, true), error), error);
+            expect (graph.setBypassed (2, true));
+            juce::MemoryBlock before;
+            graph.getProcessor (1)->getStateInformation (before);
+            juce::MidiBuffer midi;
+            auto block = signal (layout.size());
+            for (int i = 0; i < 3; ++i) { block = signal (layout.size()); graph.processBlock (block, midi); }
+            block.clear();
+            graph.processBlock (block, midi);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                expect (block.getMagnitude (channel, 0, 64) > 0.0f, "The fixture contains buffered audio before reset.");
+            expect (graph.clearTails (error), error);
+            for (int i = 0; i < 4; ++i)
+            {
+                block.clear(); graph.processBlock (block, midi);
+                expectEquals (block.getMagnitude (0, 64), 0.0f);
+            }
+            juce::MemoryBlock after;
+            graph.getProcessor (1)->getStateInformation (after);
+            expect (before == after);
+            expectEquals (graph.size(), 2);
+            expect (*graph.getProcessorScope (1) == EffectScope { juce::AudioChannelSet::left });
+            for (int i = 0; i < 3; ++i) { block = signal (layout.size()); graph.processBlock (block, midi); }
+            for (int channel = 0; channel < layout.size(); ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 0),
+                    static_cast<float> (channel + 1) * (channel == 0 ? 2.0f : 1.0f), 0.0001f);
+            expect (graph.beginStateCapture());
+            expect (! graph.clearTails (error));
+            expect (error.isNotEmpty());
+            graph.endStateCapture();
         }
 
         beginTest ("rejects a stereo-only effect in an active 5.1 graph");

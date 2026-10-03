@@ -552,6 +552,20 @@ MainComponent::MainComponent()
     effectsCloseButton.setTooltip ("Close the effects rack");
     settingsCloseButton.setTooltip ("Close settings");
     addEffectButton.setTooltip ("Add the selected effect");
+    clearEffectTailsButton.setTitle ("Clear all effect tails");
+    clearEffectTailsButton.setTooltip ("Clear delay and reverb buffers without changing plug-in settings");
+    clearEffectTailsButton.onClick = [this]
+    {
+        if (! controller.clearEffectTails()) showStatus (controller.getLastStatusMessage(), true);
+        updateTransportState();
+    };
+    bypassAllEffectsButton.setTitle ("Bypass all effects");
+    bypassAllEffectsButton.setClickingTogglesState (true);
+    bypassAllEffectsButton.onClick = [this]
+    {
+        controller.setAllEffectsBypassed (bypassAllEffectsButton.getToggleState());
+        updateTransportState();
+    };
     previousButton.setTooltip ("Previous track");
     playPauseButton.setTooltip ("Play");
     nextButton.setTooltip ("Next track");
@@ -580,6 +594,8 @@ MainComponent::MainComponent()
                                     &meterModeBox,
                                     &resetMeterButton,
                                     &addEffectButton,
+                                    &clearEffectTailsButton,
+                                    &bypassAllEffectsButton,
                                     &nowPlayingEyebrowLabel,
                                     &queueTitleLabel,
                                     &queueCountLabel,
@@ -873,6 +889,7 @@ MainComponent::MainComponent()
                                       &audioSettingsPanel.bufferSizeControl(),
                                       &audioSettingsPanel.channelLayoutControl(),
                                       &pluginFilters.search, &pluginCombo, &addEffectButton,
+                                      &clearEffectTailsButton, &bypassAllEffectsButton,
                                       &effectRackViewport };
     int focusIndex = 1;
     for (auto* component : focusOrder)
@@ -1036,6 +1053,8 @@ void MainComponent::bindSkinComponents()
         { "effects.scope", &effectScopeBox },
         { "effects.scopeLabel", &effectScopeLabel },
         { "effects.add", &addEffectButton },
+        { "effects.clearTails", &clearEffectTailsButton },
+        { "effects.bypassAll", &bypassAllEffectsButton },
         { "effects.chain", &effectRackViewport },
         { "effects.empty", &emptyRackLabel },
         { "effects.outputLayout", &outputLayoutBox },
@@ -1911,9 +1930,17 @@ void MainComponent::updateTransportState()
     for (const auto& slot : chain.getSlots())
         if (slot.available && ! slot.bypassed)
             activeEffects.add (slot.pluginName);
-    effectsSummaryLabel.setText (juce::String (activeEffects.size()) + " active / "
+    effectsSummaryLabel.setText (juce::String (state.allEffectsBypassed ? 0 : activeEffects.size()) + " active / "
                                  + juce::String (chain.size()) + " total", juce::dontSendNotification);
-    effectsSummaryLabel.setTooltip (activeEffects.joinIntoString ("\n"));
+    effectsSummaryLabel.setTooltip (state.allEffectsBypassed ? "All effects bypassed" : activeEffects.joinIntoString ("\n"));
+    const auto hasLoadedEffects = std::any_of (chain.getSlots().begin(), chain.getSlots().end(),
+        [] (const auto& slot) { return slot.available; });
+    clearEffectTailsButton.setEnabled (restoreStatus != RestoreStatus::loading && hasLoadedEffects);
+    bypassAllEffectsButton.setEnabled (restoreStatus != RestoreStatus::loading && (hasLoadedEffects || state.allEffectsBypassed));
+    bypassAllEffectsButton.setToggleState (state.allEffectsBypassed, juce::dontSendNotification);
+    bypassAllEffectsButton.setTooltip (state.allEffectsBypassed
+        ? "All effects bypassed. Click to restore the individual plug-in states."
+        : "Monitor without effects. Individual plug-in states are kept.");
     effectsButton.setButtonText ("Effects  " + juce::String (chain.size()));
 
     const auto deviceName = state.audioDeviceName.isNotEmpty() ? state.audioDeviceName : "No audio device";

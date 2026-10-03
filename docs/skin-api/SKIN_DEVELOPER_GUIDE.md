@@ -1322,9 +1322,15 @@ transport.seek 仅允许 linearHorizontal。皮肤不能改变值域或步进。
 | effects.scopeLabel | label | 可选 | 效果器作用范围标题；0.4.0 起 |
 | effects.catalog | comboBox | Effects 必需 | 可插入插件目录 |
 | effects.add | textButton | Effects 必需 | 插入所选插件 |
+| effects.clearTails | textButton | 可选 | 清除所有已加载插件的尾音与宿主延迟缓冲，保留参数、作用声道和单插件旁路状态；0.6.1 起 |
+| effects.bypassAll | textButton | 可选 | 切换全链监听旁路，保留每个插件的独立旁路状态；0.6.1 起 |
 | effects.chain | effectChain | Effects 必需 | 动态效果槽列表 |
 | effects.empty | label | 可选 | 空效果链提示 |
 | effects.outputLayout | comboBox | 可选 | 当前处理声道布局 |
+
+`effects.clearTails` 是一次性操作；没有已加载插件时禁用。播放中的音乐仍继续送入效果链，因此清除后可产生新的尾音。插件自身生成的持续声音不属于缓存尾音。
+
+`effects.bypassAll` 通过 `state.selected` 表示旁路已开启，输出在原声与效果信号之间短暂淡变；效果器继续处理，以免恢复时释放冻结的旧缓存。该开关是会话内的监听状态，不写入插件预设或应用存档，切换工作区保持不变。空效果链且未开启旁路时禁用。两个按钮使用标准 `textButton` 状态和最小尺寸 28 × 28；建议宽度至少 104，并将焦点顺序安排在效果筛选控件之前。完整示例在 Effects 标题行放置这两个控件。
 
 effects.chain 内部动态槽使用固定 style slots：
 

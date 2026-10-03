@@ -264,6 +264,26 @@
                             "component": "effects.summary",
                             "style": "label.studioData",
                             "width": 136
+                          },
+                          {
+                            "id": "studio-rack-header-clearTails",
+                            "type": "component",
+                            "component": "effects.clearTails",
+                            "style": "textButton.studioNeutral",
+                            "width": 104,
+                            "height": 28,
+                            "shrink": 0,
+                            "focusOrder": 290
+                          },
+                          {
+                            "id": "studio-rack-header-bypassAll",
+                            "type": "component",
+                            "component": "effects.bypassAll",
+                            "style": "textButton.studioNeutral",
+                            "width": 104,
+                            "height": 28,
+                            "shrink": 0,
+                            "focusOrder": 295
                           }
                         ]
                       },

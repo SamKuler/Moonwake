@@ -23,7 +23,7 @@ juce::StringArray exactIds()
         "transport.volume", "effects.open", "effects.close", "effects.summary",
         "effects.title", "effects.filterLabel", "effects.filter",
         "effects.typeFilter", "effects.manufacturerFilter", "effects.formatFilter", "effects.catalog", "effects.scope", "effects.scopeLabel",
-        "effects.add", "effects.chain", "effects.empty", "effects.outputLayout",
+        "effects.add", "effects.clearTails", "effects.bypassAll", "effects.chain", "effects.empty", "effects.outputLayout",
         "output.stage", "output.mixer", "output.mode", "output.reset", "settings.title", "settings.close", "settings.audio.heading",
         "settings.audio.device", "settings.audio.deviceConfiguration",
         "settings.audio.sampleRate", "settings.audio.bufferSize",

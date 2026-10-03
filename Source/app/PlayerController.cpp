@@ -911,6 +911,13 @@ bool PlayerController::setEffectBypassedAtIndex (int effectIndex, bool shouldByp
     return true;
 }
 
+bool PlayerController::clearEffectTails()
+{
+    if (! audioEngine.clearEffectTails (lastStatusMessage)) return false;
+    lastStatusMessage = "Effect tails cleared.";
+    return true;
+}
+
 bool PlayerController::setEffectScopeAtIndex (int effectIndex, const EffectScope& scope)
 {
     if (restoringEffects)
@@ -1145,6 +1152,7 @@ PlayerViewState PlayerController::getViewState() const
     state.canGoPrevious = playbackCoordinator.getLoadedTrackId().isNotEmpty()
         || playlist.hasNavigationCandidate (PlaylistNavigation::previous);
     state.isPlaying = audioEngine.isPlaying();
+    state.allEffectsBypassed = audioEngine.areAllEffectsBypassed();
     state.playbackFinished = ! state.isPlaying && audioEngine.hasStreamFinished();
     state.positionSeconds = audioEngine.getCurrentPositionSeconds();
     state.lengthSeconds = audioEngine.getLengthInSeconds();
@@ -1379,6 +1387,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     audioEngine.unload();
     playbackCoordinator.loadFailed();
     playbackCheckpoint.reset ({}, 0.0);
+    audioEngine.setAllEffectsBypassed (false);
     playlist = std::move (state.playlist);
     playbackPlan = {};
     playbackTrackIds.clear();

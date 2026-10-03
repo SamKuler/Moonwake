@@ -263,6 +263,26 @@
                             "component": "effects.summary",
                             "style": "label.data",
                             "width": 136
+                          },
+                          {
+                            "id": "studio-rack-header-clearTails",
+                            "type": "component",
+                            "component": "effects.clearTails",
+                            "style": "textButton.default",
+                            "width": 104,
+                            "height": 28,
+                            "shrink": 0,
+                            "focusOrder": 290
+                          },
+                          {
+                            "id": "studio-rack-header-bypassAll",
+                            "type": "component",
+                            "component": "effects.bypassAll",
+                            "style": "textButton.default",
+                            "width": 104,
+                            "height": 28,
+                            "shrink": 0,
+                            "focusOrder": 295
                           }
                         ]
                       },

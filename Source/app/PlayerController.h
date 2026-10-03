@@ -75,6 +75,8 @@ public:
     bool removeEffectAtIndex (int effectIndex);
     bool moveEffect (int fromIndex, int toIndex);
     bool setEffectBypassedAtIndex (int effectIndex, bool shouldBypass);
+    void setAllEffectsBypassed (bool value) noexcept { audioEngine.setAllEffectsBypassed (value); }
+    bool clearEffectTails();
     bool setEffectScopeAtIndex (int effectIndex, const EffectScope&);
     [[nodiscard]] bool captureStateSnapshot (PlayerAppState&,
                                              juce::String& errorMessage);

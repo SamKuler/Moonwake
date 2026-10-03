@@ -903,6 +903,21 @@ bool AudioEngine::setEffectBypassed (int slotId, bool shouldBypass)
     return effectProcessingSource.setBypassed (slotId, shouldBypass);
 }
 
+void AudioEngine::setAllEffectsBypassed (bool value) noexcept
+{
+    effectProcessingSource.setAllBypassed (value);
+}
+
+bool AudioEngine::areAllEffectsBypassed() const noexcept
+{
+    return effectProcessingSource.areAllBypassed();
+}
+
+bool AudioEngine::clearEffectTails (juce::String& errorMessage)
+{
+    return effectProcessingSource.clearTails (errorMessage);
+}
+
 bool AudioEngine::setEffectScope (int slotId, const EffectScope& scope, juce::String& errorMessage)
 {
     return effectProcessingSource.setScope (slotId, scope, errorMessage);
@@ -950,6 +965,9 @@ void AudioEngine::EffectProcessingSource::prepareToPlay (int samplesPerBlockExpe
 {
     transport.prepareToPlay (samplesPerBlockExpected, sampleRate);
     effectGraph.prepareToPlay (sampleRate, samplesPerBlockExpected, channelLayout);
+    dryBuffer.setSize (maximumOutputChannels, samplesPerBlockExpected);
+    effectWetMix.reset (sampleRate, 0.02);
+    effectWetMix.setCurrentAndTargetValue (areAllBypassed() ? 0.0f : 1.0f);
     outputMeter.prepare (sampleRate, channelLayout);
     smoothedGain.reset (sampleRate, 0.02);
     smoothedGain.setCurrentAndTargetValue (outputGain.load (std::memory_order_relaxed));
@@ -997,7 +1015,26 @@ void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSo
                                             channelCount,
                                             bufferToFill.numSamples);
     midiBuffer.clear();
+    effectWetMix.setTargetValue (areAllBypassed() ? 0.0f : 1.0f);
+    const auto blendDry = effectWetMix.isSmoothing() || effectWetMix.getTargetValue() == 0.0f;
+    if (blendDry)
+        for (int channel = 0; channel < channelCount; ++channel)
+            dryBuffer.copyFrom (channel, 0, processBuffer, channel, 0, bufferToFill.numSamples);
+
+    // Keep processing during monitoring bypass so delay/reverb state does not freeze.
     effectGraph.processBlock (processBuffer, midiBuffer);
+    if (effectWetMix.isSmoothing())
+        for (int sample = 0; sample < bufferToFill.numSamples; ++sample)
+        {
+            const auto wet = effectWetMix.getNextValue();
+            for (int channel = 0; channel < channelCount; ++channel)
+                processBuffer.setSample (channel, sample,
+                    wet * processBuffer.getSample (channel, sample)
+                    + (1.0f - wet) * dryBuffer.getSample (channel, sample));
+        }
+    else if (blendDry)
+        for (int channel = 0; channel < channelCount; ++channel)
+            processBuffer.copyFrom (channel, 0, dryBuffer, channel, 0, bufferToFill.numSamples);
 
     for (int channel = 0; channel < juce::jmin (channelCount, maximumOutputChannels); ++channel)
     {

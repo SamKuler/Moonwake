@@ -128,6 +128,39 @@ void EffectGraph::endStateCapture() noexcept
     stateCaptureRequested.store (false, std::memory_order_release);
 }
 
+bool EffectGraph::clearTails (juce::String& errorMessage)
+{
+    errorMessage.clear();
+    if (! prepared) return true;
+    if (! beginStateCapture())
+    {
+        errorMessage = "Effects are busy. Try clearing tails again.";
+        return false;
+    }
+    struct CaptureScope
+    {
+        EffectGraph& owner;
+        ~CaptureScope() { owner.endStateCapture(); }
+    } capture { *this };
+    try
+    {
+        graph.reset();
+        if (prepared)
+        {
+            // reset() leaves the graph's latency-compensation delays intact.
+            // A fresh render sequence clears them without changing slot settings.
+            graph.releaseResources();
+            graph.prepareToPlay (currentSampleRate, currentBlockSize);
+        }
+        return true;
+    }
+    catch (...)
+    {
+        errorMessage = "A plug-in failed while clearing effect buffers.";
+        return false;
+    }
+}
+
 bool EffectGraph::addProcessor (int slotId,
                                 std::unique_ptr<juce::AudioProcessor> processor,
                                 juce::String& errorMessage,

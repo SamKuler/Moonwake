@@ -139,6 +139,8 @@ private:
     juce::ComboBox meterModeBox;
     juce::TextButton resetMeterButton { "Reset" };
     juce::TextButton addEffectButton { "Add Effect" };
+    juce::TextButton clearEffectTailsButton { "Clear tails" };
+    juce::TextButton bypassAllEffectsButton { "Bypass all" };
     SkinEffectChainViewport effectRackViewport;
     juce::Component effectRackContent;
     juce::TextButton previousButton { "Prev" };
