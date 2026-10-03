@@ -2,6 +2,19 @@
 
 #include "JuceSkinAdapter.h"
 
+void AlbumArtworkComponent::setImage (juce::String stableIdToUse,
+                                     juce::String titleToUse, juce::Image image)
+{
+    if (stableId == stableIdToUse && title == titleToUse && artwork == image
+        && artworkPath.isEmpty()) return;
+    stableId = std::move (stableIdToUse);
+    title = std::move (titleToUse);
+    artworkPath.clear();
+    artwork = std::move (image);
+    ambience = {};
+    repaint();
+}
+
 void AlbumArtworkComponent::setTrack (juce::String stableIdToUse,
                                       juce::String titleToUse,
                                       const juce::File& artworkFile)
@@ -56,14 +69,14 @@ void AlbumArtworkComponent::paint (juce::Graphics& graphics)
                                    / artwork.getHeight()
                                : 1.0;
     context.extraLookup = [hasTrack = stableId.isNotEmpty(),
-                           hasImage = artwork.isValid(), aspectRatio] (
+                           hasImage = artwork.isValid(), aspectRatio, additional = extraContext] (
                               std::string_view path)
         -> std::optional<SkinExpressionValue>
     {
         if (path == "artwork.hasTrack") return SkinExpressionValue (hasTrack);
         if (path == "artwork.hasImage") return SkinExpressionValue (hasImage);
         if (path == "artwork.aspectRatio") return SkinExpressionValue (aspectRatio);
-        return std::nullopt;
+        return additional ? additional (path) : std::nullopt;
     };
     static_cast<void> (adapter->drawCustomSlot (
         graphics, *this, SkinRenderTarget::artwork, "frame.background",

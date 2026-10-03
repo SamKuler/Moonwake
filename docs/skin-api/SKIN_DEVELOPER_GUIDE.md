@@ -4,13 +4,13 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.6.1、内置皮肤 1.0.0
+- 版本基线：应用 0.7.0、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
 Skin API 允许皮肤包重新定义：
 
-- Studio、Listening、Effects 和 Settings 四个响应式布局。
+- Studio、Listening、Effects 和 Settings 四个基础响应式布局，以及可选的 Library、Collection 页面。
 - 应用背景、面板、按钮、开关、下拉框、滑杆、旋钮、列表、仪表和装饰图层。
 - normal、selected、hover、pressed、focused、disabled 和 dragging 状态。
 - 字体、SVG、图片、渐变、阴影、圆角和状态动画。
@@ -56,7 +56,7 @@ macOS 文件选择器、系统窗口管理按钮和第三方插件编辑器由�
   "author": {
     "name": "Example Studio"
   },
-  "minAppVersion": "0.6.1",
+  "minAppVersion": "0.7.0",
   "extends": "builtin.foundation",
   "capabilities": ["tokens", "renderers", "layouts"],
   "entrypoints": {
@@ -78,7 +78,7 @@ schema/ 下的五个 JSON Schema 由播放器 SkinSchemaRegistry 通过 Moonwake
 
 ### 2.1 可直接运行的完整示例
 
-`docs/skin-api/examples/CompleteThirdParty/` 是可直接加载的 Skin API 1 参考包，包含四个布局、tokens、renderer index，以及按钮、封面、效果链和输出仪表等 renderer。示例满足全部 required component 规则，并选用插件筛选、格式开关、输出 Mixer 等可选组件；完整目录见第 10 节 Component Catalog。从仓库根目录执行：
+`docs/skin-api/examples/CompleteThirdParty/` 是可直接加载的 Skin API 1 参考包，包含四个基础布局、曲库总览和集合详情、tokens、renderer index，以及按钮、封面、歌单网格、效果链和输出仪表等 renderer。示例满足全部 required component 规则，并选用曲库集合、歌单编辑、插件筛选、格式开关、输出 Mixer 等可选组件；完整目录见第 10 节 Component Catalog。从仓库根目录执行：
 
     ./build/MoonwakeSkinTool validate docs/skin-api/examples/CompleteThirdParty/
     ./build/MoonwakeSkinTool layout docs/skin-api/examples/CompleteThirdParty/ --workspace listening --size 1240x800
@@ -167,7 +167,7 @@ SVG 解析器禁用 DTD 与 entity。允许元素仅为 svg、g、path、rect、
   },
   "description": "A warm listening-room skin.",
   "license": "MIT",
-  "minAppVersion": "0.6.1",
+  "minAppVersion": "0.7.0",
   "extends": "builtin.foundation",
   "capabilities": ["tokens", "renderers", "layouts", "assets", "animations"],
   "entrypoints": {
@@ -200,7 +200,7 @@ SVG 解析器禁用 DTD 与 entity。允许元素仅为 svg、g、path、rect、
 | capabilities | string[] | 是 | 去重、按字典序不是必需 |
 | entrypoints.tokens | path | 否 | 省略时继承基础 tokens |
 | entrypoints.components | path | 否 | 省略时继承基础 renderers |
-| entrypoints.layouts | object | 否 | 缺失入口继承基础布局 |
+| entrypoints.layouts | object | 否 | 四个基础入口可继承 Foundation；library、collection 为可选入口 |
 
 ID 必须匹配：
 
@@ -430,7 +430,7 @@ Token 引用：
 | state.enabled | boolean | 控件是否可用 |
 | state.hover | boolean | 指针是否悬停 |
 | state.pressed | boolean | 是否按下 |
-| state.focused | boolean | 是否有键盘焦点 |
+| state.focused | boolean | 是否需要显示键盘焦点反馈；鼠标点击取得的焦点不启用该状态，Tab 导航启用 |
 | state.selected | boolean | 按钮、开关或行是否选中 |
 | state.dragging | boolean | 是否拖动 |
 | value.normalized | number | 0 至 1 的归一化值 |
@@ -544,7 +544,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 未声明 contentClip 的皮肤保留矩形内容区域。引用未知层、嵌套层或不支持的形状／target 会产生 RENDER004。声明该字段的包将 minAppVersion 设为 0.6.1 或更高。
 
-`table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
+`table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList`、`playlistGrid` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
 
 下例为 `pluginList` 的行布局：
 
@@ -572,13 +572,13 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 }
 ```
 
-`rowHeight` 和 `slots` 必需。`effectChain` 和 `channelMixer` 在合并当前断点后必须包含其目录定义的全部原生交互 slot；其他 target 的 `slots` 可为空对象。`rowGap`、`headerHeight` 缺省为 `0`。数值接受 number、`$ref`、`$context`、`$expr`，与绘制属性共用类型检查、受限表达式和继承 token 重绑定。`rowHeight` 至少为 `1`，间距、表头高度和 slot 宽高不得为负；这些度量及 slot 坐标沿用 Skin Layout 的 100000 逻辑像素范围。slot 名称必须属于该 target 的 Component Catalog；原生交互 slot 同时遵循对应控件的目录最小尺寸，换算后的原生控件矩形必须完整位于行内，避免裁切后无法操作。声明 `header.label`、`empty.message` 等公开 slot 时，坐标相对于它们各自的宿主绘制区域。
+`rowHeight` 和 `slots` 必需。`effectChain` 和 `channelMixer` 在合并当前断点后必须包含其目录定义的全部原生交互 slot；`playlistGrid` 必须放置全部五个卡片 slot；其余 target 的 `slots` 可为空对象。`rowGap`、`headerHeight` 缺省为 `0`。数值接受 number、`$ref`、`$context`、`$expr`，与绘制属性共用类型检查、受限表达式和继承 token 重绑定。`rowHeight` 至少为 `1`，间距、表头高度和 slot 宽高不得为负；这些度量及 slot 坐标沿用 Skin Layout 的 100000 逻辑像素范围。slot 名称必须属于该 target 的 Component Catalog；原生交互 slot 同时遵循对应控件的目录最小尺寸，换算后的原生控件矩形必须完整位于行内，避免裁切后无法操作。声明 `header.label`、`empty.message` 等公开 slot 时，坐标相对于它们各自的宿主绘制区域。
 
 度量解析时，`bounds`、`contentBounds` 来自整个组件；slot 矩形解析时，两者为从 `(0, 0)` 开始、宽度等于组件宽度、高度等于 `rowHeight` 的行矩形。`container.width`、`container.height` 表示传入的可用容器尺寸，供空态和表头布局引用。slot 表达式另可读取 `layout.rowHeight`、`layout.rowGap`、`layout.headerHeight`。所有行布局可读取 `table.rowCount`、`table.columnCount`；table 的宿主额外提供 `table.presentation`（`table` 或 `list`）。逐项业务字段仍只用于相应 slot 的绘制 context。
 
 `breakpoints` 最多 16 项；`when` 接受 `minWidth`、`maxWidth`，端点包含在内，至少声明一项。断点按声明顺序处理，匹配项覆写所声明的度量和 slot；未声明的值保留，slot 按 ID 合并。宽度为扣除可见滚动条后可用容器的局部宽度，单位与 Skin Layout 一致。布局几何不参与 renderer 状态动画。
 
-未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。无效尺寸、未知或缺少交互 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。Foundation 为内置复合组件提供完整布局，使旧皮肤也有可用的几何回退。
+未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。新增 `playlistGrid` 必须声明 `rowLayout` 和 `controlStyle`，并放置全部五个卡片 slot。无效尺寸、未知或缺少必需 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。Foundation 为原有复合组件提供完整布局，使旧皮肤也有可用的几何回退。
 
 ### 7.2 Renderer 调用粒度与专属 Context
 
@@ -596,7 +596,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | popupMenu | 背景、item、separator 或 sectionHeader 各一次 | menu.part、menu.itemIndex、text.primary、text.secondary、text.align、icon.name、state.enabled、state.selected | 无 |
 | tooltip | 每个原生 tooltip 一次 | text.primary、text.align | 无 |
 | surface | 每个 container 或 visual 节点一次 | bounds.* | 无 |
-| table | 表主体一次 | table.rowCount、table.columnCount | header.surface、header.text、row.surface、cell.title、cell.location、cell.duration |
+| table | 表主体一次 | table.rowCount、table.columnCount | header.surface、header.text、row.surface、cell.title、cell.location、cell.duration、cell.artist、cell.album |
 | artwork | 封面组件一次 | artwork.hasTrack、artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
 | effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator；可选 slot.scope（应用 0.4.0 起） |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
@@ -605,13 +605,13 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | pluginList | 主体一次；每个可见插件调用 slots | slots：plugin.index、plugin.name、plugin.manufacturer、plugin.format、plugin.enabled | row.surface、row.name、row.manufacturer、row.format、row.status、header.label、empty.message |
 | skinList | 主体一次；每个可见皮肤分别调用 slots | 行 slots：skin.index、skin.id、skin.name、skin.author、skin.version、skin.builtin、skin.active、skin.previewed | row.surface、row.name、row.author、row.version、row.status、empty.message |
 
-复合 entry 与简单 entry 使用同一规范查找顺序：当前皮肤精确 style → 父皮肤同名精确 style → 当前皮肤 target.default → 父皮肤 target.default → builtin.foundation target.default。component 省略 style 时从当前皮肤 target.default 开始。某个 slot 未显式绑定时从该 slot 类型的当前皮肤 target.default 开始。缺少 builtin.foundation 默认 renderer 属于应用构建错误。
+复合 entry 与简单 entry 使用同一规范查找顺序：当前皮肤精确 style → 父皮肤同名精确 style → 当前皮肤 target.default → 父皮肤 target.default → builtin.foundation target.default。component 省略 style 时从当前皮肤 target.default 开始。某个 slot 未显式绑定时从该 slot 类型的当前皮肤 target.default 开始。Foundation 为原有 target 提供默认 renderer；`playlistGrid` 是应用 0.7.0 新增的可选 target，使用它的皮肤必须提供可解析的网格样式。未使用网格的旧皮肤无需增加 renderer 或页面。
 
 scrollBar、popupMenu 和 tooltip 是 JuceSkinAdapter 使用的 ancillary target，不对应可放进 layout 的 Component ID。它们与其他 renderer target 使用相同的命名样式规则，可以在 components/index.json 注册 `studio`、`listening` 等样式，并通过布局的 `ancillaryStyles` 选择。每个完整皮肤仍必须提供或继承 scrollBar.default、popupMenu.default 和 tooltip.default；builtin.foundation 提供三者，确保未指定映射的 Viewport、菜单和提示使用稳定回退。ComboBox 的自身 style 不传播给 popup；ComboBox 与其他来源的菜单均使用当前布局解析出的 popupMenu 样式。使用这些命名附属样式及布局映射的皮肤要求应用 `0.3.0` 或更高。
 
 `combo.popupOpen` 表示原生弹出菜单正在显示，`combo.hasSelection` 表示有有效选项；两者要求应用 `0.5.0` 或更高。内置皮肤在菜单显示且有选项时隐藏被覆盖的触发器图层；无选项时菜单出现在触发器下方，触发器保持可见。菜单关闭后恢复触发器及焦点反馈。
 
-scroll.orientation 为 `horizontal` 或 `vertical`；scroll.thumbStart 与 scroll.thumbSize 是 target 本地轴上的逻辑像素；scroll.part 为 `bar`、`buttonStart` 或 `buttonEnd`。`bar` 一次绘制轨道与 thumb，两个 button part 分别绘制可选箭头。menu.part 为 `background`、`item`、`separator` 或 `sectionHeader`；普通 item 的 menu.itemIndex 是当次菜单绘制中从 0 开始、跳过 separator 与 sectionHeader 的稳定视觉序号，非 item 调用固定为 -1。table 的 row.surface 接收整行 bounds，cell.title、cell.location 与 cell.duration 分别接收其实际列 bounds；不要假定三个 cell slot 共享整行几何。tooltip 使用应用提供的 text.primary，皮肤不能替换其可访问性内容。
+scroll.orientation 为 `horizontal` 或 `vertical`；scroll.thumbStart 与 scroll.thumbSize 是 target 本地轴上的逻辑像素；scroll.part 为 `bar`、`buttonStart` 或 `buttonEnd`。`bar` 一次绘制轨道与 thumb，两个 button part 分别绘制可选箭头。menu.part 为 `background`、`item`、`separator` 或 `sectionHeader`；普通 item 的 menu.itemIndex 是当次菜单绘制中从 0 开始、跳过 separator 与 sectionHeader 的稳定视觉序号，非 item 调用固定为 -1。table 的 row.surface 接收整行 bounds，cell.* 分别接收其实际列 bounds；不要假定 cell slot 共享整行几何。tooltip 使用应用提供的 text.primary，皮肤不能替换其可访问性内容。
 
 scrollBar 的 bounds 与 contentBounds 表示轨道绘制区域。滑块沿对应轴使用 scroll.thumbStart 与 scroll.thumbSize 定位，主轴尺寸与原生拖动命中区域一致；视觉留白放在交叉轴，thumbSize 为 0 时隐藏滑块。内置样式的 thickness 为 12、minThumbLength 为 24，水平与垂直滚动条遵循同一规则。
 
@@ -632,6 +632,7 @@ renderer 可声明 `controlStyle`，为宿主的原生命中区域和附属窗�
 | tooltip | maxWidth（含文字内边距）、offsetX、offsetY |
 | scrollBar | thickness、minThumbLength |
 | textEditor | selectionColour、selectedTextColour、caretColour |
+| playlistGrid | minItemWidth（至少 120）、itemGap（至少 0） |
 
 数值和颜色可以引用 token，几何字段可使用受限表达式。Slider 的 layers 以完整控件 bounds 绘制，trackBounds 描述原生输入映射使用的同一轨道；自定义滑块必须让两者一致。复合组件中原生子控件使用其 slot 映射出的 style。图标使用公开语义路径，尺寸和位置由 iconBounds 控制。Tooltip 会在父窗口边界内避让，滚动条 thickness 同时参与布局留白和原生滚动条宽度。TextEditor 的选区、选中文字和光标使用对应皮肤颜色。
 
@@ -848,7 +849,7 @@ repeat 只允许白名单数据源。输出仪表可以使用 meter.channels：
 允许的数据源：
 
 - meter.channels，最多 16（应用 0.4.0 起）。
-- table.visibleColumns，最多 3。
+- table.visibleColumns，最多 4；按实际可见列顺序提供 item.index 和 item.label，0.7.0 起支持第四列。
 - output.channelLabels，最多 16（应用 0.4.0 起）。
 
 repeat.template 不能包含 repeat，即使藏在 group 子树中也不允许。编译器按 source 的最大元素数静态展开计数；单个 Render Program 的最坏绘制操作超过 5000 时拒绝导入。Skin API 1 不允许皮肤创建任意数组。
@@ -920,7 +921,7 @@ when 支持 minWidth、maxWidth、minHeight、maxHeight、minScaleFactor、maxSc
 { "workspace": "studio", "maxWidth": 1099 }
 ```
 
-四个布局入口保持为 Studio、Listening、Effects 和 Settings。应用把当前工作区传给共享的 Effects、Settings 布局，因此它们可以通过完整 breakpoint root 选择相应样式与结构。未显式提供工作区的解析器调用和 Skin Tool 预览，从 Studio 入口推导 `studio`；其余入口默认 `listening`。没有 `workspace` 条件的既有皮肤保持原来的匹配行为，未匹配时仍使用 root。
+Studio、Listening、Effects 和 Settings 是四个基础入口。应用 0.7.0 增加可选的 `library` 和 `collection` 入口，分别用于曲库总览和集合详情；Foundation 不提供这两个页面；播放器在皮肤同时提供或继承 `library` 与 `collection` 时启用分层曲库导航，否则保持原有工作区布局。单独的页面仍可在 Skin Tool 中预览。页面导航与 Studio／Listening 工作区独立，应用将当前工作区传给 Effects、Settings、Library 和 Collection，因此它们可以通过完整 breakpoint root 选择相应样式与结构。未显式提供工作区的解析器调用和 Skin Tool 预览，从 Studio 入口推导 `studio`；其余入口默认 `listening`。没有 `workspace` 条件的既有皮肤保持原来的匹配行为，未匹配时仍使用 root。
 
 不可达检查也包含工作区：相同尺寸下的 Studio 和 Listening 分支可以并列；若某分支在它匹配的每个工作区中，尺寸与 scale factor 范围都被先前分支完整覆盖，则报 `LAYOUT010`。不同分支部分重叠仍遵循声明顺序。`workspace` 的未知枚举值报 `SCHEMA003`，字段类型和其他 Schema 限制沿用现有错误码。使用工作区条件的皮肤必须设置 `minAppVersion` 为 `0.3.0` 或更高。
 
@@ -1131,6 +1132,7 @@ Component Catalog 的 Skin API 1 默认尺寸：
 | rotarySlider | 48 × 48 | 72 × 72 |
 | progressBar | 40 × 4 | 140 × 6 |
 | table | 180 × 100 | 360 × 220 |
+| playlistGrid | 120 × 160 | 600 × 400 |
 | artwork | 120 × 120 | 300 × 300 |
 | effectChain | 220 × 120 | 360 × 300 |
 | outputStage | 180 × 140 | 300 × 420 |
@@ -1185,8 +1187,8 @@ Component ID 是 Skin API 的公共 ABI：
 - 行为语义不改变。
 - C++ 实现、类名和成员名可以改变。
 - 新增可选 Component ID 不提升 Skin API。
-- 新增必需 Component ID 必须提升 Skin API。
-- Skin API 1 的所有 Component ID 在每个最终布局中都是 singleton；必需 ID 恰好出现一次，可选 ID 最多出现一次。
+- 修改已发布入口的必需组件集合须先判断 Skin API 主版本；新增可选入口可定义自身的必需组件，不改变旧入口要求。
+- Skin API 1 的所有 Component ID 在每个最终布局中都是 singleton；独立必需 ID 恰好出现一次；可选 ID 及必需替代组中的每个 ID 最多出现一次。替代组至少提供一个可用组件。
 
 ### 10.2 应用框架
 
@@ -1195,10 +1197,10 @@ Component ID 是 Skin API 的公共 ABI：
 | app.brand.eyebrow | label | 可选 | 应用副标题 |
 | app.brand.title | label | 可选 | 应用名称 |
 | app.deviceStatus | label | 可选 | 当前输出布局与设备摘要 |
-| app.status | label | Studio、Listening 必需 | 最近一次操作或错误 |
-| workspace.studio | textButton | Studio、Listening 必需 | 切换到 Studio |
-| workspace.listening | textButton | Studio、Listening 必需 | 切换到 Listening |
-| settings.open | textButton | Studio、Listening 必需 | 打开 Settings |
+| app.status | label | Studio、Listening、Library、Collection 必需 | 最近一次操作或错误 |
+| workspace.studio | textButton | Studio、Listening、Library、Collection 必需 | 切换到 Studio，保留当前页面 |
+| workspace.listening | textButton | Studio、Listening、Library、Collection 必需 | 切换到 Listening，保留当前页面 |
+| settings.open | textButton | Studio、Listening、Library、Collection 必需 | 打开 Settings |
 
 workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态。Effects 和 Settings 的关闭按钮为可选组件；内置皮肤通过顶部入口、工作区切换按钮和 Esc 返回主工作区。
 
@@ -1206,34 +1208,78 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 
 | ID | 类型 | 必需位置 | 行为或数据 |
 |---|---|---|---|
-| library.add | textButton | Studio、Listening 必需 | 空闲时打开本地音频文件或文件夹选择器；导入期间变为可见的取消操作，图标上下文从 add 切换为 close |
-| library.search | textEditor | 可选 | 按作品名、艺术家、专辑、格式或声道数筛选队列；应用 0.2.0 新增 |
-| queue.title | label | 可选 | 队列标题 |
-| queue.count | label | 可选 | 曲目数量 |
-| queue.table | table | Studio、Listening 必需 | 展示与选择播放队列 |
+| library.add | textButton | Studio、Listening 必需 | 打开本地音频文件或文件夹选择器；导入期间变为取消操作，图标上下文从 add 切换为 close；导入目标在开始时确定 |
+| library.open | textButton | Library、Collection 必需；0.7.0 起 | 打开曲库总览 |
+| player.open | textButton | Library、Collection 必需；0.7.0 起 | 返回播放器或工作区会话 |
+| library.back | textButton | Collection 必需；0.7.0 起 | 返回曲库总览 |
+| library.browsePlaylists / library.browseAlbums / library.browseArtists | textButton | 可选；0.7.0 起 | 切换总览中的歌单、专辑或艺术家集合 |
+| library.browseSongs / library.browseFavourites / library.browseQueue | textButton | 可选；0.7.0 起 | 打开全部歌曲、收藏或播放队列详情 |
+| library.gridSearch | textEditor | 可选；0.7.0 起 | 筛选当前总览中的集合卡片 |
+| library.grid | playlistGrid | Library 必需；0.7.0 起 | 具有封面、名称和摘要的集合卡片网格 |
+| library.detailCover | artwork | 可选；0.7.0 起 | 当前集合封面，支持与 artwork.cover 相同的 presentation 和 frame slots |
+| library.description | label | 可选；0.7.0 起 | 当前集合描述 |
+| library.play / library.shufflePlay | textButton | 可选；0.7.0 起 | 从当前集合启动顺序或随机播放 |
+| library.search | textEditor | 可选 | 按作品名、艺术家、专辑、格式或声道数筛选当前浏览集合；仅使用队列表格的旧皮肤继续筛选队列；应用 0.2.0 新增 |
+| library.collections | comboBox | 可选；0.7.0 起 | 分组选择全部歌曲、专辑、艺术家、收藏、命名歌单和播放队列；命名歌单可通过可编辑文字重命名 |
+| library.newPlaylist | textButton | 可选；0.7.0 起 | 新建命名歌单 |
+| library.actions | textButton | 可选；0.7.0 起 | 当前集合及选区的操作菜单，包含播放、下一首播放、追加队列、收藏、歌单编辑、撤销及本地 M3U/M3U8 交换；可用操作由应用决定 |
+| library.title | label | 可选；0.7.0 起 | 当前浏览集合名称 |
+| library.count | label | 可选；0.7.0 起 | 当前集合的曲目数量，右对齐 |
+| library.empty | label | 可选；0.7.0 起 | 当前集合或搜索结果的空态提示 |
+| library.tracks | table | Collection 必需；Studio、Listening 可替代 queue.table；0.7.0 起 | 当前浏览集合的有序条目；选择播放队列集合时展示队列 |
+| queue.title | label | 可选 | 播放队列标题 |
+| queue.count | label | 可选 | 播放队列曲目数量 |
+| queue.table | table | Studio、Listening 与 library.tracks 至少提供一个 | 始终展示播放队列，保持既有队列语义 |
 | queue.empty | label | 可选 | 空队列提示；不能替代 library.add |
-| queue.remove | textButton | 可选 | 删除选中曲目 |
-| queue.clear | textButton | 可选 | 清空队列 |
-| queue.moveUp | textButton | 可选 | 上移选中曲目 |
-| queue.moveDown | textButton | 可选 | 下移选中曲目 |
+| queue.remove | textButton | 可选 | 删除队列选区 |
+| queue.clear | textButton | 可选 | 清空播放队列 |
+| queue.moveUp | textButton | 可选 | 上移队列选区 |
+| queue.moveDown | textButton | 可选 | 下移队列选区 |
 
-`queue.table` 可设置 `presentation: "table"` 或 `presentation: "list"`，两者继续使用同一队列、选择、行状态与 renderer target。table 展示标题、位置和时长列；list 使用无表头的较高行，仅展示标题和时长。省略 presentation 时保留应用的原始表格配置，离开指定 presentation 的布局时恢复原始列宽、顺序、可见性与行高。该选项要求 `minAppVersion` 为 `0.3.0` 或更高。
+`queue.table` 与 `library.tracks` 使用相同的 table renderer target、slots 和最小尺寸，可设置 `presentation: "table"` 或 `presentation: "list"`。table 展示标题、位置和时长列；list 使用无表头的较高行，展示标题和时长。省略 presentation 等同于 `table`，行高、表头高度和列几何继续使用解析出的 Skin rowLayout。布局切换和窗口缩放保留表格中的用户列调整；组件从皮肤布局卸载时恢复宿主原始列宽、顺序、可见性、行高和表头高度。`queue.table` 的 presentation 选项自应用 `0.3.0` 起提供；新增 `library.*` 组件要求 `minAppVersion` 为 `0.7.0` 或更高。
 
-queue.table 的公开行上下文：
+新组件沿用所属 kind 的目录最小尺寸：comboBox 为 60 × 28，textButton 为 28 × 28，label 为 0 × 16，table 为 180 × 100。建议焦点顺序为集合选择 100、导入 110、搜索 115、新建歌单 116、集合操作 117、曲目表格 120；同一入口内的其他交互组件须使用不同的正数。
+
+集合详情提供 `library.newPlaylist` 或 `library.actions` 的歌单重命名操作时，应同时放置 `library.collections`。可将 `library.title` 与 `library.collections` 放在同一个高 48 像素的 stack 中，两者锚定四边，并在该详情页放置 `library.detailCover`。应用在普通状态显示只读标题，重命名期间显示可编辑的集合控件；renderer 无需模拟输入框或改变业务可访问性名称。完整示例的 `layouts/collection.json` 演示这组配对。
+
+`library.grid` 的目录最小尺寸为 120 × 160。它的 `playlistGrid` renderer 使用 `controlStyle.minItemWidth` 和 `controlStyle.itemGap` 决定列数与间距；两个值均为逻辑像素。`rowLayout` 在每张卡片的宽度下解析，`bounds.width` 和 `contentBounds.width` 表示单张卡片宽度。正方形封面可以直接使用这个值作为高度，`rowHeight` 可以声明为 `{"$expr":"bounds.width + 72"}`，为封面下方的文字留下 72 像素。卡片高度与五个 slot 的几何由同一份解析结果决定。
+
+| slot | renderer target | 内容 |
+|---|---|---|
+| card.surface | surface | 整张卡片的背景及 hover、pressed、selected、focused、disabled 状态 |
+| card.cover | artwork | 单张封面或应用合成的拼贴；缺少封面时由 renderer 绘制占位图形 |
+| card.title | label | 集合名称 |
+| card.summary | label | 曲目数量与总时长摘要 |
+| card.date | label | 创建日期；历史记录没有时间戳时留空 |
+
+五个 slot 均须在 `rowLayout.slots` 中声明。卡片是应用拥有的可访问按钮，键盘和点击行为由应用实现；slot 可以读取通用 `state.*`。这些 slot 还提供 `collection.id`、`collection.name`（string），`collection.trackCount`、`collection.durationSeconds`、`collection.createdAtMs`（number）和 `collection.hasArtwork`（boolean）。`createdAtMs` 使用 Unix 毫秒，0 表示未知；renderer 不应据此制造历史日期。`card.cover` 同时保留标准 `artwork.*` context。集合字段仅在网格卡片 slot 中可用，不属于独立 label、artwork 或网格背景的上下文。
+
+卡片的键盘焦点由 `card.surface` 表现，该 slot 的 renderer 必须通过可见焦点验证。网格本体不接收键盘焦点，`playlistGrid` renderer 无需声明 focused 状态。
+
+完整声明见示例包中的 `components/playlist-grid.json`、`components/collection-card.json` 和 `layouts/library.json`。新入口、组件和 renderer 均要求 `minAppVersion: "0.7.0"`。
+
+两个表格的 `row.surface` 和 `cell.*` slots 提供以下上下文；表格主体和表头不提供逐行数据：
 
 - row.index：整数。
-- row.selected：布尔。
+- row.selected：布尔，当前浏览选区。
+- row.playing：布尔，当前加载的播放条目标记；与 row.selected 独立，暂停时仍可保留标记；0.7.0 起。
+- row.favourite：布尔，对应曲库记录是否收藏；0.7.0 起。
+- row.dropEdge：number，-1 表示在该行前插入，0 表示无插入标记，1 表示在该行后插入；0.7.0 起。
 - row.available：布尔。
 - row.title：字符串。
 - row.location：字符串。
 - row.artist：字符串；没有艺术家元数据时为空。
 - row.album：字符串；没有专辑元数据时为空。
 - row.duration：字符串。
-- column.id：title、location 或 duration。
+- column.id：title、location、duration、artist 或 album，仅在 cell.* slots 中提供。
 
-`queue.table` 不向皮肤暴露文件对象；`row.location` 保持 Skin API 1 的原始绝对路径语义。`cell.location` 的 `text.primary` 与 `row.location` 始终是同一个绝对路径，`column.id` 仍为 `location`。应用另行提供向后兼容的 `row.artist` 与 `row.album`；Default 内置皮肤的专用 location label renderer 会显式读取这两个字段，二者都为空时回退到 `text.primary`。第三方皮肤可以选择元数据字段，但不能把 `row.location` 或 `text.primary` 重新解释为艺术家/专辑。字符串内容及是否脱敏由应用决定，皮肤只决定是否以及如何绘制。
+引用 `row.playing`、`row.favourite` 或 `row.dropEdge` 的皮肤须将 `minAppVersion` 设为 `0.7.0` 或更高。
 
-`library.search` 仅改变 `queue.table` 的可见投影，不改变播放队列顺序或当前播放项目。使用该可选 Component ID 的第三方皮肤必须将 `minAppVersion` 设为 `0.2.0` 或更高；未放置它的既有 Skin API 1 皮肤继续有效。
+表格不向皮肤暴露文件对象；`row.location` 保持 Skin API 1 的原始绝对路径语义。`cell.location` 的 `text.primary` 与 `row.location` 始终是同一个绝对路径，`column.id` 仍为 `location`。Default 内置皮肤的专用 location label renderer 显式读取 `row.artist` 与 `row.album`，二者都为空时回退到 `text.primary`。第三方皮肤可以选择元数据字段，但不能把 `row.location` 或 `text.primary` 重新解释为艺术家/专辑。字符串内容及是否脱敏由应用决定，皮肤只决定是否以及如何绘制。
+
+`library.tracks` 与 `queue.table` 的 table presentation 支持可选的 `cell.artist` 与 `cell.album` 独立列（0.7.0 起）。rowLayout 同时声明这两个 slot 时，应用用 Artist、Album 两列替代合并元数据列；各自的 `text.primary` 是对应字段。省略时保留 `cell.location` 的原有行为。list presentation 仍使用紧凑布局。列宽、行高和字体由皮肤决定，列排序由应用实现。
+
+单击只改变浏览选择；双击或显式播放动作启动播放。Cmd/Shift 多选、菜单操作和拖拽使用条目身份，因此同一曲目的重复引用可分别选择和编辑。搜索、排序和切换集合不改变当前播放、音频设备或效果链。撤销恢复列表内容并保留当前播放位置；移除歌单条目不删除本地音乐文件。搜索投影无法确定完整列表插入位置时，应用禁用重排拖拽。皮肤通过 row.selected 与 row.playing 分别呈现选择和播放状态，通过 row.dropEdge 绘制插入线，业务动作和命中语义由应用拥有。
 
 ### 10.4 当前播放与封面
 
@@ -1286,17 +1332,17 @@ artwork renderer 还可声明一个顶层 `roundedRect` layer，ID 为 `image-am
 
 | ID | 类型 | 必需位置 | 行为或数据 |
 |---|---|---|---|
-| transport.previous | textButton | Studio、Listening 必需 | 上一曲或回到曲首 |
-| transport.playPause | textButton | Studio、Listening 必需 | 播放或暂停 |
-| transport.next | textButton | Studio、Listening 必需 | 下一曲 |
-| transport.seek | linearSlider | Studio、Listening 必需 | 播放位置 |
-| transport.time | label | Studio、Listening 必需 | 当前时间与总时长 |
+| transport.previous | textButton | Studio、Listening、Library、Collection 必需 | 上一曲或回到曲首 |
+| transport.playPause | textButton | Studio、Listening、Library、Collection 必需 | 播放或暂停 |
+| transport.next | textButton | Studio、Listening、Library、Collection 必需 | 下一曲 |
+| transport.seek | linearSlider | Studio、Listening、Library、Collection 必需 | 播放位置 |
+| transport.time | label | Studio、Listening、Library、Collection 必需 | 当前时间与总时长 |
 | transport.shuffle | toggleButton | 可选 | 随机播放 |
 | transport.repeat | comboBox | 可选 | Repeat Off、All、One；保留既有下拉框接口 |
 | transport.repeatCycle | textButton | 可选 | 点击循环切换 Off → All → One；0.6.1 起，图标 slots 为 icon.repeat / icon.repeatOne |
 | transport.volumeLabel | label | 可选 | VOLUME |
 | transport.volumeValue | label | 可选 | 格式化音量 |
-| transport.volume | slider | Studio、Listening 必需 | 主输出音量 |
+| transport.volume | slider | Studio、Listening、Library、Collection 必需 | 主输出音量 |
 
 transport.volume 允许 presentation：
 
@@ -1490,11 +1536,10 @@ Studio 可直接绑定 effects.chain 及添加插件组件，和 Output／Mixer 
 
 ## 11. Required Component Rules
 
-Studio 和 Listening 每个最终布局必须且只能包含一次：
+Studio 和 Listening 每个最终布局必须且只能包含一次以下独立必需组件：
 
 ~~~text
 library.add
-queue.table
 transport.previous
 transport.playPause
 transport.next
@@ -1507,12 +1552,15 @@ workspace.listening
 app.status
 ~~~
 
+每个 Studio 和 Listening 最终布局还必须包含 `queue.table` 或 `library.tracks`，也可以同时包含两者。至少一个表格须可见、具有非零尺寸且透明度大于 0；祖先容器的隐藏或透明同样参与检查。`queue.table` 的 descriptor 通过 `requiredAlternatives` 声明 `library.tracks`；替代关系只满足工作区内容要求，不改变两个组件的数据归属。仅提供原有 `queue.table` 的皮肤继续有效。
+
+可选的 Library 和 Collection 入口各自必须包含 `library.open`、`player.open`、`workspace.studio`、`workspace.listening`、`settings.open`、`app.status`，以及 `transport.previous`、`transport.playPause`、`transport.next`、`transport.seek`、`transport.time`、`transport.volume`。Library 还必须包含 `library.grid`；Collection 还必须包含 `library.tracks` 和 `library.back`。这些组件在基础 root 和每个完整 breakpoint root 中都必须可用。`library.add` 在这两个入口中可选。
+
 Settings 最终布局必须包含前一节标记为“是”的全部组件。
 
 Effects 最终布局必须包含：
 
 ~~~text
-effects.close
 effects.filter
 effects.catalog
 effects.add
@@ -1794,7 +1842,7 @@ Skin API 1 不允许在同一布局中重复同一个 Component ID。应将唯�
 - 不可用曲目通过 row.available 暴露。
 - Settings 中内置皮肤删除按钮 disabled。
 
-皮肤不得通过隐藏、透明度为 0 或零尺寸规避 required component。编译器会检查最终尺寸约束和静态可见性。
+皮肤不得通过隐藏、透明度为 0 或零尺寸规避 required component；必需替代组至少保留一个可用组件。编译器会检查最终尺寸约束、祖先可见性和透明度。
 
 ## 14. 动画
 
@@ -1861,6 +1909,8 @@ respectReduceMotion 默认 true。系统开启 Reduce Motion 时：
 - 正文文本与背景对比度推荐至少 4.5:1。
 - 大文字推荐至少 3:1。
 - disabled 状态仍应可辨认，而不是完全透明。
+
+应用保留鼠标操作后的真实键盘焦点及快捷键行为，但只在键盘导航时向 renderer 提供 `state.focused`。焦点视觉、选中态和旁通态互相独立。
 
 真实组件的 VoiceOver 名称、角色和值由应用提供，皮肤不能覆盖。Visual Node 默认且必须对辅助技术隐藏。
 
@@ -1997,7 +2047,7 @@ Suggestion: add one visible component node with component "library.add".
     ./build/MoonwakeSkinTool layout MyFirstSkin/ --workspace effects --size 1240x800 --theme studio
     ./build/MoonwakeSkinTool snapshot MyFirstSkin/ --workspace settings --size 1240x800 --theme listening --output settings-listening.png
 
-`layout` 与 `snapshot` 的 `--workspace` 选择四个布局入口，`--theme studio|listening` 选择断点匹配的当前工作区。`--theme` 可省略，默认按入口推导；也可在两个主入口上显式覆盖，便于检查条件分支。未知值、重复参数或其他命令使用此参数均报 `TOOL001`，缺少参数值报 `TOOL002`。
+`layout` 与 `snapshot` 的 `--workspace` 接受 `studio|listening|effects|settings|library|collection`，`--theme studio|listening` 选择断点匹配的当前工作区。可选页面必须由皮肤声明。`--theme` 可省略，默认按入口推导；也可在两个主入口上显式覆盖，便于检查条件分支。未知值、重复参数或其他命令使用此参数均报 `TOOL001`，缺少参数值报 `TOOL002`。
 
 导出当前应用的规范 Schema：
 
@@ -2012,7 +2062,7 @@ Suggestion: add one visible component node with component "library.add".
 ## 21. 发布前检查清单
 
 - manifest 的 id、version、license 和 minAppVersion 正确。
-- 四个布局入口均可通过验证。
+- 四个基础布局入口，以及声明的 Library／Collection 入口，均可通过验证。
 - Studio 与 Listening 包含全部 required component。
 - Settings 没有 library.add。
 - Add Music 在主队列中清晰可见；若采用 library.search，搜索框与队列宽度和焦点顺序一致。

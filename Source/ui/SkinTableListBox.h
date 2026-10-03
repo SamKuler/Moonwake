@@ -6,7 +6,7 @@
 
 #include <optional>
 
-class SkinTableListBox final : public juce::TableListBox
+class SkinTableListBox : public juce::TableListBox
 {
 public:
     SkinTableListBox();
@@ -31,6 +31,7 @@ private:
     juce::String tableColumns;
     juce::String lastAppliedTableColumns;
     bool customTableColumns = false;
+    bool splitMetadataColumns = false;
 
     void rememberTableColumns();
     void layoutPresentationColumns();

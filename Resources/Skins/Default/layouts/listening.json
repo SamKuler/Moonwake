@@ -39,10 +39,50 @@
                 "height": 40
               },
               {
+                "id": "listening-listening-root-library-open",
+                "type": "component",
+                "component": "library.open",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 2,
+                "shrink": 0
+              },
+              {
+                "id": "listening-listening-root-library-open-favourites",
+                "type": "component",
+                "component": "library.browseFavourites",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 3,
+                "shrink": 0
+              },
+              {
+                "id": "listening-listening-root-player-open-queue",
+                "type": "component",
+                "component": "library.browseQueue",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 4,
+                "shrink": 0
+              },
+              {
+                "id": "listening-listening-root-player-open",
+                "type": "component",
+                "component": "player.open",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 5,
+                "shrink": 0
+              },
+              {
                 "id": "listening-listening-modes",
                 "type": "row",
                 "style": "surface.listeningSwitcher",
-                "width": 248,
+                "width": 212,
                 "height": 44,
                 "shrink": 0,
                 "padding": 4,
@@ -54,7 +94,7 @@
                     "type": "component",
                     "component": "workspace.studio",
                     "style": "textButton.listeningMode",
-                    "width": 118,
+                    "width": 100,
                     "height": 36,
                     "focusOrder": 10
                   },
@@ -63,7 +103,7 @@
                     "type": "component",
                     "component": "workspace.listening",
                     "style": "textButton.listeningMode",
-                    "width": 118,
+                    "width": 100,
                     "height": 36,
                     "focusOrder": 20
                   }
@@ -106,75 +146,68 @@
               {
                 "id": "listening-listening-queue-panel",
                 "type": "column",
-                "gap": 12,
-                "padding": 16,
+                "gap": 8,
+                "padding": 12,
                 "style": "surface.listening",
                 "children": [
                   {
-                    "id": "listening-listening-queue-heading",
+                    "id": "listening-queue-header",
                     "type": "row",
-                    "height": 40,
-                    "gap": 8,
+                    "height": 32,
+                    "shrink": 0,
                     "align": "center",
+                    "gap": 8,
                     "children": [
                       {
-                        "id": "listening-listening-queue-title",
+                        "id": "queue-title",
                         "type": "component",
                         "component": "queue.title",
                         "style": "label.listeningSection",
                         "grow": 1,
+                        "height": 32
+                      },
+                      {
+                        "id": "queue-count",
+                        "type": "component",
+                        "component": "queue.count",
+                        "style": "label.listeningMuted",
+                        "width": 64,
                         "height": 28
                       },
                       {
-                        "id": "listening-listening-queue-count",
-                        "type": "component",
-                        "component": "queue.count",
-                        "style": "label.listeningData",
-                        "width": 72,
-                        "height": 24
-                      },
-                      {
-                        "id": "listening-listening-add",
+                        "id": "listening-listening-root-library-add",
                         "type": "component",
                         "component": "library.add",
                         "style": "textButton.listeningIconNeutral",
-                        "width": 36,
-                        "height": 36,
+                        "width": 32,
+                        "height": 32,
                         "focusOrder": 110
                       }
-                    ],
-                    "shrink": 0
+                    ]
                   },
                   {
-                    "id": "listening-listening-search",
-                    "type": "component",
-                    "component": "library.search",
-                    "style": "textEditor.listening",
-                    "height": 40,
-                    "focusOrder": 100,
-                    "shrink": 0
-                  },
-                  {
-                    "id": "listening-listening-queue-body",
+                    "id": "listening-queue-list-stack",
                     "type": "stack",
                     "grow": 1,
+                    "minHeight": 80,
                     "children": [
                       {
-                        "id": "listening-listening-queue",
+                        "id": "queue-table",
                         "type": "component",
                         "component": "queue.table",
                         "style": "table.listening",
-                        "presentation": "list",
+                        "grow": 1,
                         "anchors": {
                           "top": 0,
                           "right": 0,
                           "bottom": 0,
                           "left": 0
                         },
-                        "focusOrder": 120
+                        "focusOrder": 130,
+                        "presentation": "list"
                       },
                       {
-                        "id": "listening-listening-empty",
+                        "id": "queue-empty",
                         "type": "component",
                         "component": "queue.empty",
                         "style": "label.listeningMuted",
@@ -188,7 +221,8 @@
                     ]
                   }
                 ],
-                "grow": 1
+                "grow": 1,
+                "minHeight": 140
               }
             ]
           },

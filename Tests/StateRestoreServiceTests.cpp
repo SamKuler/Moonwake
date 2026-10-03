@@ -137,7 +137,7 @@ public:
 
         beginTest ("prepares saved state and preserves a missing selection checkpoint");
         {
-            const auto root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            const auto root = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
                 .getNonexistentChildFile ("moonwake-state-restore", {});
             expect (root.createDirectory());
             const auto stateFile = root.getChildFile ("state.xml");
@@ -146,6 +146,12 @@ public:
             TrackItem missing { root.getChildFile ("missing.wav"), "Saved title", 120.0 };
             missing.id = "missing-id";
             missing.artist = "Saved artist";
+            missing.libraryId = saved.library.upsertTrack (missing);
+            const auto playlistId = saved.library.createPlaylist ("Saved list");
+            const auto entries = saved.library.addToPlaylist (playlistId, { missing.libraryId, missing.libraryId });
+            saved.library.setFavourite (missing.libraryId, true);
+            saved.libraryCollectionId = "playlist:" + playlistId;
+            saved.librarySearchQuery = "Saved artist";
             saved.playlist.addTrack (missing);
             saved.playbackPositionSeconds = 47.25;
             saved.activeSkinId = "example.skin";
@@ -163,6 +169,12 @@ public:
                 expect (! result.state->playlist.getSelectedTrack()->available);
                 expectWithinAbsoluteError (result.state->playbackPositionSeconds, 47.25, 0.001);
                 expectEquals (result.state->activeSkinId, saved.activeSkinId);
+                expectEquals (result.state->playlist.getSelectedTrack()->libraryId, missing.libraryId);
+                expect (! result.state->library.getTrack (missing.libraryId)->available);
+                expect (result.state->library.getPlaylist (playlistId)->entries == entries);
+                expect (result.state->library.isFavourite (missing.libraryId));
+                expectEquals (result.state->libraryCollectionId, saved.libraryCollectionId);
+                expectEquals (result.state->librarySearchQuery, saved.librarySearchQuery);
             }
             expect (stateFile.replaceWithText ("<MoonwakeState schemaVersion=\"999\"/>"));
             const auto incompatible = StateRestoreService::prepare (stateFile, plugins, {});
@@ -173,7 +185,7 @@ public:
 
         beginTest ("an absent state is a normal first launch and cache failures remain visible");
         {
-            const auto root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            const auto root = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
                 .getNonexistentChildFile ("moonwake-first-restore", {});
             expect (root.createDirectory());
             const auto missingState = root.getChildFile ("state.xml");

@@ -12,6 +12,7 @@
 const juce::Identifier JuceSkinAdapter::styleProperty { "skinStyle" };
 const juce::Identifier JuceSkinAdapter::scaleFactorProperty { "skinScaleFactor" };
 const juce::Identifier JuceSkinAdapter::presentationProperty { "skinPresentation" };
+const juce::Identifier JuceSkinAdapter::focusVisibleProperty { "skinKeyboardFocusVisible" };
 
 class SkinListContentPainter final : public juce::CachedComponentImage
 {
@@ -40,6 +41,42 @@ private:
 
 namespace
 {
+class SkinComboBoxLabel final : public juce::Label
+{
+public:
+    SkinComboBoxLabel() { setAlpha (0.0f); }
+
+    void editorShown (juce::TextEditor* editor) override
+    {
+        setAlpha (1.0f);
+        if (const auto* adapter = dynamic_cast<const JuceSkinAdapter*> (&getLookAndFeel()))
+            adapter->configureTextEditor (*editor);
+        if (auto* parent = getParentComponent()) parent->repaint();
+        juce::Label::editorShown (editor);
+    }
+
+    void editorAboutToBeHidden (juce::TextEditor* editor) override
+    {
+        setAlpha (0.0f);
+        if (auto* parent = getParentComponent()) parent->repaint();
+        juce::Label::editorAboutToBeHidden (editor);
+    }
+};
+
+juce::ComboBox* inlineComboBoxFor (const juce::TextEditor& editor)
+{
+    const auto* label = dynamic_cast<const juce::Label*> (editor.getParentComponent());
+    return label != nullptr ? dynamic_cast<juce::ComboBox*> (label->getParentComponent()) : nullptr;
+}
+
+bool comboBoxIsBeingEdited (const juce::ComboBox& box)
+{
+    for (auto* child : box.getChildren())
+        if (const auto* label = dynamic_cast<const juce::Label*> (child); label != nullptr && label->isBeingEdited())
+            return true;
+    return false;
+}
+
 class NullFaultSink final : public SkinRuntimeFaultSink
 {
 public:
@@ -326,6 +363,15 @@ bool JuceSkinAdapter::drawSlotBinding (
                         requestedStyle, instanceKey);
 }
 
+bool JuceSkinAdapter::hasVisibleKeyboardFocus (const juce::Component& component, bool includeChildren)
+{
+    if (! component.hasKeyboardFocus (includeChildren)) return false;
+    for (auto* ancestor = &component; ancestor != nullptr; ancestor = ancestor->getParentComponent())
+        if (ancestor->getProperties().contains (focusVisibleProperty))
+            return ancestor->getProperties()[focusVisibleProperty];
+    return true;
+}
+
 SkinControlState JuceSkinAdapter::stateFor (
     const juce::Component& component, bool over, bool down, bool selected)
 {
@@ -333,7 +379,7 @@ SkinControlState JuceSkinAdapter::stateFor (
     state.enabled = component.isEnabled();
     state.hover = over;
     state.pressed = down;
-    state.focused = component.hasKeyboardFocus (true);
+    state.focused = hasVisibleKeyboardFocus (component, true);
     state.selected = selected;
     state.dragging = down && component.isMouseButtonDown();
     return state;
@@ -490,7 +536,8 @@ void JuceSkinAdapter::drawComboBox (
     context.state = stateFor (box, box.isMouseOver (true), down);
     // Keep the trigger visible; the popup owns keyboard focus feedback while open.
     context.state.focused = context.state.focused && ! box.isPopupActive();
-    context.primaryText = box.getText().isNotEmpty() ? box.getText() : box.getTextWhenNothingSelected();
+    if (! comboBoxIsBeingEdited (box))
+        context.primaryText = box.getText().isNotEmpty() ? box.getText() : box.getTextWhenNothingSelected();
     context.extraLookup = [open = box.isPopupActive(), selected = box.getSelectedId() > 0] (std::string_view path) -> std::optional<SkinExpressionValue>
     {
         if (path == "combo.popupOpen") return SkinExpressionValue (open);
@@ -506,6 +553,11 @@ void JuceSkinAdapter::drawComboBoxTextWhenNothingSelected (
     // The comboBox renderer owns both selected text and the empty-selection prompt.
 }
 
+juce::Label* JuceSkinAdapter::createComboBoxTextBox (juce::ComboBox&)
+{
+    return new SkinComboBoxLabel;
+}
+
 void JuceSkinAdapter::positionComboBoxText (juce::ComboBox& box, juce::Label& label)
 {
     label.setBounds (box.getLocalBounds());
@@ -513,13 +565,15 @@ void JuceSkinAdapter::positionComboBoxText (juce::ComboBox& box, juce::Label& la
     label.setColour (juce::Label::textColourId, juce::Colours::transparentBlack);
     label.setColour (juce::Label::backgroundColourId, juce::Colours::transparentBlack);
     label.setColour (juce::Label::outlineColourId, juce::Colours::transparentBlack);
-    label.setAlpha (0.0f);
+    label.setAlpha (label.isBeingEdited() ? 1.0f : 0.0f);
 }
 
 void JuceSkinAdapter::fillTextEditorBackground (
     juce::Graphics& graphics, int width, int height, juce::TextEditor& editor)
 {
     configureTextEditor (editor);
+    // The enclosing combo owns the background and the single focus treatment.
+    if (inlineComboBoxFor (editor) != nullptr) return;
     SkinRenderContext context;
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
     context.contentBounds = context.bounds;
@@ -568,7 +622,20 @@ void JuceSkinAdapter::configureTextEditor (juce::TextEditor& editor) const
     SkinRenderContext context;
     context.state = stateFor (editor, editor.isMouseOver (true), false);
     context.primaryText = editor.getText();
-    const auto style = textStyleFor (editor, SkinRenderTarget::textEditor, context);
+    const auto* combo = inlineComboBoxFor (editor);
+    if (combo != nullptr)
+    {
+        context.state = stateFor (*combo, combo->isMouseOver (true), combo->isMouseButtonDown());
+        context.extraLookup = [open = combo->isPopupActive(), selected = combo->getSelectedId() > 0]
+            (std::string_view path) -> std::optional<SkinExpressionValue>
+        {
+            if (path == "combo.popupOpen") return SkinExpressionValue (open);
+            if (path == "combo.hasSelection") return SkinExpressionValue (selected);
+            return std::nullopt;
+        };
+    }
+    const auto style = combo != nullptr ? textStyleFor (*combo, SkinRenderTarget::comboBox, context)
+                                       : textStyleFor (editor, SkinRenderTarget::textEditor, context);
     if (! style) return;
     if (editor.findColour (juce::TextEditor::textColourId) != style->colour)
         editor.applyColourToAllText (style->colour, true);
@@ -980,7 +1047,7 @@ bool JuceSkinAdapter::drawCustomComponent (
                            component.isMouseButtonDown(), context.state.selected);
     state.dragging = context.state.dragging || state.dragging;
     // Child controls paint their own focus feedback.
-    state.focused = component.hasKeyboardFocus (false);
+    state.focused = hasVisibleKeyboardFocus (component);
     context.state = state;
     return drawBinding (graphics, component, target, std::move (context), {},
                         instanceKey);
@@ -1081,7 +1148,7 @@ void JuceSkinAdapter::clipListContent (juce::Graphics& graphics, const juce::Lis
     context.bounds = context.contentBounds = list.getLocalBounds().toFloat();
     context.scaleFactor = juce::jmax (0.01f, renderingScaleFactorFor (list));
     context.state = stateFor (list, list.isMouseOver (true), false);
-    context.state.focused = list.hasKeyboardFocus (false);
+    context.state.focused = hasVisibleKeyboardFocus (list);
     if (auto* model = list.getListBoxModel()) context.tableRowCount = model->getNumRows();
     if (const auto* table = dynamic_cast<const juce::TableListBox*> (&list))
         context.tableColumnCount = table->getHeader().getNumColumns (true);
@@ -1110,6 +1177,13 @@ bool JuceSkinAdapter::drawListBoxBackground (
     context.state = stateFor (list, list.isMouseOver (true), false);
     context.tableRowCount = juce::jmax (0, rowCount);
     context.tableColumnCount = juce::jmax (0, columnCount);
+    context.repeatItemCount = context.tableColumnCount;
+    if (const auto* table = dynamic_cast<const juce::TableListBox*> (&list))
+    {
+        const auto& header = table->getHeader();
+        for (int i = 0; i < header.getNumColumns (true); ++i)
+            context.repeatLabels.add (header.getColumnName (header.getColumnIdOfIndex (i, true)));
+    }
     return drawBinding (graphics, list, SkinRenderTarget::table,
                         std::move (context));
 }
@@ -1119,7 +1193,8 @@ void JuceSkinAdapter::drawListBoxRow (
     int width, int height, bool selected, const juce::String& primaryText,
     const juce::String& locationText, const juce::String& durationText,
     const std::optional<ListBoxRowGeometry>& geometry, bool hovered, bool pressed,
-    bool available, const juce::String& artist, const juce::String& album)
+    bool available, const juce::String& artist, const juce::String& album,
+    bool playing, bool favourite, int dropEdge)
 {
     SkinRenderContext context;
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
@@ -1127,7 +1202,7 @@ void JuceSkinAdapter::drawListBoxRow (
     context.state = stateFor (list, hovered, pressed, selected);
     context.primaryText = primaryText;
     context.secondaryText = locationText;
-    context.extraLookup = [rowNumber, selected, available,
+    context.extraLookup = [rowNumber, selected, available, playing, favourite, dropEdge,
                            primaryText, locationText, artist, album,
                            durationText]
                           (std::string_view path)
@@ -1136,6 +1211,9 @@ void JuceSkinAdapter::drawListBoxRow (
         if (path == "row.index")
             return SkinExpressionValue (static_cast<double> (rowNumber));
         if (path == "row.selected") return SkinExpressionValue (selected);
+        if (path == "row.playing") return SkinExpressionValue (playing);
+        if (path == "row.favourite") return SkinExpressionValue (favourite);
+        if (path == "row.dropEdge") return SkinExpressionValue (static_cast<double> (dropEdge));
         if (path == "row.available") return SkinExpressionValue (available);
         if (path == "row.title") return SkinExpressionValue (primaryText);
         if (path == "row.location") return SkinExpressionValue (locationText);
@@ -1188,7 +1266,9 @@ void JuceSkinAdapter::drawListBoxRow (
     const auto titleDrawn = drawCell (cells.title, "title", primaryText, "left");
     const auto locationDrawn = drawCell (cells.location, "location", locationText, "left");
     const auto durationDrawn = drawCell (cells.duration, "duration", durationText, "right");
-    if (! surfaceDrawn && ! titleDrawn && ! locationDrawn && ! durationDrawn)
+    const auto artistDrawn = drawCell (cells.artist, "artist", artist, "left");
+    const auto albumDrawn = drawCell (cells.album, "album", album, "left");
+    if (! surfaceDrawn && ! titleDrawn && ! locationDrawn && ! durationDrawn && ! artistDrawn && ! albumDrawn)
         drawBinding (graphics, list, SkinRenderTarget::table, std::move (context));
 }
 

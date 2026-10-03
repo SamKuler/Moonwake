@@ -35,7 +35,7 @@
         "x": 0,
         "y": 0,
         "width": {
-          "$expr": "(bounds.width - 64) * 0.4"
+          "$expr": "(bounds.width - 80) * 0.4"
         },
         "height": {
           "$context": "layout.rowHeight"
@@ -43,11 +43,11 @@
       },
       "cell.location": {
         "x": {
-          "$expr": "(bounds.width - 64) * 0.4"
+          "$expr": "(bounds.width - 80) * 0.4"
         },
         "y": 0,
         "width": {
-          "$expr": "(bounds.width - 64) * 0.6"
+          "$expr": "(bounds.width - 80) * 0.6"
         },
         "height": {
           "$context": "layout.rowHeight"
@@ -55,10 +55,10 @@
       },
       "cell.duration": {
         "x": {
-          "$expr": "bounds.width - 64"
+          "$expr": "bounds.width - 80"
         },
         "y": 0,
-        "width": 64,
+        "width": 80,
         "height": {
           "$context": "layout.rowHeight"
         }

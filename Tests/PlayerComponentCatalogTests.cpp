@@ -14,7 +14,13 @@ juce::StringArray exactIds()
     return {
         "app.brand.eyebrow", "app.brand.title", "app.deviceStatus", "app.status",
         "workspace.studio", "workspace.listening", "settings.open",
-        "library.add", "library.search", "queue.title", "queue.count", "queue.table", "queue.empty",
+        "library.add", "library.open", "player.open", "library.back",
+        "library.browsePlaylists", "library.browseAlbums", "library.browseArtists",
+        "library.browseSongs", "library.browseFavourites", "library.browseQueue",
+        "library.gridSearch", "library.grid", "library.detailCover", "library.description",
+        "library.play", "library.shufflePlay", "library.search", "library.collections", "library.actions", "library.newPlaylist",
+        "library.title", "library.count", "library.empty", "library.tracks",
+        "queue.title", "queue.count", "queue.table", "queue.empty",
         "queue.remove", "queue.clear", "queue.moveUp", "queue.moveDown",
         "artwork.cover", "artwork.metadata", "nowPlaying.eyebrow", "nowPlaying.title",
         "nowPlaying.metadata", "transport.previous", "transport.playPause",
@@ -84,7 +90,8 @@ std::unique_ptr<juce::Component> componentFor (SkinComponentKind kind, double& p
         case SkinComponentKind::channelMixer:
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
-        case SkinComponentKind::skinList: return std::make_unique<juce::Component>();
+        case SkinComponentKind::skinList:
+        case SkinComponentKind::playlistGrid: return std::make_unique<juce::Component>();
     }
     return {};
 }
@@ -165,15 +172,81 @@ public:
                     "The legacy channel map retains its read-only interaction contract.");
         }
 
+        beginTest ("library browsing is an optional workspace table alternative");
+        {
+            const auto* queue = PlayerComponentCatalog::find ("queue.table");
+            const auto* library = PlayerComponentCatalog::find ("library.tracks");
+            expect (queue != nullptr && library != nullptr);
+            if (queue && library)
+            {
+                expect (queue->requiredAlternatives == juce::StringArray { "library.tracks" });
+                expect (library->requiredIn == std::set<SkinLayoutEntry> { SkinLayoutEntry::collection });
+                expect (library->kind == queue->kind && library->interactive);
+                expectEquals (library->defaultRendererTarget, queue->defaultRendererTarget);
+                expect (library->presentations == queue->presentations);
+                expect (library->rendererTargetByPresentation == queue->rendererTargetByPresentation);
+                expect (slotsOf (library->id) == slotsOf (queue->id));
+            }
+            for (const auto entry : { SkinLayoutEntry::studio, SkinLayoutEntry::listening })
+            {
+                expect (PlayerComponentCatalog::isRequired ("queue.table", entry));
+                expect (PlayerComponentCatalog::isRequired ("library.tracks", entry));
+                expect (! PlayerComponentCatalog::isRequired ("library.collections", entry));
+            }
+            expect (! PlayerComponentCatalog::isRequired ("library.tracks", SkinLayoutEntry::settings));
+            for (const auto& [id, kind] : std::map<juce::String, SkinComponentKind> {
+                     { "library.collections", SkinComponentKind::comboBox },
+                     { "library.newPlaylist", SkinComponentKind::textButton },
+                     { "library.actions", SkinComponentKind::textButton } })
+            {
+                const auto* descriptor = PlayerComponentCatalog::find (id);
+                expect (descriptor != nullptr && descriptor->kind == kind
+                        && descriptor->interactive && descriptor->requiredIn.empty(), id);
+            }
+        }
+
+        beginTest ("optional library pages share navigation and playback requirements");
+        {
+            auto required = setOf ({
+                "library.open", "player.open", "transport.previous", "transport.playPause",
+                "transport.next", "transport.seek", "transport.time", "transport.volume",
+                "settings.open", "workspace.studio", "workspace.listening", "app.status"
+            });
+            auto overview = required;
+            overview.insert ("library.grid");
+            expect (requiredFor (SkinLayoutEntry::library) == overview);
+            auto detail = required;
+            detail.insert ("library.tracks");
+            detail.insert ("library.back");
+            expect (requiredFor (SkinLayoutEntry::collection) == detail);
+            expect (requiredSkinLayoutEntries() == std::set<SkinLayoutEntry> {
+                SkinLayoutEntry::studio, SkinLayoutEntry::listening, SkinLayoutEntry::effects, SkinLayoutEntry::settings
+            });
+            for (const auto& name : skinLayoutEntryNames())
+            {
+                const auto entry = skinLayoutEntryFromName (name);
+                expect (entry.has_value());
+                if (entry) expectEquals (skinLayoutEntryName (*entry), name);
+            }
+            expect (! skinLayoutEntryFromName ("unknown"));
+            expect (slotsOf ("library.grid") == std::map<juce::String, juce::String> {
+                { "card.surface", "surface" }, { "card.cover", "artwork" },
+                { "card.title", "label" }, { "card.summary", "label" }, { "card.date", "label" }
+            });
+            expect (slotsOf ("library.detailCover") == slotsOf ("artwork.cover"));
+        }
+
         beginTest ("freezes semantic alignment for every label component");
         {
             const std::map<juce::String, juce::String> nonLeftAlignments {
                 { "queue.count", "right" },
+                { "library.count", "right" },
                 { "app.deviceStatus", "right" },
                 { "transport.volumeLabel", "right" },
                 { "transport.volumeValue", "right" },
                 { "transport.time", "center" },
                 { "queue.empty", "center" },
+                { "library.empty", "center" },
                 { "artwork.metadata", "center" },
                 { "effects.empty", "center" }
             };
@@ -236,7 +309,8 @@ public:
         expect (slotsOf ("queue.table") == std::map<juce::String, juce::String> ({
             { "header.surface", "surface" }, { "header.text", "label" },
             { "row.surface", "surface" }, { "cell.title", "label" },
-            { "cell.location", "label" }, { "cell.duration", "label" }
+            { "cell.location", "label" }, { "cell.duration", "label" },
+            { "cell.artist", "label" }, { "cell.album", "label" }
         }));
         expect (slotsOf ("artwork.cover") == std::map<juce::String, juce::String> ({
             { "frame.background", "surface" }, { "frame.overlay", "surface" }

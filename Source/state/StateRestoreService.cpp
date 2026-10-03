@@ -103,7 +103,7 @@ StateRestoreResult StateRestoreService::prepare (
     {
         PlayerAppState state;
         if (AppStateStore::readFromFile (stateFile, state, result.errorMessage)
-            && prepareLibraryRestore (state.playlist, artworkCacheRoot,
+            && prepareLibraryRestore (state.library, state.playlist, artworkCacheRoot,
                                       cancelled, result.warnings))
             result.state = std::move (state);
     }

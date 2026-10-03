@@ -11,6 +11,7 @@ class LibraryFilter
 public:
     void setQuery (juce::String queryToUse);
     void rebuild (const PlaylistModel&);
+    void rebuild (const std::vector<TrackItem>&);
 
     [[nodiscard]] const juce::String& query() const noexcept;
     [[nodiscard]] int visibleCount() const noexcept;

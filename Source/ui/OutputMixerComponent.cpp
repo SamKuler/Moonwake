@@ -129,7 +129,7 @@ public:
         if (context.bounds.isEmpty()) context.bounds = control.getLocalBounds().toFloat();
         if (context.contentBounds.isEmpty()) context.contentBounds = context.bounds;
         context.state.enabled = control.isEnabled();
-        context.state.focused = control.hasKeyboardFocus (false);
+        context.state.focused = JuceSkinAdapter::hasVisibleKeyboardFocus (control);
         context.state.hover = context.state.hover || control.isMouseOver();
         context.state.pressed = context.state.pressed || control.isMouseButtonDown();
         static_cast<void> (adapter->drawCustomSlot (graphics, owner, SkinRenderTarget::channelMixer, slot, target,

@@ -59,6 +59,26 @@ public:
             expectEquals (manifest->layouts.at ("effects"), juce::String ("layouts/effects.json"));
         }
 
+        beginTest ("optional library routes parse without changing the legacy manifest shape");
+        {
+            auto raw = parseJson (validManifest());
+            auto layouts = raw.getProperty ("entrypoints", {}).getProperty ("layouts", {});
+            layouts.getDynamicObject()->setProperty ("library", "layouts/library.json");
+            layouts.getDynamicObject()->setProperty ("collection", "layouts/collection.json");
+            SkinValidationReport pageReport;
+            const auto pageDocument = SkinSchemaValidator::validate (
+                SkinSchemaDocument::manifest, raw, "manifest.json", pageReport);
+            expect (pageDocument.has_value(), pageReport.toText());
+            const auto pages = pageDocument ? SkinManifest::parse (*pageDocument, pageReport) : std::nullopt;
+            expect (pages.has_value(), pageReport.toText());
+            if (pages)
+            {
+                expectEquals (static_cast<int> (pages->layouts.size()), 6);
+                expectEquals (pages->layouts.at ("library"), juce::String ("layouts/library.json"));
+                expectEquals (pages->layouts.at ("collection"), juce::String ("layouts/collection.json"));
+            }
+        }
+
         beginTest ("rejects unknown fields and malformed identifiers");
         auto unknown = parseJson (validManifest());
         unknown.getDynamicObject()->setProperty ("capabilites", juce::Array<juce::var>());

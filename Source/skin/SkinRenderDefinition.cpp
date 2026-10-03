@@ -267,7 +267,7 @@ const std::vector<juce::String>& skinRenderTargetNames()
         "label", "textButton", "toggleButton", "comboBox", "textEditor",
         "linearSlider", "rotarySlider", "progressBar", "scrollBar", "popupMenu",
         "tooltip", "table", "surface", "artwork", "effectChain", "outputStage",
-        "channelMap", "pluginList", "skinList", "channelMixer"
+        "channelMap", "pluginList", "skinList", "channelMixer", "playlistGrid"
     };
     return names;
 }
@@ -434,6 +434,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
         case SkinRenderTarget::channelMap:
         case SkinRenderTarget::pluginList:
         case SkinRenderTarget::skinList:
+        case SkinRenderTarget::playlistGrid:
             break;
         case SkinRenderTarget::surface:
             break;
@@ -471,6 +472,9 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
                 addContext (result, {
                     { "row.index", Type::number },
                     { "row.selected", Type::boolean },
+                    { "row.playing", Type::boolean },
+                    { "row.favourite", Type::boolean },
+                    { "row.dropEdge", Type::number },
                     { "row.available", Type::boolean },
                     { "row.title", Type::string },
                     { "row.location", Type::string },
@@ -514,6 +518,16 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
                 { "plugin.manufacturer", Type::string },
                 { "plugin.format", Type::string },
                 { "plugin.enabled", Type::boolean }
+            });
+            break;
+        case SkinRenderTarget::playlistGrid:
+            addContext (result, {
+                { "collection.id", Type::string },
+                { "collection.name", Type::string },
+                { "collection.trackCount", Type::number },
+                { "collection.durationSeconds", Type::number },
+                { "collection.createdAtMs", Type::number },
+                { "collection.hasArtwork", Type::boolean }
             });
             break;
         case SkinRenderTarget::skinList:
@@ -610,7 +624,7 @@ const std::vector<SkinRepeatSourceDescriptor>& skinRepeatSourceDescriptors()
 {
     static const std::vector<SkinRepeatSourceDescriptor> values {
         { "meter.channels", maximumOutputChannels, SkinRenderTarget::outputStage },
-        { "table.visibleColumns", 3, SkinRenderTarget::table },
+        { "table.visibleColumns", 4, SkinRenderTarget::table },
         { "output.channelLabels", maximumOutputChannels, SkinRenderTarget::outputStage }
     };
     return values;

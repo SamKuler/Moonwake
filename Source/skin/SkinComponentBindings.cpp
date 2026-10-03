@@ -34,6 +34,7 @@ bool matchesJuceType (SkinComponentKind kind, juce::Component& component)
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
+        case SkinComponentKind::playlistGrid:
             return true;
     }
     return false;

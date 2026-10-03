@@ -1,0 +1,573 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "collection-root",
+    "type": "column",
+    "padding": 12,
+    "gap": 12,
+    "children": [
+      {
+        "id": "collection-navigation",
+        "type": "row",
+        "height": 40,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "collection-app-brand-title",
+            "type": "component",
+            "component": "app.brand.title",
+            "grow": 1
+          },
+          {
+            "id": "collection-library-open",
+            "type": "component",
+            "component": "library.open",
+            "focusOrder": 10,
+            "style": "textButton.neutral",
+            "width": 88
+          },
+          {
+            "id": "collection-player-open",
+            "type": "component",
+            "component": "player.open",
+            "focusOrder": 20,
+            "style": "textButton.neutral",
+            "width": 88
+          },
+          {
+            "id": "collection-workspace-studio",
+            "type": "component",
+            "component": "workspace.studio",
+            "focusOrder": 30,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "collection-workspace-listening",
+            "type": "component",
+            "component": "workspace.listening",
+            "focusOrder": 40,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "collection-settings-open",
+            "type": "component",
+            "component": "settings.open",
+            "focusOrder": 50,
+            "style": "textButton.neutral",
+            "width": 88
+          }
+        ]
+      },
+      {
+        "id": "collection-detail-header",
+        "type": "row",
+        "height": 160,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "collection-library-back",
+            "type": "component",
+            "component": "library.back",
+            "focusOrder": 90,
+            "style": "textButton.neutral",
+            "width": 72
+          },
+          {
+            "id": "collection-library-detailCover",
+            "type": "component",
+            "component": "library.detailCover",
+            "width": 148,
+            "height": 148,
+            "presentation": "cover"
+          },
+          {
+            "id": "collection-metadata",
+            "type": "column",
+            "grow": 1,
+            "gap": 8,
+            "children": [
+              {
+                "id": "collection-library-title-stack",
+                "type": "stack",
+                "height": 48,
+                "shrink": 0,
+                "children": [
+                  {
+                    "id": "collection-library-title",
+                    "type": "component",
+                    "component": "library.title",
+                    "anchors": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    }
+                  },
+                  {
+                    "id": "collection-library-title-rename",
+                    "type": "component",
+                    "component": "library.collections",
+                    "style": "comboBox.default",
+                    "anchors": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "focusOrder": 60
+                  }
+                ]
+              },
+              {
+                "id": "collection-library-description",
+                "type": "component",
+                "component": "library.description",
+                "height": 24
+              },
+              {
+                "id": "collection-library-count",
+                "type": "component",
+                "component": "library.count",
+                "height": 20
+              },
+              {
+                "id": "collection-play-actions",
+                "type": "row",
+                "height": 36,
+                "shrink": 0,
+                "gap": 8,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "collection-library-play",
+                    "type": "component",
+                    "component": "library.play",
+                    "focusOrder": 70,
+                    "style": "textButton.neutral",
+                    "width": 110
+                  },
+                  {
+                    "id": "collection-library-shufflePlay",
+                    "type": "component",
+                    "component": "library.shufflePlay",
+                    "focusOrder": 80,
+                    "style": "textButton.neutral",
+                    "width": 120
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "collection-toolbar",
+        "type": "row",
+        "height": 36,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "collection-library-search",
+            "type": "component",
+            "component": "library.search",
+            "focusOrder": 100,
+            "grow": 1
+          },
+          {
+            "id": "collection-library-newPlaylist",
+            "type": "component",
+            "component": "library.newPlaylist",
+            "focusOrder": 110,
+            "style": "textButton.neutral",
+            "width": 110
+          },
+          {
+            "id": "collection-library-actions",
+            "type": "component",
+            "component": "library.actions",
+            "focusOrder": 120,
+            "style": "textButton.neutral",
+            "width": 80
+          },
+          {
+            "id": "collection-library-add",
+            "type": "component",
+            "component": "library.add",
+            "focusOrder": 130,
+            "style": "textButton.neutral",
+            "width": 88
+          }
+        ]
+      },
+      {
+        "id": "collection-library-tracks",
+        "type": "component",
+        "component": "library.tracks",
+        "focusOrder": 140,
+        "grow": 1,
+        "minHeight": 100,
+        "presentation": "table",
+        "style": "table.collection"
+      },
+      {
+        "id": "collection-transport",
+        "type": "row",
+        "height": 44,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "collection-transport-previous",
+            "type": "component",
+            "component": "transport.previous",
+            "focusOrder": 150,
+            "style": "textButton.neutral",
+            "width": 48
+          },
+          {
+            "id": "collection-transport-playPause",
+            "type": "component",
+            "component": "transport.playPause",
+            "focusOrder": 160,
+            "style": "textButton.neutral",
+            "width": 72
+          },
+          {
+            "id": "collection-transport-next",
+            "type": "component",
+            "component": "transport.next",
+            "focusOrder": 170,
+            "style": "textButton.neutral",
+            "width": 48
+          },
+          {
+            "id": "collection-transport-seek",
+            "type": "component",
+            "component": "transport.seek",
+            "focusOrder": 180,
+            "grow": 1,
+            "presentation": "linearHorizontal"
+          },
+          {
+            "id": "collection-transport-time",
+            "type": "component",
+            "component": "transport.time",
+            "width": 112
+          },
+          {
+            "id": "collection-transport-volume",
+            "type": "component",
+            "component": "transport.volume",
+            "focusOrder": 190,
+            "width": 150,
+            "presentation": "linearHorizontal"
+          }
+        ]
+      },
+      {
+        "id": "collection-app-status",
+        "type": "component",
+        "component": "app.status",
+        "height": 24
+      }
+    ]
+  },
+  "breakpoints": [
+    {
+      "when": {
+        "workspace": "studio"
+      },
+      "root": {
+        "id": "studio-collection-root",
+        "type": "column",
+        "padding": 12,
+        "gap": 12,
+        "children": [
+          {
+            "id": "studio-collection-navigation",
+            "type": "row",
+            "height": 40,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-collection-app-brand-title",
+                "type": "component",
+                "component": "app.brand.title",
+                "grow": 1
+              },
+              {
+                "id": "studio-collection-library-open",
+                "type": "component",
+                "component": "library.open",
+                "focusOrder": 10,
+                "style": "textButton.neutral",
+                "width": 88
+              },
+              {
+                "id": "studio-collection-player-open",
+                "type": "component",
+                "component": "player.open",
+                "focusOrder": 20,
+                "style": "textButton.neutral",
+                "width": 88
+              },
+              {
+                "id": "studio-collection-workspace-studio",
+                "type": "component",
+                "component": "workspace.studio",
+                "focusOrder": 30,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-collection-workspace-listening",
+                "type": "component",
+                "component": "workspace.listening",
+                "focusOrder": 40,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-collection-settings-open",
+                "type": "component",
+                "component": "settings.open",
+                "focusOrder": 50,
+                "style": "textButton.neutral",
+                "width": 88
+              }
+            ]
+          },
+          {
+            "id": "studio-collection-detail-header",
+            "type": "row",
+            "height": 160,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-collection-library-back",
+                "type": "component",
+                "component": "library.back",
+                "focusOrder": 90,
+                "style": "textButton.neutral",
+                "width": 72
+              },
+              {
+                "id": "studio-collection-library-detailCover",
+                "type": "component",
+                "component": "library.detailCover",
+                "width": 148,
+                "height": 148,
+                "presentation": "cover"
+              },
+              {
+                "id": "studio-collection-metadata",
+                "type": "column",
+                "grow": 1,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "studio-collection-library-title-stack",
+                    "type": "stack",
+                    "height": 48,
+                    "shrink": 0,
+                    "children": [
+                      {
+                        "id": "studio-collection-library-title",
+                        "type": "component",
+                        "component": "library.title",
+                        "anchors": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        }
+                      },
+                      {
+                        "id": "studio-collection-library-title-rename",
+                        "type": "component",
+                        "component": "library.collections",
+                        "style": "comboBox.default",
+                        "anchors": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "focusOrder": 60
+                      }
+                    ]
+                  },
+                  {
+                    "id": "studio-collection-library-description",
+                    "type": "component",
+                    "component": "library.description",
+                    "height": 24
+                  },
+                  {
+                    "id": "studio-collection-library-count",
+                    "type": "component",
+                    "component": "library.count",
+                    "height": 20
+                  },
+                  {
+                    "id": "studio-collection-play-actions",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "gap": 8,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "studio-collection-library-play",
+                        "type": "component",
+                        "component": "library.play",
+                        "focusOrder": 70,
+                        "style": "textButton.neutral",
+                        "width": 110
+                      },
+                      {
+                        "id": "studio-collection-library-shufflePlay",
+                        "type": "component",
+                        "component": "library.shufflePlay",
+                        "focusOrder": 80,
+                        "style": "textButton.neutral",
+                        "width": 120
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "studio-collection-toolbar",
+            "type": "row",
+            "height": 36,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-collection-library-search",
+                "type": "component",
+                "component": "library.search",
+                "focusOrder": 100,
+                "grow": 1
+              },
+              {
+                "id": "studio-collection-library-newPlaylist",
+                "type": "component",
+                "component": "library.newPlaylist",
+                "focusOrder": 110,
+                "style": "textButton.neutral",
+                "width": 110
+              },
+              {
+                "id": "studio-collection-library-actions",
+                "type": "component",
+                "component": "library.actions",
+                "focusOrder": 120,
+                "style": "textButton.neutral",
+                "width": 80
+              },
+              {
+                "id": "studio-collection-library-add",
+                "type": "component",
+                "component": "library.add",
+                "focusOrder": 130,
+                "style": "textButton.neutral",
+                "width": 88
+              }
+            ]
+          },
+          {
+            "id": "studio-collection-library-tracks",
+            "type": "component",
+            "component": "library.tracks",
+            "focusOrder": 140,
+            "grow": 1,
+            "minHeight": 100,
+            "presentation": "table",
+            "style": "table.collection"
+          },
+          {
+            "id": "studio-collection-transport",
+            "type": "row",
+            "height": 44,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-collection-transport-previous",
+                "type": "component",
+                "component": "transport.previous",
+                "focusOrder": 150,
+                "style": "textButton.neutral",
+                "width": 48
+              },
+              {
+                "id": "studio-collection-transport-playPause",
+                "type": "component",
+                "component": "transport.playPause",
+                "focusOrder": 160,
+                "style": "textButton.neutral",
+                "width": 72
+              },
+              {
+                "id": "studio-collection-transport-next",
+                "type": "component",
+                "component": "transport.next",
+                "focusOrder": 170,
+                "style": "textButton.neutral",
+                "width": 48
+              },
+              {
+                "id": "studio-collection-transport-seek",
+                "type": "component",
+                "component": "transport.seek",
+                "focusOrder": 180,
+                "grow": 1,
+                "presentation": "linearHorizontal"
+              },
+              {
+                "id": "studio-collection-transport-time",
+                "type": "component",
+                "component": "transport.time",
+                "width": 112
+              },
+              {
+                "id": "studio-collection-transport-volume",
+                "type": "component",
+                "component": "transport.volume",
+                "focusOrder": 190,
+                "width": 150,
+                "presentation": "linearHorizontal"
+              }
+            ]
+          },
+          {
+            "id": "studio-collection-app-status",
+            "type": "component",
+            "component": "app.status",
+            "height": 24
+          }
+        ],
+        "style": "surface.studio"
+      }
+    }
+  ]
+}

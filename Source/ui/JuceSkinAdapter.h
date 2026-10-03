@@ -31,6 +31,8 @@ public:
     static const juce::Identifier styleProperty;
     static const juce::Identifier scaleFactorProperty;
     static const juce::Identifier presentationProperty;
+    static const juce::Identifier focusVisibleProperty;
+    [[nodiscard]] static bool hasVisibleKeyboardFocus (const juce::Component&, bool includeChildren = false);
     [[nodiscard]] bool isAnimationDriveActive() const noexcept
     {
         return isTimerRunning();
@@ -46,6 +48,7 @@ public:
                        int buttonX, int buttonY, int buttonW, int buttonH,
                        juce::ComboBox&) override;
     void drawComboBoxTextWhenNothingSelected (juce::Graphics&, juce::ComboBox&, juce::Label&) override;
+    juce::Label* createComboBoxTextBox (juce::ComboBox&) override;
     void positionComboBoxText (juce::ComboBox&, juce::Label&) override;
     void fillTextEditorBackground (juce::Graphics&, int width, int height,
                                    juce::TextEditor&) override;
@@ -116,6 +119,8 @@ public:
         juce::Rectangle<float> title;
         juce::Rectangle<float> location;
         juce::Rectangle<float> duration;
+        juce::Rectangle<float> artist {};
+        juce::Rectangle<float> album {};
     };
 
     struct ArtworkImageStyle
@@ -138,7 +143,8 @@ public:
                          bool hovered = false, bool pressed = false,
                          bool available = true,
                          const juce::String& artist = {},
-                         const juce::String& album = {});
+                         const juce::String& album = {},
+                         bool playing = false, bool favourite = false, int dropEdge = 0);
 
     [[nodiscard]] std::optional<ArtworkImageStyle> artworkImageStyleFor (
         const juce::Component&, SkinRenderContext) const;

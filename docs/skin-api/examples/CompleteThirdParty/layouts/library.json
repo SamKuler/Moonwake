@@ -1,0 +1,479 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "library-root",
+    "type": "column",
+    "padding": 12,
+    "gap": 12,
+    "children": [
+      {
+        "id": "library-navigation",
+        "type": "row",
+        "height": 40,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "library-app-brand-title",
+            "type": "component",
+            "component": "app.brand.title",
+            "grow": 1
+          },
+          {
+            "id": "library-library-open",
+            "type": "component",
+            "component": "library.open",
+            "focusOrder": 10,
+            "style": "textButton.neutral",
+            "width": 88
+          },
+          {
+            "id": "library-player-open",
+            "type": "component",
+            "component": "player.open",
+            "focusOrder": 20,
+            "style": "textButton.neutral",
+            "width": 88
+          },
+          {
+            "id": "library-workspace-studio",
+            "type": "component",
+            "component": "workspace.studio",
+            "focusOrder": 30,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "library-workspace-listening",
+            "type": "component",
+            "component": "workspace.listening",
+            "focusOrder": 40,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "library-settings-open",
+            "type": "component",
+            "component": "settings.open",
+            "focusOrder": 50,
+            "style": "textButton.neutral",
+            "width": 88
+          }
+        ]
+      },
+      {
+        "id": "library-tabs",
+        "type": "row",
+        "height": 36,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "library-library-browsePlaylists",
+            "type": "component",
+            "component": "library.browsePlaylists",
+            "focusOrder": 60,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "library-library-browseAlbums",
+            "type": "component",
+            "component": "library.browseAlbums",
+            "focusOrder": 70,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "library-library-browseArtists",
+            "type": "component",
+            "component": "library.browseArtists",
+            "focusOrder": 80,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "library-library-browseSongs",
+            "type": "component",
+            "component": "library.browseSongs",
+            "focusOrder": 90,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "library-library-browseFavourites",
+            "type": "component",
+            "component": "library.browseFavourites",
+            "focusOrder": 100,
+            "style": "textButton.neutral",
+            "width": 112
+          },
+          {
+            "id": "library-library-browseQueue",
+            "type": "component",
+            "component": "library.browseQueue",
+            "focusOrder": 110,
+            "style": "textButton.neutral",
+            "width": 112
+          }
+        ]
+      },
+      {
+        "id": "library-toolbar",
+        "type": "row",
+        "height": 36,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "library-library-gridSearch",
+            "type": "component",
+            "component": "library.gridSearch",
+            "focusOrder": 120,
+            "grow": 1
+          },
+          {
+            "id": "library-library-newPlaylist",
+            "type": "component",
+            "component": "library.newPlaylist",
+            "focusOrder": 130,
+            "style": "textButton.neutral",
+            "width": 110
+          },
+          {
+            "id": "library-library-actions",
+            "type": "component",
+            "component": "library.actions",
+            "focusOrder": 140,
+            "style": "textButton.neutral",
+            "width": 80
+          },
+          {
+            "id": "library-library-add",
+            "type": "component",
+            "component": "library.add",
+            "focusOrder": 150,
+            "style": "textButton.neutral",
+            "width": 88
+          }
+        ]
+      },
+      {
+        "id": "library-library-grid",
+        "type": "component",
+        "component": "library.grid",
+        "focusOrder": 160,
+        "style": "playlistGrid.default",
+        "grow": 1,
+        "minHeight": 160
+      },
+      {
+        "id": "library-transport",
+        "type": "row",
+        "height": 44,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "library-transport-previous",
+            "type": "component",
+            "component": "transport.previous",
+            "focusOrder": 170,
+            "style": "textButton.neutral",
+            "width": 48
+          },
+          {
+            "id": "library-transport-playPause",
+            "type": "component",
+            "component": "transport.playPause",
+            "focusOrder": 180,
+            "style": "textButton.neutral",
+            "width": 72
+          },
+          {
+            "id": "library-transport-next",
+            "type": "component",
+            "component": "transport.next",
+            "focusOrder": 190,
+            "style": "textButton.neutral",
+            "width": 48
+          },
+          {
+            "id": "library-transport-seek",
+            "type": "component",
+            "component": "transport.seek",
+            "focusOrder": 200,
+            "grow": 1,
+            "presentation": "linearHorizontal"
+          },
+          {
+            "id": "library-transport-time",
+            "type": "component",
+            "component": "transport.time",
+            "width": 112
+          },
+          {
+            "id": "library-transport-volume",
+            "type": "component",
+            "component": "transport.volume",
+            "focusOrder": 210,
+            "width": 150,
+            "presentation": "linearHorizontal"
+          }
+        ]
+      },
+      {
+        "id": "library-app-status",
+        "type": "component",
+        "component": "app.status",
+        "height": 24
+      }
+    ]
+  },
+  "breakpoints": [
+    {
+      "when": {
+        "workspace": "studio"
+      },
+      "root": {
+        "id": "studio-library-root",
+        "type": "column",
+        "padding": 12,
+        "gap": 12,
+        "children": [
+          {
+            "id": "studio-library-navigation",
+            "type": "row",
+            "height": 40,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-library-app-brand-title",
+                "type": "component",
+                "component": "app.brand.title",
+                "grow": 1
+              },
+              {
+                "id": "studio-library-library-open",
+                "type": "component",
+                "component": "library.open",
+                "focusOrder": 10,
+                "style": "textButton.neutral",
+                "width": 88
+              },
+              {
+                "id": "studio-library-player-open",
+                "type": "component",
+                "component": "player.open",
+                "focusOrder": 20,
+                "style": "textButton.neutral",
+                "width": 88
+              },
+              {
+                "id": "studio-library-workspace-studio",
+                "type": "component",
+                "component": "workspace.studio",
+                "focusOrder": 30,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-library-workspace-listening",
+                "type": "component",
+                "component": "workspace.listening",
+                "focusOrder": 40,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-library-settings-open",
+                "type": "component",
+                "component": "settings.open",
+                "focusOrder": 50,
+                "style": "textButton.neutral",
+                "width": 88
+              }
+            ]
+          },
+          {
+            "id": "studio-library-tabs",
+            "type": "row",
+            "height": 36,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-library-library-browsePlaylists",
+                "type": "component",
+                "component": "library.browsePlaylists",
+                "focusOrder": 60,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-library-library-browseAlbums",
+                "type": "component",
+                "component": "library.browseAlbums",
+                "focusOrder": 70,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-library-library-browseArtists",
+                "type": "component",
+                "component": "library.browseArtists",
+                "focusOrder": 80,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-library-library-browseSongs",
+                "type": "component",
+                "component": "library.browseSongs",
+                "focusOrder": 90,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-library-library-browseFavourites",
+                "type": "component",
+                "component": "library.browseFavourites",
+                "focusOrder": 100,
+                "style": "textButton.neutral",
+                "width": 112
+              },
+              {
+                "id": "studio-library-library-browseQueue",
+                "type": "component",
+                "component": "library.browseQueue",
+                "focusOrder": 110,
+                "style": "textButton.neutral",
+                "width": 112
+              }
+            ]
+          },
+          {
+            "id": "studio-library-toolbar",
+            "type": "row",
+            "height": 36,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-library-library-gridSearch",
+                "type": "component",
+                "component": "library.gridSearch",
+                "focusOrder": 120,
+                "grow": 1
+              },
+              {
+                "id": "studio-library-library-newPlaylist",
+                "type": "component",
+                "component": "library.newPlaylist",
+                "focusOrder": 130,
+                "style": "textButton.neutral",
+                "width": 110
+              },
+              {
+                "id": "studio-library-library-actions",
+                "type": "component",
+                "component": "library.actions",
+                "focusOrder": 140,
+                "style": "textButton.neutral",
+                "width": 80
+              },
+              {
+                "id": "studio-library-library-add",
+                "type": "component",
+                "component": "library.add",
+                "focusOrder": 150,
+                "style": "textButton.neutral",
+                "width": 88
+              }
+            ]
+          },
+          {
+            "id": "studio-library-library-grid",
+            "type": "component",
+            "component": "library.grid",
+            "focusOrder": 160,
+            "style": "playlistGrid.default",
+            "grow": 1,
+            "minHeight": 160
+          },
+          {
+            "id": "studio-library-transport",
+            "type": "row",
+            "height": 44,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "studio-library-transport-previous",
+                "type": "component",
+                "component": "transport.previous",
+                "focusOrder": 170,
+                "style": "textButton.neutral",
+                "width": 48
+              },
+              {
+                "id": "studio-library-transport-playPause",
+                "type": "component",
+                "component": "transport.playPause",
+                "focusOrder": 180,
+                "style": "textButton.neutral",
+                "width": 72
+              },
+              {
+                "id": "studio-library-transport-next",
+                "type": "component",
+                "component": "transport.next",
+                "focusOrder": 190,
+                "style": "textButton.neutral",
+                "width": 48
+              },
+              {
+                "id": "studio-library-transport-seek",
+                "type": "component",
+                "component": "transport.seek",
+                "focusOrder": 200,
+                "grow": 1,
+                "presentation": "linearHorizontal"
+              },
+              {
+                "id": "studio-library-transport-time",
+                "type": "component",
+                "component": "transport.time",
+                "width": 112
+              },
+              {
+                "id": "studio-library-transport-volume",
+                "type": "component",
+                "component": "transport.volume",
+                "focusOrder": 210,
+                "width": 150,
+                "presentation": "linearHorizontal"
+              }
+            ]
+          },
+          {
+            "id": "studio-library-app-status",
+            "type": "component",
+            "component": "app.status",
+            "height": 24
+          }
+        ],
+        "style": "surface.studio"
+      }
+    }
+  ]
+}

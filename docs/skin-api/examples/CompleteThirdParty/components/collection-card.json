@@ -1,0 +1,28 @@
+{
+  "apiVersion": 1,
+  "target": "surface",
+  "layers": [
+    {
+      "id": "background",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000000"
+    }
+  ],
+  "variants": {
+    "hover": {
+      "background.fill": "#9CCBD80A"
+    },
+    "focused": {
+      "background.fill": "#9CCBD828"
+    },
+    "selected": {
+      "background.fill": "#9CCBD81C"
+    },
+    "disabled": {
+      "background.opacity": 0.4
+    }
+  }
+}

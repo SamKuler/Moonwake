@@ -1,0 +1,119 @@
+{
+  "apiVersion": 1,
+  "target": "surface",
+  "layers": [
+    {
+      "id": "selection",
+      "type": "rect",
+      "visible": {
+        "$context": "state.selected"
+      },
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#31576614"
+    },
+    {
+      "id": "divider",
+      "type": "rect",
+      "frame": {
+        "x": {
+          "$context": "bounds.x"
+        },
+        "y": {
+          "$expr": "bounds.height - 1"
+        },
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": 1
+      },
+      "fill": {
+        "$ref": "colors.listening.border"
+      }
+    },
+    {
+      "id": "playing",
+      "type": "path",
+      "data": "M0 0 L6 4 L0 8 Z",
+      "visible": {
+        "$context": "row.playing"
+      },
+      "fill": {
+        "$ref": "colors.listening.active"
+      },
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "translateX": 1,
+        "translateY": {
+          "$expr": "(bounds.height - 8) * 0.5"
+        }
+      }
+    },
+    {
+      "id": "favourite",
+      "type": "path",
+      "data": "M4 0 L5.2 2.8 L8 3 L5.9 5 L6.5 8 L4 6.5 L1.5 8 L2.1 5 L0 3 L2.8 2.8 Z",
+      "visible": {
+        "$context": "row.favourite"
+      },
+      "fill": {
+        "$ref": "colors.listening.active"
+      },
+      "transform": {
+        "pivotX": 0,
+        "pivotY": 0,
+        "translateX": {
+          "$expr": "bounds.width - 74"
+        },
+        "translateY": {
+          "$expr": "(bounds.height - 8) * 0.5"
+        }
+      }
+    },
+    {
+      "id": "drop-before",
+      "type": "rect",
+      "visible": {
+        "$expr": "row.dropEdge < 0"
+      },
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": 2
+      },
+      "fill": {
+        "$ref": "colors.listening.active"
+      }
+    },
+    {
+      "id": "drop-after",
+      "type": "rect",
+      "visible": {
+        "$expr": "row.dropEdge > 0"
+      },
+      "frame": {
+        "x": 0,
+        "y": {
+          "$expr": "bounds.height - 2"
+        },
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": 2
+      },
+      "fill": {
+        "$ref": "colors.listening.active"
+      }
+    }
+  ],
+  "variants": {
+    "focused": {
+      "selection.fill": "#31576626"
+    }
+  }
+}

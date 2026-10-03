@@ -1,0 +1,76 @@
+{
+  "apiVersion": 1,
+  "target": "playlistGrid",
+  "layers": [
+    {
+      "id": "background",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000000"
+    }
+  ],
+  "controlStyle": {
+    "minItemWidth": 176,
+    "itemGap": 20
+  },
+  "rowLayout": {
+    "rowHeight": {
+      "$expr": "bounds.width + 114"
+    },
+    "rowGap": 0,
+    "slots": {
+      "card.surface": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      },
+      "card.cover": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": {
+          "$context": "bounds.width"
+        }
+      },
+      "card.title": {
+        "x": 2,
+        "y": {
+          "$expr": "bounds.width + 10"
+        },
+        "width": {
+          "$expr": "bounds.width - 4"
+        },
+        "height": 46
+      },
+      "card.summary": {
+        "x": 2,
+        "y": {
+          "$expr": "bounds.width + 60"
+        },
+        "width": {
+          "$expr": "bounds.width - 4"
+        },
+        "height": 24
+      },
+      "card.date": {
+        "x": 2,
+        "y": {
+          "$expr": "bounds.width + 88"
+        },
+        "width": {
+          "$expr": "bounds.width - 4"
+        },
+        "height": 20
+      }
+    }
+  }
+}

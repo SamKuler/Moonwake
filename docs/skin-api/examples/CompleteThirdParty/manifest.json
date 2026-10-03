@@ -6,9 +6,9 @@
   "author": {
     "name": "Example Skin Studio"
   },
-  "description": "A complete Skin API 1 package with four layouts and custom controls.",
+  "description": "A complete Skin API 1 package with workspace, library and collection layouts.",
   "license": "MIT",
-  "minAppVersion": "0.6.1",
+  "minAppVersion": "0.7.0",
   "extends": "builtin.foundation",
   "capabilities": [
     "tokens",
@@ -23,7 +23,9 @@
       "studio": "layouts/studio.json",
       "listening": "layouts/listening.json",
       "effects": "layouts/effects.json",
-      "settings": "layouts/settings.json"
+      "settings": "layouts/settings.json",
+      "library": "layouts/library.json",
+      "collection": "layouts/collection.json"
     }
   }
 }

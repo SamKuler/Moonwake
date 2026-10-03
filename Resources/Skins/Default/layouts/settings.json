@@ -39,10 +39,50 @@
                 "height": 40
               },
               {
+                "id": "settings-settings-root-library-open",
+                "type": "component",
+                "component": "library.open",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 2,
+                "shrink": 0
+              },
+              {
+                "id": "settings-settings-root-library-open-favourites",
+                "type": "component",
+                "component": "library.browseFavourites",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 3,
+                "shrink": 0
+              },
+              {
+                "id": "settings-settings-root-player-open-queue",
+                "type": "component",
+                "component": "library.browseQueue",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 4,
+                "shrink": 0
+              },
+              {
+                "id": "settings-settings-root-player-open",
+                "type": "component",
+                "component": "player.open",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 5,
+                "shrink": 0
+              },
+              {
                 "id": "settings-settings-modes",
                 "type": "row",
                 "style": "surface.listeningSwitcher",
-                "width": 248,
+                "width": 212,
                 "height": 44,
                 "shrink": 0,
                 "padding": 4,
@@ -54,7 +94,7 @@
                     "type": "component",
                     "component": "workspace.studio",
                     "style": "textButton.listeningMode",
-                    "width": 118,
+                    "width": 100,
                     "height": 36,
                     "focusOrder": 10
                   },
@@ -63,7 +103,7 @@
                     "type": "component",
                     "component": "workspace.listening",
                     "style": "textButton.listeningMode",
-                    "width": 118,
+                    "width": 100,
                     "height": 36,
                     "focusOrder": 20
                   }
@@ -589,10 +629,50 @@
                     "height": 40
                   },
                   {
+                    "id": "themed-settings-themed-settings-root-library-open",
+                    "type": "component",
+                    "component": "library.open",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 2,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "themed-settings-themed-settings-root-library-open-favourites",
+                    "type": "component",
+                    "component": "library.browseFavourites",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 3,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "themed-settings-themed-settings-root-player-open-queue",
+                    "type": "component",
+                    "component": "library.browseQueue",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 4,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "themed-settings-themed-settings-root-player-open",
+                    "type": "component",
+                    "component": "player.open",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 5,
+                    "shrink": 0
+                  },
+                  {
                     "id": "themed-settings-themed-settings-modes",
                     "type": "row",
                     "style": "surface.studioSwitcher",
-                    "width": 248,
+                    "width": 212,
                     "height": 44,
                     "shrink": 0,
                     "padding": 4,
@@ -604,7 +684,7 @@
                         "type": "component",
                         "component": "workspace.studio",
                         "style": "textButton.studioMode",
-                        "width": 118,
+                        "width": 100,
                         "height": 36,
                         "focusOrder": 10
                       },
@@ -613,7 +693,7 @@
                         "type": "component",
                         "component": "workspace.listening",
                         "style": "textButton.studioMode",
-                        "width": 118,
+                        "width": 100,
                         "height": 36,
                         "focusOrder": 20
                       }

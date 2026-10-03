@@ -32,11 +32,40 @@ public:
 
     PlayerController();
     explicit PlayerController (std::unique_ptr<IAudioDeviceBackend>);
-    PlayerController (std::unique_ptr<IAudioDeviceBackend>, PluginScannerConfiguration);
+    PlayerController (std::unique_ptr<IAudioDeviceBackend>, PluginScannerConfiguration,
+                      juce::File artworkCacheRoot = {});
     ~PlayerController() override;
 
     juce::String addFiles (const juce::Array<juce::File>& files);
     juce::String addPreparedTracks (std::vector<TrackMetadataResult> tracks);
+    [[nodiscard]] const MusicLibrary& getLibrary() const noexcept { return library; }
+    [[nodiscard]] juce::File resolveArtworkFile (const juce::String& key) const { return artworkStore.resolve (key); }
+    [[nodiscard]] juce::String getLoadedTrackId() const { return playbackCoordinator.getLoadedTrackId(); }
+    [[nodiscard]] juce::String getLibraryCollectionId() const { return libraryCollectionId; }
+    [[nodiscard]] juce::String getLibrarySearchQuery() const { return librarySearchQuery; }
+    void setLibraryBrowseState (juce::String collectionId, juce::String query);
+    juce::String importPreparedTracks (std::vector<TrackMetadataResult>,
+                                      const juce::String& targetCollectionId);
+    juce::String importPreparedPlaylist (juce::String name, std::vector<TrackMetadataResult>);
+    juce::String createSavedPlaylist (juce::String name);
+    bool renameSavedPlaylist (const juce::String& id, juce::String name);
+    juce::String duplicateSavedPlaylist (const juce::String& id);
+    bool deleteSavedPlaylist (const juce::String& id);
+    bool moveSavedPlaylist (const juce::String& id, int toIndex);
+    bool addTracksToSavedPlaylist (const juce::String& id, const std::vector<juce::String>& libraryIds);
+    bool setTrackFavourites (const std::vector<juce::String>& libraryIds, bool favourite);
+    bool playLibraryTracks (const std::vector<juce::String>& libraryIds, int startIndex = 0);
+    bool enqueueLibraryTracks (const std::vector<juce::String>& libraryIds, bool playNext);
+    juce::String saveQueueAsPlaylist (juce::String name);
+    bool removeCollectionEntries (const juce::String& collectionId,
+                                  const std::vector<juce::String>& entryIds);
+    bool moveCollectionEntries (const juce::String& collectionId,
+                                const std::vector<juce::String>& entryIds, int beforeIndex);
+    bool sortCollectionEntries (const juce::String& collectionId,
+                                const juce::String& key, bool descending = false);
+    bool undoCollectionEdit (const juce::String& collectionId);
+    [[nodiscard]] bool canUndoCollectionEdit (const juce::String& collectionId) const;
+    bool relocateLibraryTrack (const juce::String& id, TrackMetadataResult replacement);
     bool selectTrack (int index);
     bool playOrPause();
     bool setPlaying (bool shouldPlay);
@@ -112,6 +141,28 @@ public:
 
 private:
     PlaylistModel playlist;
+    MusicLibrary library;
+    juce::String libraryCollectionId = "all";
+    juce::String librarySearchQuery;
+    struct CollectionEdit
+    {
+        juce::String collectionId;
+        std::vector<TrackItem> queue;
+        std::vector<PlaylistPendingNextTrack> pendingNextTracks;
+        std::vector<PlaylistEntry> entries;
+        std::vector<juce::String> favourites;
+    };
+    std::vector<CollectionEdit> collectionUndo;
+    [[nodiscard]] CollectionEdit captureCollectionEdit (const juce::String&) const;
+    void recordCollectionEdit (CollectionEdit);
+    void invalidateCollectionUndo (const juce::String&);
+    juce::String storePreparedLibraryTrack (TrackMetadataResult&, juce::StringArray& warnings,
+                                            juce::StringArray& artworkCandidates);
+    void discardUnreferencedArtwork (const juce::StringArray& candidates);
+    void refreshQueueMetadata();
+    void setLibraryTrackAvailable (const juce::String& occurrenceId, bool available);
+    bool finishQueueEdit();
+    bool makeQueueOccurrences (const std::vector<juce::String>&, std::vector<TrackItem>&);
     EffectChainState effectChain;
     AudioEngine audioEngine;
     PluginManager pluginManager;

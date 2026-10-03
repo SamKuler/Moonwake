@@ -1,6 +1,7 @@
 #include "SkinCompiler.h"
 
 #include "SkinCompatibilityChecker.h"
+#include "SkinControlStyle.h"
 #include "SkinLayoutCompiler.h"
 #include "SkinLayoutEngine.h"
 #include "SkinRenderCompiler.h"
@@ -65,16 +66,6 @@ bool prevalidateRenderDocuments (const SkinValidatedDocument& index,
     for (const auto& path : paths)
         readValidated (package, path, SkinSchemaDocument::render, report);
     return ! report.hasErrors();
-}
-
-std::optional<SkinLayoutEntry> layoutEntry (juce::StringRef name)
-{
-    const juce::String value (name);
-    if (value == "studio") return SkinLayoutEntry::studio;
-    if (value == "listening") return SkinLayoutEntry::listening;
-    if (value == "effects") return SkinLayoutEntry::effects;
-    if (value == "settings") return SkinLayoutEntry::settings;
-    return std::nullopt;
 }
 
 bool isResourceBinding (const SkinRenderPropertyBinding& binding)
@@ -393,6 +384,7 @@ bool isInteractiveRendererTarget (SkinRenderTarget target)
         case SkinRenderTarget::channelMap:
         case SkinRenderTarget::pluginList:
         case SkinRenderTarget::skinList:
+        case SkinRenderTarget::playlistGrid:
             return true;
         case SkinRenderTarget::label:
         case SkinRenderTarget::progressBar:
@@ -404,6 +396,13 @@ bool isInteractiveRendererTarget (SkinRenderTarget target)
             return false;
     }
     return false;
+}
+
+bool slotOwnsKeyboardFocus (SkinRenderTarget owner, const juce::String& name,
+                           SkinRenderTarget target)
+{
+    return isInteractiveRendererTarget (target)
+        || (owner == SkinRenderTarget::playlistGrid && name == "card.surface");
 }
 
 template <typename Callback>
@@ -538,10 +537,11 @@ bool validateLayoutStyles (const CompiledSkin& skin, SkinValidationReport& repor
                     ok = false;
                 }
                 else if (descriptor->interactive
-                         && std::none_of (descriptor->slots.begin(), descriptor->slots.end(), [] (const auto& slot)
+                         && std::none_of (descriptor->slots.begin(), descriptor->slots.end(), [style] (const auto& slot)
                             {
                                 const auto slotTarget = skinRenderTargetFromName (slot.rendererTarget);
-                                return slotTarget && isInteractiveRendererTarget (*slotTarget);
+                                return slotTarget && slotOwnsKeyboardFocus (
+                                    style->renderer.target, slot.name, *slotTarget);
                             })
                          && ! rendersVisibleFocus (*style))
                 {
@@ -605,7 +605,7 @@ bool validateSlotStyles (const CompiledSkin& skin, SkinValidationReport& report)
                             + "' that is unavailable for this owner and slot.");
                     ok = false;
                 }
-                else if (isInteractiveRendererTarget (expected)
+                else if (slotOwnsKeyboardFocus (style.renderer.target, slotName, expected)
                          && ! rendersVisibleFocus (*resolved, allowed))
                 {
                     report.addError (
@@ -662,7 +662,7 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
         componentDocument = readValidated (package, manifest->componentsPath,
                                            SkinSchemaDocument::componentIndex, report);
     for (const auto& [name, path] : manifest->layouts)
-        if (const auto entry = layoutEntry (name))
+        if (const auto entry = skinLayoutEntryFromName (name))
             if (auto document = readValidated (package, path,
                                                SkinSchemaDocument::layout, report))
                 layoutDocuments.emplace (*entry, std::move (*document));
@@ -736,8 +736,7 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
     }
     if (report.hasErrors()) return {};
 
-    for (const auto target : { SkinLayoutEntry::studio, SkinLayoutEntry::listening,
-                               SkinLayoutEntry::effects, SkinLayoutEntry::settings })
+    for (const auto target : requiredSkinLayoutEntries())
         if (! compiled->layouts.contains (target))
             report.addError ("MANIFEST006", "manifest.json", "/entrypoints/layouts",
                              "Skin does not provide or inherit all four layout entries.");
@@ -745,6 +744,7 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
     for (const auto& targetName : skinRenderTargetNames())
     {
         const auto target = skinRenderTargetFromName (targetName);
+        if (target == SkinRenderTarget::playlistGrid) continue;
         if (! target || compiled->resolveStyle (*target, {}) == nullptr)
             report.addError ("RENDER004", "components/index.json", targetName,
                              "Skin does not provide or inherit target.default.");
@@ -775,6 +775,17 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
                             {
                                 SkinRenderContext context;
                                 context.bounds = context.contentBounds = node.bounds.withPosition (0, 0);
+                                if (*target == SkinRenderTarget::playlistGrid)
+                                {
+                                    const auto controls = resolveSkinControlStyle (style->renderer, context, report);
+                                    if (! controls || ! controls->minItemWidth || ! controls->itemGap) return false;
+                                    const auto gap = *controls->itemGap;
+                                    const auto columns = juce::jmax (1, static_cast<int> (std::floor (
+                                        (context.bounds.getWidth() + gap) / (*controls->minItemWidth + gap))));
+                                    const auto columnCount = static_cast<float> (columns);
+                                    context.bounds.setWidth ((context.bounds.getWidth() - gap * (columnCount - 1.0f)) / columnCount);
+                                    context.contentBounds = context.bounds;
+                                }
                                 context.tableRowCount = context.repeatItemCount = 3;
                                 context.tableColumnCount = 3;
                                 context.extraLookup = [presentation = node.presentation] (std::string_view key) -> std::optional<SkinExpressionValue>

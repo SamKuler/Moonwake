@@ -765,18 +765,21 @@ void SkinLayoutHost::restoreOriginalStates (const Runtime* next)
         if (state->parent != nullptr)
             state->parent->addChildComponent (component, state->childIndex);
         bool keepsPresentation = false;
-        if (auto* table = dynamic_cast<SkinTableListBox*> (component))
+        auto* table = dynamic_cast<SkinTableListBox*> (component);
+        if (table != nullptr)
         {
             keepsPresentation = next != nullptr
                 && std::any_of (next->placements.begin(), next->placements.end(),
                                 [component] (const auto& placement)
                                 {
-                                    return placement.component == component
-                                        && placement.presentation.isNotEmpty();
+                                    return placement.component == component;
                                 });
-            if (! keepsPresentation) table->resetPresentation();
         }
-        if (! keepsPresentation) component->setBounds (state->bounds);
+        if (! keepsPresentation)
+        {
+            component->setBounds (state->bounds);
+            if (table != nullptr) table->resetPresentation();
+        }
         component->setAlpha (state->alpha);
         component->setExplicitFocusOrder (state->focusOrder);
         auto& properties = component->getProperties();
@@ -851,16 +854,15 @@ bool SkinLayoutHost::attachRuntime (Runtime& value,
                 properties.remove (JuceSkinAdapter::styleProperty);
             properties.set (JuceSkinAdapter::scaleFactorProperty,
                             placement.scaleFactor);
-            if (placement.presentation.isNotEmpty())
+            auto* table = dynamic_cast<SkinTableListBox*> (placement.component);
+            const auto presentation = table != nullptr && placement.presentation.isEmpty()
+                ? juce::String ("table") : placement.presentation;
+            if (presentation.isNotEmpty())
                 properties.set (JuceSkinAdapter::presentationProperty,
-                                placement.presentation);
+                                presentation);
             else
                 properties.remove (JuceSkinAdapter::presentationProperty);
-            if (auto* table = dynamic_cast<SkinTableListBox*> (placement.component))
-            {
-                if (placement.presentation.isEmpty()) table->resetPresentation();
-                else table->setPresentation (placement.presentation);
-            }
+            if (table != nullptr) table->setPresentation (presentation);
             placement.component->setBounds (placement.wrapper->getLocalBounds());
             if (auto* slider = dynamic_cast<juce::Slider*> (placement.component))
             {

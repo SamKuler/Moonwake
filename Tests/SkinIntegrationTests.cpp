@@ -675,9 +675,13 @@ public:
         {
             expectEquals (foundation->manifest.id, juce::String ("builtin.foundation"));
             expectEquals (static_cast<int> (foundation->layouts.size()), 4);
+            expect (! foundation->layouts.contains (SkinLayoutEntry::library));
+            expect (! foundation->layouts.contains (SkinLayoutEntry::collection));
+            expect (foundation->resolveStyle (SkinRenderTarget::playlistGrid, {}) == nullptr);
             for (const auto& targetName : skinRenderTargetNames())
             {
                 const auto target = skinRenderTargetFromName (targetName);
+                if (target == SkinRenderTarget::playlistGrid) continue;
                 expect (target && foundation->resolveStyle (*target, {}) != nullptr,
                         "Missing foundation default for " + targetName);
             }
@@ -716,6 +720,44 @@ public:
             expectEquals (defaultSkin->layouts.at (SkinLayoutEntry::listening).base.common.id,
                           juce::String ("listening-listening-root"));
         }
+
+        beginTest ("playlist card surfaces own visible focus validation");
+        if (defaultPackage && foundation)
+            for (const auto cardOwnsFocus : { false, true })
+            {
+                SkinValidationReport report;
+                std::vector<SkinPackage::EmbeddedFile> files;
+                for (const auto& path : defaultPackage->listFiles())
+                {
+                    const auto gridRenderer = path.endsWith ("-collection-grid.json");
+                    if (gridRenderer || (! cardOwnsFocus && path.endsWith ("-collection-surface.json")))
+                    {
+                        auto renderer = juce::JSON::parse (defaultPackage->readText (path, report));
+                        if (gridRenderer)
+                        {
+                            renderer.getDynamicObject()->removeProperty ("variants");
+                            if (! cardOwnsFocus)
+                                renderer.getDynamicObject()->setProperty ("variants", juce::JSON::parse (
+                                    R"json({"focused":{"background.fill":"#FFFFFFFF"}})json"));
+                        }
+                        else renderer.getProperty ("variants", {}).getDynamicObject()->removeProperty ("focused");
+                        files.push_back ({ path, bytes (juce::JSON::toString (renderer, true)) });
+                    }
+                    else files.push_back ({ path, defaultPackage->readBinary (path, report) });
+                }
+                const auto package = embedded (cardOwnsFocus ? "card-focus-only" : "grid-focus-only",
+                                               std::move (files), report);
+                expect (package.has_value(), report.toText());
+                if (! package) continue;
+                const auto skin = SkinCompiler::compile (*package, foundation, report);
+                if (cardOwnsFocus)
+                    expect (skin != nullptr, "The grid itself cannot receive keyboard focus. " + report.toText());
+                else
+                {
+                    expect (skin == nullptr, "A focused grid background cannot replace the card's focus feedback.");
+                    expect (report.hasCode ("RENDER004"), report.toText());
+                }
+            }
 
         beginTest ("complete packages compile named ancillary styles and require default fallbacks");
         if (foundation)
@@ -861,11 +903,11 @@ public:
             expectEquals (foundation->manifest.minAppVersion, juce::String ("0.6.1"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.6.1"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.7.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
-        beginTest ("six Default routes preserve workspace theme, focus and queue presentation at both window sizes");
+        beginTest ("Default player, library, collection and settings routes preserve theme, focus and content at both window sizes");
         if (defaultSkin)
         {
             const auto* studioBackground = defaultSkin->tokens.find<juce::Colour> ("colors.studio.background");
@@ -876,6 +918,7 @@ public:
             for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
                 for (const auto entry : { workspace == WorkspaceMode::studio
                                              ? SkinLayoutEntry::studio : SkinLayoutEntry::listening,
+                                         SkinLayoutEntry::library, SkinLayoutEntry::collection,
                                          SkinLayoutEntry::effects, SkinLayoutEntry::settings })
                     for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
                                                juce::Rectangle<float> (0, 0, 1240, 800) })
@@ -929,21 +972,46 @@ public:
                             if (descriptor.requiredIn.contains (entry))
                             {
                                 const auto* component = resolved->component (descriptor.id);
+                                for (const auto& alternative : descriptor.requiredAlternatives)
+                                    if (component == nullptr || ! component->visible
+                                        || component->opacity <= 0.0f || component->bounds.isEmpty())
+                                        component = resolved->component (alternative);
                                 expect (component != nullptr, descriptor.id);
                                 if (! component) continue;
-                                expect (component->visible && ! component->bounds.isEmpty(), descriptor.id);
+                                expect (component->visible && component->opacity > 0.0f
+                                        && ! component->bounds.isEmpty(), descriptor.id);
                                 if (descriptor.interactive) expect (component->focusOrder > 0, descriptor.id);
                             }
-                        if (entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening)
+                        for (const auto* id : { "library.open", "library.browseFavourites", "library.browseQueue",
+                                                "player.open", "workspace.studio", "workspace.listening" })
                         {
-                            const auto* queue = resolved->component ("queue.table");
-                            expect (queue != nullptr);
+                            const auto* navigation = resolved->component (id);
+                            expect (navigation != nullptr && navigation->visible, id);
+                            if (navigation != nullptr)
+                            {
+                                expectWithinAbsoluteError (navigation->bounds.getWidth(), 100.0f, 0.01f);
+                                expectWithinAbsoluteError (navigation->bounds.getHeight(), 36.0f, 0.01f);
+                            }
+                        }
+                        const auto player = entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening;
+                        if (player || entry == SkinLayoutEntry::collection)
+                        {
+                            const auto* tableId = player ? "queue.table" : "library.tracks";
+                            const auto* queue = resolved->component (tableId);
+                            expect (queue != nullptr, juce::String (tableId) + " must belong to this route");
                             if (queue)
                             {
                                 expectEquals (queue->presentation, juce::String (
-                                    workspace == WorkspaceMode::studio ? "table" : "list"));
-                                expectEquals (queue->style, "table." + theme);
+                                    ! player || workspace == WorkspaceMode::studio ? "table" : "list"));
+                                expectEquals (queue->style, "table." + theme + (player ? "" : "Collection"));
+                                expect (queue->visible && ! queue->bounds.isEmpty() && bounds.contains (queue->bounds),
+                                        juce::String (tableId) + " must fit inside the window");
                             }
+                            expect (resolved->component (player ? "library.tracks" : "queue.table") == nullptr,
+                                    "Player queues and collection contents retain separate component identities");
+                        }
+                        if (player)
+                        {
                             if (workspace == WorkspaceMode::listening)
                             {
                                 const auto* artwork = resolved->component ("artwork.cover");
@@ -951,6 +1019,29 @@ public:
                             }
                             else
                                 expect (resolved->component ("output.stage") != nullptr);
+                        }
+                        if (entry == SkinLayoutEntry::library)
+                        {
+                            const auto* grid = resolved->component ("library.grid");
+                            expect (grid != nullptr, "The library overview must expose collection cards");
+                            if (grid)
+                            {
+                                expectEquals (grid->style, "playlistGrid." + theme);
+                                expect (grid->visible && ! grid->bounds.isEmpty() && bounds.contains (grid->bounds),
+                                        "The collection grid must fit inside the window");
+                            }
+                            expect (resolved->component ("queue.table") == nullptr);
+                            expect (resolved->component ("library.tracks") == nullptr);
+                        }
+                        if (entry == SkinLayoutEntry::collection)
+                        {
+                            for (const auto* id : { "library.detailCover", "library.title", "library.description",
+                                                  "library.play", "library.shufflePlay", "library.actions" })
+                            {
+                                const auto* component = resolved->component (id);
+                                expect (component != nullptr && component->visible && ! component->bounds.isEmpty()
+                                        && bounds.contains (component->bounds), id);
+                            }
                         }
                     }
         }
@@ -1152,7 +1243,7 @@ public:
             expect (! sink.failed, "compiled Default row styles must render without runtime faults");
         }
 
-        beginTest ("built-in routes keep library actions out of Settings and in queue headers");
+        beginTest ("built-in routes keep editing actions with their content and retain Settings navigation");
         if (foundation && defaultSkin)
         {
             for (const auto* skin : { foundation.get(), defaultSkin.get() })
@@ -1163,9 +1254,11 @@ public:
                     const auto parents = componentParents (skin->layouts.at (entry));
                     expect (parents.contains ("library.add"));
                     if (parents.contains ("library.add"))
+                    {
                         expect (parents.contains ("queue.title")
                                 && parents.at ("library.add") == parents.at ("queue.title"),
-                                "Add Music must share the queue heading with its title");
+                                "The player Add Music action must share its queue heading");
+                    }
                     expect (parents.contains ("settings.open"));
                     expect (! parents.contains ("effects.open"));
                     if (entry == SkinLayoutEntry::studio)
@@ -1175,6 +1268,23 @@ public:
                         expectWithinAbsoluteError (
                             skin->layouts.at (entry).base.common.padding.left.value,
                             0.0f, 0.001f);
+                }
+
+                if (skin == defaultSkin.get())
+                {
+                    const auto overview = componentParents (skin->layouts.at (SkinLayoutEntry::library));
+                    const auto detail = componentParents (skin->layouts.at (SkinLayoutEntry::collection));
+                    for (const auto* id : { "library.title", "library.newPlaylist", "library.actions" })
+                        expect (overview.contains ("library.add") && overview.contains (id)
+                                && overview.at ("library.add") == overview.at (id),
+                                juce::String (id) + " must share the overview heading with Add Music");
+                    for (const auto* id : { "library.play", "library.shufflePlay", "library.actions" })
+                        expect (detail.contains ("library.add") && detail.contains (id)
+                                && detail.at ("library.add") == detail.at (id),
+                                juce::String (id) + " must share the collection action row with Add Music");
+                    expect (detail.contains ("library.title") && detail.contains ("library.collections")
+                            && detail.at ("library.title") == detail.at ("library.collections"),
+                            "The collection name editor must occupy its title heading");
                 }
 
                 const auto settings = componentParents (
@@ -1193,6 +1303,11 @@ public:
                     expect (settings.contains (id), id);
                 expect (! settings.contains ("library.add"));
                 expect (! settings.contains ("settings.close"));
+                if (skin == defaultSkin.get())
+                {
+                    expect (settings.contains ("library.open"));
+                    expect (settings.contains ("player.open"));
+                }
                 for (const auto& [id, parent] : settings)
                 {
                     juce::ignoreUnused (parent);
@@ -1200,6 +1315,8 @@ public:
                             || (skin == defaultSkin.get()
                                 && (id == "app.brand.title" || id == "app.status"
                                     || id == "workspace.studio" || id == "workspace.listening"
+                                    || id == "library.open" || id == "player.open"
+                                    || id == "library.browseQueue" || id == "library.browseFavourites"
                                     || id == "effects.open" || id == "settings.open"))
                             || id.startsWith ("settings.audio.")
                             || id.startsWith ("settings.plugins.")

@@ -26,7 +26,17 @@
     "studioMixerName": "components/studio-mixer-name.json",
     "studioMixerData": "components/studio-mixer-data.json",
     "studioRoutingDestination": "components/studio-routing-destination.json",
-    "listeningRoutingDestination": "components/listening-routing-destination.json"
+    "listeningRoutingDestination": "components/listening-routing-destination.json",
+    "studioCollectionTitle": "components/studio-collection-title.json",
+    "studioCollectionSummary": "components/studio-collection-summary.json",
+    "studioCollectionDate": "components/studio-collection-date.json",
+    "studioCollectionHeading": "components/studio-collection-heading.json",
+    "studioCollectionDescription": "components/studio-collection-description.json",
+    "listeningCollectionTitle": "components/listening-collection-title.json",
+    "listeningCollectionSummary": "components/listening-collection-summary.json",
+    "listeningCollectionDate": "components/listening-collection-date.json",
+    "listeningCollectionHeading": "components/listening-collection-heading.json",
+    "listeningCollectionDescription": "components/listening-collection-description.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -248,7 +258,9 @@
   },
   "comboBox": {
     "listening": "components/listening-combo-box.json",
-    "studio": "components/studio-combo-box.json"
+    "studio": "components/studio-combo-box.json",
+    "studioCollectionName": "components/studio-collection-name.json",
+    "listeningCollectionName": "components/listening-collection-name.json"
   },
   "textEditor": {
     "studio": "components/studio-text-editor.json",
@@ -288,7 +300,7 @@
       "slots": {
         "header.surface": "surface.studioListRow",
         "header.text": "label.studioTable",
-        "row.surface": "surface.studioListRow",
+        "row.surface": "surface.studioTrackRow",
         "cell.title": "label.studioTable",
         "cell.location": "label.studioTableMetadata",
         "cell.duration": "label.studioTable"
@@ -299,10 +311,36 @@
       "slots": {
         "header.surface": "surface.listeningListRow",
         "header.text": "label.listeningTable",
-        "row.surface": "surface.listeningListRow",
+        "row.surface": "surface.listeningTrackRow",
         "cell.title": "label.listeningQueueTitle",
         "cell.location": "label.listeningTableMetadata",
         "cell.duration": "label.listeningTable"
+      }
+    },
+    "studioCollection": {
+      "renderer": "components/studio-collection-table.json",
+      "slots": {
+        "header.surface": "surface.studioListRow",
+        "header.text": "label.studioTable",
+        "row.surface": "surface.studioTrackRow",
+        "cell.title": "label.studioTable",
+        "cell.location": "label.studioTableMetadata",
+        "cell.duration": "label.studioTable",
+        "cell.artist": "label.studioTable",
+        "cell.album": "label.studioTable"
+      }
+    },
+    "listeningCollection": {
+      "renderer": "components/listening-collection-table.json",
+      "slots": {
+        "header.surface": "surface.listeningListRow",
+        "header.text": "label.listeningTable",
+        "row.surface": "surface.listeningTrackRow",
+        "cell.title": "label.listeningTable",
+        "cell.location": "label.listeningTableMetadata",
+        "cell.duration": "label.listeningTable",
+        "cell.artist": "label.listeningTable",
+        "cell.album": "label.listeningTable"
       }
     }
   },
@@ -329,13 +367,31 @@
     "studioRepeatIcon": "components/studio-repeat-icon.json",
     "listeningRepeatIcon": "components/listening-repeat-icon.json",
     "studioDragHandle": "components/studio-drag-handle.json",
-    "listeningDragHandle": "components/listening-drag-handle.json"
+    "listeningDragHandle": "components/listening-drag-handle.json",
+    "studioTrackRow": "components/studio-track-row.json",
+    "listeningTrackRow": "components/listening-track-row.json",
+    "studioCollectionCard": "components/studio-collection-surface.json",
+    "listeningCollectionCard": "components/listening-collection-surface.json"
   },
   "artwork": {
     "listening": {
       "renderer": "components/listening-artwork.json",
       "slots": {
         "frame.background": "surface.listeningPlain",
+        "frame.overlay": "surface.artworkOverlay"
+      }
+    },
+    "studioCollection": {
+      "renderer": "components/studio-collection-cover.json",
+      "slots": {
+        "frame.background": "surface.artworkOverlay",
+        "frame.overlay": "surface.artworkOverlay"
+      }
+    },
+    "listeningCollection": {
+      "renderer": "components/listening-collection-cover.json",
+      "slots": {
+        "frame.background": "surface.artworkOverlay",
         "frame.overlay": "surface.artworkOverlay"
       }
     }
@@ -474,6 +530,38 @@
         "row.gain": "linearSlider.studioGain",
         "row.mute": "toggleButton.studioMixerMute",
         "row.solo": "toggleButton.studioMixerSolo"
+      }
+    }
+  },
+  "playlistGrid": {
+    "studio": {
+      "renderer": "components/studio-collection-grid.json",
+      "slots": {
+        "card.surface": "surface.studioCollectionCard",
+        "card.cover": "artwork.studioCollection",
+        "card.title": "label.studioCollectionTitle",
+        "card.summary": "label.studioCollectionSummary",
+        "card.date": "label.studioCollectionDate"
+      }
+    },
+    "listening": {
+      "renderer": "components/listening-collection-grid.json",
+      "slots": {
+        "card.surface": "surface.listeningCollectionCard",
+        "card.cover": "artwork.listeningCollection",
+        "card.title": "label.listeningCollectionTitle",
+        "card.summary": "label.listeningCollectionSummary",
+        "card.date": "label.listeningCollectionDate"
+      }
+    },
+    "default": {
+      "renderer": "components/listening-collection-grid.json",
+      "slots": {
+        "card.surface": "surface.listeningCollectionCard",
+        "card.cover": "artwork.listeningCollection",
+        "card.title": "label.listeningCollectionTitle",
+        "card.summary": "label.listeningCollectionSummary",
+        "card.date": "label.listeningCollectionDate"
       }
     }
   }

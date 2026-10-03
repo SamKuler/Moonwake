@@ -108,7 +108,7 @@
                     "style": "linearSlider.seek",
                     "height": 28,
                     "minHeight": 28,
-                    "focusOrder": 90
+                    "focusOrder": 290
                   },
                   {
                     "id": "listening-time",
@@ -119,7 +119,7 @@
                 ]
               },
               {
-                "id": "listening-queue-card",
+                "id": "listening-library-card",
                 "type": "column",
                 "padding": 12,
                 "gap": 8,
@@ -127,33 +127,96 @@
                 "style": "surface.card",
                 "children": [
                   {
-                    "id": "listening-queue-header",
+                    "id": "listening-library-title-row",
                     "type": "row",
-                    "height": 34,
+                    "height": 24,
+                    "shrink": 0,
                     "gap": 8,
                     "children": [
                       {
-                        "id": "listening-queue-title",
+                        "id": "listening-library-title",
                         "type": "component",
-                        "component": "queue.title",
+                        "component": "library.title",
                         "grow": 1
                       },
                       {
-                        "id": "listening-add",
+                        "id": "listening-library-count",
                         "type": "component",
-                        "component": "library.add",
-                        "style": "textButton.primary",
-                        "width": 104,
-                        "focusOrder": 40
+                        "component": "library.count",
+                        "width": 80
                       }
                     ]
                   },
                   {
-                    "id": "listening-queue",
+                    "id": "listening-library-selector-row",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "listening-library-collections",
+                        "type": "component",
+                        "component": "library.collections",
+                        "grow": 1,
+                        "focusOrder": 100
+                      },
+                      {
+                        "id": "listening-library-add",
+                        "type": "component",
+                        "component": "library.add",
+                        "style": "textButton.primary",
+                        "width": 104,
+                        "focusOrder": 110
+                      }
+                    ]
+                  },
+                  {
+                    "id": "listening-library-actions-row",
+                    "type": "row",
+                    "height": 32,
+                    "shrink": 0,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "listening-library-search",
+                        "type": "component",
+                        "component": "library.search",
+                        "grow": 1,
+                        "focusOrder": 115
+                      },
+                      {
+                        "id": "listening-library-new",
+                        "type": "component",
+                        "component": "library.newPlaylist",
+                        "style": "textButton.neutral",
+                        "width": 92,
+                        "focusOrder": 116
+                      },
+                      {
+                        "id": "listening-library-actions",
+                        "type": "component",
+                        "component": "library.actions",
+                        "style": "textButton.neutral",
+                        "width": 92,
+                        "focusOrder": 117
+                      }
+                    ]
+                  },
+                  {
+                    "id": "listening-library-tracks",
                     "type": "component",
-                    "component": "queue.table",
+                    "component": "library.tracks",
+                    "presentation": "list",
                     "grow": 1,
-                    "focusOrder": 50
+                    "focusOrder": 120
+                  },
+                  {
+                    "id": "listening-library-empty",
+                    "type": "component",
+                    "component": "library.empty",
+                    "height": 18,
+                    "shrink": 0
                   }
                 ]
               },
@@ -173,7 +236,7 @@
                     "style": "textButton.neutral",
                     "width": 64,
                     "height": 44,
-                    "focusOrder": 60
+                    "focusOrder": 260
                   },
                   {
                     "id": "listening-play",
@@ -182,7 +245,7 @@
                     "style": "textButton.primary",
                     "width": 72,
                     "height": 48,
-                    "focusOrder": 70
+                    "focusOrder": 270
                   },
                   {
                     "id": "listening-next",
@@ -191,7 +254,7 @@
                     "style": "textButton.neutral",
                     "width": 64,
                     "height": 44,
-                    "focusOrder": 80
+                    "focusOrder": 280
                   },
                   {
                     "id": "listening-effects",
@@ -200,7 +263,7 @@
                     "style": "textButton.neutral",
                     "width": 92,
                     "height": 36,
-                    "focusOrder": 100
+                    "focusOrder": 300
                   },
                   {
                     "id": "listening-spacer",
@@ -216,7 +279,7 @@
                     "presentation": "rotary",
                     "width": 84,
                     "height": 84,
-                    "focusOrder": 110
+                    "focusOrder": 310
                   }
                 ]
               }

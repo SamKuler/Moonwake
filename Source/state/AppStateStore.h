@@ -7,6 +7,7 @@
 #include "audio/AudioOutputRoute.h"
 #include "app/WorkspaceMode.h"
 #include "playlist/PlaylistModel.h"
+#include "library/MusicLibrary.h"
 #include "plugins/EffectChainState.h"
 #include "plugins/PluginFormatPreferences.h"
 
@@ -21,6 +22,9 @@ struct AudioDevicePreferences
 struct PlayerAppState
 {
     PlaylistModel playlist;
+    MusicLibrary library;
+    juce::String libraryCollectionId = "all";
+    juce::String librarySearchQuery;
     EffectChainState effectChain;
     PluginFormatPreferences pluginFormats;
     juce::StringArray customVst3Directories;

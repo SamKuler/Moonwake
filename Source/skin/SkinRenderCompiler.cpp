@@ -166,6 +166,11 @@ public:
             usedContextPaths = renderContextPaths;
             if (! result.controlStyle) return std::nullopt;
         }
+        if (target == SkinRenderTarget::playlistGrid && (! result.rowLayout || ! result.controlStyle))
+        {
+            fail ("RENDER004", {}, "Playlist grid renderers require controlStyle and rowLayout.");
+            return std::nullopt;
+        }
         if (pathCommands > SkinRenderLimits::maximumPackagePathCommands)
         {
             fail ("RENDER013", "/layers", "Path command budget exceeds 250000.");
@@ -259,7 +264,8 @@ private:
         if (target != SkinRenderTarget::table && target != SkinRenderTarget::effectChain
             && target != SkinRenderTarget::channelMap && target != SkinRenderTarget::pluginList
             && target != SkinRenderTarget::channelMixer
-            && target != SkinRenderTarget::skinList && target != SkinRenderTarget::popupMenu)
+            && target != SkinRenderTarget::skinList && target != SkinRenderTarget::popupMenu
+            && target != SkinRenderTarget::playlistGrid)
         {
             fail ("RENDER004", "/rowLayout", "This renderer target does not have a row layout.");
             return std::nullopt;

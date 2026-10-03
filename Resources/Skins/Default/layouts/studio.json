@@ -39,10 +39,50 @@
                 "height": 40
               },
               {
+                "id": "studio-studio-root-library-open",
+                "type": "component",
+                "component": "library.open",
+                "style": "textButton.studioMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 2,
+                "shrink": 0
+              },
+              {
+                "id": "studio-studio-root-library-open-favourites",
+                "type": "component",
+                "component": "library.browseFavourites",
+                "style": "textButton.studioMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 3,
+                "shrink": 0
+              },
+              {
+                "id": "studio-studio-root-player-open-queue",
+                "type": "component",
+                "component": "library.browseQueue",
+                "style": "textButton.studioMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 4,
+                "shrink": 0
+              },
+              {
+                "id": "studio-studio-root-player-open",
+                "type": "component",
+                "component": "player.open",
+                "style": "textButton.studioMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 5,
+                "shrink": 0
+              },
+              {
                 "id": "studio-studio-modes",
                 "type": "row",
                 "style": "surface.studioSwitcher",
-                "width": 248,
+                "width": 212,
                 "height": 44,
                 "shrink": 0,
                 "padding": 4,
@@ -54,7 +94,7 @@
                     "type": "component",
                     "component": "workspace.studio",
                     "style": "textButton.studioMode",
-                    "width": 118,
+                    "width": 100,
                     "height": 36,
                     "focusOrder": 10
                   },
@@ -63,7 +103,7 @@
                     "type": "component",
                     "component": "workspace.listening",
                     "style": "textButton.studioMode",
-                    "width": 118,
+                    "width": 100,
                     "height": 36,
                     "focusOrder": 20
                   }
@@ -101,40 +141,31 @@
                     "style": "surface.studio",
                     "children": [
                       {
-                        "id": "studio-studio-queue-heading",
+                        "id": "studio-queue-header",
                         "type": "row",
                         "height": 32,
-                        "gap": 6,
+                        "shrink": 0,
                         "align": "center",
+                        "gap": 8,
                         "children": [
                           {
-                            "id": "studio-studio-queue-title",
+                            "id": "queue-title",
                             "type": "component",
                             "component": "queue.title",
                             "style": "label.studioSection",
-                            "height": 28,
-                            "width": 64
+                            "grow": 1,
+                            "height": 32
                           },
                           {
-                            "id": "studio-studio-search",
-                            "type": "component",
-                            "component": "library.search",
-                            "style": "textEditor.studio",
-                            "height": 32,
-                            "focusOrder": 100,
-                            "shrink": 0,
-                            "grow": 1
-                          },
-                          {
-                            "id": "studio-studio-queue-count",
+                            "id": "queue-count",
                             "type": "component",
                             "component": "queue.count",
-                            "style": "label.studioData",
-                            "width": 52,
-                            "height": 24
+                            "style": "label.studioMuted",
+                            "width": 64,
+                            "height": 28
                           },
                           {
-                            "id": "studio-studio-add",
+                            "id": "studio-studio-root-library-add",
                             "type": "component",
                             "component": "library.add",
                             "style": "textButton.studioIconNeutral",
@@ -142,30 +173,31 @@
                             "height": 32,
                             "focusOrder": 110
                           }
-                        ],
-                        "shrink": 0
+                        ]
                       },
                       {
-                        "id": "studio-studio-queue-body",
+                        "id": "studio-queue-list-stack",
                         "type": "stack",
                         "grow": 1,
+                        "minHeight": 80,
                         "children": [
                           {
-                            "id": "studio-studio-queue",
+                            "id": "queue-table",
                             "type": "component",
                             "component": "queue.table",
                             "style": "table.studio",
-                            "presentation": "table",
+                            "grow": 1,
                             "anchors": {
                               "top": 0,
                               "right": 0,
                               "bottom": 0,
                               "left": 0
                             },
-                            "focusOrder": 120
+                            "focusOrder": 130,
+                            "presentation": "table"
                           },
                           {
-                            "id": "studio-studio-empty",
+                            "id": "queue-empty",
                             "type": "component",
                             "component": "queue.empty",
                             "style": "label.studioMuted",
@@ -177,63 +209,11 @@
                             }
                           }
                         ]
-                      },
-                      {
-                        "id": "studio-studio-queue-actions",
-                        "type": "row",
-                        "height": 32,
-                        "gap": 6,
-                        "align": "center",
-                        "children": [
-                          {
-                            "id": "studio-studio-remove",
-                            "type": "component",
-                            "component": "queue.remove",
-                            "style": "textButton.studioIconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 130
-                          },
-                          {
-                            "id": "studio-studio-up",
-                            "type": "component",
-                            "component": "queue.moveUp",
-                            "style": "textButton.studioIconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 140
-                          },
-                          {
-                            "id": "studio-studio-down",
-                            "type": "component",
-                            "component": "queue.moveDown",
-                            "style": "textButton.studioIconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 150
-                          },
-                          {
-                            "id": "studio-studio-clear",
-                            "type": "component",
-                            "component": "queue.clear",
-                            "style": "textButton.studioNeutral",
-                            "width": 70,
-                            "height": 32,
-                            "focusOrder": 160
-                          },
-                          {
-                            "id": "studio-studio-action-gap",
-                            "type": "visual",
-                            "style": "surface.studioPlain",
-                            "grow": 1
-                          }
-                        ],
-                        "shrink": 0
                       }
                     ],
                     "shrink": 1,
                     "grow": 1,
-                    "minHeight": 204
+                    "minHeight": 140
                   },
                   {
                     "id": "studio-rack",

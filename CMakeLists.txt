@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.6.1 LANGUAGES C CXX)
+project(Moonwake VERSION 0.7.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -148,6 +148,7 @@ set(MOONWAKE_SOURCES
     Source/app/PlaybackCoordinator.cpp
     Source/app/PlaybackCheckpoint.cpp
     Source/app/PlayerController.cpp
+    Source/app/PlayerLibraryActions.cpp
     Source/app/AutoSaveScheduler.cpp
     Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
@@ -160,6 +161,9 @@ set(MOONWAKE_SOURCES
     Source/audio/TrackMetadataReader.cpp
     Source/library/ArtworkExtractor.cpp
     Source/library/ArtworkStore.cpp
+    Source/library/LibraryProjection.cpp
+    Source/library/MusicLibrary.cpp
+    Source/playlist/PlaylistFile.cpp
     Source/library/LibraryFilter.cpp
     Source/library/LibraryImportService.cpp
     Source/library/LibraryRestore.cpp
@@ -205,6 +209,8 @@ set(MOONWAKE_SOURCES
     Source/ui/JuceSkinAdapter.cpp
     Source/ui/SkinEffectChainViewport.cpp
     Source/ui/SkinLayoutHost.cpp
+    Source/ui/MusicLibraryPanel.cpp
+    Source/ui/PlaylistGridComponent.cpp
     Source/ui/SkinTableListBox.cpp
     Source/ui/settings/AudioSettingsPanel.cpp
     Source/ui/settings/PluginSettingsPanel.cpp
@@ -329,12 +335,16 @@ add_executable(MoonwakeTests
         Source/app/PlaybackCoordinator.cpp
         Source/app/PlaybackCheckpoint.cpp
         Source/app/PlayerController.cpp
+        Source/app/PlayerLibraryActions.cpp
         Source/audio/AudioEngine.cpp
         Source/audio/OutputMeter.cpp
         Source/audio/GaplessAudioSource.cpp
         Source/audio/TrackMetadataReader.cpp
         Source/library/ArtworkExtractor.cpp
         Source/library/ArtworkStore.cpp
+        Source/library/LibraryProjection.cpp
+        Source/library/MusicLibrary.cpp
+        Source/playlist/PlaylistFile.cpp
         Source/library/LibraryFilter.cpp
         Source/library/LibraryImportService.cpp
         Source/library/LibraryRestore.cpp
@@ -387,6 +397,8 @@ add_executable(MoonwakeTests
         Source/ui/JuceSkinAdapter.cpp
         Source/ui/SkinEffectChainViewport.cpp
         Source/ui/SkinLayoutHost.cpp
+        Source/ui/MusicLibraryPanel.cpp
+        Source/ui/PlaylistGridComponent.cpp
         Source/ui/SkinTableListBox.cpp
         Source/ui/settings/AudioSettingsPanel.cpp
         Source/ui/settings/PluginSettingsPanel.cpp
@@ -410,6 +422,13 @@ add_executable(MoonwakeTests
         Tests/PlaybackCheckpointTests.cpp
         Tests/PlayerComponentCatalogTests.cpp
         Tests/OutputLayoutTests.cpp
+        Tests/PlayerLibraryTests.cpp
+        Tests/MusicLibraryPanelTests.cpp
+        Tests/PlaylistGridTests.cpp
+        Tests/LibraryProjectionTests.cpp
+        Tests/SkinEditableComboTests.cpp
+        Tests/MusicLibraryTests.cpp
+        Tests/PlaylistFileTests.cpp
         Tests/PlaylistModelTests.cpp
         Tests/PluginManagerTests.cpp
         Tests/PluginFormatIntegrationTests.cpp
@@ -427,7 +446,7 @@ add_executable(MoonwakeTests
         Tests/SkinPackageTests.cpp
         Tests/SkinRenderCompilerTests.cpp
         Tests/SkinContentClipTests.cpp
-    Tests/SkinRendererTests.cpp
+        Tests/SkinRendererTests.cpp
         Tests/SkinTextLayoutTests.cpp
         Tests/OutputStageTests.cpp
         Tests/OutputMixerTests.cpp

@@ -26,6 +26,7 @@ juce::String targetFor (SkinComponentKind kind)
         case SkinComponentKind::channelMixer: return "channelMixer";
         case SkinComponentKind::pluginList: return "pluginList";
         case SkinComponentKind::skinList: return "skinList";
+        case SkinComponentKind::playlistGrid: return "playlistGrid";
     }
     return {};
 }
@@ -51,6 +52,7 @@ bool isInteractive (SkinComponentKind kind)
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
+        case SkinComponentKind::playlistGrid:
             return true;
     }
     return false;
@@ -65,7 +67,7 @@ SkinComponentDescriptor makeDescriptor (
 {
     return { std::move (id), kind, targetFor (kind), std::move (targets),
              std::move (slots), std::move (required), isInteractive (kind),
-             std::move (presentations), "left", {}, {} };
+             std::move (presentations), "left", {}, {}, {} };
 }
 
 SkinComponentDescriptor makeReadOnlyDescriptor (
@@ -110,10 +112,36 @@ std::set<SkinLayoutEntry> workspaces()
     return { SkinLayoutEntry::studio, SkinLayoutEntry::listening };
 }
 
+std::set<SkinLayoutEntry> playbackPages()
+{
+    return { SkinLayoutEntry::studio, SkinLayoutEntry::listening,
+             SkinLayoutEntry::library, SkinLayoutEntry::collection };
+}
+
+std::set<SkinLayoutEntry> libraryPages()
+{
+    return { SkinLayoutEntry::library, SkinLayoutEntry::collection };
+}
+
 SkinComponentDescriptor makeImportDescriptor()
 {
     auto result = makeIconDescriptor ("library.add", "add", workspaces());
     result.slots.push_back ({ "icon.close", "surface" });
+    return result;
+}
+
+SkinComponentDescriptor makeTrackTable (juce::String id, std::set<SkinLayoutEntry> required,
+                                        juce::StringArray alternatives = {})
+{
+    auto result = makeDescriptor (std::move (id), SkinComponentKind::table,
+        std::move (required), { "table", "list" },
+        { { "table", "table" }, { "list", "table" } }, {
+            { "header.surface", "surface" }, { "header.text", "label" },
+            { "row.surface", "surface" }, { "cell.title", "label" },
+            { "cell.location", "label" }, { "cell.duration", "label" },
+            { "cell.artist", "label" }, { "cell.album", "label" }
+        });
+    result.requiredAlternatives = std::move (alternatives);
     return result;
 }
 
@@ -151,21 +179,44 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeLabelDescriptor ("app.brand.eyebrow"),
         makeLabelDescriptor ("app.brand.title"),
         makeLabelDescriptor ("app.deviceStatus", "right"),
-        makeLabelDescriptor ("app.status", "left", workspaces()),
-        makeDescriptor ("workspace.studio", Kind::textButton, workspaces()),
-        makeDescriptor ("workspace.listening", Kind::textButton, workspaces()),
-        makeIconDescriptor ("settings.open", "settings", workspaces()),
+        makeLabelDescriptor ("app.status", "left", playbackPages()),
+        makeDescriptor ("workspace.studio", Kind::textButton, playbackPages()),
+        makeDescriptor ("workspace.listening", Kind::textButton, playbackPages()),
+        makeIconDescriptor ("settings.open", "settings", playbackPages()),
 
         makeImportDescriptor(),
+        makeDescriptor ("library.open", Kind::textButton, libraryPages()),
+        makeDescriptor ("player.open", Kind::textButton, libraryPages()),
+        makeDescriptor ("library.back", Kind::textButton, { Entry::collection }),
+        makeDescriptor ("library.browsePlaylists", Kind::textButton),
+        makeDescriptor ("library.browseAlbums", Kind::textButton),
+        makeDescriptor ("library.browseArtists", Kind::textButton),
+        makeDescriptor ("library.browseSongs", Kind::textButton),
+        makeDescriptor ("library.browseFavourites", Kind::textButton),
+        makeDescriptor ("library.browseQueue", Kind::textButton),
+        makeDescriptor ("library.gridSearch", Kind::textEditor),
+        makeDescriptor ("library.grid", Kind::playlistGrid, { Entry::library }, {}, {}, {
+            Slot { "card.surface", "surface" }, Slot { "card.cover", "artwork" },
+            Slot { "card.title", "label" }, Slot { "card.summary", "label" }, Slot { "card.date", "label" }
+        }),
+        makeDescriptor ("library.detailCover", Kind::artwork, {}, { "contain", "cover" },
+                        { { "contain", "artwork" }, { "cover", "artwork" } }, {
+            Slot { "frame.background", "surface" }, Slot { "frame.overlay", "surface" }
+        }),
+        makeLabelDescriptor ("library.description"),
+        makeDescriptor ("library.play", Kind::textButton),
+        makeDescriptor ("library.shufflePlay", Kind::textButton),
         makeDescriptor ("library.search", Kind::textEditor),
+        makeDescriptor ("library.collections", Kind::comboBox),
+        makeDescriptor ("library.actions", Kind::textButton),
+        makeDescriptor ("library.newPlaylist", Kind::textButton),
+        makeLabelDescriptor ("library.title"),
+        makeLabelDescriptor ("library.count", "right"),
+        makeLabelDescriptor ("library.empty", "center"),
+        makeTrackTable ("library.tracks", { Entry::collection }),
         makeLabelDescriptor ("queue.title"),
         makeLabelDescriptor ("queue.count", "right"),
-        makeDescriptor ("queue.table", Kind::table, workspaces(), { "table", "list" },
-                        { { "table", "table" }, { "list", "table" } }, {
-            Slot { "header.surface", "surface" }, Slot { "header.text", "label" },
-            Slot { "row.surface", "surface" }, Slot { "cell.title", "label" },
-            Slot { "cell.location", "label" }, Slot { "cell.duration", "label" }
-        }),
+        makeTrackTable ("queue.table", workspaces(), { "library.tracks" }),
         makeLabelDescriptor ("queue.empty", "center"),
         makeIconDescriptor ("queue.remove", "remove"),
         makeDescriptor ("queue.clear", Kind::textButton),
@@ -182,18 +233,18 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeLabelDescriptor ("nowPlaying.title"),
         makeLabelDescriptor ("nowPlaying.metadata"),
 
-        makeIconDescriptor ("transport.previous", "previous", workspaces()),
-        makeIconDescriptor ("transport.playPause", "play", workspaces()),
-        makeIconDescriptor ("transport.next", "next", workspaces()),
-        makeDescriptor ("transport.seek", Kind::linearSlider, workspaces(),
+        makeIconDescriptor ("transport.previous", "previous", playbackPages()),
+        makeIconDescriptor ("transport.playPause", "play", playbackPages()),
+        makeIconDescriptor ("transport.next", "next", playbackPages()),
+        makeDescriptor ("transport.seek", Kind::linearSlider, playbackPages(),
                         { "linearHorizontal" }, { { "linearHorizontal", "linearSlider" } }),
-        makeLabelDescriptor ("transport.time", "center", workspaces()),
+        makeLabelDescriptor ("transport.time", "center", playbackPages()),
         makeDescriptor ("transport.shuffle", Kind::toggleButton),
         makeDescriptor ("transport.repeat", Kind::comboBox),
         makeIconDescriptor ("transport.repeatCycle", "repeat"),
         makeLabelDescriptor ("transport.volumeLabel", "right"),
         makeLabelDescriptor ("transport.volumeValue", "right"),
-        makeDescriptor ("transport.volume", Kind::slider, workspaces(),
+        makeDescriptor ("transport.volume", Kind::slider, playbackPages(),
                         { "linearHorizontal", "rotary" },
                         { { "linearHorizontal", "linearSlider" },
                           { "rotary", "rotarySlider" } }),
@@ -288,6 +339,33 @@ const std::vector<SkinComponentDescriptor>& catalog()
 }
 } // namespace
 
+const std::vector<juce::String>& skinLayoutEntryNames()
+{
+    static const std::vector<juce::String> names { "studio", "listening", "effects", "settings", "library", "collection" };
+    return names;
+}
+
+std::optional<SkinLayoutEntry> skinLayoutEntryFromName (juce::StringRef name)
+{
+    const auto& names = skinLayoutEntryNames();
+    const auto found = std::find (names.begin(), names.end(), juce::String (name));
+    if (found == names.end()) return std::nullopt;
+    return static_cast<SkinLayoutEntry> (std::distance (names.begin(), found));
+}
+
+juce::String skinLayoutEntryName (SkinLayoutEntry entry)
+{
+    return skinLayoutEntryNames()[static_cast<size_t> (entry)];
+}
+
+const std::set<SkinLayoutEntry>& requiredSkinLayoutEntries()
+{
+    static const std::set<SkinLayoutEntry> entries {
+        SkinLayoutEntry::studio, SkinLayoutEntry::listening, SkinLayoutEntry::effects, SkinLayoutEntry::settings
+    };
+    return entries;
+}
+
 const std::vector<SkinComponentDescriptor>& PlayerComponentCatalog::descriptors()
 {
     return catalog();
@@ -301,6 +379,15 @@ const SkinComponentDescriptor* PlayerComponentCatalog::find (const juce::String&
         return value.id == id;
     });
     return found == values.end() ? nullptr : &*found;
+}
+
+bool PlayerComponentCatalog::isRequired (const juce::String& id, SkinLayoutEntry entry)
+{
+    for (const auto& descriptor : descriptors())
+        if (descriptor.requiredIn.contains (entry)
+            && (descriptor.id == id || descriptor.requiredAlternatives.contains (id)))
+            return true;
+    return false;
 }
 
 juce::String PlayerComponentCatalog::fallbackIconPathData (juce::StringRef iconNameRef)
@@ -339,6 +426,7 @@ SkinComponentDimensions PlayerComponentCatalog::dimensionsForTarget (juce::Strin
     if (target == "rotarySlider") return { 48, 48, 72, 72 };
     if (target == "progressBar") return { 40, 4, 140, 6 };
     if (target == "table") return { 180, 100, 360, 220 };
+    if (target == "playlistGrid") return { 120, 160, 600, 400 };
     if (target == "artwork") return { 120, 120, 300, 300 };
     if (target == "effectChain") return { 220, 120, 360, 300 };
     if (target == "outputStage") return { 180, 140, 300, 420 };

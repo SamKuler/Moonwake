@@ -194,6 +194,30 @@ public:
 
         }
 
+        beginTest ("library routes use the current workspace and remain optional for old skins");
+        {
+            const auto example = juce::File (MOONWAKE_SOURCE_DIR)
+                .getChildFile ("docs/skin-api/examples/CompleteThirdParty");
+            for (const auto* page : { "library", "collection" })
+            {
+                const auto parsed = SkinTool::parse ({ "layout", example.getFullPathName(),
+                    "--workspace", page, "--size", "1040x700", "--theme", "studio" });
+                expect (parsed.options.has_value());
+                if (parsed.options)
+                {
+                    expect (parsed.options->workspace == skinLayoutEntryFromName (page));
+                    expect (parsed.options->theme == WorkspaceMode::studio);
+                }
+                const auto layout = run ({ "layout", example.getFullPathName().toRawUTF8(),
+                    "--workspace", page, "--size", "1040x700", "--theme", "studio" });
+                expectEquals (layout.exitCode, 0, layout.standardError);
+                expect (layout.standardOutput.contains (juce::String (page) == "library" ? "library.grid " : "library.tracks "));
+                const auto legacy = run ({ "layout", fixture().getFullPathName().toRawUTF8(),
+                    "--workspace", page, "--size", "1040x700" });
+                expect (legacy.exitCode != 0);
+            }
+        }
+
         beginTest ("pack output is reproducible and protected from accidental overwrite");
         {
             TemporaryDirectory temporary;

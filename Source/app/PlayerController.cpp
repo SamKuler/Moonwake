@@ -44,10 +44,12 @@ PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend
 }
 
 PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend,
-                                    PluginScannerConfiguration scanner)
+                                    PluginScannerConfiguration scanner,
+                                    juce::File artworkCacheRoot)
     : audioEngine (std::move (backend)),
       pluginManager (std::move (scanner)),
-      artworkStore (ProductPaths::artworkCacheRoot())
+      artworkStore (artworkCacheRoot == juce::File {} ? ProductPaths::artworkCacheRoot()
+                                                    : std::move (artworkCacheRoot))
 {
     audioInitialisationError = audioEngine.initialise();
     rememberAudioDeviceSettings();
@@ -91,57 +93,6 @@ juce::String PlayerController::addFiles (const juce::Array<juce::File>& files)
     if (! skippedFiles.isEmpty())
         message += " Skipped: " + skippedFiles.joinIntoString (", ");
     lastStatusMessage = message;
-    return lastStatusMessage;
-}
-
-juce::String PlayerController::addPreparedTracks (
-    std::vector<TrackMetadataResult> preparedTracks)
-{
-    int addedCount = 0;
-    juce::StringArray skippedFiles;
-    juce::StringArray artworkWarnings;
-    for (auto& prepared : preparedTracks)
-    {
-        auto& track = prepared.track;
-        if (! prepared.ok || ! track.available)
-        {
-            static_cast<void> (artworkStore.remove (track.artworkCacheKey));
-            skippedFiles.add (track.file.getFileName() + " ("
-                              + (prepared.error.isNotEmpty()
-                                     ? prepared.error : "unreadable") + ")");
-            continue;
-        }
-        if (playlist.containsFile (track.file))
-        {
-            static_cast<void> (artworkStore.remove (track.artworkCacheKey));
-            skippedFiles.add (track.file.getFileName() + " (already in queue)");
-            continue;
-        }
-        if (prepared.artworkData.getSize() > 0)
-        {
-            juce::String artworkError;
-            track.artworkCacheKey = artworkStore.store (
-                track.id, prepared.artworkData, artworkError);
-            if (track.artworkCacheKey.isEmpty() && artworkError.isNotEmpty())
-                artworkWarnings.add (track.file.getFileName() + " (" + artworkError + ")");
-        }
-        playlist.addTrack (std::move (track));
-        ++addedCount;
-    }
-
-    lastStatusMessage = "Added " + juce::String (addedCount)
-        + (addedCount == 1 ? " track." : " tracks.");
-    if (! skippedFiles.isEmpty())
-        lastStatusMessage += " Skipped: " + skippedFiles.joinIntoString (", ");
-    if (! artworkWarnings.isEmpty())
-        lastStatusMessage += " Artwork warnings: "
-                           + artworkWarnings.joinIntoString (", ");
-    if (addedCount > 0)
-    {
-        ++stateRevision;
-        const auto importStatus = lastStatusMessage;
-        if (refreshUpcomingPlayback()) lastStatusMessage = importStatus;
-    }
     return lastStatusMessage;
 }
 
@@ -225,7 +176,7 @@ bool PlayerController::handlePlaybackReadError()
     synchronizePlayback (false);
     const auto id = playbackCoordinator.getLoadedTrackId();
     const auto shouldPlay = playbackCoordinator.getIntent() == TransportIntent::playing;
-    playlist.setTrackAvailable (id, false);
+    setLibraryTrackAvailable (id, false);
     playbackCheckpoint.reset (id, audioEngine.getCurrentPositionSeconds());
     audioEngine.unload();
     upcomingPlaybackDirty = false;
@@ -349,7 +300,7 @@ bool PlayerController::synchronizePlayback (const AudioPlaybackProgress& progres
         if (! inserted) position->second = std::min (position->second, firstUnplayed);
         if (const auto found = playbackTrackIds.find (failure.token); found != playbackTrackIds.end())
         {
-            playlist.setTrackAvailable (found->second, false);
+            setLibraryTrackAvailable (found->second, false);
             failures.add (failure.error);
         }
         changed = true;
@@ -404,71 +355,24 @@ bool PlayerController::synchronizePlayback (const AudioPlaybackProgress& progres
 
 bool PlayerController::removeTrack (int index)
 {
-    const auto* requested = playlist.getTrack (index);
-    if (requested == nullptr) return false;
-    const auto removedId = requested->id;
-    const auto removedTitle = requested->title;
-    const auto removedArtworkKey = requested->artworkCacheKey;
-    synchronizePlayback (audioEngine.getPlaybackProgress(), true, nullptr);
-    const auto remove = [&]
-    {
-        if (! playlist.removeTrack (playlist.indexOfId (removedId))) return false;
-        ++stateRevision;
-        if (removedId == playbackCoordinator.getLoadedTrackId())
-        {
-            audioEngine.unload();
-            playbackCoordinator.loadFailed();
-            playbackCheckpoint.reset ({}, 0.0);
-            playbackPlan = {};
-            playbackTrackIds.clear();
-            failedPlaybackItems.clear();
-            playbackGeneration = playbackSequence = 0;
-            upcomingPlaybackDirty = false;
-        }
-        return true;
-    };
-    if (removedId == playbackCoordinator.getLoadedTrackId())
-    {
-        audioEngine.pause();
-        const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
-        synchronizePlayback (audioEngine.getPlaybackProgress(), true, nullptr);
-        if (! remove()) return false;
-    }
-    else if (! remove()) return false;
-
-    static_cast<void> (artworkStore.remove (removedArtworkKey));
-    refreshUpcomingPlayback();
-    lastStatusMessage = "Removed " + removedTitle + ".";
-    return true;
+    const auto* track = playlist.getTrack (index);
+    return track != nullptr && removeCollectionEntries ("queue", { track->id });
 }
 
 bool PlayerController::moveTrack (int fromIndex, int toIndex)
 {
-    synchronizePlayback();
-    if (! playlist.moveTrack (fromIndex, toIndex))
+    const auto* track = playlist.getTrack (fromIndex);
+    if (track == nullptr || toIndex < 0 || toIndex >= playlist.size() || fromIndex == toIndex)
         return false;
-
-    ++stateRevision;
-    refreshUpcomingPlayback();
-    lastStatusMessage = "Queue reordered.";
-    return true;
+    return moveCollectionEntries ("queue", { track->id }, toIndex + (toIndex > fromIndex ? 1 : 0));
 }
 
 void PlayerController::clearPlaylist()
 {
-    audioEngine.unload();
-    playbackPlan = {};
-    playbackTrackIds.clear();
-    failedPlaybackItems.clear();
-    playbackGeneration = 0;
-    playbackSequence = 0;
-    upcomingPlaybackDirty = false;
-    playbackCoordinator.loadFailed();
-    playbackCheckpoint.reset ({}, 0.0);
-    for (const auto& track : playlist.getTracks())
-        static_cast<void> (artworkStore.remove (track.artworkCacheKey));
-    playlist.clear();
-    ++stateRevision;
+    if (playlist.isEmpty()) return;
+    std::vector<juce::String> ids;
+    for (const auto& track : playlist.getTracks()) ids.push_back (track.id);
+    removeCollectionEntries ("queue", ids);
     lastStatusMessage = "Queue cleared.";
 }
 
@@ -1226,14 +1130,14 @@ bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPl
     upcomingPlaybackDirty = false;
     if (! audioEngine.loadFile (track->file))
     {
-        playlist.setTrackAvailable (trackId, false);
+        setLibraryTrackAvailable (trackId, false);
         lastStatusMessage = "Could not load audio file: " + path;
         audioEngine.unload();
         playbackCoordinator.loadFailed();
         ++stateRevision;
         return false;
     }
-    playlist.setTrackAvailable (trackId, true);
+    setLibraryTrackAvailable (trackId, true);
     if (navigation.has_value()) playlist.commitPlayback (trackId, *navigation);
     else playlist.selectTrack (index);
     playbackCoordinator.trackStarted (trackId, shouldPlay ? TransportIntent::playing : TransportIntent::paused);
@@ -1265,6 +1169,9 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     errorMessage.clear();
     state = {};
     state.playlist = playlist;
+    state.library = library;
+    state.libraryCollectionId = libraryCollectionId;
+    state.librarySearchQuery = librarySearchQuery;
     state.effectChain = effectChain;
     state.pluginFormats = pluginManager.getFormatPreferences();
     state.customVst3Directories = pluginManager.getCustomVst3Directories();
@@ -1389,6 +1296,19 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     playbackCheckpoint.reset ({}, 0.0);
     audioEngine.setAllEffectsBypassed (false);
     playlist = std::move (state.playlist);
+    library = std::move (state.library);
+    auto restoredTracks = playlist.getTracks();
+    bool linkedTracks = false;
+    for (auto& track : restoredTracks)
+        if (library.getTrack (track.libraryId) == nullptr)
+        {
+            track.libraryId = library.upsertTrack (track);
+            linkedTracks = true;
+        }
+    if (linkedTracks) playlist.replaceTracks (std::move (restoredTracks));
+    libraryCollectionId = std::move (state.libraryCollectionId);
+    librarySearchQuery = std::move (state.librarySearchQuery);
+    collectionUndo.clear();
     playbackPlan = {};
     playbackTrackIds.clear();
     failedPlaybackItems.clear();

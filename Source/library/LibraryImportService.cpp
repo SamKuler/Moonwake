@@ -1,11 +1,27 @@
 #include "LibraryImportService.h"
 
+#include "playlist/PlaylistFile.h"
 #include "playlist/TrackFileIdentity.h"
 
 #include <algorithm>
 #include <filesystem>
+#include <map>
 #include <set>
 #include <utility>
+
+namespace
+{
+void discardImportedTracks (LibraryImportResult& result, const ArtworkStore& artworkStore)
+{
+    std::set<juce::String> keys;
+    for (const auto& metadata : result.tracks)
+        if (metadata.track.artworkCacheKey.isNotEmpty())
+            keys.insert (metadata.track.artworkCacheKey);
+    for (const auto& key : keys)
+        static_cast<void> (artworkStore.remove (key));
+    result.tracks.clear();
+}
+} // namespace
 
 LibraryImportService::LibraryImportService (juce::File artworkCacheRoot)
     : juce::Thread ("Moonwake Library Import"),
@@ -23,7 +39,22 @@ bool LibraryImportService::start (juce::Array<juce::File> inputs,
                                   ProgressCallback progress,
                                   CompletionCallback completion)
 {
-    if (inputs.isEmpty() || ! completion)
+    return startImport (std::move (inputs), {}, std::move (progress), std::move (completion));
+}
+
+bool LibraryImportService::startPlaylist (juce::File playlistFile,
+                                          ProgressCallback progress,
+                                          CompletionCallback completion)
+{
+    return startImport ({}, std::move (playlistFile), std::move (progress), std::move (completion));
+}
+
+bool LibraryImportService::startImport (juce::Array<juce::File> inputs,
+                                       juce::File playlistFile,
+                                       ProgressCallback progress,
+                                       CompletionCallback completion)
+{
+    if ((inputs.isEmpty() && playlistFile == juce::File()) || ! completion)
         return false;
 
     if (completionPending->load())
@@ -37,12 +68,14 @@ bool LibraryImportService::start (juce::Array<juce::File> inputs,
         return false;
 
     pendingInputs = std::move (inputs);
+    pendingPlaylistFile = std::move (playlistFile);
     progressCallback = std::move (progress);
     completionCallback = std::move (completion);
-    cancellationRequested.store (false);
+    cancellationRequested->store (false);
     if (! startThread())
     {
         pendingInputs.clear();
+        pendingPlaylistFile = juce::File {};
         progressCallback = {};
         completionCallback = {};
         completionPending->store (false);
@@ -53,7 +86,7 @@ bool LibraryImportService::start (juce::Array<juce::File> inputs,
 
 void LibraryImportService::cancel()
 {
-    cancellationRequested.store (true);
+    cancellationRequested->store (true);
     signalThreadShouldExit();
 }
 
@@ -189,19 +222,38 @@ bool LibraryImportService::isSupportedAudioFile (const juce::File& file)
 void LibraryImportService::run()
 {
     LibraryImportResult result;
+    result.playlistImport = pendingPlaylistFile != juce::File();
     postProgress ({ LibraryImportProgress::Stage::discovering, 0, 0, {} });
-    const auto files = collectAudioFiles (
-        pendingInputs, &cancellationRequested, &result.skippedPaths);
+    juce::Array<juce::File> files;
+    PlaylistFileReadResult playlist;
+    if (result.playlistImport)
+    {
+        result.playlistName = pendingPlaylistFile.getFileNameWithoutExtension();
+        if (! cancellationRequested->load())
+        {
+            playlist = PlaylistFile::read (pendingPlaylistFile);
+            result.error = playlist.error;
+            result.playlistWarnings = playlist.warnings;
+            for (const auto& entry : playlist.entries)
+                files.add (entry.file);
+        }
+    }
+    else
+    {
+        files = collectAudioFiles (
+            pendingInputs, cancellationRequested.get(), &result.skippedPaths);
+    }
     result.tracks.reserve (static_cast<size_t> (files.size()));
 
-    if (threadShouldExit() || cancellationRequested.load())
+    if (threadShouldExit() || cancellationRequested->load())
         result.cancelled = true;
 
     TrackMetadataReader reader;
+    std::map<juce::String, size_t> preparedFiles;
     auto lastProgressTime = 0.0;
     for (int index = 0; index < files.size(); ++index)
     {
-        if (threadShouldExit() || cancellationRequested.load())
+        if (threadShouldExit() || cancellationRequested->load())
         {
             result.cancelled = true;
             break;
@@ -214,11 +266,14 @@ void LibraryImportService::run()
                             index, files.size(), files[index].getFileName() });
             lastProgressTime = now;
         }
-        auto metadata = reader.read (files[index]);
-        if (! metadata.ok)
-            result.skippedPaths.add (files[index].getFullPathName()
-                                     + " (" + metadata.error + ")");
-        else
+        const auto identity = result.playlistImport ? trackFileIdentity (files[index]) : juce::String();
+        const auto cached = preparedFiles.find (identity);
+        auto metadata = cached != preparedFiles.end()
+            ? result.tracks[cached->second] : reader.read (files[index]);
+        metadata.track.file = files[index];
+        if (! metadata.ok && cached == preparedFiles.end())
+            result.skippedPaths.add (files[index].getFullPathName() + " (" + metadata.error + ")");
+        if (metadata.ok && cached == preparedFiles.end())
         {
             if (metadata.artworkData.getSize() > 0
                 && artworkStore.root() != juce::File())
@@ -233,28 +288,44 @@ void LibraryImportService::run()
                         files[index].getFullPathName() + " ("
                             + artworkError + ")");
             }
-            result.tracks.push_back (std::move (metadata));
         }
+        if (result.playlistImport)
+        {
+            const auto& entry = playlist.entries[static_cast<size_t> (index)];
+            if (! metadata.ok)
+            {
+                metadata.track.available = false;
+                metadata.track.title = entry.title.isNotEmpty() ? entry.title
+                    : entry.file.getFileNameWithoutExtension();
+                metadata.track.durationSeconds = entry.durationSeconds;
+            }
+            preparedFiles.emplace (identity, result.tracks.size());
+        }
+        if (metadata.ok || result.playlistImport)
+            result.tracks.push_back (std::move (metadata));
     }
 
-    if (threadShouldExit() || cancellationRequested.load())
+    if (threadShouldExit() || cancellationRequested->load())
         result.cancelled = true;
 
     if (result.cancelled)
-    {
-        for (const auto& track : result.tracks)
-            static_cast<void> (artworkStore.remove (
-                track.track.artworkCacheKey));
-        result.tracks.clear();
-    }
+        discardImportedTracks (result, artworkStore);
 
     auto completion = std::move (completionCallback);
     const auto lifecycle = completionPending;
+    const auto cancellation = cancellationRequested;
     progressCallback = {};
     pendingInputs.clear();
+    pendingPlaylistFile = juce::File {};
     juce::MessageManager::callAsync (
-        [lifecycle, completion, completed = std::move (result)] () mutable
+        [lifecycle, cancellation, completion, cache = artworkStore,
+         completed = std::move (result)] () mutable
         {
+            if (cancellation->load())
+            {
+                completed.cancelled = true;
+                discardImportedTracks (completed, cache);
+            }
             if (completion) completion (std::move (completed));
             lifecycle->store (false);
         });

@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <set>
+#include <tuple>
 
 namespace
 {
@@ -418,6 +419,49 @@ public:
             const auto image = render (program, context, renderer, sink);
             expectEquals (pixelHash (image),
                           juce::String ("62a36eff76f990565ede4b3f3d8ebad3464d33f7571388f96e07fb9f1387254a"));
+        }
+
+        beginTest ("native table repeat bindings include the fourth column and skip hidden columns");
+        {
+            SkinRenderLayer repeat;
+            repeat.id = "columns";
+            repeat.primitive = SkinPrimitive::repeat;
+            repeat.repeatSource = "table.visibleColumns";
+            repeat.repeatLimit = 4;
+            setCommon (repeat);
+            auto column = rectangleLayer ("album", { 0, 0, 10, 20 }, juce::Colours::green);
+            SkinValidationReport report;
+            SkinTokenStore tokens;
+            const auto contexts = skinRenderContextForTarget (SkinRenderTarget::table, "table.visibleColumns");
+            const auto x = SkinExpression::compile ("item.index * 20", contexts, tokens, report, "fixture", "/x");
+            const auto visible = SkinExpression::compile ("item.label == 'Album'", contexts, tokens, report, "fixture", "/visible");
+            expect (x.has_value() && visible.has_value(), report.toText());
+            if (x && visible)
+            {
+                column.properties["frame.x"].value = *x;
+                column.properties["visible"].value = *visible;
+                repeat.children.push_back (std::move (column));
+                SkinRenderStyleEntry style;
+                style.renderer = simpleProgram (SkinRenderTarget::table, std::move (repeat));
+                SkinRenderer renderer;
+                JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget, const juce::String&)
+                {
+                    return JuceSkinAdapter::RuntimeBinding { &style };
+                }, renderer);
+                juce::TableListBox table;
+                table.setBounds (0, 0, 200, 40);
+                int id = 0;
+                for (const auto* label : { "Track", "Artist", "Time", "Album" })
+                    table.getHeader().addColumn (label, ++id, 50);
+                juce::Image image (juce::Image::ARGB, 200, 40, true);
+                juce::Graphics graphics (image);
+                adapter.drawListBoxBackground (graphics, table, 0, 4);
+                expect (image.getPixelAt (65, 10) == juce::Colours::green);
+                table.getHeader().setColumnVisible (4, false);
+                image.clear (image.getBounds(), juce::Colours::transparentBlack);
+                adapter.drawListBoxBackground (graphics, table, 0, 3);
+                expect (image.getPixelAt (65, 10).isTransparent());
+            }
         }
 
         beginTest ("renders cached bitmap and SVG primitives with fit and tint deterministically");
@@ -2591,6 +2635,15 @@ public:
             expect (context.contains ("row.location"));
             expect (context.contains ("row.artist"));
             expect (context.contains ("row.album"));
+            for (const auto* slot : { "row.surface", "cell.title", "cell.location", "cell.duration" })
+            {
+                const auto fields = skinRenderContextForCompositeSlot (
+                    SkinRenderTarget::table, slot,
+                    juce::String (slot) == "row.surface" ? SkinRenderTarget::surface : SkinRenderTarget::label);
+                expect (fields.contains ("row.playing") && fields.at ("row.playing") == SkinExpressionType::boolean);
+                expect (fields.contains ("row.favourite") && fields.at ("row.favourite") == SkinExpressionType::boolean);
+                expect (fields.contains ("row.dropEdge") && fields.at ("row.dropEdge") == SkinExpressionType::number);
+            }
 
             SkinValidationReport report;
             SkinTokenStore tokens;
@@ -2606,7 +2659,8 @@ public:
                 "column.id == 'location' and "
                 "text.primary == '/Music/Album/Track.flac' and "
                 "row.location == text.primary and "
-                "row.artist == 'Artist' and row.album == 'Album'",
+                "row.artist == 'Artist' and row.album == 'Album' and "
+                "not row.selected and row.playing and row.favourite and row.dropEdge == -1",
                 skinRenderContextForCompositeSlot (
                     SkinRenderTarget::table, "cell.location",
                     SkinRenderTarget::label),
@@ -2659,10 +2713,22 @@ public:
             adapter.drawListBoxRow (
                 graphics, list, 0, 80, 24, false, "Track",
                 "/Music/Album/Track.flac", "3:12", geometry,
-                false, false, true, "Artist", "Album");
+                false, false, true, "Artist", "Album", true, true, -1);
             expect (image.getPixelAt (40, 12).getAlpha() > 0,
                     "cell.location must receive the absolute path in text.primary "
                     "while row.artist and row.album remain additive context");
+            for (const auto& state : std::vector<std::tuple<bool, bool, int>> {
+                     { false, true, -1 }, { true, false, -1 }, { true, true, 0 }, { true, true, 1 } })
+            {
+                image.clear (image.getBounds(), juce::Colours::transparentBlack);
+                adapter.drawListBoxRow (
+                    graphics, list, 0, 80, 24, false, "Track",
+                    "/Music/Album/Track.flac", "3:12", geometry,
+                    false, false, true, "Artist", "Album",
+                    std::get<0> (state), std::get<1> (state), std::get<2> (state));
+                expect (image.getPixelAt (40, 12).isTransparent(),
+                        "playing, favourite and insertion edge must reach row slots independently");
+            }
             expect (! report.hasErrors(), report.toText());
         }
 

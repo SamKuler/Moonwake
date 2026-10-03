@@ -5,19 +5,18 @@
 
 #include <utility>
 
-bool prepareLibraryRestore (PlaylistModel& playlist,
-                            const juce::File& artworkCacheRoot,
-                            const std::atomic_bool* cancelled,
-                            juce::StringArray& warnings)
+namespace
+{
+bool prepareTracks (std::vector<TrackItem>& tracks,
+                    const juce::File& artworkCacheRoot,
+                    const std::atomic_bool* cancelled,
+                    juce::StringArray& warnings)
 {
     const auto isCancelled = [cancelled]
     {
         return cancelled != nullptr && cancelled->load();
     };
-    const auto selectedTrackId = playlist.getSelectedTrack() != nullptr
-                                   ? playlist.getSelectedTrack()->id
-                                   : juce::String{};
-    PlaylistModel prepared;
+    std::vector<TrackItem> prepared;
     TrackMetadataReader reader;
     ArtworkStore artwork (artworkCacheRoot);
     int unavailableCount = 0;
@@ -30,7 +29,7 @@ bool prepareLibraryRestore (PlaylistModel& playlist,
             firstArtworkError = message;
     };
 
-    for (const auto& saved : playlist.getTracks())
+    for (const auto& saved : tracks)
     {
         if (isCancelled())
             return false;
@@ -91,17 +90,13 @@ bool prepareLibraryRestore (PlaylistModel& playlist,
             if (unavailableCount++ == 0)
                 firstUnavailableError = metadata.error;
         }
-        prepared.addTrack (std::move (restored));
+        prepared.push_back (std::move (restored));
     }
 
     if (isCancelled())
         return false;
 
-    prepared.setRepeatMode (playlist.getRepeatMode());
-    if (selectedTrackId.isNotEmpty())
-        prepared.selectTrack (prepared.indexOfId (selectedTrackId));
-    prepared.setShuffleEnabled (playlist.isShuffleEnabled());
-    playlist = std::move (prepared);
+    tracks = std::move (prepared);
 
     if (unavailableCount > 0)
         warnings.add (juce::String (unavailableCount)
@@ -113,5 +108,36 @@ bool prepareLibraryRestore (PlaylistModel& playlist,
                       + (artworkWarningCount == 1 ? " artwork warning. "
                                                  : " artwork warnings. ")
                       + firstArtworkError);
+    return true;
+}
+} // namespace
+
+bool prepareLibraryRestore (MusicLibrary& library, PlaylistModel& playlist,
+                            const juce::File& artworkCacheRoot,
+                            const std::atomic_bool* cancelled,
+                            juce::StringArray& warnings)
+{
+    auto tracks = library.getTracks();
+    if (! prepareTracks (tracks, artworkCacheRoot, cancelled, warnings)) return false;
+    MusicLibrary prepared;
+    if (! prepared.restore (std::move (tracks), library.getPlaylists(), library.getFavouriteTrackIds()))
+        return false;
+    auto queue = playlist.getTracks();
+    for (auto& occurrence : queue)
+    {
+        const auto* record = prepared.getTrack (occurrence.libraryId);
+        if (record == nullptr)
+        {
+            warnings.add ("A queue entry references a missing library record.");
+            return false;
+        }
+        const auto occurrenceId = occurrence.id;
+        occurrence = *record;
+        occurrence.libraryId = record->id;
+        occurrence.id = occurrenceId;
+    }
+    if (cancelled != nullptr && cancelled->load()) return false;
+    library = std::move (prepared);
+    playlist.replaceTracks (std::move (queue));
     return true;
 }

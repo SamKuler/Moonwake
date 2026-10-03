@@ -35,6 +35,8 @@ skinControlStylePropertyDescriptors (SkinRenderTarget target)
         number (SkinRenderTarget::tooltip, "offsetY", 0.0);
         number (SkinRenderTarget::scrollBar, "thickness", 1.0);
         number (SkinRenderTarget::scrollBar, "minThumbLength", 1.0);
+        number (SkinRenderTarget::playlistGrid, "minItemWidth", 120.0);
+        number (SkinRenderTarget::playlistGrid, "itemGap", 0.0);
         for (const auto* field : { "selectionColour", "selectedTextColour", "caretColour" })
         {
             SkinRenderPropertyDescriptor descriptor;
@@ -124,7 +126,8 @@ std::optional<SkinResolvedControlStyle> resolveSkinControlStyle (
     for (const auto& [name, destination] : {
              std::pair { "thumbRadius", &result.thumbRadius }, std::pair { "maxWidth", &result.maxWidth },
              std::pair { "offsetX", &result.offsetX }, std::pair { "offsetY", &result.offsetY },
-             std::pair { "thickness", &result.thickness }, std::pair { "minThumbLength", &result.minThumbLength } })
+             std::pair { "thickness", &result.thickness }, std::pair { "minThumbLength", &result.minThumbLength },
+             std::pair { "minItemWidth", &result.minItemWidth }, std::pair { "itemGap", &result.itemGap } })
         if (const auto found = values.find (name); found != values.end())
             *destination = static_cast<float> (std::get<double> (found->second));
     for (const auto& [name, destination] : {

@@ -1,0 +1,940 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "library-listening-listening-listening-root",
+    "type": "stack",
+    "style": "surface.listeningCanvas",
+    "children": [
+      {
+        "id": "library-listening-listening-listening-root-shell",
+        "type": "column",
+        "padding": {
+          "top": 8,
+          "right": 24,
+          "bottom": 24,
+          "left": 24
+        },
+        "gap": 16,
+        "anchors": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "children": [
+          {
+            "id": "library-listening-listening-listening-root-navigation",
+            "type": "row",
+            "height": 44,
+            "shrink": 0,
+            "gap": 12,
+            "align": "center",
+            "children": [
+              {
+                "id": "library-listening-listening-app-brand-title",
+                "type": "component",
+                "component": "app.brand.title",
+                "style": "label.listeningBrand",
+                "grow": 1,
+                "height": 40
+              },
+              {
+                "id": "library-listening-library-open",
+                "type": "component",
+                "component": "library.open",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 2,
+                "shrink": 0
+              },
+              {
+                "id": "library-listening-library-open-favourites",
+                "type": "component",
+                "component": "library.browseFavourites",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 3,
+                "shrink": 0
+              },
+              {
+                "id": "library-listening-player-open-queue",
+                "type": "component",
+                "component": "library.browseQueue",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 4,
+                "shrink": 0
+              },
+              {
+                "id": "library-listening-player-open",
+                "type": "component",
+                "component": "player.open",
+                "style": "textButton.listeningMode",
+                "width": 100,
+                "height": 36,
+                "focusOrder": 5,
+                "shrink": 0
+              },
+              {
+                "id": "library-listening-listening-listening-modes",
+                "type": "row",
+                "style": "surface.listeningSwitcher",
+                "width": 212,
+                "height": 44,
+                "shrink": 0,
+                "padding": 4,
+                "gap": 4,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "library-listening-listening-workspace-studio",
+                    "type": "component",
+                    "component": "workspace.studio",
+                    "style": "textButton.listeningMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 10
+                  },
+                  {
+                    "id": "library-listening-listening-workspace-listening",
+                    "type": "component",
+                    "component": "workspace.listening",
+                    "style": "textButton.listeningMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 20
+                  }
+                ]
+              },
+              {
+                "id": "library-listening-listening-settings-open",
+                "type": "component",
+                "component": "settings.open",
+                "style": "textButton.listeningIconNeutral",
+                "width": 44,
+                "height": 44,
+                "focusOrder": 40
+              }
+            ]
+          },
+          {
+            "id": "library-listening-library-body",
+            "type": "column",
+            "grow": 1,
+            "gap": 20,
+            "children": [
+              {
+                "id": "library-listening-library-heading",
+                "type": "row",
+                "height": 44,
+                "shrink": 0,
+                "align": "center",
+                "gap": 12,
+                "children": [
+                  {
+                    "id": "library-listening-library-title",
+                    "type": "component",
+                    "component": "library.title",
+                    "style": "label.listeningCollectionHeading",
+                    "grow": 1,
+                    "height": 40
+                  },
+                  {
+                    "id": "library-listening-library-gridSearch",
+                    "type": "component",
+                    "component": "library.gridSearch",
+                    "style": "textEditor.listening",
+                    "width": 260,
+                    "height": 36,
+                    "focusOrder": 50
+                  },
+                  {
+                    "id": "library-listening-library-newPlaylist",
+                    "type": "component",
+                    "component": "library.newPlaylist",
+                    "style": "textButton.listeningPrimary",
+                    "width": 116,
+                    "height": 36,
+                    "focusOrder": 51
+                  },
+                  {
+                    "id": "library-listening-library-actions",
+                    "type": "component",
+                    "component": "library.actions",
+                    "style": "textButton.listeningNeutral",
+                    "width": 80,
+                    "height": 36,
+                    "focusOrder": 52
+                  },
+                  {
+                    "id": "library-listening-library-add",
+                    "type": "component",
+                    "component": "library.add",
+                    "style": "textButton.listeningIconNeutral",
+                    "width": 36,
+                    "height": 36,
+                    "focusOrder": 53
+                  }
+                ]
+              },
+              {
+                "id": "library-listening-library-categories",
+                "type": "row",
+                "height": 36,
+                "shrink": 0,
+                "align": "center",
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "library-listening-library-browsePlaylists",
+                    "type": "component",
+                    "component": "library.browsePlaylists",
+                    "style": "textButton.listeningMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 60
+                  },
+                  {
+                    "id": "library-listening-library-browseAlbums",
+                    "type": "component",
+                    "component": "library.browseAlbums",
+                    "style": "textButton.listeningMode",
+                    "width": 88,
+                    "height": 36,
+                    "focusOrder": 61
+                  },
+                  {
+                    "id": "library-listening-library-browseArtists",
+                    "type": "component",
+                    "component": "library.browseArtists",
+                    "style": "textButton.listeningMode",
+                    "width": 88,
+                    "height": 36,
+                    "focusOrder": 62
+                  },
+                  {
+                    "id": "library-listening-library-browseSongs",
+                    "type": "component",
+                    "component": "library.browseSongs",
+                    "style": "textButton.listeningMode",
+                    "width": 88,
+                    "height": 36,
+                    "focusOrder": 63
+                  },
+                  {
+                    "id": "library-listening-library-count",
+                    "type": "component",
+                    "component": "library.count",
+                    "style": "label.listeningMuted",
+                    "grow": 1,
+                    "height": 28
+                  }
+                ]
+              },
+              {
+                "id": "library-listening-library-grid-stack",
+                "type": "stack",
+                "grow": 1,
+                "children": [
+                  {
+                    "id": "library-listening-library-grid",
+                    "type": "component",
+                    "component": "library.grid",
+                    "style": "playlistGrid.listening",
+                    "anchors": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    },
+                    "focusOrder": 80
+                  },
+                  {
+                    "id": "library-listening-library-empty",
+                    "type": "component",
+                    "component": "library.empty",
+                    "style": "label.listeningMuted",
+                    "anchors": {
+                      "top": 0,
+                      "right": 0,
+                      "bottom": 0,
+                      "left": 0
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "library-listening-listening-listening-transport",
+            "type": "column",
+            "height": 112,
+            "shrink": 0,
+            "padding": 12,
+            "gap": 4,
+            "style": "surface.listening",
+            "children": [
+              {
+                "id": "library-listening-listening-listening-seek-row",
+                "type": "row",
+                "height": 28,
+                "shrink": 0,
+                "gap": 12,
+                "children": [
+                  {
+                    "id": "library-listening-listening-transport-seek",
+                    "type": "component",
+                    "component": "transport.seek",
+                    "style": "linearSlider.listening",
+                    "presentation": "linearHorizontal",
+                    "grow": 1,
+                    "focusOrder": 200
+                  },
+                  {
+                    "id": "library-listening-listening-transport-time",
+                    "type": "component",
+                    "component": "transport.time",
+                    "style": "label.listeningData",
+                    "width": 120
+                  }
+                ]
+              },
+              {
+                "id": "library-listening-listening-listening-controls",
+                "type": "stack",
+                "height": 56,
+                "shrink": 0,
+                "children": [
+                  {
+                    "id": "library-listening-listening-listening-track",
+                    "type": "column",
+                    "width": "30%",
+                    "height": 52,
+                    "anchors": {
+                      "left": 0,
+                      "centerY": 0
+                    },
+                    "gap": 2,
+                    "children": [
+                      {
+                        "id": "library-listening-listening-nowPlaying-title",
+                        "type": "component",
+                        "component": "nowPlaying.title",
+                        "style": "label.listeningTitle",
+                        "height": 30,
+                        "shrink": 0
+                      },
+                      {
+                        "id": "library-listening-listening-nowPlaying-metadata",
+                        "type": "component",
+                        "component": "nowPlaying.metadata",
+                        "style": "label.listeningData",
+                        "height": 20,
+                        "shrink": 0
+                      }
+                    ]
+                  },
+                  {
+                    "id": "library-listening-listening-listening-playback",
+                    "type": "row",
+                    "width": 244,
+                    "height": 52,
+                    "anchors": {
+                      "centerX": 0,
+                      "centerY": 0
+                    },
+                    "gap": 8,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "library-listening-listening-transport-shuffle",
+                        "type": "component",
+                        "component": "transport.shuffle",
+                        "style": "toggleButton.listeningShuffle",
+                        "width": 36,
+                        "height": 36,
+                        "focusOrder": 205
+                      },
+                      {
+                        "id": "library-listening-listening-transport-previous",
+                        "type": "component",
+                        "component": "transport.previous",
+                        "style": "textButton.listeningIconNeutral",
+                        "width": 40,
+                        "height": 40,
+                        "focusOrder": 210
+                      },
+                      {
+                        "id": "library-listening-listening-transport-playPause",
+                        "type": "component",
+                        "component": "transport.playPause",
+                        "style": "textButton.listeningIconPrimary",
+                        "width": 52,
+                        "height": 52,
+                        "focusOrder": 220
+                      },
+                      {
+                        "id": "library-listening-listening-transport-next",
+                        "type": "component",
+                        "component": "transport.next",
+                        "style": "textButton.listeningIconNeutral",
+                        "width": 40,
+                        "height": 40,
+                        "focusOrder": 230
+                      },
+                      {
+                        "id": "library-listening-listening-transport-repeat-cycle",
+                        "type": "component",
+                        "component": "transport.repeatCycle",
+                        "style": "textButton.listeningRepeat",
+                        "width": 36,
+                        "height": 36,
+                        "focusOrder": 235
+                      }
+                    ]
+                  },
+                  {
+                    "id": "library-listening-listening-listening-volume",
+                    "type": "column",
+                    "width": 180,
+                    "height": 56,
+                    "anchors": {
+                      "right": 0,
+                      "centerY": 0
+                    },
+                    "gap": 4,
+                    "children": [
+                      {
+                        "id": "library-listening-listening-listening-volume-heading",
+                        "type": "row",
+                        "height": 24,
+                        "children": [
+                          {
+                            "id": "library-listening-listening-transport-volumeLabel",
+                            "type": "component",
+                            "component": "transport.volumeLabel",
+                            "style": "label.listeningData",
+                            "grow": 1
+                          },
+                          {
+                            "id": "library-listening-listening-transport-volumeValue",
+                            "type": "component",
+                            "component": "transport.volumeValue",
+                            "style": "label.listeningData",
+                            "width": 80
+                          }
+                        ]
+                      },
+                      {
+                        "id": "library-listening-listening-transport-volume",
+                        "type": "component",
+                        "component": "transport.volume",
+                        "style": "linearSlider.listeningGain",
+                        "presentation": "linearHorizontal",
+                        "height": 28,
+                        "focusOrder": 240
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "library-listening-listening-app-status",
+        "type": "component",
+        "component": "app.status",
+        "style": "label.listeningNotice",
+        "width": 360,
+        "height": 56,
+        "zIndex": 100,
+        "anchors": {
+          "top": 60,
+          "right": 24
+        }
+      }
+    ]
+  },
+  "ancillaryStyles": {
+    "popupMenu": "popupMenu.listening",
+    "tooltip": "tooltip.listening",
+    "scrollBar": "scrollBar.listening"
+  },
+  "breakpoints": [
+    {
+      "when": {
+        "workspace": "studio"
+      },
+      "root": {
+        "id": "library-studio-studio-studio-root",
+        "type": "stack",
+        "style": "surface.studioCanvas",
+        "children": [
+          {
+            "id": "library-studio-studio-studio-root-shell",
+            "type": "column",
+            "padding": {
+              "top": 8,
+              "right": 24,
+              "bottom": 24,
+              "left": 24
+            },
+            "gap": 16,
+            "anchors": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            },
+            "children": [
+              {
+                "id": "library-studio-studio-studio-root-navigation",
+                "type": "row",
+                "height": 44,
+                "shrink": 0,
+                "gap": 12,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "library-studio-studio-app-brand-title",
+                    "type": "component",
+                    "component": "app.brand.title",
+                    "style": "label.studioBrand",
+                    "grow": 1,
+                    "height": 40
+                  },
+                  {
+                    "id": "library-studio-library-open",
+                    "type": "component",
+                    "component": "library.open",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 2,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "library-studio-library-open-favourites",
+                    "type": "component",
+                    "component": "library.browseFavourites",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 3,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "library-studio-player-open-queue",
+                    "type": "component",
+                    "component": "library.browseQueue",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 4,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "library-studio-player-open",
+                    "type": "component",
+                    "component": "player.open",
+                    "style": "textButton.studioMode",
+                    "width": 100,
+                    "height": 36,
+                    "focusOrder": 5,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "library-studio-studio-studio-modes",
+                    "type": "row",
+                    "style": "surface.studioSwitcher",
+                    "width": 212,
+                    "height": 44,
+                    "shrink": 0,
+                    "padding": 4,
+                    "gap": 4,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "library-studio-studio-workspace-studio",
+                        "type": "component",
+                        "component": "workspace.studio",
+                        "style": "textButton.studioMode",
+                        "width": 100,
+                        "height": 36,
+                        "focusOrder": 10
+                      },
+                      {
+                        "id": "library-studio-studio-workspace-listening",
+                        "type": "component",
+                        "component": "workspace.listening",
+                        "style": "textButton.studioMode",
+                        "width": 100,
+                        "height": 36,
+                        "focusOrder": 20
+                      }
+                    ]
+                  },
+                  {
+                    "id": "library-studio-studio-settings-open",
+                    "type": "component",
+                    "component": "settings.open",
+                    "style": "textButton.studioIconNeutral",
+                    "width": 44,
+                    "height": 44,
+                    "focusOrder": 40
+                  }
+                ]
+              },
+              {
+                "id": "library-studio-library-body",
+                "type": "column",
+                "grow": 1,
+                "gap": 20,
+                "children": [
+                  {
+                    "id": "library-studio-library-heading",
+                    "type": "row",
+                    "height": 44,
+                    "shrink": 0,
+                    "align": "center",
+                    "gap": 12,
+                    "children": [
+                      {
+                        "id": "library-studio-library-title",
+                        "type": "component",
+                        "component": "library.title",
+                        "style": "label.studioCollectionHeading",
+                        "grow": 1,
+                        "height": 40
+                      },
+                      {
+                        "id": "library-studio-library-gridSearch",
+                        "type": "component",
+                        "component": "library.gridSearch",
+                        "style": "textEditor.studio",
+                        "width": 260,
+                        "height": 36,
+                        "focusOrder": 50
+                      },
+                      {
+                        "id": "library-studio-library-newPlaylist",
+                        "type": "component",
+                        "component": "library.newPlaylist",
+                        "style": "textButton.studioPrimary",
+                        "width": 116,
+                        "height": 36,
+                        "focusOrder": 51
+                      },
+                      {
+                        "id": "library-studio-library-actions",
+                        "type": "component",
+                        "component": "library.actions",
+                        "style": "textButton.studioNeutral",
+                        "width": 80,
+                        "height": 36,
+                        "focusOrder": 52
+                      },
+                      {
+                        "id": "library-studio-library-add",
+                        "type": "component",
+                        "component": "library.add",
+                        "style": "textButton.studioIconNeutral",
+                        "width": 36,
+                        "height": 36,
+                        "focusOrder": 53
+                      }
+                    ]
+                  },
+                  {
+                    "id": "library-studio-library-categories",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "align": "center",
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "library-studio-library-browsePlaylists",
+                        "type": "component",
+                        "component": "library.browsePlaylists",
+                        "style": "textButton.studioMode",
+                        "width": 100,
+                        "height": 36,
+                        "focusOrder": 60
+                      },
+                      {
+                        "id": "library-studio-library-browseAlbums",
+                        "type": "component",
+                        "component": "library.browseAlbums",
+                        "style": "textButton.studioMode",
+                        "width": 88,
+                        "height": 36,
+                        "focusOrder": 61
+                      },
+                      {
+                        "id": "library-studio-library-browseArtists",
+                        "type": "component",
+                        "component": "library.browseArtists",
+                        "style": "textButton.studioMode",
+                        "width": 88,
+                        "height": 36,
+                        "focusOrder": 62
+                      },
+                      {
+                        "id": "library-studio-library-browseSongs",
+                        "type": "component",
+                        "component": "library.browseSongs",
+                        "style": "textButton.studioMode",
+                        "width": 88,
+                        "height": 36,
+                        "focusOrder": 63
+                      },
+                      {
+                        "id": "library-studio-library-count",
+                        "type": "component",
+                        "component": "library.count",
+                        "style": "label.studioMuted",
+                        "grow": 1,
+                        "height": 28
+                      }
+                    ]
+                  },
+                  {
+                    "id": "library-studio-library-grid-stack",
+                    "type": "stack",
+                    "grow": 1,
+                    "children": [
+                      {
+                        "id": "library-studio-library-grid",
+                        "type": "component",
+                        "component": "library.grid",
+                        "style": "playlistGrid.studio",
+                        "anchors": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        },
+                        "focusOrder": 80
+                      },
+                      {
+                        "id": "library-studio-library-empty",
+                        "type": "component",
+                        "component": "library.empty",
+                        "style": "label.studioMuted",
+                        "anchors": {
+                          "top": 0,
+                          "right": 0,
+                          "bottom": 0,
+                          "left": 0
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "library-studio-studio-studio-transport",
+                "type": "column",
+                "height": 112,
+                "shrink": 0,
+                "padding": 12,
+                "gap": 4,
+                "style": "surface.studio",
+                "children": [
+                  {
+                    "id": "library-studio-studio-studio-seek-row",
+                    "type": "row",
+                    "height": 28,
+                    "shrink": 0,
+                    "gap": 12,
+                    "children": [
+                      {
+                        "id": "library-studio-studio-transport-seek",
+                        "type": "component",
+                        "component": "transport.seek",
+                        "style": "linearSlider.studio",
+                        "presentation": "linearHorizontal",
+                        "grow": 1,
+                        "focusOrder": 200
+                      },
+                      {
+                        "id": "library-studio-studio-transport-time",
+                        "type": "component",
+                        "component": "transport.time",
+                        "style": "label.studioData",
+                        "width": 120
+                      }
+                    ]
+                  },
+                  {
+                    "id": "library-studio-studio-studio-controls",
+                    "type": "stack",
+                    "height": 56,
+                    "shrink": 0,
+                    "children": [
+                      {
+                        "id": "library-studio-studio-studio-track",
+                        "type": "column",
+                        "width": "30%",
+                        "height": 52,
+                        "anchors": {
+                          "left": 0,
+                          "centerY": 0
+                        },
+                        "gap": 2,
+                        "children": [
+                          {
+                            "id": "library-studio-studio-nowPlaying-title",
+                            "type": "component",
+                            "component": "nowPlaying.title",
+                            "style": "label.studioTitle",
+                            "height": 30,
+                            "shrink": 0
+                          },
+                          {
+                            "id": "library-studio-studio-nowPlaying-metadata",
+                            "type": "component",
+                            "component": "nowPlaying.metadata",
+                            "style": "label.studioData",
+                            "height": 20,
+                            "shrink": 0
+                          }
+                        ]
+                      },
+                      {
+                        "id": "library-studio-studio-studio-playback",
+                        "type": "row",
+                        "width": 244,
+                        "height": 52,
+                        "anchors": {
+                          "centerX": 0,
+                          "centerY": 0
+                        },
+                        "gap": 8,
+                        "align": "center",
+                        "children": [
+                          {
+                            "id": "library-studio-studio-transport-shuffle",
+                            "type": "component",
+                            "component": "transport.shuffle",
+                            "style": "toggleButton.studioShuffle",
+                            "width": 36,
+                            "height": 36,
+                            "focusOrder": 205
+                          },
+                          {
+                            "id": "library-studio-studio-transport-previous",
+                            "type": "component",
+                            "component": "transport.previous",
+                            "style": "textButton.studioIconNeutral",
+                            "width": 40,
+                            "height": 40,
+                            "focusOrder": 210
+                          },
+                          {
+                            "id": "library-studio-studio-transport-playPause",
+                            "type": "component",
+                            "component": "transport.playPause",
+                            "style": "textButton.studioIconPrimary",
+                            "width": 52,
+                            "height": 52,
+                            "focusOrder": 220
+                          },
+                          {
+                            "id": "library-studio-studio-transport-next",
+                            "type": "component",
+                            "component": "transport.next",
+                            "style": "textButton.studioIconNeutral",
+                            "width": 40,
+                            "height": 40,
+                            "focusOrder": 230
+                          },
+                          {
+                            "id": "library-studio-studio-transport-repeat-cycle",
+                            "type": "component",
+                            "component": "transport.repeatCycle",
+                            "style": "textButton.studioRepeat",
+                            "width": 36,
+                            "height": 36,
+                            "focusOrder": 235
+                          }
+                        ]
+                      },
+                      {
+                        "id": "library-studio-studio-studio-volume",
+                        "type": "column",
+                        "width": 180,
+                        "height": 56,
+                        "anchors": {
+                          "right": 0,
+                          "centerY": 0
+                        },
+                        "gap": 4,
+                        "children": [
+                          {
+                            "id": "library-studio-studio-studio-volume-heading",
+                            "type": "row",
+                            "height": 24,
+                            "children": [
+                              {
+                                "id": "library-studio-studio-transport-volumeLabel",
+                                "type": "component",
+                                "component": "transport.volumeLabel",
+                                "style": "label.studioData",
+                                "grow": 1
+                              },
+                              {
+                                "id": "library-studio-studio-transport-volumeValue",
+                                "type": "component",
+                                "component": "transport.volumeValue",
+                                "style": "label.studioData",
+                                "width": 80
+                              }
+                            ]
+                          },
+                          {
+                            "id": "library-studio-studio-transport-volume",
+                            "type": "component",
+                            "component": "transport.volume",
+                            "style": "linearSlider.studioGain",
+                            "presentation": "linearHorizontal",
+                            "height": 28,
+                            "focusOrder": 240
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "library-studio-studio-app-status",
+            "type": "component",
+            "component": "app.status",
+            "style": "label.studioNotice",
+            "width": 360,
+            "height": 56,
+            "zIndex": 100,
+            "anchors": {
+              "top": 60,
+              "right": 24
+            }
+          }
+        ]
+      },
+      "ancillaryStyles": {
+        "popupMenu": "popupMenu.studio",
+        "tooltip": "tooltip.studio",
+        "scrollBar": "scrollBar.studio"
+      }
+    }
+  ]
+}

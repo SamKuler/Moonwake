@@ -16,6 +16,7 @@ struct ParentContext
 struct TreeState
 {
     std::set<juce::String> components;
+    std::set<juce::String> visibleComponents;
     std::set<int> focusOrders;
 };
 
@@ -441,25 +442,35 @@ private:
                 return false;
             }
         }
-        if (descriptor->requiredIn.contains (entry)
-            && (! visible || opacity <= 0.0f || zero))
-        {
-            fail ("LAYOUT011", common.id,
-                  "Required component is statically hidden, transparent or zero-sized.");
-            return false;
-        }
+        if (visible && opacity > 0.0f && ! zero)
+            state.visibleComponents.insert (component.componentId);
         return true;
     }
 
     bool validateRequired (const TreeState& state)
     {
         for (const auto& descriptor : PlayerComponentCatalog::descriptors())
-            if (descriptor.requiredIn.contains (entry)
-                && ! state.components.contains (descriptor.id))
+            if (descriptor.requiredIn.contains (entry))
             {
-                fail ("COMPONENT004", descriptor.id,
-                      "Final layout root is missing a required Component ID.");
-                return false;
+                auto alternatives = descriptor.requiredAlternatives;
+                alternatives.add (descriptor.id);
+                const auto containsAny = [&alternatives] (const auto& components)
+                {
+                    return std::any_of (alternatives.begin(), alternatives.end(),
+                                        [&components] (const auto& id) { return components.contains (id); });
+                };
+                if (! containsAny (state.components))
+                {
+                    fail ("COMPONENT004", descriptor.id,
+                          "Final layout root is missing a required component or its supported alternative.");
+                    return false;
+                }
+                if (! containsAny (state.visibleComponents))
+                {
+                    fail ("LAYOUT011", descriptor.id,
+                          "Required component is statically hidden, transparent or zero-sized.");
+                    return false;
+                }
             }
         return true;
     }

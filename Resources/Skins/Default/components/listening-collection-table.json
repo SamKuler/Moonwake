@@ -1,0 +1,81 @@
+{
+  "apiVersion": 1,
+  "target": "table",
+  "layers": [
+    {
+      "id": "body",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000000"
+    }
+  ],
+  "variants": {
+    "focused": {
+      "body.fill": "#31576608"
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 44,
+    "rowGap": 0,
+    "headerHeight": 28,
+    "slots": {
+      "row.surface": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      },
+      "cell.title": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$expr": "(bounds.width - 80) * 0.42"
+        },
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      },
+      "cell.duration": {
+        "x": {
+          "$expr": "bounds.width - 80"
+        },
+        "y": 0,
+        "width": 80,
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      },
+      "cell.artist": {
+        "x": {
+          "$expr": "(bounds.width - 80) * 0.42"
+        },
+        "y": 0,
+        "width": {
+          "$expr": "(bounds.width - 80) * 0.28"
+        },
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      },
+      "cell.album": {
+        "x": {
+          "$expr": "(bounds.width - 80) * 0.7"
+        },
+        "y": 0,
+        "width": {
+          "$expr": "(bounds.width - 80) * 0.3"
+        },
+        "height": {
+          "$context": "layout.rowHeight"
+        }
+      }
+    }
+  },
+  "contentClip": "body"
+}

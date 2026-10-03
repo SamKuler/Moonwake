@@ -9,7 +9,7 @@ namespace
 struct RestoreDirectory
 {
     RestoreDirectory()
-        : root (juce::File::getSpecialLocation (juce::File::tempDirectory)
+        : root (juce::File::getCurrentWorkingDirectory().getChildFile ("build")
                     .getNonexistentChildFile ("moonwake-library-restore", {}))
     {
         static_cast<void> (root.createDirectory());
@@ -51,6 +51,49 @@ public:
 
     void runTest() override
     {
+        beginTest ("unique library refresh synchronizes repeated queue occurrences without changing identities");
+        {
+            RestoreDirectory directory;
+            const auto audio = directory.root.getChildFile ("fresh.wav");
+            expect (writeRestoreWave (audio));
+            MusicLibrary library;
+            const auto readable = library.upsertTrack ({ audio, "Saved", 99.0 });
+            const auto missing = library.upsertTrack ({ directory.root.getChildFile ("missing.wav"), "Missing", 40.0 });
+            const auto list = library.createPlaylist ("Saved list");
+            const auto entries = library.addToPlaylist (list, { readable, missing, readable });
+            library.setFavourite (readable, true);
+            PlaylistModel queue;
+            int occurrence = 0;
+            for (const auto& id : { readable, missing, readable, missing })
+            {
+                auto track = *library.getTrack (id);
+                track.libraryId = id;
+                track.id = "occurrence-" + juce::String (occurrence++);
+                queue.addTrack (std::move (track));
+            }
+            queue.selectTrack (2);
+            queue.setRepeatMode (RepeatMode::all);
+            queue.setShuffleEnabled (true);
+            juce::StringArray warnings;
+            expect (prepareLibraryRestore (library, queue, directory.root.getChildFile ("cache"), nullptr, warnings));
+            expectEquals (queue.size(), 4);
+            expectEquals (queue.getSelectedTrack()->id, juce::String ("occurrence-2"));
+            expectEquals (queue.getTrack (0)->libraryId, readable);
+            expectEquals (queue.getTrack (2)->libraryId, readable);
+            expectEquals (queue.getTrack (0)->title, juce::String ("Fresh title"));
+            expectEquals (queue.getTrack (2)->title, library.getTrack (readable)->title);
+            expectWithinAbsoluteError (queue.getTrack (2)->durationSeconds, 0.1, 0.0001);
+            expect (! queue.getTrack (1)->available && ! queue.getTrack (3)->available);
+            expect (warnings.joinIntoString (" ").startsWith ("1 saved track is unavailable."));
+            expect (queue.isShuffleEnabled() && queue.getRepeatMode() == RepeatMode::all);
+            expect (library.getPlaylist (list)->entries == entries);
+            expect (library.isFavourite (readable));
+            std::atomic_bool cancelled { true };
+            expect (! prepareLibraryRestore (library, queue, directory.root.getChildFile ("cache"), &cancelled, warnings));
+            expectEquals (queue.getSelectedTrack()->id, juce::String ("occurrence-2"));
+            expect (library.getPlaylist (list)->entries == entries);
+        }
+
         beginTest ("refreshes readable tracks and preserves missing track identity and metadata");
         {
             RestoreDirectory directory;
@@ -68,6 +111,9 @@ public:
             missing.channelCount = 6;
             missing.sampleRate = 96000.0;
             PlaylistModel playlist;
+            MusicLibrary library;
+            readable.libraryId = library.upsertTrack (readable);
+            missing.libraryId = library.upsertTrack (missing);
             playlist.addTrack (readable);
             playlist.addTrack (missing);
             expect (playlist.selectTrack (1));
@@ -75,7 +121,7 @@ public:
             playlist.setShuffleEnabled (true);
             juce::StringArray warnings;
             expect (prepareLibraryRestore (
-                playlist, directory.root.getChildFile ("artwork"), nullptr, warnings));
+                library, playlist, directory.root.getChildFile ("artwork"), nullptr, warnings));
             expectEquals (playlist.size(), 2);
             const auto* refreshed = playlist.getTrack (0);
             expectEquals (refreshed->id, readable.id);
@@ -115,9 +161,11 @@ public:
             track.id = "track-id";
             track.artworkCacheKey = "track-id";
             PlaylistModel playlist;
+            MusicLibrary library;
+            track.libraryId = library.upsertTrack (track);
             playlist.addTrack (track);
             juce::StringArray warnings;
-            expect (prepareLibraryRestore (playlist, cache, nullptr, warnings));
+            expect (prepareLibraryRestore (library, playlist, cache, nullptr, warnings));
             expect (warnings.isEmpty(), warnings.joinIntoString (" "));
             expect (store.isValid (playlist.getTrack (0)->artworkCacheKey));
 
@@ -125,10 +173,12 @@ public:
             expect (blockedCache.replaceWithText ("not a directory"));
             PlaylistModel blockedPlaylist;
             track.artworkCacheKey.clear();
+            MusicLibrary blockedLibrary;
+            track.libraryId = blockedLibrary.upsertTrack (track);
             blockedPlaylist.addTrack (track);
             warnings.clear();
             expect (prepareLibraryRestore (
-                blockedPlaylist, blockedCache, nullptr, warnings));
+                blockedLibrary, blockedPlaylist, blockedCache, nullptr, warnings));
             expect (blockedPlaylist.getTrack (0)->available);
             expect (blockedPlaylist.getTrack (0)->artworkCacheKey.isEmpty());
             expect (warnings.joinIntoString (" ").containsIgnoreCase ("artwork"));
@@ -140,11 +190,13 @@ public:
             PlaylistModel playlist;
             TrackItem track { directory.root.getChildFile ("missing.wav"), "Saved", 20.0 };
             track.id = "saved-id";
+            MusicLibrary library;
+            track.libraryId = library.upsertTrack (track);
             playlist.addTrack (track);
             std::atomic_bool cancelled { true };
             juce::StringArray warnings;
             expect (! prepareLibraryRestore (
-                playlist, directory.root.getChildFile ("cache"), &cancelled, warnings));
+                library, playlist, directory.root.getChildFile ("cache"), &cancelled, warnings));
             expectEquals (playlist.getTrack (0)->id, track.id);
             expect (playlist.getTrack (0)->available);
             expect (warnings.isEmpty());

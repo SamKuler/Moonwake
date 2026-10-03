@@ -1,3 +1,4 @@
+#include "fixtures/TestComponentPeer.h"
 #include "ui/settings/AudioSettingsPanel.h"
 #include "ui/settings/PluginSettingsPanel.h"
 #include "ui/settings/SkinLibraryPanel.h"
@@ -14,42 +15,6 @@
 
 namespace
 {
-// Deliver JUCE pointer events without depending on foreground macOS windows.
-class SettingsTestPeer final : public juce::ComponentPeer
-{
-public:
-    SettingsTestPeer (juce::Component& owner, int flags)
-        : juce::ComponentPeer (owner, flags), bounds (owner.getBounds()) {}
-    void* getNativeHandle() const override { return nullptr; }
-    void setVisible (bool value) override { visible = value; }
-    void setTitle (const juce::String&) override {}
-    void setBounds (const juce::Rectangle<int>& value, bool) override { bounds = value; }
-    juce::Rectangle<int> getBounds() const override { return bounds; }
-    juce::Point<float> localToGlobal (juce::Point<float> point) override { return point + bounds.getPosition().toFloat(); }
-    juce::Point<float> globalToLocal (juce::Point<float> point) override { return point - bounds.getPosition().toFloat(); }
-    void setMinimised (bool) override {}
-    bool isMinimised() const override { return false; }
-    bool isShowing() const override { return visible; }
-    void setFullScreen (bool) override {}
-    bool isFullScreen() const override { return false; }
-    void setIcon (const juce::Image&) override {}
-    bool contains (juce::Point<int> point, bool) const override { return bounds.withPosition (0, 0).contains (point); }
-    OptionalBorderSize getFrameSizeIfPresent() const override { return OptionalBorderSize (juce::BorderSize<int>()); }
-    juce::BorderSize<int> getFrameSize() const override { return {}; }
-    bool setAlwaysOnTop (bool) override { return true; }
-    void toFront (bool) override {}
-    void toBehind (juce::ComponentPeer*) override {}
-    bool isFocused() const override { return false; }
-    void grabFocus() override {}
-    void repaint (const juce::Rectangle<int>&) override {}
-    void performAnyPendingRepaintsNow() override {}
-    void setAlpha (float) override {}
-    juce::StringArray getAvailableRenderingEngines() override { return {}; }
-    void textInputRequired (juce::Point<int>, juce::TextInputTarget&) override {}
-private:
-    juce::Rectangle<int> bounds;
-    bool visible = false;
-};
 
 class PanelAudioBackend final : public IAudioDeviceBackend
 {
@@ -1247,16 +1212,16 @@ public:
             AudioSettingsPanel audio (controller, &foundationSkin.adapter);
             PluginSettingsPanel plugins (controller, &foundationSkin.adapter);
             SkinLibraryPanel skins (manager, &foundationSkin.adapter);
-            struct SettingsTestRoot final : juce::Component
-            {
-                juce::ComponentPeer* createNewPeer (int flags, void*) override { return new SettingsTestPeer (*this, flags); }
-            } root;
+            TestUiRoot root;
             juce::Label title;
             juce::TextButton close { "Close" };
             juce::Label brand, status;
             juce::TextButton studio, listening, effects, settings;
-            for (auto* component : std::array<juce::Component*, 6> {
-                     &brand, &status, &studio, &listening, &effects, &settings })
+            juce::TextButton libraryOpen { "Library" }, playerOpen { "Now playing" };
+            juce::TextButton favouritesOpen { "Favourites" }, queueOpen { "Play queue" };
+            for (auto* component : std::array<juce::Component*, 10> {
+                     &brand, &status, &studio, &listening, &effects, &settings,
+                     &libraryOpen, &playerOpen, &favouritesOpen, &queueOpen })
                 root.addAndMakeVisible (component);
             root.addAndMakeVisible (title);
             root.addAndMakeVisible (close);
@@ -1273,6 +1238,10 @@ public:
             expect (bindings.bind ("workspace.listening", listening, report));
             expect (bindings.bind ("effects.open", effects, report));
             expect (bindings.bind ("settings.open", settings, report));
+            expect (bindings.bind ("library.open", libraryOpen, report));
+            expect (bindings.bind ("player.open", playerOpen, report));
+            expect (bindings.bind ("library.browseFavourites", favouritesOpen, report));
+            expect (bindings.bind ("library.browseQueue", queueOpen, report));
             audio.bind (bindings, report);
             plugins.bind (bindings, report);
             skins.bind (bindings, report);
@@ -1283,6 +1252,10 @@ public:
             expect (host.apply (SkinLayoutEntry::settings, root.getLocalBounds(),
                                 1.0f, report),
                     report.toText());
+            expect (libraryOpen.isVisible() && ! libraryOpen.getBounds().isEmpty());
+            expect (playerOpen.isVisible() && ! playerOpen.getBounds().isEmpty());
+            expect (favouritesOpen.isVisible() && ! favouritesOpen.getBounds().isEmpty());
+            expect (queueOpen.isVisible() && ! queueOpen.getBounds().isEmpty());
             expect (audio.deviceControl().isVisible(), "Audio device control must be visible.");
             expect (audio.headingControl().isVisible(), "Audio heading must be visible.");
             const auto audioHeadingBounds = root.getLocalArea (
@@ -1333,6 +1306,10 @@ public:
             expect (host.apply (SkinLayoutEntry::settings, root.getLocalBounds(),
                                 1.0f, report),
                     report.toText());
+            expect (libraryOpen.isVisible() && ! libraryOpen.getBounds().isEmpty());
+            expect (playerOpen.isVisible() && ! playerOpen.getBounds().isEmpty());
+            expect (favouritesOpen.isVisible() && ! favouritesOpen.getBounds().isEmpty());
+            expect (queueOpen.isVisible() && ! queueOpen.getBounds().isEmpty());
             const auto compactAudio = root.getLocalArea (
                 &audio.deviceControl(), audio.deviceControl().getLocalBounds());
             const auto compactPlugins = root.getLocalArea (

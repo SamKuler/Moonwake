@@ -15,6 +15,7 @@ struct TrackItem
 
     juce::File file;
     juce::String id { juce::Uuid().toString() };
+    juce::String libraryId;
     juce::String title;
     juce::String artist;
     juce::String album;

@@ -79,27 +79,6 @@ juce::File commandFile (const juce::String& path)
     return juce::File::getCurrentWorkingDirectory().getChildFile (path);
 }
 
-std::optional<SkinLayoutEntry> workspaceFromName (const juce::String& name)
-{
-    if (name == "studio") return SkinLayoutEntry::studio;
-    if (name == "listening") return SkinLayoutEntry::listening;
-    if (name == "effects") return SkinLayoutEntry::effects;
-    if (name == "settings") return SkinLayoutEntry::settings;
-    return std::nullopt;
-}
-
-juce::String workspaceName (SkinLayoutEntry entry)
-{
-    switch (entry)
-    {
-        case SkinLayoutEntry::studio: return "studio";
-        case SkinLayoutEntry::listening: return "listening";
-        case SkinLayoutEntry::effects: return "effects";
-        case SkinLayoutEntry::settings: return "settings";
-    }
-    return {};
-}
-
 std::optional<std::pair<int, int>> parseSize (const juce::String& text)
 {
     const auto separator = text.indexOfChar ('x');
@@ -477,7 +456,7 @@ bool drawResolvedNode (juce::Graphics& graphics, const CompiledSkin& skin,
             const auto selected = node.componentId == "workspace." + toString (theme);
             ok = style != nullptr
                 && drawStyle (graphics, skin, *style, node,
-                              descriptor->requiredIn.contains (workspace),
+                              PlayerComponentCatalog::isRequired (descriptor->id, workspace),
                               selected, snapshotState,
                               representativeFocusOrder, report);
         }
@@ -543,7 +522,7 @@ ExecutionResult snapshotCommand (const Options& options)
         return { validationError, {},
                  "ERROR TOOL004 " + options.output.getFullPathName()
                      + "#\nSnapshot PNG could not be written.\n" };
-    return { 0, "Snapshot " + workspaceName (*options.workspace) + " "
+    return { 0, "Snapshot " + skinLayoutEntryName (*options.workspace) + " "
                     + juce::String (options.width) + "x" + juce::String (options.height)
                     + " -> " + options.output.getFullPathName() + "\n", {} };
 }
@@ -643,7 +622,7 @@ std::optional<DocumentationMarker> parseMarker (const juce::String& line)
         return std::nullopt;
     DocumentationMarker marker;
     marker.schema = *schema;
-    marker.route = workspaceFromName (values.at ("route"));
+    marker.route = skinLayoutEntryFromName (values.at ("route"));
     if (*schema == SkinSchemaDocument::layout && ! marker.route)
         return std::nullopt;
     marker.semantics = values.at ("semantics");
@@ -661,7 +640,7 @@ bool validateCompleteDocumentationBlock (
                          "Complete semantics currently require a layout route.");
         return false;
     }
-    const auto route = workspaceName (*marker.route);
+    const auto route = skinLayoutEntryName (*marker.route);
     const auto manifest = juce::String (R"json({
       "skinApi":1,
       "id":"com.samkuler.moonwake.documentation.)json") + route + R"json(",
@@ -785,8 +764,8 @@ juce::String helpText()
 Usage:
   MoonwakeSkinTool validate <path> [--warnings-as-errors]
   MoonwakeSkinTool pack <directory> --output <file.moonwake-skin> [--force]
-  MoonwakeSkinTool layout <path> --workspace <studio|listening|effects|settings> --size <WxH> [--theme <studio|listening>]
-  MoonwakeSkinTool snapshot <path> --workspace <studio|listening|effects|settings> --size <WxH> --output <file.png> [--theme <studio|listening>] [--state <representative|normal|hover|pressed|selected|focused|disabled>] [--force]
+  MoonwakeSkinTool layout <path> --workspace <studio|listening|effects|settings|library|collection> --size <WxH> [--theme <studio|listening>]
+  MoonwakeSkinTool snapshot <path> --workspace <studio|listening|effects|settings|library|collection> --size <WxH> --output <file.png> [--theme <studio|listening>] [--state <representative|normal|hover|pressed|selected|focused|disabled>] [--force]
   MoonwakeSkinTool schema --output-dir <directory> [--force]
   MoonwakeSkinTool verify-docs --guide <file.md> --example <skin-directory>
 
@@ -860,7 +839,7 @@ ParseResult parse (const juce::StringArray& arguments)
             && ! hasWorkspace)
         {
             if (! takeValue (value)) return missingUsage ("--workspace requires a value");
-            options.workspace = workspaceFromName (value);
+            options.workspace = skinLayoutEntryFromName (value);
             if (! options.workspace) return usage ("Invalid workspace: " + value);
             hasWorkspace = true;
             continue;

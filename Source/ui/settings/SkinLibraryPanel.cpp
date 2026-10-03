@@ -88,7 +88,7 @@ public:
         background.bounds = getLocalBounds().toFloat();
         background.contentBounds = background.bounds;
         background.state.enabled = isEnabled();
-        background.state.focused = hasKeyboardFocus (true);
+        background.state.focused = JuceSkinAdapter::hasVisibleKeyboardFocus (*this, true);
         if (adapter != nullptr)
             static_cast<void> (adapter->drawCustomComponent (
                 graphics, *this, SkinRenderTarget::skinList,

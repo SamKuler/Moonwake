@@ -155,7 +155,7 @@ juce::var manifestSchema()
     author.getDynamicObject()->setProperty ("properties", authorProperties);
 
     auto layoutProperties = object();
-    for (const auto& name : { "studio", "listening", "effects", "settings" })
+    for (const auto& name : skinLayoutEntryNames())
         layoutProperties.getDynamicObject()->setProperty (name, reference ("#/$defs/path"));
     auto layouts = object();
     layouts.getDynamicObject()->setProperty ("type", "object");

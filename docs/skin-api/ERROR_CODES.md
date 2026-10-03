@@ -82,7 +82,7 @@
 | COMPONENT001 | error | Component ID 未知 |
 | COMPONENT002 | error | Component kind 与 renderer target 不匹配 |
 | COMPONENT003 | error | singleton Component ID 在一个布局重复 |
-| COMPONENT004 | error | required Component ID 缺失 |
+| COMPONENT004 | error | 独立 required Component ID 缺失，或必需替代组中没有任何组件 |
 | COMPONENT005 | error | composite slot 未知或 slot target 不匹配 |
 | COMPONENT006 | error | presentation 未知或没有 target 映射 |
 | COMPONENT007 | error | 运行时 binding 缺失、重复或 JUCE 类型错误 |
@@ -101,7 +101,7 @@
 | LAYOUT008 | error | stack anchors 过约束 |
 | LAYOUT009 | error | scroll child 或 direction 非法 |
 | LAYOUT010 | error | breakpoint 范围非法，或在匹配的全部工作区中被先前分支完整覆盖 |
-| LAYOUT011 | error | required component 静态隐藏、透明或零尺寸 |
+| LAYOUT011 | error | 独立 required component 静态隐藏、透明或零尺寸，或必需替代组中没有可见、透明度大于 0 且具有非零尺寸的组件 |
 | LAYOUT012 | error | focusOrder 缺失或重复 |
 | LAYOUT013 | error | Component、容器或 ancillaryStyles 引用不存在或 target 不匹配 |
 | LAYOUT014 | error | component presentation 非法 |
@@ -116,12 +116,12 @@
 | RENDER001 | error | renderer target 未知 |
 | RENDER002 | error | layer type 未知 |
 | RENDER003 | error | layer id 重复 |
-| RENDER004 | error | layer property 类型或组合非法、交互控件或其交互 slot 缺少可见焦点反馈，或 contentClip 未引用受支持列表 target 的根层 rect/roundedRect/ellipse |
+| RENDER004 | error | layer property 类型或组合非法、交互控件或拥有键盘焦点的 slot（含 playlistGrid 的 card.surface）缺少可见焦点反馈、playlistGrid 缺少 controlStyle／rowLayout／卡片几何或度量越界，或 contentClip 未引用受支持列表 target 的根层 rect/roundedRect/ellipse |
 | RENDER005 | error | context path 或结果类型非法 |
 | RENDER006 | error | token 类型与绘制属性不兼容 |
 | RENDER007 | error | asset path 非法 |
 | RENDER008 | error | repeat.template 内再次出现 repeat |
-| RENDER009 | error | repeat source 未知或不适用于当前 target，或 limit 不在该数据源允许的范围内：meter.channels 为 1–16、table.visibleColumns 为 1–3、output.channelLabels 为 1–16 |
+| RENDER009 | error | repeat source 未知或不适用于当前 target，或 limit 不在该数据源允许的范围内：meter.channels 为 1–16、table.visibleColumns 为 1–4、output.channelLabels 为 1–16 |
 | RENDER010 | error | 最坏展开绘制操作超过 5000 |
 | RENDER011 | error | transition、from 或插值类型非法 |
 | RENDER012 | error | variant property path 引用未知 layer/field |

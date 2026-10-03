@@ -1,4 +1,5 @@
 #include "skin/SkinLayoutCompiler.h"
+#include "skin/SkinLayoutEngine.h"
 
 #include "skin/PlayerComponentCatalog.h"
 #include "skin/SkinSchemaValidator.h"
@@ -120,6 +121,49 @@ public:
 
     void runTest() override
     {
+        beginTest ("library routes keep required navigation in every workspace breakpoint");
+        for (const auto entry : { SkinLayoutEntry::library, SkinLayoutEntry::collection })
+        {
+            auto raw = layoutDocument (entryRoot (entry, "base-"));
+            auto studio = object();
+            auto when = object();
+            when.getDynamicObject()->setProperty ("workspace", "studio");
+            studio.getDynamicObject()->setProperty ("when", when);
+            studio.getDynamicObject()->setProperty ("root", entryRoot (entry, "studio-"));
+            raw.getDynamicObject()->setProperty ("breakpoints", array ({ studio }));
+            SkinValidationReport report;
+            const auto layout = compileLayout (raw, entry, report);
+            expect (layout.has_value(), report.toText());
+            if (layout)
+                for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+                {
+                    SkinValidationReport resolveReport;
+                    const auto resolved = SkinLayoutEngine::resolve (*layout, { 0, 0, 1240, 1200 },
+                                                                     1.0f, resolveReport, workspace);
+                    expect (resolved.has_value(), resolveReport.toText());
+                    if (resolved) expectEquals (resolved->root.nodeId,
+                        workspace == WorkspaceMode::studio ? juce::String ("studio-root") : juce::String ("base-root"));
+                }
+            for (const auto& id : juce::StringArray { "transport.playPause", "library.open", "player.open",
+                     entry == SkinLayoutEntry::library ? "library.grid" : "library.back" })
+            {
+                auto missingRoot = entryRoot (entry, "missing-");
+                auto* children = missingRoot.getProperty ("children", {}).getArray();
+                for (int index = children->size(); --index >= 0;)
+                    if (children->getReference (index).getProperty ("component", {}).toString() == id)
+                        children->remove (index);
+                SkinValidationReport missingReport;
+                expect (! compileLayout (layoutDocument (missingRoot), entry, missingReport));
+                expect (missingReport.hasCode ("COMPONENT004"), id);
+            }
+            auto hidden = entryRoot (entry, "hidden-");
+            const auto content = entry == SkinLayoutEntry::library ? "library.grid" : "library.tracks";
+            directComponent (hidden, content)->getDynamicObject()->setProperty ("visible", false);
+            SkinValidationReport hiddenReport;
+            expect (! compileLayout (layoutDocument (hidden), entry, hiddenReport));
+            expect (hiddenReport.hasCode ("LAYOUT011"));
+        }
+
         beginTest ("every catalog presentation passes the public layout schema and compiler");
         for (const auto& descriptor : PlayerComponentCatalog::descriptors())
             for (const auto& presentation : descriptor.presentations)
@@ -451,6 +495,42 @@ public:
             SkinValidationReport unknownReport;
             expect (! compileLayout (document, SkinLayoutEntry::studio, unknownReport));
             expect (unknownReport.hasCode ("SCHEMA001"), unknownReport.toText());
+        }
+
+        beginTest ("workspace content accepts either queue or library and requires one visible alternative");
+        for (const auto entry : { SkinLayoutEntry::studio, SkinLayoutEntry::listening })
+        {
+            for (const auto* id : { "queue.table", "library.tracks" })
+            {
+                auto root = workspaceRoot ("alternative-");
+                directComponent (root, "queue.table")->getDynamicObject()->setProperty ("component", id);
+                SkinValidationReport report;
+                expect (compileLayout (layoutDocument (root), entry, report).has_value(), report.toText());
+            }
+            {
+                auto root = workspaceRoot ("no-content-");
+                root.getProperty ("children", {}).getArray()->remove (1);
+                SkinValidationReport report;
+                expect (! compileLayout (layoutDocument (root), entry, report));
+                expect (report.hasCode ("COMPONENT004"), report.toText());
+            }
+            for (const auto* property : { "visible", "opacity", "width", "height" })
+                for (const auto visibleAlternative : { false, true })
+                {
+                    auto root = workspaceRoot ("hidden-content-");
+                    auto* queue = directComponent (root, "queue.table");
+                    const auto hiddenValue = juce::String (property) == "visible"
+                        ? juce::var (false) : juce::var (0);
+                    queue->getDynamicObject()->setProperty (property, hiddenValue);
+                    auto library = componentNode ("library-alternative", "library.tracks", 200);
+                    if (! visibleAlternative)
+                        library.getDynamicObject()->setProperty (property, hiddenValue);
+                    root.getProperty ("children", {}).getArray()->add (library);
+                    SkinValidationReport report;
+                    const auto compiled = compileLayout (layoutDocument (root), entry, report);
+                    expect (compiled.has_value() == visibleAlternative, report.toText());
+                    if (! visibleAlternative) expect (report.hasCode ("LAYOUT011"), report.toText());
+                }
         }
 
         beginTest ("enforces Component singletons, required visibility, targets and focus order");

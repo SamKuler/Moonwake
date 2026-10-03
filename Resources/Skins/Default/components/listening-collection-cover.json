@@ -1,0 +1,103 @@
+{
+  "apiVersion": 1,
+  "target": "artwork",
+  "layers": [
+    {
+      "id": "back",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "radius": 8,
+      "fill": {
+        "$ref": "colors.listening.control"
+      }
+    },
+    {
+      "id": "image-clip",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "radius": 8,
+      "fill": "#00000000",
+      "clip": true
+    },
+    {
+      "id": "disc",
+      "type": "ellipse",
+      "visible": {
+        "$expr": "not artwork.hasImage"
+      },
+      "frame": {
+        "x": {
+          "$expr": "bounds.width * 0.2"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.2"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.6"
+        },
+        "height": {
+          "$expr": "bounds.height * 0.6"
+        }
+      },
+      "fill": {
+        "$expr": "alpha(token.colors.listening.text, 0.10)"
+      }
+    },
+    {
+      "id": "groove",
+      "type": "ellipse",
+      "visible": {
+        "$expr": "not artwork.hasImage"
+      },
+      "frame": {
+        "x": {
+          "$expr": "bounds.width * 0.29"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.29"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.42"
+        },
+        "height": {
+          "$expr": "bounds.height * 0.42"
+        }
+      },
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$expr": "alpha(token.colors.listening.text, 0.14)"
+        },
+        "width": 1
+      }
+    },
+    {
+      "id": "centre",
+      "type": "ellipse",
+      "visible": {
+        "$expr": "not artwork.hasImage"
+      },
+      "frame": {
+        "x": {
+          "$expr": "bounds.width * 0.445"
+        },
+        "y": {
+          "$expr": "bounds.height * 0.445"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.11"
+        },
+        "height": {
+          "$expr": "bounds.height * 0.11"
+        }
+      },
+      "fill": {
+        "$ref": "colors.listening.control"
+      }
+    }
+  ]
+}

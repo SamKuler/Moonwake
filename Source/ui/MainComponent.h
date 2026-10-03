@@ -16,7 +16,9 @@
 #include "SkinLayoutHost.h"
 #include "SkinEffectChainViewport.h"
 #include "SkinTableListBox.h"
+#include "SkinInputScope.h"
 #include "skin/SkinManager.h"
+#include "MusicLibraryPanel.h"
 #include "ui/JuceSkinAdapter.h"
 #include "ui/settings/AudioSettingsPanel.h"
 #include "ui/settings/PluginSettingsPanel.h"
@@ -26,6 +28,7 @@
 #include <memory>
 
 class MainComponent final : public juce::Component,
+                            public juce::DragAndDropContainer,
                             private juce::TableListBoxModel,
                             private juce::MultiTimer,
                             private juce::FileDragAndDropTarget,
@@ -52,10 +55,17 @@ private:
     void paintCell (juce::Graphics& g, int rowNumber, int columnId, int width, int height, bool rowIsSelected) override;
     juce::String getCellTooltip (int rowNumber, int columnId) override;
     void selectedRowsChanged (int lastRowSelected) override;
+    void cellDoubleClicked (int row, int column, const juce::MouseEvent&) override;
+    void cellClicked (int row, int column, const juce::MouseEvent&) override;
+    void returnKeyPressed (int row) override;
+    void playQueueRow (int row);
     bool isInterestedInFileDrag (const juce::StringArray&) override;
     void filesDropped (const juce::StringArray&, int, int) override;
 
     void chooseFiles();
+    void choosePlaylistImport();
+    void choosePlaylistExport (std::vector<TrackItem>);
+    void chooseTrackRelocation (juce::String);
     void startLibraryImport (juce::Array<juce::File>);
     void setLibraryImportRunning (bool);
     void choosePluginDirectory();
@@ -72,6 +82,7 @@ private:
     [[nodiscard]] bool shouldDeferTransportCommands() const;
     void dispatchQueuedTransportCommands();
     void handleRemoteTransportCommand (const RemoteTransportCommand&);
+    bool performPlayCommand (bool toggle);
     void openPluginEditor (int effectIndex);
     void removeEffect (int effectIndex);
     void moveEffectFromDrag (int fromIndex, int yInRackContent);
@@ -109,11 +120,20 @@ private:
     AudioSettingsPanel audioSettingsPanel;
     PluginSettingsPanel pluginSettingsPanel;
     SkinLibraryPanel skinLibraryPanel;
+    MusicLibraryPanel musicLibraryPanel;
     bool hasAppliedSkinLayout = false;
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<std::unique_ptr<PluginEditorWindow>> pluginEditorWindows;
     std::vector<std::unique_ptr<EffectSlotRow>> effectRows;
-    juce::Array<juce::File> queuedLibraryImportInputs;
+    struct PendingLibraryImport
+    {
+        juce::Array<juce::File> files;
+        juce::File playlistFile;
+        juce::String collectionId;
+        juce::String relocateTrackId;
+    };
+    std::vector<PendingLibraryImport> pendingLibraryImports;
+    juce::String legacySelectedQueueId;
     bool autoSaveFailureVisible = false;
     double statusVisibleUntil = 0.0;
 
@@ -193,4 +213,5 @@ private:
     SkinResolvedRowLayout effectRowLayout;
     int effectRowHeight = 1;
     int effectRowGap = 0;
+    SkinInputScope inputScope { *this };
 };

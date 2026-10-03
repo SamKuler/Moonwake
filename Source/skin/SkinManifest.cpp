@@ -1,4 +1,5 @@
 #include "SkinManifest.h"
+#include "PlayerComponentCatalog.h"
 
 std::optional<SkinManifest> SkinManifest::parse (const SkinValidatedDocument& document,
                                                  SkinValidationReport& report)
@@ -34,7 +35,7 @@ std::optional<SkinManifest> SkinManifest::parse (const SkinValidatedDocument& do
     result.componentsPath = entrypoints.getProperty ("components", {}).toString();
     const auto layouts = entrypoints.getProperty ("layouts", {});
     if (layouts.isObject())
-        for (const auto& name : { "studio", "listening", "effects", "settings" })
+        for (const auto& name : skinLayoutEntryNames())
             if (layouts.getDynamicObject()->hasProperty (name))
                 result.layouts.emplace (name, layouts.getProperty (name, {}).toString());
 

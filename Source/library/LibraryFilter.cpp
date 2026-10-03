@@ -23,22 +23,25 @@ void LibraryFilter::setQuery (juce::String queryToUse)
 
 void LibraryFilter::rebuild (const PlaylistModel& playlist)
 {
+    rebuild (playlist.getTracks());
+}
+
+void LibraryFilter::rebuild (const std::vector<TrackItem>& tracks)
+{
     visiblePlaylistIndices.clear();
-    visiblePlaylistIndices.reserve (static_cast<size_t> (playlist.size()));
+    visiblePlaylistIndices.reserve (tracks.size());
 
     if (queryTokens.isEmpty())
     {
-        for (int index = 0; index < playlist.size(); ++index)
+        for (int index = 0; index < static_cast<int> (tracks.size()); ++index)
             visiblePlaylistIndices.push_back (index);
         return;
     }
 
     const auto generation = ++cacheGeneration;
-    for (int index = 0; index < playlist.size(); ++index)
+    for (int index = 0; index < static_cast<int> (tracks.size()); ++index)
     {
-        const auto* track = playlist.getTrack (index);
-        if (track == nullptr)
-            continue;
+        const auto* track = &tracks[static_cast<size_t> (index)];
         const auto& haystack = cachedSearchableText (*track, generation).text;
         bool matches = true;
         for (const auto& token : queryTokens)

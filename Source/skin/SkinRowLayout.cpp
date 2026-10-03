@@ -165,14 +165,16 @@ std::optional<SkinResolvedRowLayout> resolveSkinRowLayout (
         if (breakpoint.values.headerHeight) values.headerHeight = breakpoint.values.headerHeight;
         for (const auto& [name, frame] : breakpoint.values.slots) values.slots.insert_or_assign (name, frame);
     }
-    if (program.target == SkinRenderTarget::effectChain || program.target == SkinRenderTarget::channelMixer)
+    if (program.target == SkinRenderTarget::effectChain || program.target == SkinRenderTarget::channelMixer
+        || program.target == SkinRenderTarget::playlistGrid)
         for (const auto& component : PlayerComponentCatalog::descriptors())
             if (component.defaultRendererTarget == skinRenderTargetName (program.target))
                 for (const auto& slot : component.slots)
-                    if (interactiveSlotTarget (slot.rendererTarget) && ! values.slots.contains (slot.name))
+                    if ((interactiveSlotTarget (slot.rendererTarget) || program.target == SkinRenderTarget::playlistGrid)
+                        && ! values.slots.contains (slot.name))
                     {
                         report.addError ("RENDER004", "rowLayout", "/slots/" + slot.name,
-                                         "Row layout must place every interactive slot declared by its component.");
+                                         "Row layout must place every interactive slot and every playlist card slot.");
                         return std::nullopt;
                     }
     SkinResolvedRowLayout result;

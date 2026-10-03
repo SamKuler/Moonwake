@@ -113,25 +113,42 @@ void SkinTableListBox::layoutPresentationColumns()
     else
     {
         rememberTableColumns();
-        const auto layout = customTableColumns ? std::nullopt : resolvedRowLayout();
+        const auto resolved = resolvedRowLayout();
+        const auto split = header.getIndexOfColumnId (4, false) >= 0 && resolved
+            && resolved->slots.contains ("cell.artist") && resolved->slots.contains ("cell.album");
+        header.setColumnVisible (4, split);
+        header.setColumnName (2, split ? "Artist" : "Artist / album");
+        if (split != splitMetadataColumns)
+        {
+            splitMetadataColumns = split;
+            customTableColumns = false;
+            if (split) header.moveColumn (4, 2);
+        }
+        const auto layout = customTableColumns ? std::nullopt : resolved;
+
         if (layout)
         {
             for (const auto& [id, slot] : { std::pair { 1, "cell.title" },
-                                           std::pair { 2, "cell.location" },
-                                           std::pair { 3, "cell.duration" } })
+                                           std::pair { 2, split ? "cell.artist" : "cell.location" },
+                                           std::pair { 3, "cell.duration" },
+                                           std::pair { 4, "cell.album" } })
                 if (const auto found = layout->slots.find (slot); found != layout->slots.end())
                     header.setColumnWidth (id, juce::roundToInt (found->second.getWidth()));
         }
         else
         {
-            const auto flexibleWidth = header.getColumnWidth (1) + header.getColumnWidth (2);
+            const auto flexibleWidth = header.getColumnWidth (1) + header.getColumnWidth (2)
+                + (split ? header.getColumnWidth (4) : 0);
             const auto remaining = juce::jmax (0, width - header.getColumnWidth (3));
             if (flexibleWidth > 0)
             {
                 const auto titleWidth = juce::roundToInt (
                     static_cast<double> (remaining) * header.getColumnWidth (1) / flexibleWidth);
                 header.setColumnWidth (1, titleWidth);
-                header.setColumnWidth (2, remaining - titleWidth);
+                const auto albumWidth = split ? juce::roundToInt (
+                    static_cast<double> (remaining) * header.getColumnWidth (4) / flexibleWidth) : 0;
+                header.setColumnWidth (2, remaining - titleWidth - albumWidth);
+                if (split) header.setColumnWidth (4, albumWidth);
             }
         }
         tableColumns = lastAppliedTableColumns = header.toString();
@@ -177,5 +194,7 @@ JuceSkinAdapter::ListBoxRowGeometry SkinTableListBox::rowGeometry (int rowHeight
         return header.getColumnPosition (index)
             .withY (0).withHeight (rowHeight).toFloat();
     };
-    return { cell (1), cell (2), cell (3) };
+    if (splitMetadataColumns && presentation == "table")
+        return { cell (1), {}, cell (3), cell (2), cell (4) };
+    return { cell (1), cell (2), cell (3), {}, {} };
 }

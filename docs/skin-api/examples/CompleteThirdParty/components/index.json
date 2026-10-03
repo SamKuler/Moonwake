@@ -5,7 +5,8 @@
   },
   "surface": {
     "card": "components/surface-card.json",
-    "studio": "components/surface-studio.json"
+    "studio": "components/surface-studio.json",
+    "collectionCard": "components/collection-card.json"
   },
   "linearSlider": {
     "seek": "components/seek-slider.json"
@@ -52,6 +53,27 @@
         "slot.bypass": "textButton.neutral",
         "slot.editor": "textButton.neutral",
         "slot.remove": "textButton.defaultCompact"
+      }
+    }
+  },
+  "playlistGrid": {
+    "default": {
+      "renderer": "components/playlist-grid.json",
+      "slots": {
+        "card.surface": "surface.collectionCard",
+        "card.cover": "artwork.default",
+        "card.title": "label.default",
+        "card.summary": "label.muted",
+        "card.date": "label.muted"
+      }
+    }
+  },
+  "table": {
+    "collection": {
+      "renderer": "components/collection-table.json",
+      "slots": {
+        "cell.artist": "label.default",
+        "cell.album": "label.default"
       }
     }
   }

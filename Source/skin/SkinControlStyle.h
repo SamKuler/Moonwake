@@ -6,6 +6,7 @@ struct SkinResolvedControlStyle
 {
     std::optional<juce::Rectangle<float>> iconBounds, trackBounds;
     std::optional<float> thumbRadius, maxWidth, offsetX, offsetY, thickness, minThumbLength;
+    std::optional<float> minItemWidth, itemGap;
     std::optional<juce::Colour> selectionColour, selectedTextColour, caretColour;
 };
 

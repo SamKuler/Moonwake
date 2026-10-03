@@ -107,7 +107,8 @@ public:
                 expectEquals (table.getRowHeight(), 40);
                 expectEquals (table.getHeaderHeight(), 28);
                 expectEquals (table.getHeader().getNumColumns (true), 3);
-                expectEquals (table.getHeader().getColumnWidth (3), 64);
+                expectEquals (table.getHeader().getColumnWidth (3), 80);
+                expectEquals (geometry.duration.getWidth(), 80.0f);
                 expectEquals (geometry.title.getRight(), geometry.location.getX());
                 expectEquals (geometry.location.getRight(), geometry.duration.getX());
                 expectEquals (geometry.duration.getRight(),
@@ -127,7 +128,10 @@ public:
             for (const auto width : { 640, 520, 720 })
             {
                 table.setSize (width, 280);
-                expectEquals (table.getHeader().getColumnWidth (3), 64);
+                expectEquals (table.getHeader().getColumnWidth (3), 80);
+                const auto geometry = table.rowGeometry (table.getRowHeight());
+                expectEquals (geometry.duration.getWidth(), 80.0f);
+                expectEquals (geometry.duration.getRight(), static_cast<float> (table.getVisibleContentWidth()));
                 table.resetPresentation();
                 table.setBounds ({});
                 setQueuePresentation (table, "table");
@@ -175,6 +179,38 @@ public:
             expectEquals (header.toString(), customised);
             setQueuePresentation (table, "table");
             expectEquals (header.toString(), customised);
+            table.setLookAndFeel (nullptr);
+        }
+
+        beginTest ("wide collections split metadata and compact skins retain the combined cell");
+        for (const auto* theme : { "studioCollection", "listeningCollection" })
+        {
+            QueueRows rows;
+            SkinTableListBox table;
+            configureQueue (table, rows);
+            table.getHeader().addColumn ("Album", 4, 220, 80, -1);
+            table.setLookAndFeel (&adapter);
+            table.getProperties().set (JuceSkinAdapter::styleProperty, "table." + juce::String (theme));
+            table.setPresentation ("table");
+            for (const auto width : { 640, 940, 1180 })
+            {
+                table.setSize (width, 280);
+                const auto cells = table.rowGeometry (table.getRowHeight());
+                expectEquals (table.getHeader().getNumColumns (true), 4);
+                expectEquals (table.getHeader().getColumnName (2), juce::String ("Artist"));
+                expect (cells.location.isEmpty());
+                expectWithinAbsoluteError (cells.title.getRight(), cells.artist.getX(), 1.0f);
+                expectWithinAbsoluteError (cells.artist.getRight(), cells.album.getX(), 1.0f);
+                expectWithinAbsoluteError (cells.album.getRight(), cells.duration.getX(), 1.0f);
+                expectWithinAbsoluteError (cells.duration.getRight(), static_cast<float> (table.getVisibleContentWidth()), 1.0f);
+            }
+            setQueuePresentation (table, "list");
+            expectEquals (table.getHeader().getNumColumns (true), 2);
+            setQueuePresentation (table, "table");
+            expectEquals (table.getHeader().getNumColumns (true), 3);
+            const auto cells = table.rowGeometry (table.getRowHeight());
+            expect (! cells.location.isEmpty());
+            expect (cells.artist.isEmpty() && cells.album.isEmpty());
             table.setLookAndFeel (nullptr);
         }
 

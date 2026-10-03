@@ -4,6 +4,7 @@
 #include "EffectScopeMenu.h"
 #include "app/ProductIdentity.h"
 #include "app/ProductPaths.h"
+#include "playlist/PlaylistFile.h"
 
 #include <algorithm>
 
@@ -304,7 +305,7 @@ private:
         context.state.enabled = control.isEnabled();
         context.state.hover = over;
         context.state.pressed = down;
-        context.state.focused = control.hasKeyboardFocus (false);
+        context.state.focused = JuceSkinAdapter::hasVisibleKeyboardFocus (control);
         context.state.selected = selected;
         context.state.dragging = dragging;
         context.extraLookup = [count = slotCount, row = index,
@@ -362,8 +363,7 @@ MainComponent::MainComponent()
               if (skinBindings.find (id) == &component)
                   if (const auto* descriptor = PlayerComponentCatalog::find (id))
                   {
-                      required = descriptor->requiredIn.contains (
-                          activeSkinLayoutEntry);
+                      required = PlayerComponentCatalog::isRequired (descriptor->id, activeSkinLayoutEntry);
                       break;
                   }
           return JuceSkinAdapter::RuntimeBinding {
@@ -375,6 +375,7 @@ MainComponent::MainComponent()
       audioSettingsPanel (controller, &skinAdapter),
       pluginSettingsPanel (controller, &skinAdapter),
       skinLibraryPanel (skinManager, &skinAdapter),
+      musicLibraryPanel (controller, skinAdapter),
       skinLayoutHost (skinManager, skinBindings)
 {
     workspaceMode = controller.getViewState().workspaceMode;
@@ -468,6 +469,7 @@ MainComponent::MainComponent()
     playlistTable.getHeader().addColumn ("Track", 1, 240, 80, -1);
     playlistTable.getHeader().addColumn ("Artist / album", 2, 360, 100, -1);
     playlistTable.getHeader().addColumn ("Time", 3, 90, 40, 120);
+    playlistTable.getHeader().addColumn ("Album", 4, 240, 80, -1);
     skinAdapter.configureListBox (playlistTable);
 
     librarySearchEditor.setName ("Search works");
@@ -477,6 +479,12 @@ MainComponent::MainComponent()
         skinAdapter.findColour (juce::TextEditor::textColourId).withAlpha (0.58f));
     librarySearchEditor.onTextChange = [this]
     {
+        if (musicLibraryPanel.isActive())
+        {
+            musicLibraryPanel.setQuery (librarySearchEditor.getText());
+            updateTransportState();
+            return;
+        }
         libraryFilter.setQuery (librarySearchEditor.getText());
         refreshPlaylist();
     };
@@ -637,6 +645,19 @@ MainComponent::MainComponent()
     audioSettingsPanel.addTo (*this);
     pluginSettingsPanel.addTo (*this);
     skinLibraryPanel.addTo (*this);
+    musicLibraryPanel.addTo (*this);
+    musicLibraryPanel.onChanged = [this] { refreshPlaylist(); updateTransportState(); };
+    musicLibraryPanel.onPageChanged = [this]
+    {
+        closeDrawers();
+        applyWorkspaceVisuals();
+        resized();
+        updateTransportState();
+    };
+    musicLibraryPanel.onStatus = [this] (const juce::String& message, bool error) { showStatus (message, error); };
+    musicLibraryPanel.onImportPlaylist = [this] { choosePlaylistImport(); };
+    musicLibraryPanel.onExportPlaylist = [this] (const auto& tracks) { choosePlaylistExport (tracks); };
+    musicLibraryPanel.onRelocateTrack = [this] (const auto& id) { chooseTrackRelocation (id); };
 
     const auto reportStatus = [this] (const juce::String& message, bool isError)
     {
@@ -767,7 +788,7 @@ MainComponent::MainComponent()
     pluginSettingsPanel.onCatalogChanged = [this] { refreshPlugins(); };
     playPauseButton.onClick = [this]
     {
-        if (! controller.playOrPause())
+        if (! performPlayCommand (true))
             showStatus (controller.getLastStatusMessage(), true);
         updateTransportState();
     };
@@ -937,6 +958,7 @@ MainComponent::~MainComponent()
 
 void MainComponent::setRestoreControlsEnabled (bool enabled)
 {
+    musicLibraryPanel.setEnabled (enabled);
     for (auto* component : std::initializer_list<juce::Component*> {
              &studioModeButton, &listeningModeButton, &settingsButton,
              &effectsButton, &volumeSlider,
@@ -977,6 +999,8 @@ void MainComponent::finishStateRestore (StateRestoreResult result)
         updateSkinPersistenceStateFromManager();
     }
     workspaceMode = controller.getViewState().workspaceMode;
+    librarySearchEditor.setText (controller.getLibrarySearchQuery(), false);
+    libraryFilter.setQuery (librarySearchEditor.getText());
     refreshPlaylist();
     refreshPlugins();
     refreshEffectScopes();
@@ -1071,6 +1095,7 @@ void MainComponent::bindSkinComponents()
     audioSettingsPanel.bind (skinBindings, report);
     pluginSettingsPanel.bind (skinBindings, report);
     skinLibraryPanel.bind (skinBindings, report);
+    musicLibraryPanel.bind (skinBindings, report);
     if (report.hasErrors())
         showStatus (report.toText(), true);
     jassert (! report.hasErrors());
@@ -1085,6 +1110,7 @@ void MainComponent::skinChanged()
 
 void MainComponent::resized()
 {
+    musicLibraryPanel.finishEditing();
     if (skinManager.activeSession() == nullptr)
     {
         skinLayoutHost.clear();
@@ -1100,13 +1126,25 @@ void MainComponent::resized()
     }
 
     skinFallbackDiagnostic.setVisible (false);
-    const auto requestedEntry = settingsDrawerOpen
+    auto requestedEntry = settingsDrawerOpen
                                   ? SkinLayoutEntry::settings
                                   : (effectsDrawerOpen
                                          ? SkinLayoutEntry::effects
                                          : (workspaceMode == WorkspaceMode::studio
                                                 ? SkinLayoutEntry::studio
                                                 : SkinLayoutEntry::listening));
+    const auto& layouts = skinManager.activeSession()->compiledSkin()->layouts;
+    const auto libraryPages = layouts.contains (SkinLayoutEntry::library)
+                           && layouts.contains (SkinLayoutEntry::collection);
+    if (! settingsDrawerOpen && ! effectsDrawerOpen && libraryPages)
+    {
+        if (musicLibraryPanel.page() == MusicLibraryPanel::Page::overview) requestedEntry = SkinLayoutEntry::library;
+        if (musicLibraryPanel.page() == MusicLibraryPanel::Page::collection) requestedEntry = SkinLayoutEntry::collection;
+    }
+    if (requestedEntry == SkinLayoutEntry::collection)
+        librarySearchEditor.setText (controller.getLibrarySearchQuery(), false);
+    else if (! libraryPages)
+        librarySearchEditor.setText (libraryFilter.query(), false);
     SkinValidationReport report;
     if (skinLayoutHost.apply (requestedEntry, getLocalBounds(),
                               1.0f, report, workspaceMode))
@@ -1131,7 +1169,7 @@ void MainComponent::resized()
             pluginSettingsPanel.refreshScanState();
         }
         hasAppliedSkinLayout = true;
-        if ((requestedEntry == SkinLayoutEntry::studio || requestedEntry == SkinLayoutEntry::listening)
+        if (! libraryPages && (requestedEntry == SkinLayoutEntry::studio || requestedEntry == SkinLayoutEntry::listening)
             && ! librarySearchEditor.isVisible() && librarySearchEditor.getText().isNotEmpty())
             librarySearchEditor.clear();
     }
@@ -1157,6 +1195,8 @@ void MainComponent::resized()
     if (statusLabel.isVisible()) statusLabel.toFront (false);
     updateEmptyQueueState();
     updateOutputView();
+    musicLibraryPanel.updateVisibility();
+    musicLibraryPanel.updateNavigation (libraryPages);
     layoutEffects();
     repaint();
 }
@@ -1201,6 +1241,7 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 
     if (key.getModifiers().isCommandDown() && (key.getKeyCode() == 'f' || key.getKeyCode() == 'F'))
     {
+        if (! settingsDrawerOpen && ! effectsDrawerOpen && musicLibraryPanel.focusOverviewSearch()) return true;
         if (settingsDrawerOpen && pluginSettingsPanel.filters.search.isShowing())
         {
             pluginSettingsPanel.filters.search.grabKeyboardFocus();
@@ -1262,8 +1303,7 @@ void MainComponent::applyWorkspaceVisuals()
     settingsButton.setTooltip (settingsDrawerOpen ? "Close settings"
                                                  : "Open audio, plug-in, and skin settings");
     effectsButton.setToggleState (effectsDrawerOpen, juce::dontSendNotification);
-    queueTitleLabel.setText (isStudio ? "Library" : "Up next",
-                             juce::dontSendNotification);
+    queueTitleLabel.setText ("Play queue", juce::dontSendNotification);
     effectRackTitleLabel.setText ("Effects", juce::dontSendNotification);
     settingsTitleLabel.setText ("Settings", juce::dontSendNotification);
     pluginFilterLabel.setText ("Find a plug-in", juce::dontSendNotification);
@@ -1410,11 +1450,12 @@ void MainComponent::paintRowBackground (juce::Graphics& graphics,
     }
     skinAdapter.drawListBoxRow (
         graphics, playlistTable, rowNumber, width, height,
-        rowIsSelected || playlistIndex == controller.getPlaylist().getSelectedIndex(),
+        rowIsSelected,
         track->title + (track->available ? juce::String{} : " (Missing)"),
         track->file.getFullPathName(),
         duration, playlistTable.rowGeometry (height),
-        false, false, track->available, track->artist, track->album);
+        false, false, track->available, track->artist, track->album,
+        track->id == controller.getLoadedTrackId(), controller.getLibrary().isFavourite (track->libraryId));
 }
 
 void MainComponent::paintCell (juce::Graphics&, int, int, int, int, bool)
@@ -1440,9 +1481,34 @@ void MainComponent::selectedRowsChanged (int lastRowSelected)
     if (refreshingPlaylist)
         return;
     const auto playlistIndex = libraryFilter.playlistIndexForRow (lastRowSelected);
-    if (! controller.selectTrack (playlistIndex) && playlistIndex >= 0)
-        showStatus (controller.getLastStatusMessage(), true);
+    if (const auto* track = controller.getPlaylist().getTrack (playlistIndex))
+        legacySelectedQueueId = track->id;
+    else legacySelectedQueueId.clear();
+    updateTransportState();
+}
 
+void MainComponent::cellClicked (int row, int, const juce::MouseEvent& event)
+{
+    if (! event.mods.isPopupMenu()) return;
+    if (const auto* track = controller.getPlaylist().getTrack (libraryFilter.playlistIndexForRow (row)))
+    {
+        playlistTable.selectRow (row);
+        musicLibraryPanel.showQueueTrackActions (*track, playlistTable);
+    }
+}
+
+void MainComponent::cellDoubleClicked (int row, int, const juce::MouseEvent& event)
+{
+    if (! event.mods.isPopupMenu()) playQueueRow (row);
+}
+
+void MainComponent::returnKeyPressed (int row) { playQueueRow (row); }
+
+void MainComponent::playQueueRow (int row)
+{
+    const auto index = libraryFilter.playlistIndexForRow (row);
+    if (! controller.selectTrack (index) || ! controller.setPlaying (true))
+        showStatus (controller.getLastStatusMessage(), true);
     refreshPlaylist();
     updateTransportState();
 }
@@ -1451,7 +1517,7 @@ void MainComponent::chooseFiles()
 {
     fileChooser = std::make_unique<juce::FileChooser> ("Add music files or folders",
                                                        juce::File{},
-                                                       "*.wav;*.aiff;*.aif;*.mp3;*.flac;*.m4a;*.aac;*.alac;*.caf;*.ogg");
+                                                       "*.wav;*.aiff;*.aif;*.mp3;*.flac;*.m4a;*.aac;*.alac;*.caf;*.ogg;*.m3u;*.m3u8");
 
     fileChooser->launchAsync (juce::FileBrowserComponent::openMode
                                   | juce::FileBrowserComponent::canSelectFiles
@@ -1482,7 +1548,7 @@ bool MainComponent::isInterestedInFileDrag (const juce::StringArray& files)
     for (const auto& path : files)
     {
         const juce::File file (path);
-        if (file.isDirectory() || LibraryImportService::isSupportedAudioFile (file))
+        if (file.isDirectory() || LibraryImportService::isSupportedAudioFile (file) || file.hasFileExtension ("m3u;m3u8"))
             return true;
     }
     return false;
@@ -1498,71 +1564,81 @@ void MainComponent::filesDropped (const juce::StringArray& paths, int, int)
 
 void MainComponent::startLibraryImport (juce::Array<juce::File> files)
 {
-    queuedLibraryImportInputs.addArray (files);
-    if (queuedLibraryImportInputs.isEmpty())
-        return;
-    if (restoreStatus == RestoreStatus::loading || libraryImportService.isRunning())
+    if (! files.isEmpty())
     {
-        if (! files.isEmpty())
-            showStatus (juce::String (files.size())
-                        + (files.size() == 1 ? " import item queued."
-                                             : " import items queued."));
-        return;
+        const auto target = musicLibraryPanel.isActive()
+            ? (musicLibraryPanel.page() == MusicLibraryPanel::Page::overview ? juce::String ("all")
+                                                                           : controller.getLibraryCollectionId())
+            : juce::String ("queue");
+        juce::Array<juce::File> audioFiles;
+        for (const auto& file : files)
+            if (file.hasFileExtension ("m3u;m3u8"))
+                pendingLibraryImports.push_back ({ {}, file, target, {} });
+            else audioFiles.add (file);
+        if (! audioFiles.isEmpty()) pendingLibraryImports.push_back ({ std::move (audioFiles), {}, target, {} });
     }
+    if (pendingLibraryImports.empty() || restoreStatus == RestoreStatus::loading || libraryImportService.isRunning()) return;
 
-    auto inputs = std::move (queuedLibraryImportInputs);
-    queuedLibraryImportInputs.clear();
+    auto request = std::move (pendingLibraryImports.front());
+    pendingLibraryImports.erase (pendingLibraryImports.begin());
     const auto safeThis = juce::Component::SafePointer<MainComponent> (this);
-    if (! libraryImportService.start (
-            std::move (inputs),
-            [safeThis] (const LibraryImportProgress& progress)
+    const auto progress = [safeThis] (const LibraryImportProgress& state)
+    {
+        if (safeThis == nullptr) return;
+        safeThis->addFilesButton.setTooltip (state.stage == LibraryImportProgress::Stage::discovering
+            ? "Discovering music..." : "Reading " + juce::String (state.processed + 1)
+                + " / " + juce::String (state.total) + "  " + state.currentFile);
+    };
+    const auto completion = [safeThis, request] (LibraryImportResult result) mutable
+    {
+        if (safeThis == nullptr) return;
+        safeThis->setLibraryImportRunning (false);
+        if (result.cancelled) safeThis->showStatus ("Music import cancelled.");
+        else if (result.error.isNotEmpty()) safeThis->showStatus (result.error, true);
+        else
+        {
+            juce::String message;
+            bool error = false;
+            if (request.relocateTrackId.isNotEmpty())
             {
-                if (safeThis == nullptr)
-                    return;
-                if (progress.stage == LibraryImportProgress::Stage::discovering)
-                    safeThis->addFilesButton.setTooltip ("Discovering music...");
-                else
-                    safeThis->addFilesButton.setTooltip (
-                        "Reading " + juce::String (progress.processed + 1)
-                            + " / " + juce::String (progress.total)
-                            + "  " + progress.currentFile);
-            },
-            [safeThis] (LibraryImportResult result) mutable
+                const auto succeeded = ! result.tracks.empty()
+                    && safeThis->controller.relocateLibraryTrack (request.relocateTrackId, std::move (result.tracks.front()));
+                message = succeeded ? "File location updated." : "Could not use the replacement audio file.";
+                error = ! succeeded;
+            }
+            else if (result.playlistImport)
             {
-                if (safeThis == nullptr)
-                    return;
-                safeThis->setLibraryImportRunning (false);
-                if (result.cancelled)
+                const auto id = safeThis->controller.importPreparedPlaylist (result.playlistName, std::move (result.tracks));
+                message = safeThis->controller.getLastStatusMessage();
+                error = id.isEmpty();
+                if (! error && safeThis->musicLibraryPanel.isActive()
+                    && safeThis->musicLibraryPanel.page() == MusicLibraryPanel::Page::collection
+                    && safeThis->controller.getLibraryCollectionId() == request.collectionId)
+                    safeThis->musicLibraryPanel.selectCollection ("playlist:" + id);
+            }
+            else message = safeThis->controller.importPreparedTracks (std::move (result.tracks), request.collectionId);
+            for (const auto* warnings : { &result.skippedPaths, &result.artworkWarnings, &result.playlistWarnings })
+                if (! warnings->isEmpty())
                 {
-                    safeThis->showStatus ("Music import cancelled.");
+                    message += " " + warnings->joinIntoString (" ");
+                    error = true;
                 }
-                else
-                {
-                    auto message = safeThis->controller.addPreparedTracks (
-                        std::move (result.tracks));
-                    if (! result.skippedPaths.isEmpty())
-                        message += " " + juce::String (result.skippedPaths.size())
-                                 + (result.skippedPaths.size() == 1
-                                        ? " item was skipped." : " items were skipped.");
-                    if (! result.artworkWarnings.isEmpty())
-                        message += " " + juce::String (result.artworkWarnings.size())
-                                 + (result.artworkWarnings.size() == 1
-                                        ? " artwork warning." : " artwork warnings.");
-                    safeThis->showStatus (message, ! result.skippedPaths.isEmpty()
-                                                    || ! result.artworkWarnings.isEmpty());
-                    safeThis->refreshPlaylist();
-                    safeThis->updateTransportState();
-                }
-
-                safeThis->dispatchQueuedTransportCommands();
-                // The service releases its completion state after this callback returns.
-                juce::MessageManager::callAsync ([safeThis]
-                {
-                    if (safeThis == nullptr) return;
-                    safeThis->startLibraryImport ({});
-                    safeThis->dispatchQueuedTransportCommands();
-                });
-            }))
+            safeThis->showStatus (message, error);
+            safeThis->refreshPlaylist();
+            safeThis->updateTransportState();
+        }
+        safeThis->dispatchQueuedTransportCommands();
+        juce::MessageManager::callAsync ([safeThis]
+        {
+            if (safeThis == nullptr) return;
+            safeThis->startLibraryImport ({});
+            safeThis->dispatchQueuedTransportCommands();
+        });
+    };
+    const auto started = request.playlistFile != juce::File()
+        ? libraryImportService.startPlaylist (request.playlistFile, progress, completion)
+        : libraryImportService.start (request.files, progress, completion);
+    if (! started)
     {
         setLibraryImportRunning (false);
         showStatus ("Could not start the music import.", true);
@@ -1573,6 +1649,59 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
         setLibraryImportRunning (true);
         updateTransportState();
     }
+}
+
+void MainComponent::choosePlaylistImport()
+{
+    fileChooser = std::make_unique<juce::FileChooser> ("Import playlist", juce::File{}, "*.m3u;*.m3u8");
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
+        | juce::FileBrowserComponent::canSelectMultipleItems,
+        [safeThis = juce::Component::SafePointer<MainComponent> (this)] (const juce::FileChooser& chooser)
+        {
+            if (safeThis == nullptr) return;
+            juce::Array<juce::File> files;
+            for (const auto& url : chooser.getURLResults()) if (url.isLocalFile()) files.add (url.getLocalFile());
+            safeThis->startLibraryImport (std::move (files));
+        });
+}
+
+void MainComponent::choosePlaylistExport (std::vector<TrackItem> exportTracks)
+{
+    fileChooser = std::make_unique<juce::FileChooser> ("Export playlist", juce::File{}, "*.m3u8");
+    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+        | juce::FileBrowserComponent::warnAboutOverwriting,
+        [safeThis = juce::Component::SafePointer<MainComponent> (this), tracks = std::move (exportTracks)] (const juce::FileChooser& chooser)
+        {
+            if (safeThis == nullptr || chooser.getResult() == juce::File{}) return;
+            const auto output = chooser.getResult();
+            const auto started = juce::Thread::launch ([safeThis, output, tracks]
+            {
+                juce::String error;
+                const auto success = PlaylistFile::writeM3u8 (output, tracks, true, error);
+                juce::MessageManager::callAsync ([safeThis, output, success, error]
+                {
+                    if (safeThis != nullptr) safeThis->showStatus (success ? "Exported " + output.getFileName() + "." : error, ! success);
+                });
+            });
+            if (! started) safeThis->showStatus ("Could not start playlist export.", true);
+        });
+}
+
+void MainComponent::chooseTrackRelocation (juce::String trackId)
+{
+    const auto* track = controller.getLibrary().getTrack (trackId);
+    if (track == nullptr) return;
+    fileChooser = std::make_unique<juce::FileChooser> ("Locate " + track->title, track->file.getParentDirectory(),
+        "*.wav;*.aiff;*.aif;*.mp3;*.flac;*.m4a;*.aac;*.alac;*.caf;*.ogg");
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safeThis = juce::Component::SafePointer<MainComponent> (this), trackId] (const juce::FileChooser& chooser)
+        {
+            if (safeThis == nullptr || ! chooser.getURLResult().isLocalFile()) return;
+            const auto file = chooser.getURLResult().getLocalFile();
+            if (file == juce::File{}) return;
+            safeThis->pendingLibraryImports.push_back ({ { file }, {}, safeThis->controller.getLibraryCollectionId(), trackId });
+            safeThis->startLibraryImport ({});
+        });
 }
 
 void MainComponent::setLibraryImportRunning (bool running)
@@ -1658,11 +1787,15 @@ void MainComponent::chooseDeveloperSkinDirectory()
 
 void MainComponent::refreshPlaylist()
 {
+    if (const auto session = skinManager.activeSession(); session != nullptr
+        && session->compiledSkin()->layouts.contains (SkinLayoutEntry::library)
+        && session->compiledSkin()->layouts.contains (SkinLayoutEntry::collection))
+        libraryFilter.setQuery ({});
     libraryFilter.rebuild (controller.getPlaylist());
     const juce::ScopedValueSetter<bool> guard (refreshingPlaylist, true);
     playlistTable.updateContent();
     const auto visibleSelected = libraryFilter.rowForPlaylistIndex (
-        controller.getPlaylist().getSelectedIndex());
+        controller.getPlaylist().indexOfId (legacySelectedQueueId));
     if (visibleSelected >= 0)
         playlistTable.selectRow (visibleSelected);
     else
@@ -1674,6 +1807,7 @@ void MainComponent::refreshPlaylist()
                 + juce::String (controller.getPlaylist().size()),
         juce::dontSendNotification);
     updateEmptyQueueState();
+    musicLibraryPanel.refresh();
     repaint();
 }
 
@@ -1909,7 +2043,8 @@ void MainComponent::updateTransportState()
     else
     {
         nowPlayingLabel.setText ("No track loaded", juce::dontSendNotification);
-        trackMetaLabel.setText ("Use + Music to add audio and begin", juce::dontSendNotification);
+        trackMetaLabel.setText (controller.getLibrary().getTracks().empty()
+            ? "Use + Music to add audio" : "Double-click a song or press Play", juce::dontSendNotification);
         auto formats = controller.getRegisteredPluginFormats();
         for (auto& format : formats) if (format == "AudioUnit") format = "AU";
         artworkMetaLabel.setText ("Local audio / " + formats.joinIntoString (" + "), juce::dontSendNotification);
@@ -1953,14 +2088,17 @@ void MainComponent::updateTransportState()
     outputMixer.setState (state.outputLayout, controller.getOutputChannelMix(), meterReadings.samplePeak);
 
     const auto hasSelection = playlistTable.getSelectedRow() >= 0;
+    const auto selectedQueueIndex = libraryFilter.playlistIndexForRow (playlistTable.getSelectedRow());
     removeTrackButton.setEnabled (hasSelection);
     clearPlaylistButton.setEnabled (state.playlistSize > 0);
     moveTrackUpButton.setEnabled (hasSelection && libraryFilter.query().isEmpty()
-                                  && state.selectedIndex > 0);
+                                  && selectedQueueIndex > 0);
     moveTrackDownButton.setEnabled (hasSelection && libraryFilter.query().isEmpty()
-                                    && state.selectedIndex < state.playlistSize - 1);
+                                    && selectedQueueIndex < state.playlistSize - 1);
+    musicLibraryPanel.updatePlayback();
     const auto transportReady = restoreStatus != RestoreStatus::loading;
-    playPauseButton.setEnabled (transportReady && state.canPlay);
+    playPauseButton.setEnabled (transportReady && (state.canPlay
+        || (musicLibraryPanel.isActive() && musicLibraryPanel.canStartPlayback())));
     previousButton.setEnabled (transportReady && state.canGoPrevious);
     nextButton.setEnabled (transportReady && state.canGoNext);
 }
@@ -1969,7 +2107,7 @@ bool MainComponent::shouldDeferTransportCommands() const
 {
     return restoreStatus == RestoreStatus::loading
         || (controller.getPlaylist().isEmpty()
-            && (libraryImportService.isRunning() || ! queuedLibraryImportInputs.isEmpty()));
+            && (libraryImportService.isRunning() || ! pendingLibraryImports.empty()));
 }
 
 void MainComponent::dispatchQueuedTransportCommands()
@@ -1979,6 +2117,19 @@ void MainComponent::dispatchQueuedTransportCommands()
     queuedTransportCommands.clear();
     for (const auto& command : commands) handleRemoteTransportCommand (command);
     updateTransportState();
+}
+
+bool MainComponent::performPlayCommand (bool toggle)
+{
+    if (controller.getLoadedTrackId().isEmpty())
+    {
+        if (musicLibraryPanel.isActive() && musicLibraryPanel.canStartPlayback())
+            return musicLibraryPanel.startPlayback();
+        const auto selected = controller.getPlaylist().indexOfId (legacySelectedQueueId);
+        if (! musicLibraryPanel.isActive() && selected >= 0)
+            return controller.selectTrack (selected) && controller.setPlaying (true);
+    }
+    return toggle ? controller.playOrPause() : controller.setPlaying (true);
 }
 
 void MainComponent::handleRemoteTransportCommand (
@@ -1994,13 +2145,13 @@ void MainComponent::handleRemoteTransportCommand (
     switch (command.type)
     {
         case RemoteTransportCommandType::play:
-            succeeded = controller.setPlaying (true);
+            succeeded = performPlayCommand (false);
             break;
         case RemoteTransportCommandType::pause:
             succeeded = controller.setPlaying (false);
             break;
         case RemoteTransportCommandType::togglePlayPause:
-            succeeded = controller.playOrPause();
+            succeeded = performPlayCommand (true);
             break;
         case RemoteTransportCommandType::next:
             succeeded = controller.nextTrack();

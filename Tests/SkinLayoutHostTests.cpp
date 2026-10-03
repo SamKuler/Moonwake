@@ -154,6 +154,7 @@ std::unique_ptr<juce::Component> componentFor (juce::StringRef id)
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
+        case SkinComponentKind::playlistGrid:
             return std::make_unique<juce::Component>();
     }
     return {};
@@ -179,7 +180,8 @@ void setQueuePresentation (juce::var node, const juce::String& presentation)
     if (! node.isObject()) return;
     if (node.getProperty ("component", {}).toString() == "queue.table")
     {
-        node.getDynamicObject()->setProperty ("presentation", presentation);
+        if (presentation.isEmpty()) node.getDynamicObject()->removeProperty ("presentation");
+        else node.getDynamicObject()->setProperty ("presentation", presentation);
         node.getDynamicObject()->setProperty ("style", presentation == "list" ? "table.list" : "table.default");
     }
     if (const auto* children = node.getProperty ("children", {}).getArray())
@@ -344,20 +346,38 @@ public:
             }
 
             beginTest ("relayout preserves live focus without restoring controls removed by the next page");
-            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            const auto previewSource = storage.getChildFile ("focus-preview");
+            expect (previewSource.createDirectory());
+            expect (previewSource.getChildFile ("manifest.json").replaceWithText (R"json({
+              "skinApi":1,"id":"com.example.focus-preview","name":"Focus Preview",
+              "version":"1.0.0","author":{"name":"Tests"},"minAppVersion":"0.7.0",
+              "extends":"builtin.foundation","capabilities":["tokens"],
+              "entrypoints":{"tokens":"tokens.json"}
+            })json"));
+            expect (previewSource.getChildFile ("tokens.json").replaceWithText (
+                R"json({"colors":{"focusPreview":"#112233FF"}})json"));
+            const auto previewImport = manager.importSkin (previewSource);
+            expect (! previewImport.hasErrors(), previewImport.toText());
+            expect (host.apply (SkinLayoutEntry::collection, root.getLocalBounds(), 1.0f, report), report.toText());
             root.addToDesktop (0);
             root.toFront (true);
             auto& search = dynamic_cast<juce::TextEditor&> (*components.at ("library.search"));
             search.setText ("Moonwake", false);
             search.grabKeyboardFocus();
             expect (search.hasKeyboardFocus (false), "native focus requires a visible test peer");
-            expect (host.apply (SkinLayoutEntry::listening, { 0, 0, 1040, 700 }, 1.0f, report), report.toText());
+            expect (host.apply (SkinLayoutEntry::collection, { 0, 0, 1040, 700 }, 1.0f, report), report.toText());
             expect (search.hasKeyboardFocus (false), "same-page resize must retain the focused editor");
-            expect (manager.preview ({ "builtin.foundation", "1.0.0" }, report), report.toText());
+            expect (manager.preview ({ "com.example.focus-preview", "1.0.0" }, report), report.toText());
+            expectEquals (manager.activeSelection().id, juce::String ("com.example.focus-preview"));
+            expect (search.isVisible() && search.isShowing(), "Changing the preview session preserves the current visible editor");
+            expect (search.hasKeyboardFocus (false), "Changing only the preview session does not move focus");
             expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            expect (search.isVisible() && search.isShowing(), "The inherited Listening page includes the search editor");
             expect (search.hasKeyboardFocus (false), "skin preview must retain a still-visible editor");
             manager.cancelPreview();
-            expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+            expectEquals (manager.activeSelection().id, juce::String ("builtin.default"));
+            expect (host.apply (SkinLayoutEntry::collection, root.getLocalBounds(), 1.0f, report), report.toText());
+            expect (search.isVisible() && search.isShowing(), "The restored Default collection page includes the search editor");
             expect (search.hasKeyboardFocus (false));
             expect (host.apply (SkinLayoutEntry::settings, root.getLocalBounds(), 1.0f, report), report.toText());
             expect (! search.hasKeyboardFocus (true), "a hidden editor must not reclaim focus after changing page");
@@ -569,14 +589,16 @@ public:
             storage.deleteRecursively();
         }
 
-        beginTest ("host table and list transitions preserve user columns from initially empty bounds");
+        for (const auto missingPresentation : { false, true })
         {
+            beginTest (juce::String (missingPresentation ? "implicit" : "explicit")
+                + " table mode uses skin rows, preserves user columns and restores the original host state");
             const auto storage = freshHostDirectory();
             const auto source = writeScrollableHostSkin (storage);
             const auto file = source.getChildFile ("layouts/listening.json");
             auto document = juce::JSON::parse (file);
             auto tableRoot = document.getProperty ("root", {});
-            setQueuePresentation (tableRoot, "table");
+            setQueuePresentation (tableRoot, missingPresentation ? juce::String{} : juce::String ("table"));
             auto listRoot = tableRoot.clone();
             suffixLayoutIds (listRoot);
             setQueuePresentation (listRoot, "list");
@@ -614,6 +636,7 @@ public:
             header.addColumn ("Title", 1, 240, 80, -1);
             header.addColumn ("Artist / album", 2, 360, 100, -1);
             header.addColumn ("Duration", 3, 90, 40, 120);
+            const auto originalColumns = header.toString();
             root.addAndMakeVisible (queue);
             expect (bindings.bind ("queue.table", queue, report), report.toText());
             for (const auto& descriptor : PlayerComponentCatalog::descriptors())
@@ -632,6 +655,9 @@ public:
                                     1.0f, report, workspace), report.toText());
             };
             apply (WorkspaceMode::listening, 1240);
+            expectEquals (queue.getRowHeight(), 40);
+            expectEquals (queue.getHeaderHeight(), 28);
+            expectEquals (queue.getProperties()[JuceSkinAdapter::presentationProperty].toString(), juce::String ("table"));
             header.setColumnWidth (1, 220);
             header.setColumnWidth (3, 88);
             header.setColumnWidth (2, queue.getVisibleContentWidth() - 220 - 88);
@@ -642,9 +668,12 @@ public:
             apply (WorkspaceMode::listening, 1240);
             expectEquals (header.toString(), customised);
             apply (WorkspaceMode::studio, 1240);
+            expectEquals (queue.getRowHeight(), 56);
             expectEquals (queue.getHeaderHeight(), 0);
             expectEquals (header.getColumnWidth (3), 56);
             apply (WorkspaceMode::listening, 1240);
+            expectEquals (queue.getRowHeight(), 40);
+            expectEquals (queue.getHeaderHeight(), 28);
             expectEquals (header.toString(), customised);
             for (const auto width : { 1040, 1240 })
             {
@@ -663,6 +692,9 @@ public:
             expect (queue.getBounds().isEmpty());
             expectEquals (queue.getRowHeight(), 32);
             expectEquals (queue.getHeaderHeight(), 24);
+            expectEquals (header.toString(), originalColumns);
+            expect (header.isStretchToFitActive());
+            expect (! queue.getProperties().contains (JuceSkinAdapter::presentationProperty));
             root.setLookAndFeel (nullptr);
             storage.deleteRecursively();
         }

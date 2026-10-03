@@ -138,6 +138,93 @@ public:
     {
         const auto tokens = makeTokens();
 
+        beginTest ("playlist grid metrics resolve against individual card widths");
+        {
+            auto raw = juce::JSON::parse (R"json({
+              "apiVersion":1,"target":"playlistGrid","layers":[],
+              "controlStyle":{"minItemWidth":160,"itemGap":12},
+              "rowLayout":{"rowHeight":{"$expr":"bounds.width + 72"},"slots":{
+                "card.surface":{"x":0,"y":0,"width":{"$context":"bounds.width"},"height":{"$context":"layout.rowHeight"}},
+                "card.cover":{"x":0,"y":0,"width":{"$context":"bounds.width"},"height":{"$context":"bounds.width"}},
+                "card.title":{"x":0,"y":{"$context":"bounds.width"},"width":{"$context":"bounds.width"},"height":28},
+                "card.summary":{"x":0,"y":{"$expr":"bounds.width + 28"},"width":{"$context":"bounds.width"},"height":24},
+                "card.date":{"x":0,"y":{"$expr":"bounds.width + 52"},"width":{"$context":"bounds.width"},"height":20}
+              }}
+            })json");
+            SkinValidationReport report;
+            const auto program = compile (raw, tokens, report);
+            expect (program.has_value(), report.toText());
+            if (program)
+                for (const auto width : { 160.0f, 240.0f, 360.0f })
+                {
+                    SkinRenderContext context;
+                    context.bounds = context.contentBounds = { 0, 0, width, 500 };
+                    const auto control = resolveSkinControlStyle (*program, context, report);
+                    const auto row = resolveSkinRowLayout (*program, context, report);
+                    expect (control.has_value() && row.has_value(), report.toText());
+                    if (control)
+                    {
+                        expect (control->minItemWidth == 160.0f);
+                        expect (control->itemGap == 12.0f);
+                    }
+                    if (row)
+                    {
+                        expectEquals (row->rowHeight, width + 72.0f);
+                        expect (row->slots.at ("card.cover") == juce::Rectangle<float> (0, 0, width, width));
+                        expectEquals (row->slots.at ("card.date").getBottom(), row->rowHeight);
+                    }
+                }
+            for (const auto& [property, value] : std::map<juce::String, double> { { "minItemWidth", 119.0 }, { "itemGap", -1.0 } })
+            {
+                auto invalid = raw.clone();
+                invalid.getProperty ("controlStyle", {}).getDynamicObject()->setProperty (property, value);
+                SkinValidationReport invalidReport;
+                expect (! compile (invalid, tokens, invalidReport));
+                expect (invalidReport.hasCode ("RENDER004"));
+            }
+            for (const auto* property : { "controlStyle", "rowLayout" })
+            {
+                auto invalid = raw.clone();
+                invalid.getDynamicObject()->removeProperty (property);
+                SkinValidationReport invalidReport;
+                expect (! compile (invalid, tokens, invalidReport));
+                expect (invalidReport.hasCode ("RENDER004"));
+            }
+            beginTest ("playlist grids reject contentClip without native clipping support");
+            auto unsupportedClip = raw.clone();
+            unsupportedClip.getDynamicObject()->setProperty ("layers", array ({ rectLayer ("body") }));
+            unsupportedClip.getDynamicObject()->setProperty ("contentClip", "body");
+            SkinValidationReport unsupportedClipReport;
+            expect (! compile (unsupportedClip, tokens, unsupportedClipReport));
+            expect (unsupportedClipReport.hasCode ("RENDER004"), unsupportedClipReport.toText());
+
+            beginTest ("playlist grids require every card slot");
+            raw.getProperty ("rowLayout", {}).getProperty ("slots", {}).getDynamicObject()->removeProperty ("card.date");
+            SkinValidationReport missingSlotReport;
+            const auto missingSlot = compile (raw, tokens, missingSlotReport);
+            expect (missingSlot.has_value(), missingSlotReport.toText());
+            if (missingSlot)
+                expect (! resolveSkinRowLayout (*missingSlot, {}, missingSlotReport));
+            expect (missingSlotReport.hasCode ("RENDER004"));
+        }
+
+        beginTest ("collection metadata is available only to playlist card slots");
+        {
+            const auto cover = skinRenderContextForCompositeSlot (
+                SkinRenderTarget::playlistGrid, "card.cover", SkinRenderTarget::artwork);
+            const auto title = skinRenderContextForCompositeSlot (
+                SkinRenderTarget::playlistGrid, "card.title", SkinRenderTarget::label);
+            expect (cover.at ("collection.hasArtwork") == SkinExpressionType::boolean);
+            expect (cover.at ("artwork.hasImage") == SkinExpressionType::boolean);
+            expect (title.at ("collection.name") == SkinExpressionType::string);
+            expect (title.at ("collection.createdAtMs") == SkinExpressionType::number);
+            expect (title.at ("collection.trackCount") == SkinExpressionType::number);
+            expect (title.at ("collection.durationSeconds") == SkinExpressionType::number);
+            expect (! skinRenderContextForTarget (SkinRenderTarget::playlistGrid).contains ("collection.name"));
+            expect (! skinRenderContextForCompositeSlot (SkinRenderTarget::table, "row.surface",
+                                                        SkinRenderTarget::surface).contains ("collection.name"));
+        }
+
         beginTest ("row layouts resolve shared geometry, breakpoints and inherited tokens");
         {
             auto raw = renderDocument ("pluginList", { rectLayer ("body") });
@@ -434,7 +521,7 @@ public:
                           juce::String ("urn:uuid:f37db386-b854-462a-a26f-b281c16b38fb"));
             expectEquals (renderSchema.getProperty ("x-generatedBy", {}).toString(),
                           juce::String ("Moonwake SkinSchemaRegistry"));
-            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 20);
+            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 21);
             expectEquals (static_cast<int> (skinPrimitiveNames().size()), 11);
             expectEquals (static_cast<int> (skinRepeatSourceDescriptors().size()), 3);
 
@@ -742,6 +829,20 @@ public:
             SkinValidationReport report;
             expect (! compile (renderDocument ("outputStage", { repeatedGroup }), tokens, report));
             expect (report.hasCode ("RENDER010"));
+        }
+
+        beginTest ("table repeats accept four metadata columns and reject a fifth");
+        {
+            auto repeat = baseLayer ("columns", "repeat");
+            repeat.getDynamicObject()->setProperty ("source", "table.visibleColumns");
+            repeat.getDynamicObject()->setProperty ("limit", 4);
+            repeat.getDynamicObject()->setProperty ("template", rectLayer ("column"));
+            SkinValidationReport report;
+            expect (compile (renderDocument ("table", { repeat }), tokens, report).has_value(), report.toText());
+            repeat.getDynamicObject()->setProperty ("limit", 5);
+            SkinValidationReport invalid;
+            expect (! compile (renderDocument ("table", { repeat }), tokens, invalid));
+            expect (invalid.hasErrors());
         }
 
         beginTest ("compiles renderer index, composite slots and ancillary defaults");

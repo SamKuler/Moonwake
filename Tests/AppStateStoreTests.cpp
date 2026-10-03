@@ -15,6 +15,189 @@ public:
 
     void runTest() override
     {
+        beginTest ("schema 11 migration keeps queue occurrences and creates one referenced library");
+        {
+            juce::ValueTree root ("MoonwakeState");
+            root.setProperty ("schemaVersion", 11, nullptr);
+            root.setProperty ("playbackPositionSeconds", 14.5, nullptr);
+            juce::ValueTree queue ("Playlist");
+            queue.setProperty ("selectedTrackId", "second-occurrence", nullptr);
+            queue.setProperty ("selectedIndex", 0, nullptr);
+            queue.setProperty ("shuffle", true, nullptr);
+            queue.setProperty ("repeat", "all", nullptr);
+            for (const auto& id : { "first-occurrence", "second-occurrence", "missing-occurrence" })
+            {
+                juce::ValueTree track ("Track");
+                track.setProperty ("id", id, nullptr);
+                track.setProperty ("path", juce::String::fromUTF8 (juce::String (id) == "missing-occurrence"
+                    ? "/missing/消失.wav" : "/music/重复.wav"), nullptr);
+                track.setProperty ("title", juce::String::fromUTF8 ("月光"), nullptr);
+                track.setProperty ("artist", juce::String::fromUTF8 ("演奏者"), nullptr);
+                track.setProperty ("available", juce::String (id) != "missing-occurrence", nullptr);
+                queue.appendChild (track, nullptr);
+            }
+            root.appendChild (queue, nullptr);
+            const auto restored = AppStateStore::fromValueTree (root);
+            expectEquals (restored.playlist.size(), 3);
+            expectEquals (static_cast<int> (restored.library.getTracks().size()), 2);
+            expectEquals (restored.playlist.getTrack (0)->id, juce::String ("first-occurrence"));
+            expectEquals (restored.playlist.getSelectedTrack()->id, juce::String ("second-occurrence"));
+            expectEquals (restored.playlist.getTrack (0)->libraryId, restored.playlist.getTrack (1)->libraryId);
+            expect (! restored.playlist.getTrack (2)->available);
+            expect (restored.playlist.isShuffleEnabled());
+            expect (restored.playlist.getRepeatMode() == RepeatMode::all);
+            expectWithinAbsoluteError (restored.playbackPositionSeconds, 14.5, 0.001);
+            expectEquals (static_cast<int> (restored.library.getPlaylists().size()), 1);
+            const auto& imported = restored.library.getPlaylists()[0];
+            expectEquals (imported.name, juce::String ("Imported queue"));
+            expectEquals (imported.createdAtMs, juce::int64 { 0 });
+            expectEquals (imported.updatedAtMs, juce::int64 { 0 });
+            expectEquals (static_cast<int> (imported.entries.size()), 3);
+            expect (imported.entries[0].id != imported.entries[1].id);
+            expectEquals (imported.entries[0].trackId, restored.playlist.getTrack (0)->libraryId);
+            expectEquals (imported.entries[2].trackId, restored.playlist.getTrack (2)->libraryId);
+            const auto roundTrip = AppStateStore::fromValueTree (AppStateStore::toValueTree (restored));
+            expectEquals (static_cast<int> (roundTrip.library.getPlaylists().size()), 1);
+            expectEquals (roundTrip.library.getPlaylists()[0].id, imported.id);
+            expectEquals (roundTrip.library.getPlaylists()[0].createdAtMs, juce::int64 { 0 });
+            expectEquals (roundTrip.library.getPlaylists()[0].updatedAtMs, juce::int64 { 0 });
+        }
+
+        beginTest ("schema 12 stores metadata once and restores Unicode playlists favourites and browsing");
+        {
+            PlayerAppState state;
+            TrackItem track { juce::File (juce::String::fromUTF8 ("/missing/夜曲 🎵.flac")),
+                              juce::String::fromUTF8 ("夜曲"), 42.0 };
+            track.id = "library-track";
+            track.artist = juce::String::fromUTF8 ("演奏者");
+            track.album = juce::String::fromUTF8 ("月光");
+            track.artworkCacheKey = "cover-reference";
+            track.reservedEffectChainState = "reserved-state";
+            track.available = false;
+            const auto id = state.library.upsertTrack (track);
+            const auto playlist = state.library.createPlaylist (juce::String::fromUTF8 ("晚间 🎶"));
+            const auto entries = state.library.addToPlaylist (playlist, { id, id });
+            expect (state.library.setFavourite (id, true));
+            state.libraryCollectionId = "playlist:" + playlist;
+            state.librarySearchQuery = juce::String::fromUTF8 ("月光 演奏者");
+            for (const auto& occurrence : { "queue-a", "queue-b" })
+            {
+                auto queued = track;
+                queued.id = occurrence;
+                queued.libraryId = id;
+                queued.title = "stale queue metadata";
+                state.playlist.addTrack (queued);
+            }
+            state.playlist.selectTrack (1);
+            const auto tree = AppStateStore::toValueTree (state);
+            expectEquals (tree.getChildWithName ("MusicLibrary").getChildWithName ("Tracks").getNumChildren(), 1);
+            expect (! tree.getChildWithName ("Playlist").getChild (0).hasProperty ("title"));
+            const auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*tree.createXml()));
+            expectEquals (static_cast<int> (restored.library.getTracks().size()), 1);
+            expect (restored.library.getPlaylist (playlist)->entries == entries);
+            expect (restored.library.isFavourite (id));
+            expectEquals (restored.libraryCollectionId, state.libraryCollectionId);
+            expectEquals (restored.librarySearchQuery, state.librarySearchQuery);
+            expectEquals (restored.playlist.getSelectedTrack()->id, juce::String ("queue-b"));
+            expectEquals (restored.playlist.getTrack (0)->libraryId, id);
+            expectEquals (restored.playlist.getTrack (0)->title, track.title);
+            expectEquals (restored.playlist.getTrack (1)->reservedEffectChainState, track.reservedEffectChainState);
+            expect (! restored.playlist.getTrack (0)->available);
+            expect (restored.library.getTrack (id)->file == track.file);
+        }
+
+        beginTest ("playlist timestamps round-trip exact Unix milliseconds and unknown zeros through XML");
+        {
+            PlayerAppState state;
+            TrackItem track { juce::File ("/music/timestamp.wav"), "Timestamp fixture", 12.0 };
+            track.id = "timestamp-track";
+            SavedPlaylist known;
+            known.id = "known-playlist-time";
+            known.name = "Known creation time";
+            known.entries = { { "known-entry-one", track.id }, { "known-entry-two", track.id } };
+            known.createdAtMs = 1704164645123LL;
+            known.updatedAtMs = 1750000000789LL;
+            SavedPlaylist unknown;
+            unknown.id = "unknown-playlist-time";
+            unknown.name = "Unknown creation time";
+            expect (state.library.restore ({ track }, { known, unknown }, {}));
+            const auto tree = AppStateStore::toValueTree (state);
+            const auto saved = tree.getChildWithName ("MusicLibrary").getChildWithName ("SavedPlaylists");
+            expectEquals (saved.getNumChildren(), 2);
+            expectEquals (static_cast<juce::int64> (saved.getChild (0).getProperty ("createdAtMs")), known.createdAtMs);
+            expectEquals (static_cast<juce::int64> (saved.getChild (0).getProperty ("updatedAtMs")), known.updatedAtMs);
+            expectEquals (static_cast<juce::int64> (saved.getChild (1).getProperty ("createdAtMs")), juce::int64 { 0 });
+            expectEquals (static_cast<juce::int64> (saved.getChild (1).getProperty ("updatedAtMs")), juce::int64 { 0 });
+            const auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*tree.createXml()));
+            const auto* knownRestored = restored.library.getPlaylist (known.id);
+            const auto* unknownRestored = restored.library.getPlaylist (unknown.id);
+            expect (knownRestored != nullptr && unknownRestored != nullptr);
+            if (knownRestored != nullptr && unknownRestored != nullptr)
+            {
+                expectEquals (knownRestored->createdAtMs, known.createdAtMs);
+                expectEquals (knownRestored->updatedAtMs, known.updatedAtMs);
+                expect (knownRestored->entries == known.entries);
+                expectEquals (unknownRestored->createdAtMs, juce::int64 { 0 });
+                expectEquals (unknownRestored->updatedAtMs, juce::int64 { 0 });
+                const auto rewritten = AppStateStore::fromValueTree (AppStateStore::toValueTree (restored));
+                expectEquals (rewritten.library.getPlaylist (known.id)->createdAtMs, known.createdAtMs);
+                expectEquals (rewritten.library.getPlaylist (known.id)->updatedAtMs, known.updatedAtMs);
+                expectEquals (rewritten.library.getPlaylist (unknown.id)->createdAtMs, juce::int64 { 0 });
+            }
+        }
+
+        beginTest ("schema 12 playlists without timestamp properties stay unknown after restore and rewrite");
+        {
+            PlayerAppState state;
+            const auto id = state.library.createPlaylist ("Existing playlist without dates");
+            auto tree = AppStateStore::toValueTree (state);
+            auto saved = tree.getChildWithName ("MusicLibrary").getChildWithName ("SavedPlaylists").getChild (0);
+            saved.removeProperty ("createdAtMs", nullptr);
+            saved.removeProperty ("updatedAtMs", nullptr);
+            const auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*tree.createXml()));
+            const auto* playlist = restored.library.getPlaylist (id);
+            expect (playlist != nullptr);
+            if (playlist != nullptr)
+            {
+                expectEquals (playlist->createdAtMs, juce::int64 { 0 });
+                expectEquals (playlist->updatedAtMs, juce::int64 { 0 });
+                const auto rewritten = AppStateStore::toValueTree (restored).getChildWithName ("MusicLibrary")
+                    .getChildWithName ("SavedPlaylists").getChild (0);
+                expectEquals (static_cast<juce::int64> (rewritten.getProperty ("createdAtMs")), juce::int64 { 0 });
+                expectEquals (static_cast<juce::int64> (rewritten.getProperty ("updatedAtMs")), juce::int64 { 0 });
+            }
+        }
+
+        beginTest ("invalid library references preserve the saved file and the caller state");
+        {
+            const auto directory = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
+                .getNonexistentChildFile ("state-library-protection", {});
+            expect (directory.createDirectory());
+            const auto file = directory.getChildFile ("state.xml");
+            PlayerAppState saved;
+            const auto id = saved.library.upsertTrack ({ juce::File ("/music/one.wav"), "One", 1.0 });
+            const auto list = saved.library.createPlaylist ("Saved");
+            saved.library.addToPlaylist (list, { id });
+            auto invalid = AppStateStore::toValueTree (saved);
+            invalid.getChildWithName ("MusicLibrary").getChildWithName ("SavedPlaylists")
+                .getChild (0).getChild (0).setProperty ("trackId", "dangling", nullptr);
+            for (const auto& version : { "12", "11", "invalid" })
+            {
+                invalid.setProperty ("schemaVersion", version, nullptr);
+                expect (invalid.createXml()->writeTo (file));
+                const auto original = file.loadFileAsString();
+                PlayerAppState destination;
+                destination.libraryCollectionId = "favourites";
+                juce::String error;
+                expect (! AppStateStore::readFromFile (file, destination, error));
+                expect (error.containsIgnoreCase ("references"), error);
+                expectEquals (destination.libraryCollectionId, juce::String ("favourites"));
+                expect (! AppStateStore::writeAtomically (saved, file, error));
+                expectEquals (file.loadFileAsString(), original);
+            }
+            expect (directory.deleteRecursively());
+        }
+
         beginTest ("plug-in format preferences persist and older sessions enable both formats");
         {
             PlayerAppState state;
@@ -78,7 +261,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 11);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 12);
             expect (restored.customVst3Directories == state.customVst3Directories);
             expectEquals (static_cast<int> (restored.audioDevice.outputRoutes.size()), 1);
             if (! restored.audioDevice.outputRoutes.empty())

@@ -4,6 +4,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -13,10 +14,15 @@ enum class SkinComponentKind
 {
     label, textButton, toggleButton, comboBox, textEditor, linearSlider,
     slider, progressBar, table, artwork, effectChain, outputStage,
-    channelMap, pluginList, skinList, channelMixer
+    channelMap, pluginList, skinList, channelMixer, playlistGrid
 };
 
-enum class SkinLayoutEntry { studio, listening, effects, settings };
+enum class SkinLayoutEntry { studio, listening, effects, settings, library, collection };
+
+[[nodiscard]] const std::vector<juce::String>& skinLayoutEntryNames();
+[[nodiscard]] std::optional<SkinLayoutEntry> skinLayoutEntryFromName (juce::StringRef);
+[[nodiscard]] juce::String skinLayoutEntryName (SkinLayoutEntry);
+[[nodiscard]] const std::set<SkinLayoutEntry>& requiredSkinLayoutEntries();
 
 struct SkinComponentDescriptor
 {
@@ -37,6 +43,7 @@ struct SkinComponentDescriptor
     juce::String textAlignment { "left" };
     juce::String iconName;
     juce::String iconPresentation;
+    juce::StringArray requiredAlternatives;
 };
 
 struct SkinComponentDimensions
@@ -50,6 +57,7 @@ class PlayerComponentCatalog
 public:
     [[nodiscard]] static const std::vector<SkinComponentDescriptor>& descriptors();
     [[nodiscard]] static const SkinComponentDescriptor* find (const juce::String& id);
+    [[nodiscard]] static bool isRequired (const juce::String& id, SkinLayoutEntry);
     [[nodiscard]] static juce::String fallbackIconPathData (juce::StringRef iconName);
     [[nodiscard]] static std::shared_ptr<const juce::Path> fallbackIconPath (
         juce::StringRef iconName);

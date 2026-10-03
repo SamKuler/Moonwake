@@ -3,6 +3,7 @@
 #include "app/ProductIdentity.h"
 
 #include <cmath>
+#include <unordered_set>
 
 namespace
 {
@@ -13,7 +14,7 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 11;
+constexpr int currentSchemaVersion = 12;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -80,6 +81,96 @@ double finiteNonNegative (double value)
                : 0.0;
 }
 
+juce::ValueTree trackToTree (const TrackItem& track)
+{
+    juce::ValueTree tree (trackType);
+    tree.setProperty (pathProperty, track.file.getFullPathName(), nullptr);
+    tree.setProperty (idProperty, track.id, nullptr);
+    tree.setProperty (titleProperty, track.title, nullptr);
+    tree.setProperty (artistProperty, track.artist, nullptr);
+    tree.setProperty (albumProperty, track.album, nullptr);
+    tree.setProperty (albumArtistProperty, track.albumArtist, nullptr);
+    tree.setProperty (genreProperty, track.genre, nullptr);
+    tree.setProperty (yearProperty, track.year, nullptr);
+    tree.setProperty (trackNumberProperty, track.trackNumber, nullptr);
+    tree.setProperty (discNumberProperty, track.discNumber, nullptr);
+    tree.setProperty (durationProperty, track.durationSeconds, nullptr);
+    tree.setProperty (sampleRateProperty, track.sampleRate, nullptr);
+    tree.setProperty (channelCountProperty, track.channelCount, nullptr);
+    tree.setProperty (bitDepthProperty, track.bitDepth, nullptr);
+    tree.setProperty (formatNameProperty, track.formatName, nullptr);
+    tree.setProperty (artworkCacheKeyProperty, track.artworkCacheKey, nullptr);
+    tree.setProperty (availableProperty, track.available, nullptr);
+    tree.setProperty ("reservedEffectChainState", track.reservedEffectChainState, nullptr);
+    return tree;
+}
+
+TrackItem trackFromTree (const juce::ValueTree& tree)
+{
+    TrackItem track { juce::File (tree.getProperty (pathProperty).toString()),
+                      tree.getProperty (titleProperty).toString(),
+                      static_cast<double> (tree.getProperty (durationProperty, 0.0)) };
+    const auto id = tree.getProperty (idProperty).toString();
+    if (id.isNotEmpty()) track.id = id;
+    track.artist = tree.getProperty (artistProperty).toString();
+    track.album = tree.getProperty (albumProperty).toString();
+    track.albumArtist = tree.getProperty (albumArtistProperty).toString();
+    track.genre = tree.getProperty (genreProperty).toString();
+    track.year = juce::jmax (0, static_cast<int> (tree.getProperty (yearProperty, 0)));
+    track.trackNumber = juce::jmax (0, static_cast<int> (tree.getProperty (trackNumberProperty, 0)));
+    track.discNumber = juce::jmax (0, static_cast<int> (tree.getProperty (discNumberProperty, 0)));
+    track.sampleRate = static_cast<double> (tree.getProperty (sampleRateProperty, 0.0));
+    track.channelCount = static_cast<int> (tree.getProperty (channelCountProperty, 0));
+    track.bitDepth = juce::jmax (0, static_cast<int> (tree.getProperty (bitDepthProperty, 0)));
+    track.formatName = tree.getProperty (formatNameProperty).toString();
+    track.artworkCacheKey = tree.getProperty (artworkCacheKeyProperty).toString();
+    track.available = static_cast<bool> (tree.getProperty (availableProperty, true));
+    track.reservedEffectChainState = tree.getProperty ("reservedEffectChainState").toString();
+    return track;
+}
+
+bool restoreLibrary (const juce::ValueTree& root, MusicLibrary& library)
+{
+    const auto libraryTree = root.getChildWithName ("MusicLibrary");
+    if (! libraryTree.isValid()
+        || ! libraryTree.getChildWithName ("Tracks").isValid()
+        || ! libraryTree.getChildWithName ("SavedPlaylists").isValid()
+        || ! libraryTree.getChildWithName ("Favourites").isValid()) return false;
+    std::vector<TrackItem> tracks;
+    std::vector<SavedPlaylist> playlists;
+    std::vector<juce::String> favourites;
+    for (const auto child : libraryTree.getChildWithName ("Tracks"))
+    {
+        if (! child.hasType (trackType)
+            || ! juce::File::isAbsolutePath (child.getProperty (pathProperty).toString())) return false;
+        auto track = trackFromTree (child);
+        track.id = child.getProperty (idProperty).toString();
+        tracks.push_back (std::move (track));
+    }
+    for (const auto child : libraryTree.getChildWithName ("SavedPlaylists"))
+    {
+        if (! child.hasType ("SavedPlaylist")) return false;
+        SavedPlaylist playlist;
+        playlist.id = child.getProperty (idProperty).toString();
+        playlist.name = child.getProperty ("name").toString();
+        playlist.createdAtMs = static_cast<juce::int64> (child.getProperty ("createdAtMs", 0));
+        playlist.updatedAtMs = static_cast<juce::int64> (child.getProperty ("updatedAtMs", 0));
+        for (const auto entry : child)
+        {
+            if (! entry.hasType ("Entry")) return false;
+            playlist.entries.push_back ({ entry.getProperty (idProperty).toString(),
+                                          entry.getProperty ("trackId").toString() });
+        }
+        playlists.push_back (std::move (playlist));
+    }
+    for (const auto child : libraryTree.getChildWithName ("Favourites"))
+    {
+        if (! child.hasType ("Favourite")) return false;
+        favourites.push_back (child.getProperty ("trackId").toString());
+    }
+    return library.restore (std::move (tracks), std::move (playlists), std::move (favourites));
+}
+
 bool readStateTree (const juce::File& sourceFile,
                     juce::ValueTree& tree, juce::String& errorMessage)
 {
@@ -109,6 +200,25 @@ bool readStateTree (const juce::File& sourceFile,
     {
         errorMessage = "Player state file was created by a newer version of Moonwake.";
         return false;
+    }
+
+    if (schemaVersion == currentSchemaVersion || tree.getChildWithName ("MusicLibrary").isValid())
+    {
+        MusicLibrary library;
+        bool valid = restoreLibrary (tree, library) && tree.getChildWithName (playlistType).isValid();
+        std::unordered_set<std::string> queueIds;
+        for (const auto entry : tree.getChildWithName (playlistType))
+        {
+            const auto id = entry.getProperty (idProperty).toString();
+            valid = valid && entry.hasType (trackType) && id.isNotEmpty()
+                  && queueIds.insert (id.toStdString()).second
+                  && library.getTrack (entry.getProperty ("libraryId").toString()) != nullptr;
+        }
+        if (! valid)
+        {
+            errorMessage = "Player state contains invalid library identities or playlist references.";
+            return false;
+        }
     }
 
     return true;
@@ -181,28 +291,51 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
     playlistTree.setProperty (shuffleProperty, state.playlist.isShuffleEnabled(), nullptr);
     playlistTree.setProperty (repeatProperty, toString (state.playlist.getRepeatMode()), nullptr);
 
+    auto library = state.library;
     for (const auto& track : state.playlist.getTracks())
     {
-        juce::ValueTree trackTree (trackType);
-        trackTree.setProperty (pathProperty, track.file.getFullPathName(), nullptr);
-        trackTree.setProperty (idProperty, track.id, nullptr);
-        trackTree.setProperty (titleProperty, track.title, nullptr);
-        trackTree.setProperty (artistProperty, track.artist, nullptr);
-        trackTree.setProperty (albumProperty, track.album, nullptr);
-        trackTree.setProperty (albumArtistProperty, track.albumArtist, nullptr);
-        trackTree.setProperty (genreProperty, track.genre, nullptr);
-        trackTree.setProperty (yearProperty, track.year, nullptr);
-        trackTree.setProperty (trackNumberProperty, track.trackNumber, nullptr);
-        trackTree.setProperty (discNumberProperty, track.discNumber, nullptr);
-        trackTree.setProperty (durationProperty, track.durationSeconds, nullptr);
-        trackTree.setProperty (sampleRateProperty, track.sampleRate, nullptr);
-        trackTree.setProperty (channelCountProperty, track.channelCount, nullptr);
-        trackTree.setProperty (bitDepthProperty, track.bitDepth, nullptr);
-        trackTree.setProperty (formatNameProperty, track.formatName, nullptr);
-        trackTree.setProperty (artworkCacheKeyProperty, track.artworkCacheKey, nullptr);
-        trackTree.setProperty (availableProperty, track.available, nullptr);
-        playlistTree.appendChild (trackTree, nullptr);
+        auto libraryId = track.libraryId;
+        if (library.getTrack (libraryId) == nullptr)
+            libraryId = library.upsertTrack (track);
+        juce::ValueTree entry (trackType);
+        entry.setProperty (idProperty, track.id, nullptr);
+        entry.setProperty ("libraryId", libraryId, nullptr);
+        playlistTree.appendChild (entry, nullptr);
     }
+    juce::ValueTree libraryTree ("MusicLibrary");
+    juce::ValueTree tracksTree ("Tracks");
+    for (const auto& track : library.getTracks())
+        tracksTree.appendChild (trackToTree (track), nullptr);
+    libraryTree.appendChild (tracksTree, nullptr);
+    juce::ValueTree savedPlaylists ("SavedPlaylists");
+    for (const auto& playlist : library.getPlaylists())
+    {
+        juce::ValueTree saved ("SavedPlaylist");
+        saved.setProperty (idProperty, playlist.id, nullptr);
+        saved.setProperty ("name", playlist.name, nullptr);
+        saved.setProperty ("createdAtMs", playlist.createdAtMs, nullptr);
+        saved.setProperty ("updatedAtMs", playlist.updatedAtMs, nullptr);
+        for (const auto& entry : playlist.entries)
+        {
+            juce::ValueTree child ("Entry");
+            child.setProperty (idProperty, entry.id, nullptr);
+            child.setProperty ("trackId", entry.trackId, nullptr);
+            saved.appendChild (child, nullptr);
+        }
+        savedPlaylists.appendChild (saved, nullptr);
+    }
+    libraryTree.appendChild (savedPlaylists, nullptr);
+    juce::ValueTree favourites ("Favourites");
+    for (const auto& id : library.getFavouriteTrackIds())
+    {
+        juce::ValueTree favourite ("Favourite");
+        favourite.setProperty ("trackId", id, nullptr);
+        favourites.appendChild (favourite, nullptr);
+    }
+    libraryTree.appendChild (favourites, nullptr);
+    root.appendChild (libraryTree, nullptr);
+    root.setProperty ("libraryCollectionId", state.libraryCollectionId, nullptr);
+    root.setProperty ("librarySearchQuery", state.librarySearchQuery, nullptr);
 
     root.appendChild (playlistTree, nullptr);
 
@@ -299,41 +432,39 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
     state.developerSkinDirectory = tree.getProperty (
         developerSkinDirectoryProperty, {}).toString();
 
+    const auto hasLibrary = tree.getChildWithName ("MusicLibrary").isValid();
+    if (hasLibrary && ! restoreLibrary (tree, state.library))
+        return {};
+    state.libraryCollectionId = tree.getProperty ("libraryCollectionId", "all").toString();
+    state.librarySearchQuery = tree.getProperty ("librarySearchQuery").toString();
     const auto playlistTree = tree.getChildWithName (playlistType);
+    std::vector<juce::String> migratedIds;
     if (playlistTree.isValid())
     {
-        for (int i = 0; i < playlistTree.getNumChildren(); ++i)
+        std::vector<TrackItem> queue;
+        queue.reserve (static_cast<size_t> (playlistTree.getNumChildren()));
+        for (const auto trackTree : playlistTree)
         {
-            const auto trackTree = playlistTree.getChild (i);
-            if (! trackTree.hasType (trackType))
-                continue;
-
-            TrackItem track { juce::File (trackTree.getProperty (pathProperty).toString()),
-                              trackTree.getProperty (titleProperty).toString(),
-                              static_cast<double> (trackTree.getProperty (durationProperty, 0.0)) };
-            const auto restoredId = trackTree.getProperty (idProperty).toString();
-            if (restoredId.isNotEmpty())
-                track.id = restoredId;
-            track.artist = trackTree.getProperty (artistProperty).toString();
-            track.album = trackTree.getProperty (albumProperty).toString();
-            track.albumArtist = trackTree.getProperty (albumArtistProperty).toString();
-            track.genre = trackTree.getProperty (genreProperty).toString();
-            track.year = juce::jmax (0, static_cast<int> (
-                trackTree.getProperty (yearProperty, 0)));
-            track.trackNumber = juce::jmax (0, static_cast<int> (
-                trackTree.getProperty (trackNumberProperty, 0)));
-            track.discNumber = juce::jmax (0, static_cast<int> (
-                trackTree.getProperty (discNumberProperty, 0)));
-            track.sampleRate = static_cast<double> (trackTree.getProperty (sampleRateProperty, 0.0));
-            track.channelCount = static_cast<int> (trackTree.getProperty (channelCountProperty, 0));
-            track.bitDepth = juce::jmax (0, static_cast<int> (
-                trackTree.getProperty (bitDepthProperty, 0)));
-            track.formatName = trackTree.getProperty (formatNameProperty).toString();
-            track.artworkCacheKey = trackTree.getProperty (
-                artworkCacheKeyProperty).toString();
-            track.available = static_cast<bool> (trackTree.getProperty (availableProperty, true));
-            state.playlist.addTrack (std::move (track));
+            if (! trackTree.hasType (trackType)) continue;
+            TrackItem track;
+            if (hasLibrary)
+            {
+                const auto libraryId = trackTree.getProperty ("libraryId").toString();
+                const auto* record = state.library.getTrack (libraryId);
+                if (record == nullptr) return {};
+                track = *record;
+                track.id = trackTree.getProperty (idProperty).toString();
+                track.libraryId = libraryId;
+            }
+            else
+            {
+                track = trackFromTree (trackTree);
+                track.libraryId = state.library.upsertTrack (track);
+                migratedIds.push_back (track.libraryId);
+            }
+            queue.push_back (std::move (track));
         }
+        state.playlist.insertTracks (0, std::move (queue));
 
         const auto selectedTrackId = playlistTree.getProperty (selectedTrackIdProperty).toString();
         const auto selectedIndex = selectedTrackId.isNotEmpty()
@@ -344,6 +475,16 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
             playlistTree.getProperty (repeatProperty, "off").toString()));
         state.playlist.setShuffleEnabled (static_cast<bool> (
             playlistTree.getProperty (shuffleProperty, false)));
+    }
+
+    if (! migratedIds.empty())
+    {
+        SavedPlaylist imported;
+        imported.name = "Imported queue";
+        for (const auto& id : migratedIds) imported.entries.push_back ({ juce::Uuid().toString(), id });
+        // Legacy queue files contain no playlist creation or modification timestamps.
+        if (! state.library.restore (state.library.getTracks(), { std::move (imported) },
+                                     state.library.getFavouriteTrackIds())) return {};
     }
 
     const auto chainTree = tree.getChildWithName (effectChainType);
