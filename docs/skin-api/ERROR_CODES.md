@@ -117,7 +117,7 @@
 | RENDER001 | error | renderer target 未知 |
 | RENDER002 | error | layer type 未知 |
 | RENDER003 | error | layer id 重复 |
-| RENDER004 | error | layer property 类型或组合非法、交互控件或拥有键盘焦点的 slot（含 playlistGrid 的 card.surface）缺少可见焦点反馈、playlistGrid 缺少 controlStyle／rowLayout／卡片几何或度量越界，directoryList／smartPlaylistEditor／smartPlaylistRuleList 缺少 rowLayout 或智能编辑器缺少必需槽位，或 contentClip 未引用受支持列表 target 的根层 rect/roundedRect/ellipse |
+| RENDER004 | error | layer property 类型或组合非法、交互控件或拥有键盘焦点的 slot（含 playlistGrid 的 card.surface）缺少可见焦点反馈、playlistGrid 缺少 controlStyle／rowLayout／卡片几何或度量越界，directoryList／smartPlaylistEditor／smartPlaylistRuleList／outputCalibration 缺少 rowLayout，或智能编辑器和校准表单缺少必需槽位，或 contentClip 未引用受支持列表 target 的根层 rect/roundedRect/ellipse |
 | RENDER005 | error | context path 或结果类型非法 |
 | RENDER006 | error | token 类型与绘制属性不兼容 |
 | RENDER007 | error | asset path 非法 |

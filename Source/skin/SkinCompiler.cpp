@@ -381,6 +381,7 @@ bool isInteractiveRendererTarget (SkinRenderTarget target)
         case SkinRenderTarget::table:
         case SkinRenderTarget::effectChain:
         case SkinRenderTarget::channelMixer:
+        case SkinRenderTarget::outputCalibration:
         case SkinRenderTarget::channelMap:
         case SkinRenderTarget::pluginList:
         case SkinRenderTarget::skinList:

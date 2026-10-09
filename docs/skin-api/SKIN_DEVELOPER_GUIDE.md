@@ -4,7 +4,7 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.8.0、内置皮肤 1.0.0
+- 版本基线：应用 0.9.0、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
@@ -544,7 +544,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 未声明 contentClip 的皮肤保留矩形内容区域。引用未知层、嵌套层或不支持的形状／target 会产生 RENDER004。声明该字段的包将 minAppVersion 设为 0.6.1 或更高；使用 directoryList 时须为 0.8.0 或更高。
 
-`table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList`、`playlistGrid`、`directoryList`、`smartPlaylistEditor`、`smartPlaylistRuleList` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
+`table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList`、`playlistGrid`、`directoryList`、`smartPlaylistEditor`、`smartPlaylistRuleList`、`outputCalibration` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
 
 下例为 `pluginList` 的行布局：
 
@@ -572,13 +572,13 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 }
 ```
 
-`rowHeight` 和 `slots` 必需。`effectChain` 和 `channelMixer` 在合并当前断点后必须包含其目录定义的全部原生交互 slot；`playlistGrid` 必须放置全部五个卡片 slot；`smartPlaylistEditor` 和 `smartPlaylistRuleList` 必须放置其目录定义的全部公开 slot；其余 target 的 `slots` 可为空对象。`rowGap`、`headerHeight` 缺省为 `0`。数值接受 number、`$ref`、`$context`、`$expr`，与绘制属性共用类型检查、受限表达式和继承 token 重绑定。`rowHeight` 至少为 `1`，间距、表头高度和 slot 宽高不得为负；这些度量及 slot 坐标沿用 Skin Layout 的 100000 逻辑像素范围。slot 名称必须属于该 target 的 Component Catalog；原生交互 slot 同时遵循对应控件的目录最小尺寸，换算后的原生控件矩形必须完整位于行内，避免裁切后无法操作。声明 `header.label`、`empty.message` 等公开 slot 时，坐标相对于它们各自的宿主绘制区域。
+`rowHeight` 和 `slots` 必需。`effectChain` 和 `channelMixer` 在合并当前断点后必须包含其目录定义的全部原生交互 slot；`playlistGrid` 必须放置全部五个卡片 slot；`smartPlaylistEditor`、`smartPlaylistRuleList` 和 `outputCalibration` 必须放置其目录定义的全部公开 slot；其余 target 的 `slots` 可为空对象。`rowGap`、`headerHeight` 缺省为 `0`。数值接受 number、`$ref`、`$context`、`$expr`，与绘制属性共用类型检查、受限表达式和继承 token 重绑定。`rowHeight` 至少为 `1`，间距、表头高度和 slot 宽高不得为负；这些度量及 slot 坐标沿用 Skin Layout 的 100000 逻辑像素范围。slot 名称必须属于该 target 的 Component Catalog；原生交互 slot 同时遵循对应控件的目录最小尺寸，换算后的原生控件矩形必须完整位于行内，避免裁切后无法操作。声明 `header.label`、`empty.message` 等公开 slot 时，坐标相对于它们各自的宿主绘制区域。
 
 度量解析时，`bounds`、`contentBounds` 来自整个组件；slot 矩形解析时，两者为从 `(0, 0)` 开始、宽度等于组件宽度、高度等于 `rowHeight` 的行矩形。`container.width`、`container.height` 表示传入的可用容器尺寸，供空态和表头布局引用。slot 表达式另可读取 `layout.rowHeight`、`layout.rowGap`、`layout.headerHeight`。所有行布局可读取 `table.rowCount`、`table.columnCount`；table 的宿主额外提供 `table.presentation`（`table` 或 `list`）。逐项业务字段仍只用于相应 slot 的绘制 context。
 
 `breakpoints` 最多 16 项；`when` 接受 `minWidth`、`maxWidth`，端点包含在内，至少声明一项。断点按声明顺序处理，匹配项覆写所声明的度量和 slot；未声明的值保留，slot 按 ID 合并。宽度为扣除可见滚动条后可用容器的局部宽度，单位与 Skin Layout 一致。布局几何不参与 renderer 状态动画。
 
-未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。应用 0.7.0 新增的 `playlistGrid` 必须声明 `rowLayout` 和 `controlStyle`，并放置全部五个卡片 slot。应用 0.8.0 新增的 `directoryList`、`smartPlaylistEditor` 和 `smartPlaylistRuleList` 必须声明 `rowLayout`；两个智能歌单 target 还须放置全部公开 slot。无效尺寸、未知或缺少必需 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。Foundation 为原有复合组件提供完整布局，使旧皮肤也有可用的几何回退。
+未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。应用 0.7.0 新增的 `playlistGrid` 必须声明 `rowLayout` 和 `controlStyle`，并放置全部五个卡片 slot。应用 0.8.0 新增的 `directoryList`、`smartPlaylistEditor` 和 `smartPlaylistRuleList` 必须声明 `rowLayout`；两个智能歌单 target 还须放置全部公开 slot。无效尺寸、未知或缺少必需 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。应用 0.9.0 新增的 `outputCalibration` 也必须声明 `rowLayout` 并放置全部公开 slot。Foundation 为原有复合组件提供完整布局，使旧皮肤也有可用的几何回退。
 
 ### 7.2 Renderer 调用粒度与专属 Context
 
@@ -601,6 +601,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator；可选 slot.scope（应用 0.4.0 起） |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
 | channelMap | 输出端口映射 | 绘制行 slots：channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected；row.output：标准 comboBox context | row.surface、row.source、row.destination、row.output（routing 的 comboBox）、header.label、empty.message |
+| outputCalibration | 选中扬声器的校准表单与测试信号控制 | 标准 state.*；子控件提供 text.* 和控件 context | calibration.channelLabel、calibration.channel、calibration.trimLabel、calibration.trim、calibration.delayLabel、calibration.delay、calibration.polarity、calibration.signalLabel、calibration.signal、calibration.levelLabel、calibration.level、calibration.frequencyLabel、calibration.frequency、calibration.startStop、calibration.status |
 | channelMixer | 每声道混音行及原生控制槽位 | text.primary、value.*、state.* | row.surface、row.source、row.destination、row.peak、row.gain、row.mute、row.solo |
 | pluginList | 主体一次；每个可见插件调用 slots | slots：plugin.index、plugin.name、plugin.manufacturer、plugin.format、plugin.enabled | row.surface、row.name、row.manufacturer、row.format、row.status、header.label、empty.message |
 | skinList | 主体一次；每个可见皮肤分别调用 slots | 行 slots：skin.index、skin.id、skin.name、skin.author、skin.version、skin.builtin、skin.active、skin.previewed | row.surface、row.name、row.author、row.version、row.status、empty.message |
@@ -1143,6 +1144,7 @@ Component Catalog 的 Skin API 1 默认尺寸：
 | artwork | 120 × 120 | 300 × 300 |
 | effectChain | 220 × 120 | 360 × 300 |
 | outputStage | 180 × 140 | 300 × 420 |
+| outputCalibration | 180 × 160 | 340 × 400 |
 | channelMap、channelMixer、pluginList、skinList | 180 × 100 | 360 × 240 |
 
 Flex row/column：
@@ -1375,6 +1377,8 @@ transport.seek 仅允许 linearHorizontal。皮肤不能改变值域或步进。
 | effects.close | textButton | 可选 | 关闭 Effects 并返回当前工作区 |
 | effects.summary | label | 可选 | 当前效果链摘要 |
 | effects.title | label | 可选 | 面板标题 |
+| effects.preset.select | comboBox | 可选 | 效果链预设选择与命名草稿；0.9.0 起 |
+| effects.preset.actions | textButton | 可选 | 效果链预设保存、管理与导入导出；0.9.0 起 |
 | effects.filterLabel | label | 可选 | 筛选标签 |
 | effects.filter | textEditor | Effects 必需 | 名称、厂商、类型和格式的文字搜索 |
 | effects.typeFilter | comboBox | 可选 | 按插件上报类型筛选，0.6.0 起 |
@@ -1413,8 +1417,9 @@ effects.chain 内部动态槽使用固定 style slots：
 |---|---|---|---|
 | output.stage | outputStage | 可选 | 当前多声道电平、响度和扬声器标签 |
 | output.mixer | channelMixer | 可选 | 每声道增益、静音和独奏；组件自 0.4.0 起，独立 target 自 0.5.0 起 |
+| output.calibration | outputCalibration | Settings 可选 | 逐扬声器 trim、delay、polarity 与测试信号；0.9.0 起 |
 | output.mode | comboBox | 可选 | 选择 Peak、Peak + RMS、Loudness 或 Mixer；0.4.0 起 |
-| output.reset | textButton | 可选 | 仪表模式下开始新测量；Mixer 模式下重置所有声道增益、静音和独奏；0.4.0 起 |
+| output.reset | textButton | 可选 | 仪表模式下开始新测量；Mixer 模式下重置所有声道增益、静音和独奏；Settings 校准卡片内停止测试并重置校准；0.4.0 起，校准行为自 0.9.0 起 |
 
 outputStage 提供：
 
@@ -1451,6 +1456,14 @@ outputStage 提供：
 
 每声道设置以扬声器身份持久化。Solo 可多选，Mute 优先于 Solo，未出现在当前布局内的 Solo 不参与当前总线选择。增益位于效果链后、主音量与仪表前，使用 20 ms 平滑。只读 `settings.audio.channelMap` 保留旧皮肤接口；可编辑端口使用 `settings.audio.routing`。
 
+### 10.7.1 听音方案与效果链预设
+
+`listeningPreset.select`（comboBox）和 `listeningPreset.actions`（textButton）提供听音方案入口，建议放在 Studio 主区工具行和 Settings Audio 区域的独立行。`effects.preset.select` / `effects.preset.actions` 在 Studio 的内嵌 Effects 卡片和 Effects 页面标题下组成预设行。两组控件均自应用 0.9.0 起提供，Skin API 保持为 1；使用新组件的包须声明 `minAppVersion: "0.9.0"`。
+
+选择器展示已保存名称，未保存时显示占位文本，当前内容有变更时显示 modified。应用方案或效果链期间控件禁用，成功后再显示确认生效的预设。操作菜单包含 Save as、Update current、Revert to saved、Rename、Duplicate、Delete、Import 和 Export；需要现有记录的操作在空集合或没有选择时禁用；Revert to saved 仅当前已有预设且内容有变更时可用，成功应用后恢复保存值。名称输入复用 selector 的可编辑 ComboBox，Return 提交，Escape 取消；空名称或保存失败保留草稿，Actions 提供保存重试、继续编辑和取消。菜单与编辑器继承所在页面的 popupMenu 和 comboBox renderer。
+
+两组选择器遵循 comboBox 的 60 × 28 最小尺寸，操作按钮遵循 textButton 的 28 × 28 最小尺寸；建议一行高 36，按钮宽 92。焦点顺序为选择器、操作按钮，再进入同一面板的其余控件。`state.enabled`、`state.focused`、`state.hover`、`state.pressed` 及 comboBox 的 `combo.hasSelection` / `combo.popupOpen` 沿用既有含义；皮肤不决定预设的持久化或应用行为。
+
 ### 10.8 Settings
 
 | ID | 类型 | Settings 必需 | 行为或数据 |
@@ -1458,6 +1471,9 @@ outputStage 提供：
 | settings.title | label | 否 | 设置标题 |
 | settings.close | textButton | 否 | 关闭 Settings |
 | settings.audio.heading | label | 否 | Audio / Core Audio 分区标题 |
+| settings.calibration.title | label | 否 | Speaker calibration 卡片标题；0.9.0 起 |
+| output.calibration | outputCalibration | 否 | 扬声器校准与逐声道测试表单；0.9.0 起 |
+| output.reset | textButton | 否 | 停止测试并重置所有扬声器校准；0.9.0 起 |
 | settings.audio.device | comboBox | 是 | 选择 CoreAudio 输出设备 |
 | settings.audio.deviceConfiguration | textButton | 否 | 打开设备配置界面；macOS 回退 Audio MIDI Setup，Windows 回退系统声音设置；0.6.1 起 |
 | settings.audio.sampleRate | comboBox | 是 | 选择设备采样率 |
@@ -1511,6 +1527,28 @@ Studio 可直接绑定 effects.chain 及添加插件组件，和 Output／Mixer 
 皮肤库视口是紧凑、可滚动的卡片区域，不提供额外 header 或空白占位 slots。导入包与开发目录入口由相邻的公共按钮 Component IDs 提供，皮肤不应在列表内部复制这些动作。
 
 皮肤不得根据 `skin.*` Context 改写按钮动作，也不得把 `row.status` 画成另一个可点击控制。应用保留选择、键盘滚动、预览、应用与删除行为。
+
+### 10.8.1 手动输出校准
+
+`output.calibration` 使用 `outputCalibration` kind 和 target，放在 Settings Audio 区域下方的独立 Speaker calibration 卡片中；卡片标题绑定 `settings.calibration.title`，Reset 按钮绑定 `output.reset`。Settings 各区块纵向排列，校准随设置页滚动可达，离开 Settings 即停止测试。最小尺寸为 180 × 160，建议为 340 × 400；内容高度由 `rowLayout.rowHeight` 定义，超出可用卡片高度时垂直滚动，Tab 导航自动将当前控件带入可见区域。
+
+扬声器选择器按当前输出布局列出最多 16 个具名声道；方向键可选择声道。trim 范围为 -24 至 +12 dB，delay 为 0 至 200 ms，polarity 切换正常或反相。数值通过 Return 或离开输入框提交，非法输入保留为草稿并显示范围错误，不转换为零。扬声器身份及各项数值由应用持有。
+
+测试信号为 Pink noise 或 Sine tone，默认电平 -30 dBFS，可设置 -60 至 -12 dBFS；正弦频率范围为 20 至 20000 Hz。选择 LFE 时默认 60 Hz 正弦，其余扬声器默认粉红噪声。Start test / Stop test 显式控制开始和停止，状态文字始终标明测试或待测扬声器。切换扬声器或离开校准界面停止测试；测试信号不保存到预设。
+
+| Slot | Target | 内容 |
+|---|---|---|
+| calibration.channelLabel / calibration.channel | label / comboBox | 扬声器标题与选择器 |
+| calibration.trimLabel / calibration.trim | label / textEditor | Trim (dB) 与增益数值 |
+| calibration.delayLabel / calibration.delay | label / textEditor | Delay (ms) 与延时数值 |
+| calibration.polarity | textButton | 正常/反相，state.selected 表示反相 |
+| calibration.signalLabel / calibration.signal | label / comboBox | 测试信号标题与类型 |
+| calibration.levelLabel / calibration.level | label / textEditor | Level (dBFS) 与测试电平 |
+| calibration.frequencyLabel / calibration.frequency | label / textEditor | Tone (Hz) 与正弦频率；粉红噪声时禁用 |
+| calibration.startStop | textButton | 开始或停止测试 |
+| calibration.status | label | 当前扬声器、运行状态或可恢复错误；建议支持两行文字 |
+
+所有公开 slot 都必须在 `rowLayout.slots` 中放置，缺少 slot、交互框过小或越出内容边界报告 `RENDER004`。字体、颜色、圆角、间距、表单几何和状态绘制完全由 Skin 提供。默认焦点顺序为 channel、trim、delay、polarity、signal、level、frequency、startStop；每个焦点只由对应 slot renderer 绘制一次。
 
 ### 10.9 Label 语义对齐
 

@@ -1,0 +1,154 @@
+{
+  "apiVersion": 1,
+  "target": "outputCalibration",
+  "layers": [
+    {
+      "id": "body",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000000"
+    }
+  ],
+  "variants": {
+    "focused": {
+      "body.fill": {
+        "$expr": "alpha(token.colors.listening.focus, 0.06)"
+      }
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 400,
+    "slots": {
+      "calibration.channelLabel": {
+        "x": 0,
+        "y": 0,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 20
+      },
+      "calibration.channel": {
+        "x": 0,
+        "y": 24,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 32
+      },
+      "calibration.trimLabel": {
+        "x": 0,
+        "y": 68,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 20
+      },
+      "calibration.delayLabel": {
+        "x": {
+          "$expr": "(bounds.width + 12) / 2"
+        },
+        "y": 68,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 20
+      },
+      "calibration.trim": {
+        "x": 0,
+        "y": 92,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 32
+      },
+      "calibration.delay": {
+        "x": {
+          "$expr": "(bounds.width + 12) / 2"
+        },
+        "y": 92,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 32
+      },
+      "calibration.polarity": {
+        "x": 0,
+        "y": 132,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 32
+      },
+      "calibration.signalLabel": {
+        "x": 0,
+        "y": 180,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 20
+      },
+      "calibration.signal": {
+        "x": 0,
+        "y": 204,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 32
+      },
+      "calibration.levelLabel": {
+        "x": 0,
+        "y": 248,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 20
+      },
+      "calibration.frequencyLabel": {
+        "x": {
+          "$expr": "(bounds.width + 12) / 2"
+        },
+        "y": 248,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 20
+      },
+      "calibration.level": {
+        "x": 0,
+        "y": 272,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 32
+      },
+      "calibration.frequency": {
+        "x": {
+          "$expr": "(bounds.width + 12) / 2"
+        },
+        "y": 272,
+        "width": {
+          "$expr": "(bounds.width - 12) / 2"
+        },
+        "height": 32
+      },
+      "calibration.startStop": {
+        "x": 0,
+        "y": 320,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 32
+      },
+      "calibration.status": {
+        "x": 0,
+        "y": 360,
+        "width": {
+          "$expr": "bounds.width"
+        },
+        "height": 32
+      }
+    }
+  }
+}

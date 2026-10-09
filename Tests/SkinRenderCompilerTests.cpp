@@ -140,7 +140,7 @@ public:
 
         beginTest ("music management renderers require geometry and isolate directory row context");
         {
-            for (const auto* target : { "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList" })
+            for (const auto* target : { "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList", "outputCalibration" })
             {
                 SkinValidationReport report;
                 expect (! compile (renderDocument (target, { rectLayer ("body") }), tokens, report));
@@ -556,7 +556,7 @@ public:
                           juce::String ("urn:uuid:f37db386-b854-462a-a26f-b281c16b38fb"));
             expectEquals (renderSchema.getProperty ("x-generatedBy", {}).toString(),
                           juce::String ("Moonwake SkinSchemaRegistry"));
-            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 24);
+            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 25);
             expectEquals (static_cast<int> (skinPrimitiveNames().size()), 11);
             expectEquals (static_cast<int> (skinRepeatSourceDescriptors().size()), 3);
 

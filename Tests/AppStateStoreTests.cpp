@@ -15,6 +15,53 @@ public:
 
     void runTest() override
     {
+        beginTest ("current state includes persistent output calibration without test signals");
+        {
+            const auto tree = AppStateStore::toValueTree (PlayerAppState {});
+            expect (tree.getChildWithName ("OutputCalibration").isValid());
+            expect (! tree.getChildWithName ("CalibrationTestSignal").isValid());
+        }
+
+        beginTest ("calibration persists and schema 13 restores identity values");
+        {
+            PlayerAppState state;
+            state.outputCalibration[0].trimDb = -4.5f;
+            state.outputCalibration[0].delayMs = 22.25;
+            state.outputCalibration[0].inverted = true;
+            auto tree = AppStateStore::toValueTree (state);
+            expect (AppStateStore::fromValueTree (tree).outputCalibration == state.outputCalibration);
+            tree.removeChild (tree.getChildWithName ("OutputCalibration"), nullptr);
+            tree.setProperty ("schemaVersion", 13, nullptr);
+            expect (AppStateStore::fromValueTree (tree).outputCalibration == defaultOutputCalibration());
+        }
+
+        beginTest ("invalid calibration reads preserve state and invalid writes preserve disk");
+        {
+            const auto file = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
+                .getNonexistentChildFile ("moonwake-invalid-calibration", ".xml");
+            for (const auto& invalid : { "nan", "inf", "201", "-1", "25junk" })
+            {
+                auto tree = AppStateStore::toValueTree (PlayerAppState {});
+                tree.getChildWithName ("OutputCalibration").getChild (0).setProperty ("delayMs", invalid, nullptr);
+                expect (tree.createXml()->writeTo (file));
+                PlayerAppState state;
+                state.volume = 0.37;
+                juce::String error;
+                expect (! AppStateStore::readFromFile (file, state, error));
+                expect (error.isNotEmpty());
+                expectWithinAbsoluteError (state.volume, 0.37, 0.00001);
+            }
+            expect (file.deleteFile());
+            PlayerAppState state;
+            juce::String error;
+            expect (AppStateStore::writeAtomically (state, file, error), error);
+            const auto saved = file.loadFileAsString();
+            state.outputCalibration[0].delayMs = 201.0;
+            expect (! AppStateStore::writeAtomically (state, file, error));
+            expectEquals (file.loadFileAsString(), saved);
+            expect (file.deleteFile());
+        }
+
         beginTest ("artist members survive XML round trips while legacy display names remain unsplit");
         {
             PlayerAppState state;
@@ -404,7 +451,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 13);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 14);
             expect (restored.customVst3Directories == state.customVst3Directories);
             expectEquals (static_cast<int> (restored.audioDevice.outputRoutes.size()), 1);
             if (! restored.audioDevice.outputRoutes.empty())

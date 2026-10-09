@@ -24,6 +24,7 @@ juce::String targetFor (SkinComponentKind kind)
         case SkinComponentKind::outputStage: return "outputStage";
         case SkinComponentKind::channelMap: return "channelMap";
         case SkinComponentKind::channelMixer: return "channelMixer";
+        case SkinComponentKind::outputCalibration: return "outputCalibration";
         case SkinComponentKind::pluginList: return "pluginList";
         case SkinComponentKind::skinList: return "skinList";
         case SkinComponentKind::directoryList: return "directoryList";
@@ -52,6 +53,7 @@ bool isInteractive (SkinComponentKind kind)
         case SkinComponentKind::table:
         case SkinComponentKind::effectChain:
         case SkinComponentKind::channelMixer:
+        case SkinComponentKind::outputCalibration:
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
@@ -263,6 +265,10 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeIconDescriptor ("effects.close", "close"),
         makeLabelDescriptor ("effects.summary"),
         makeLabelDescriptor ("effects.title"),
+        makeDescriptor ("listeningPreset.select", Kind::comboBox),
+        makeDescriptor ("listeningPreset.actions", Kind::textButton),
+        makeDescriptor ("effects.preset.select", Kind::comboBox),
+        makeDescriptor ("effects.preset.actions", Kind::textButton),
         makeLabelDescriptor ("effects.filterLabel"),
         makeDescriptor ("effects.filter", Kind::textEditor, { Entry::effects }),
         makeDescriptor ("effects.typeFilter", Kind::comboBox),
@@ -290,12 +296,23 @@ const std::vector<SkinComponentDescriptor>& catalog()
             Slot { "row.gain", "linearSlider" }, Slot { "row.mute", "toggleButton" },
             Slot { "row.solo", "toggleButton" }
         }),
+        makeDescriptor ("output.calibration", Kind::outputCalibration, {}, {}, {}, {
+            Slot { "calibration.channelLabel", "label" }, Slot { "calibration.channel", "comboBox" },
+            Slot { "calibration.trimLabel", "label" }, Slot { "calibration.trim", "textEditor" },
+            Slot { "calibration.delayLabel", "label" }, Slot { "calibration.delay", "textEditor" },
+            Slot { "calibration.polarity", "textButton" }, Slot { "calibration.signalLabel", "label" },
+            Slot { "calibration.signal", "comboBox" }, Slot { "calibration.levelLabel", "label" },
+            Slot { "calibration.level", "textEditor" }, Slot { "calibration.frequencyLabel", "label" },
+            Slot { "calibration.frequency", "textEditor" }, Slot { "calibration.startStop", "textButton" },
+            Slot { "calibration.status", "label" }
+        }),
         makeDescriptor ("output.mode", Kind::comboBox),
         makeDescriptor ("output.reset", Kind::textButton),
 
         makeLabelDescriptor ("settings.title"),
         makeIconDescriptor ("settings.close", "close"),
         makeLabelDescriptor ("settings.audio.heading"),
+        makeLabelDescriptor ("settings.calibration.title"),
         makeDescriptor ("settings.audio.device", Kind::comboBox, { Entry::settings }),
         makeDescriptor ("settings.audio.deviceConfiguration", Kind::textButton),
         makeDescriptor ("settings.audio.sampleRate", Kind::comboBox, { Entry::settings }),
@@ -463,6 +480,7 @@ SkinComponentDimensions PlayerComponentCatalog::dimensionsForTarget (juce::Strin
     if (target == "playlistGrid") return { 120, 160, 600, 400 };
     if (target == "artwork") return { 120, 120, 300, 300 };
     if (target == "effectChain") return { 220, 120, 360, 300 };
+    if (target == "outputCalibration") return { 180, 160, 340, 400 };
     if (target == "outputStage") return { 180, 140, 300, 420 };
     if (target == "smartPlaylistEditor") return { 560, 360, 760, 480 };
     if (target == "smartPlaylistRuleList") return { 512, 100, 700, 240 };

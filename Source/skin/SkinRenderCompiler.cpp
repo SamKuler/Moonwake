@@ -168,9 +168,9 @@ public:
             if (! result.controlStyle) return std::nullopt;
         }
         if ((target == SkinRenderTarget::directoryList || target == SkinRenderTarget::smartPlaylistEditor
-             || target == SkinRenderTarget::smartPlaylistRuleList) && ! result.rowLayout)
+             || target == SkinRenderTarget::smartPlaylistRuleList || target == SkinRenderTarget::outputCalibration) && ! result.rowLayout)
         {
-            fail ("RENDER004", "/rowLayout", "Music directory and smart playlist renderers require rowLayout.");
+            fail ("RENDER004", "/rowLayout", "Music directory, smart playlist and calibration renderers require rowLayout.");
             return std::nullopt;
         }
         if (target == SkinRenderTarget::playlistGrid && (! result.rowLayout || ! result.controlStyle))
@@ -270,7 +270,7 @@ private:
     {
         if (target != SkinRenderTarget::table && target != SkinRenderTarget::effectChain
             && target != SkinRenderTarget::channelMap && target != SkinRenderTarget::pluginList
-            && target != SkinRenderTarget::channelMixer
+            && target != SkinRenderTarget::channelMixer && target != SkinRenderTarget::outputCalibration
             && target != SkinRenderTarget::skinList && target != SkinRenderTarget::popupMenu
             && target != SkinRenderTarget::playlistGrid && target != SkinRenderTarget::directoryList
             && target != SkinRenderTarget::smartPlaylistEditor && target != SkinRenderTarget::smartPlaylistRuleList)

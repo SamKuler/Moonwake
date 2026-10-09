@@ -454,10 +454,14 @@ public:
                 completed = true;
             }));
             const auto deadline = juce::Time::getMillisecondCounterHiRes() + 5000.0;
-            while (cache.findChildFiles (juce::File::findFiles, false, "*.png").size() < 2
-                   && juce::Time::getMillisecondCounterHiRes() < deadline)
+            auto stagedFiles = cache.findChildFiles (juce::File::findFiles, false, "*.png");
+            while (stagedFiles.size() < 2 && juce::Time::getMillisecondCounterHiRes() < deadline)
+            {
                 juce::Thread::sleep (1);
-            expectEquals (cache.findChildFiles (juce::File::findFiles, false, "*.png").size(), 2);
+                stagedFiles = cache.findChildFiles (juce::File::findFiles, false, "*.png");
+            }
+            // Assert the observed staging snapshot; the worker can rename its temporary image concurrently.
+            expectEquals (stagedFiles.size(), 2);
             expect (! completed);
             expect (service.isRunning());
             service.cancel();

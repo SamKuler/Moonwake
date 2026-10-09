@@ -21,15 +21,19 @@ public:
     void setLooping (bool shouldLoop) override;
 
     void setDestinationLayout (juce::AudioChannelSet layout);
+    // Forks retain independent decode state. Read them sequentially while the
+    // original source is idle; the shared file reader is not thread-safe.
+    [[nodiscard]] std::unique_ptr<ChannelMappedAudioSource> forkForLayout (juce::AudioChannelSet) const;
     [[nodiscard]] const juce::AudioChannelSet& getSourceLayout() const;
     [[nodiscard]] bool hasReadError() const noexcept;
 
 private:
+    ChannelMappedAudioSource (const ChannelMappedAudioSource&, juce::AudioChannelSet);
     static juce::AudioChannelSet getUsableSourceLayout (juce::AudioFormatReader& reader);
 
     juce::AudioChannelSet sourceLayout;
     juce::AudioChannelSet destinationLayout;
-    std::unique_ptr<juce::AudioFormatReader> reader;
+    std::shared_ptr<juce::AudioFormatReader> reader;
     juce::AudioBuffer<float> scratchBuffer;
     juce::int64 nextReadPosition = 0;
     bool readFailed = false;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "state/AppStateStore.h"
+#include "state/ListeningPresets.h"
 
 #include <atomic>
 #include <functional>
@@ -10,6 +11,8 @@
 struct StateRestoreResult
 {
     std::optional<PlayerAppState> state;
+    juce::File presetFile;
+    std::optional<ListeningPresetLibrary> presets;
     std::unique_ptr<juce::XmlElement> pluginCache;
     juce::String errorMessage;
     juce::StringArray warnings;

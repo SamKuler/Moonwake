@@ -156,6 +156,35 @@
                 "shrink": 0
               },
               {
+                "id": "effects-effects-page-heading-preset",
+                "type": "row",
+                "height": 36,
+                "shrink": 0,
+                "gap": 8,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "effects-effects-page-heading-preset-select",
+                    "type": "component",
+                    "component": "effects.preset.select",
+                    "style": "comboBox.listening",
+                    "grow": 1,
+                    "height": 32,
+                    "focusOrder": 9
+                  },
+                  {
+                    "id": "effects-effects-page-heading-preset-actions",
+                    "type": "component",
+                    "component": "effects.preset.actions",
+                    "style": "textButton.listeningNeutral",
+                    "width": 92,
+                    "height": 32,
+                    "shrink": 0,
+                    "focusOrder": 10
+                  }
+                ]
+              },
+              {
                 "id": "effects-effects-filter-label",
                 "type": "component",
                 "component": "effects.filterLabel",
@@ -175,7 +204,7 @@
                     "type": "component",
                     "component": "effects.filter",
                     "style": "textEditor.listening",
-                    "focusOrder": 9,
+                    "focusOrder": 11,
                     "grow": 1
                   },
                   {
@@ -185,7 +214,7 @@
                     "style": "comboBox.listening",
                     "width": 116,
                     "shrink": 0,
-                    "focusOrder": 10
+                    "focusOrder": 12
                   },
                   {
                     "id": "effects-effects-filter-manufacturerFilter",
@@ -194,7 +223,7 @@
                     "style": "comboBox.listening",
                     "width": 180,
                     "shrink": 0,
-                    "focusOrder": 11
+                    "focusOrder": 13
                   },
                   {
                     "id": "effects-effects-filter-formatFilter",
@@ -203,7 +232,7 @@
                     "style": "comboBox.listening",
                     "width": 132,
                     "shrink": 0,
-                    "focusOrder": 12
+                    "focusOrder": 14
                   }
                 ]
               },
@@ -219,7 +248,7 @@
                     "component": "effects.catalog",
                     "style": "comboBox.listening",
                     "grow": 1,
-                    "focusOrder": 13
+                    "focusOrder": 15
                   },
                   {
                     "id": "effects-effects-add",
@@ -227,7 +256,7 @@
                     "component": "effects.add",
                     "style": "textButton.listeningIconPrimary",
                     "width": 36,
-                    "focusOrder": 14,
+                    "focusOrder": 16,
                     "height": 36,
                     "shrink": 0
                   }
@@ -254,7 +283,7 @@
                     "component": "effects.scope",
                     "style": "comboBox.listening",
                     "width": 220,
-                    "focusOrder": 15
+                    "focusOrder": 17
                   },
                   {
                     "id": "effects-effects-root-layout",
@@ -262,7 +291,7 @@
                     "component": "effects.outputLayout",
                     "style": "comboBox.listening",
                     "width": 220,
-                    "focusOrder": 16
+                    "focusOrder": 18
                   }
                 ]
               },
@@ -276,7 +305,7 @@
                     "type": "component",
                     "component": "effects.chain",
                     "style": "effectChain.listening",
-                    "focusOrder": 17,
+                    "focusOrder": 19,
                     "anchors": {
                       "top": 0,
                       "right": 0,
@@ -478,6 +507,35 @@
                     "shrink": 0
                   },
                   {
+                    "id": "themed-effects-themed-effects-page-heading-preset",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "gap": 8,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "themed-effects-themed-effects-page-heading-preset-select",
+                        "type": "component",
+                        "component": "effects.preset.select",
+                        "style": "comboBox.studio",
+                        "grow": 1,
+                        "height": 32,
+                        "focusOrder": 9
+                      },
+                      {
+                        "id": "themed-effects-themed-effects-page-heading-preset-actions",
+                        "type": "component",
+                        "component": "effects.preset.actions",
+                        "style": "textButton.studioNeutral",
+                        "width": 92,
+                        "height": 32,
+                        "shrink": 0,
+                        "focusOrder": 10
+                      }
+                    ]
+                  },
+                  {
                     "id": "themed-effects-themed-effects-filter-label",
                     "type": "component",
                     "component": "effects.filterLabel",
@@ -497,7 +555,7 @@
                         "type": "component",
                         "component": "effects.filter",
                         "style": "textEditor.studio",
-                        "focusOrder": 9,
+                        "focusOrder": 11,
                         "grow": 1
                       },
                       {
@@ -507,7 +565,7 @@
                         "style": "comboBox.studio",
                         "width": 116,
                         "shrink": 0,
-                        "focusOrder": 10
+                        "focusOrder": 12
                       },
                       {
                         "id": "themed-effects-themed-effects-filter-manufacturerFilter",
@@ -516,7 +574,7 @@
                         "style": "comboBox.studio",
                         "width": 180,
                         "shrink": 0,
-                        "focusOrder": 11
+                        "focusOrder": 13
                       },
                       {
                         "id": "themed-effects-themed-effects-filter-formatFilter",
@@ -525,7 +583,7 @@
                         "style": "comboBox.studio",
                         "width": 132,
                         "shrink": 0,
-                        "focusOrder": 12
+                        "focusOrder": 14
                       }
                     ]
                   },
@@ -541,7 +599,7 @@
                         "component": "effects.catalog",
                         "style": "comboBox.studio",
                         "grow": 1,
-                        "focusOrder": 13
+                        "focusOrder": 15
                       },
                       {
                         "id": "themed-effects-themed-effects-add",
@@ -549,7 +607,7 @@
                         "component": "effects.add",
                         "style": "textButton.studioIconPrimary",
                         "width": 36,
-                        "focusOrder": 14,
+                        "focusOrder": 16,
                         "height": 36,
                         "shrink": 0
                       }
@@ -576,7 +634,7 @@
                         "component": "effects.scope",
                         "style": "comboBox.studio",
                         "width": 220,
-                        "focusOrder": 15
+                        "focusOrder": 17
                       },
                       {
                         "id": "themed-effects-themed-effects-root-layout",
@@ -584,7 +642,7 @@
                         "component": "effects.outputLayout",
                         "style": "comboBox.studio",
                         "width": 220,
-                        "focusOrder": 16
+                        "focusOrder": 18
                       }
                     ]
                   },
@@ -598,7 +656,7 @@
                         "type": "component",
                         "component": "effects.chain",
                         "style": "effectChain.studio",
-                        "focusOrder": 17,
+                        "focusOrder": 19,
                         "anchors": {
                           "top": 0,
                           "right": 0,

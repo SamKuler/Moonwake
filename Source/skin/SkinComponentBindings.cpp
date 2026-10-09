@@ -31,6 +31,7 @@ bool matchesJuceType (SkinComponentKind kind, juce::Component& component)
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:
         case SkinComponentKind::channelMixer:
+        case SkinComponentKind::outputCalibration:
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:

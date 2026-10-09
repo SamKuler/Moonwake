@@ -37,7 +37,9 @@
     "listeningCollectionDate": "components/listening-collection-date.json",
     "listeningCollectionHeading": "components/listening-collection-heading.json",
     "listeningCollectionDescription": "components/listening-collection-description.json",
-    "studioQueueTitle": "components/studio-queue-title.json"
+    "studioQueueTitle": "components/studio-queue-title.json",
+    "studioCalibrationStatus": "components/studio-calibration-status.json",
+    "listeningCalibrationStatus": "components/listening-calibration-status.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -692,6 +694,68 @@
         "rule.value": "textEditor.listening",
         "rule.boolean": "comboBox.listening",
         "rule.remove": "textButton.listeningNeutral"
+      }
+    }
+  },
+  "outputCalibration": {
+    "studio": {
+      "renderer": "components/studio-output-calibration.json",
+      "slots": {
+        "calibration.channelLabel": "label.studioData",
+        "calibration.channel": "comboBox.studio",
+        "calibration.trimLabel": "label.studioData",
+        "calibration.trim": "textEditor.studio",
+        "calibration.delayLabel": "label.studioData",
+        "calibration.delay": "textEditor.studio",
+        "calibration.polarity": "textButton.studioNeutral",
+        "calibration.signalLabel": "label.studioData",
+        "calibration.signal": "comboBox.studio",
+        "calibration.levelLabel": "label.studioData",
+        "calibration.level": "textEditor.studio",
+        "calibration.frequencyLabel": "label.studioData",
+        "calibration.frequency": "textEditor.studio",
+        "calibration.startStop": "textButton.studioPrimary",
+        "calibration.status": "label.studioCalibrationStatus"
+      }
+    },
+    "listening": {
+      "renderer": "components/listening-output-calibration.json",
+      "slots": {
+        "calibration.channelLabel": "label.listeningData",
+        "calibration.channel": "comboBox.listening",
+        "calibration.trimLabel": "label.listeningData",
+        "calibration.trim": "textEditor.listening",
+        "calibration.delayLabel": "label.listeningData",
+        "calibration.delay": "textEditor.listening",
+        "calibration.polarity": "textButton.listeningNeutral",
+        "calibration.signalLabel": "label.listeningData",
+        "calibration.signal": "comboBox.listening",
+        "calibration.levelLabel": "label.listeningData",
+        "calibration.level": "textEditor.listening",
+        "calibration.frequencyLabel": "label.listeningData",
+        "calibration.frequency": "textEditor.listening",
+        "calibration.startStop": "textButton.listeningPrimary",
+        "calibration.status": "label.listeningCalibrationStatus"
+      }
+    },
+    "default": {
+      "renderer": "components/listening-output-calibration.json",
+      "slots": {
+        "calibration.channelLabel": "label.listeningData",
+        "calibration.channel": "comboBox.listening",
+        "calibration.trimLabel": "label.listeningData",
+        "calibration.trim": "textEditor.listening",
+        "calibration.delayLabel": "label.listeningData",
+        "calibration.delay": "textEditor.listening",
+        "calibration.polarity": "textButton.listeningNeutral",
+        "calibration.signalLabel": "label.listeningData",
+        "calibration.signal": "comboBox.listening",
+        "calibration.levelLabel": "label.listeningData",
+        "calibration.level": "textEditor.listening",
+        "calibration.frequencyLabel": "label.listeningData",
+        "calibration.frequency": "textEditor.listening",
+        "calibration.startStop": "textButton.listeningPrimary",
+        "calibration.status": "label.listeningCalibrationStatus"
       }
     }
   }

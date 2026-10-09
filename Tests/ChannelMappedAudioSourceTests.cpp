@@ -120,6 +120,140 @@ private:
     juce::AudioBuffer<float> samples;
 };
 
+class GaplessReconfigurationTests final : public juce::UnitTest
+{
+public:
+    GaplessReconfigurationTests() : UnitTest ("GaplessReconfiguration", "audio") {}
+    void runTest() override
+    {
+        beginTest ("a failed first decode restores old cached samples and removes transient preparation failures");
+        ReaderProbe probe;
+        probe.length = 1024;
+        juce::AudioFormatManager formats;
+        formats.registerFormat (new ProbedAudioFormat (probe), true);
+        juce::TimeSliceThread thread ("Output reconfiguration test");
+        expect (thread.startThread());
+        GaplessAudioSource source (formats, thread);
+        source.setDestinationLayout (juce::AudioChannelSet::create7point1point2());
+        source.prepareToPlay (256, 48000.0);
+        const auto file = juce::File::getCurrentWorkingDirectory()
+            .getNonexistentChildFile ("reconfiguration-read-failure", ".probe");
+        expect (file.replaceWithText ("probe"));
+        expect (source.loadPlan ({ { { file, 41 } }, 0 }));
+        const auto before = source.progress();
+        probe.failReads.store (true);
+        const auto result = source.reconfigureOutput (juce::AudioChannelSet::create5point1(), 96000.0);
+        expect (result.failed());
+        expect (source.isLoaded());
+        expect (! source.progress().readError);
+        expectEquals (source.progress().token, before.token);
+        expectWithinAbsoluteError (source.progress().positionSeconds, before.positionSeconds, 0.00001);
+        expect (source.drainPreparationFailures().empty());
+        juce::AudioBuffer<float> block (10, 256);
+        for (int callback = 0; callback < 8; ++callback)
+        {
+            {
+                juce::UnitTestAllocationChecker allocations (*this);
+                source.getNextAudioBlock ({ &block, 0, 256 });
+            }
+            for (int channel = 0; channel < 10; ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 128),
+                    static_cast<float> (channel + 1) * 0.04f
+                        + static_cast<float> ((callback * 256 + 128) % 1024) / 4096.0f, 0.00001f);
+        }
+        expect (source.progress().sequence > 0);
+        expect (! source.progress().readError);
+        expect (source.drainPreparationFailures().empty());
+        source.clear();
+        expect (file.deleteFile());
+
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo,
+                                   OutputLayout::nineOneSix })
+        {
+            checkBufferedRollback (layout, 8192, 0.0, false);
+            checkBufferedRollback (layout, 48000, 0.0, false);
+            checkBufferedRollback (layout, 200000, 4.0, false);
+            checkBufferedRollback (layout, 8192, 0.0, true);
+            checkBufferedRollback (layout, 200000, 0.0, false, true);
+        }
+    }
+
+private:
+    void checkBufferedRollback (OutputLayout layout, int length, double start, bool withNext,
+                                bool failDecoder = false)
+    {
+        beginTest ("failed output preparation preserves queued PCM in " + toString (layout)
+            + " at " + juce::String (start) + " s of " + juce::String (length)
+            + " frames" + (withNext ? " with the next track already prepared" : "")
+            + (failDecoder ? " while retaining an open decoder" : ""));
+        ReaderProbe probe;
+        probe.length = length;
+        juce::AudioFormatManager formats;
+        formats.registerFormat (new ProbedAudioFormat (probe), true);
+        juce::TimeSliceThread thread ("Buffered rollback test");
+        expect (thread.startThread());
+        GaplessAudioSource source (formats, thread), control (formats, thread);
+        const auto speakers = toAudioChannelSet (layout);
+        const auto file = juce::File::getCurrentWorkingDirectory()
+            .getNonexistentChildFile ("buffered-rollback", ".probe");
+        expect (file.replaceWithText ("probe"));
+        AudioPlaybackPlan plan { { { file, 41 } }, -1 };
+        if (withNext) plan.items.push_back ({ file, 42 });
+        for (auto* candidate : { &source, &control })
+        {
+            candidate->setDestinationLayout (speakers);
+            candidate->prepareToPlay (256, 48000.0);
+            expect (candidate->loadPlan (plan, start));
+            // Joining the producer retains its completed queue while allowing the
+            // next operation to fail independently of any ongoing file reads.
+            candidate->releaseResources();
+        }
+        juce::AudioBuffer<float> actual (speakers.size(), 256), expected (speakers.size(), 256);
+        source.getNextAudioBlock ({ &actual, 0, 256 });
+        control.getNextAudioBlock ({ &expected, 0, 256 });
+        const auto before = source.progress();
+        if (failDecoder) probe.failReads.store (true);
+        else expect (file.deleteFile());
+        const auto target = layout == OutputLayout::stereo ? juce::AudioChannelSet::create5point1()
+                                                          : juce::AudioChannelSet::stereo();
+        const auto result = source.reconfigureOutput (target, 96000.0);
+        expect (result.failed());
+        expect (source.isLoaded());
+        expect (! source.progress().readError);
+        expectEquals (source.progress().generation, before.generation);
+        expectEquals (source.progress().sequence, before.sequence);
+        expectEquals (source.progress().token, before.token);
+        expectEquals (source.progress().positionSeconds, before.positionSeconds);
+        expect (source.drainPreparationFailures().empty());
+        if (failDecoder)
+        {
+            probe.failReads.store (false);
+            source.prepareToPlay (256, 48000.0);
+            control.prepareToPlay (256, 48000.0);
+        }
+        const auto remaining = length - juce::roundToInt (start * 48000.0) + (withNext ? length : 0);
+        for (int frame = 256; frame < remaining + 512; frame += 256)
+        {
+            {
+                juce::UnitTestAllocationChecker allocations (*this);
+                source.getNextAudioBlock ({ &actual, 0, 256 });
+            }
+            control.getNextAudioBlock ({ &expected, 0, 256 });
+            for (int channel = 0; channel < speakers.size(); ++channel)
+                expect (std::equal (actual.getReadPointer (channel), actual.getReadPointer (channel) + 256,
+                                    expected.getReadPointer (channel)), "Buffered audio differs from uninterrupted playback");
+            if (failDecoder) juce::Thread::sleep (1);
+        }
+        expect (source.progress().finished);
+        expectEquals (source.progress().token, withNext ? uint64_t { 42 } : uint64_t { 41 });
+        expect (source.drainPreparationFailures().empty());
+        source.clear();
+        control.clear();
+        if (failDecoder) expect (file.deleteFile());
+    }
+} gaplessReconfigurationTests;
+
 class ChannelMappedAudioSourceTests final : public juce::UnitTest
 {
 public:

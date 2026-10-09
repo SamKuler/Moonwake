@@ -1,4 +1,5 @@
 #include "AppStateStore.h"
+#include "EffectChainSerialization.h"
 
 #include "app/ProductIdentity.h"
 
@@ -11,11 +12,9 @@ namespace
 const juce::Identifier appStateType { MoonwakeIdentity::stateRootType };
 const juce::Identifier playlistType { "Playlist" };
 const juce::Identifier trackType { "Track" };
-const juce::Identifier effectChainType { "EffectChain" };
-const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 13;
+constexpr int currentSchemaVersion = 14;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -44,13 +43,6 @@ const juce::Identifier workspaceModeProperty { "workspaceMode" };
 const juce::Identifier activeSkinIdProperty { "activeSkinId" };
 const juce::Identifier activeSkinVersionProperty { "activeSkinVersion" };
 const juce::Identifier developerSkinDirectoryProperty { "developerSkinDirectory" };
-const juce::Identifier pluginNameProperty { "pluginName" };
-const juce::Identifier pluginIdentifierProperty { "pluginIdentifier" };
-const juce::Identifier pluginFormatProperty { "pluginFormat" };
-const juce::Identifier bypassedProperty { "bypassed" };
-const juce::Identifier availablePropertyForSlot { "available" };
-const juce::Identifier errorMessageProperty { "errorMessage" };
-const juce::Identifier serializedStateProperty { "serializedState" };
 
 juce::String toString (RepeatMode mode)
 {
@@ -296,6 +288,39 @@ bool restoreLibrary (const juce::ValueTree& root, MusicLibrary& library)
     return library.restore (std::move (tracks), std::move (playlists), std::move (favourites));
 }
 
+bool restoreCalibration (const juce::ValueTree& root, std::vector<OutputChannelCalibration>& result)
+{
+    auto restored = defaultOutputCalibration();
+    std::unordered_set<int> seen;
+    for (const auto channel : root.getChildWithName ("OutputCalibration"))
+    {
+        if (! channel.hasType ("Channel")) return false;
+        const auto parseNumber = [&] (const char* name, double& value)
+        {
+            const auto text = channel.getProperty (name).toString();
+            const auto* start = text.toRawUTF8();
+            char* end = nullptr;
+            value = std::strtod (start, &end);
+            return start != end && *end == '\0' && std::isfinite (value);
+        };
+        double type = 0.0, trim = 0.0, delay = 0.0;
+        if (! parseNumber ("type", type) || type < 1.0 || type > 1024.0 || std::floor (type) != type
+            || ! parseNumber ("trimDb", trim) || ! parseNumber ("delayMs", delay)) return false;
+        const auto inverted = channel.getProperty ("inverted").toString();
+        if (inverted != "0" && inverted != "1" && inverted != "true" && inverted != "false") return false;
+        const OutputChannelCalibration value {
+            static_cast<juce::AudioChannelSet::ChannelType> (static_cast<int> (type)),
+            static_cast<float> (trim), delay, inverted == "1" || inverted == "true" };
+        if (! isValidOutputCalibration (value) || ! seen.insert (static_cast<int> (type)).second) return false;
+        const auto found = std::find_if (restored.begin(), restored.end(), [&] (const auto& existing)
+            { return existing.channel == value.channel; });
+        if (found == restored.end()) return false;
+        *found = value;
+    }
+    result = std::move (restored);
+    return true;
+}
+
 bool readStateTree (const juce::File& sourceFile,
                     juce::ValueTree& tree, juce::String& errorMessage)
 {
@@ -324,6 +349,13 @@ bool readStateTree (const juce::File& sourceFile,
     if (schemaVersion > currentSchemaVersion)
     {
         errorMessage = "Player state file was created by a newer version of Moonwake.";
+        return false;
+    }
+
+    std::vector<OutputChannelCalibration> calibration;
+    if (! restoreCalibration (tree, calibration))
+    {
+        errorMessage = "Player state contains invalid output calibration.";
         return false;
     }
 
@@ -413,6 +445,17 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
         channelMix.appendChild (channel, nullptr);
     }
     root.appendChild (channelMix, nullptr);
+    juce::ValueTree calibration ("OutputCalibration");
+    for (const auto& value : state.outputCalibration)
+    {
+        juce::ValueTree channel ("Channel");
+        channel.setProperty ("type", static_cast<int> (value.channel), nullptr);
+        channel.setProperty ("trimDb", value.trimDb, nullptr);
+        channel.setProperty ("delayMs", value.delayMs, nullptr);
+        channel.setProperty ("inverted", value.inverted, nullptr);
+        calibration.appendChild (channel, nullptr);
+    }
+    root.appendChild (calibration, nullptr);
     juce::ValueTree device ("AudioDevice");
     device.setProperty ("name", state.audioDevice.outputDeviceName, nullptr);
     device.setProperty (sampleRateProperty,
@@ -483,34 +526,7 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
 
     root.appendChild (playlistTree, nullptr);
 
-    juce::ValueTree chainTree (effectChainType);
-    for (const auto& slot : state.effectChain.getSlots())
-    {
-        juce::ValueTree slotTree (slotType);
-        slotTree.setProperty (idProperty, slot.id, nullptr);
-        slotTree.setProperty (pluginNameProperty, slot.pluginName, nullptr);
-        slotTree.setProperty (pluginIdentifierProperty, slot.pluginIdentifier, nullptr);
-        slotTree.setProperty (pluginFormatProperty, slot.pluginFormat, nullptr);
-        slotTree.setProperty (bypassedProperty, slot.bypassed, nullptr);
-        slotTree.setProperty (availablePropertyForSlot, slot.available, nullptr);
-        slotTree.setProperty (errorMessageProperty, slot.errorMessage, nullptr);
-        if (! slot.scope.empty())
-        {
-            juce::ValueTree scopeTree ("Scope");
-            for (const auto channel : slot.scope)
-            {
-                juce::ValueTree channelTree ("Channel");
-                channelTree.setProperty ("type", static_cast<int> (channel), nullptr);
-                scopeTree.appendChild (channelTree, nullptr);
-            }
-            slotTree.appendChild (scopeTree, nullptr);
-        }
-        if (slot.serializedState.getSize() > 0)
-            slotTree.setProperty (serializedStateProperty, slot.serializedState.toBase64Encoding(), nullptr);
-        chainTree.appendChild (slotTree, nullptr);
-    }
-
-    root.appendChild (chainTree, nullptr);
+    root.appendChild (EffectChainSerialization::toValueTree (state.effectChain), nullptr);
     return root;
 }
 
@@ -549,6 +565,7 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
         tree.getProperty (playbackPositionProperty,
                           state.playbackPositionSeconds)));
     state.outputLayout = outputLayoutFromString (tree.getProperty (outputLayoutProperty, "stereo").toString());
+    restoreCalibration (tree, state.outputCalibration);
     for (const auto channel : tree.getChildWithName ("OutputChannelMix"))
     {
         if (! channel.hasType ("Channel")) continue;
@@ -635,48 +652,12 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
                                      state.library.getFavouriteTrackIds())) return {};
     }
 
-    const auto chainTree = tree.getChildWithName (effectChainType);
-    if (chainTree.isValid())
+    state.effectChain = EffectChainSerialization::fromValueTree (tree.getChildWithName ("EffectChain"));
+    for (const auto& slot : state.effectChain.getSlots())
     {
-        for (int i = 0; i < chainTree.getNumChildren(); ++i)
-        {
-            const auto slotTree = chainTree.getChild (i);
-            if (! slotTree.hasType (slotType))
-                continue;
-
-            const auto savedId = static_cast<int> (slotTree.getProperty (idProperty, 0));
-            const auto pluginName = slotTree.getProperty (pluginNameProperty).toString();
-            const auto pluginIdentifier = slotTree.getProperty (pluginIdentifierProperty).toString();
-            const auto pluginFormat = slotTree.getProperty (pluginFormatProperty).toString();
-            EffectScope scope;
-            const auto scopeTree = slotTree.getChildWithName ("Scope");
-            for (const auto channel : scopeTree)
-                scope.push_back (channel.hasType ("Channel")
-                    ? static_cast<juce::AudioChannelSet::ChannelType> (static_cast<int> (channel.getProperty ("type", 0)))
-                    : juce::AudioChannelSet::unknown);
-            const auto id = savedId > 0
-                                ? state.effectChain.addSlotWithId (savedId,
-                                                                   pluginName,
-                                                                   pluginFormat,
-                                                                   pluginIdentifier, scope)
-                                : state.effectChain.addSlot (pluginName,
-                                                             pluginIdentifier,
-                                                             pluginFormat, scope);
-
-            if (id == 0)
-                continue;
-
-            state.effectChain.setBypassed (id, static_cast<bool> (slotTree.getProperty (bypassedProperty, false)));
-            state.effectChain.setAvailability (id,
-                                               static_cast<bool> (slotTree.getProperty (availablePropertyForSlot, true)),
-                                               slotTree.getProperty (errorMessageProperty).toString());
-            juce::String scopeError;
-            if (! validateEffectScope (scope, toAudioChannelSet (state.outputLayout), scopeError))
-                state.effectChain.setAvailability (id, false, scopeError);
-
-            if (auto* slot = state.effectChain.getSlotById (id))
-                slot->serializedState.fromBase64Encoding (slotTree.getProperty (serializedStateProperty).toString());
-        }
+        juce::String scopeError;
+        if (! validateEffectScope (slot.scope, toAudioChannelSet (state.outputLayout), scopeError))
+            state.effectChain.setAvailability (slot.id, false, scopeError);
     }
 
     return state;
@@ -708,6 +689,12 @@ bool AppStateStore::writeAtomically (const PlayerAppState& state,
     }
 
     const auto tree = toValueTree (state);
+    std::vector<OutputChannelCalibration> calibration;
+    if (! restoreCalibration (tree, calibration))
+    {
+        errorMessage = "Cannot save invalid output calibration.";
+        return false;
+    }
     std::vector<MusicDirectory> musicDirectories;
     if (! restoreMusicDirectories (tree, musicDirectories))
     {

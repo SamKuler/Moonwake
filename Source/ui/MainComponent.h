@@ -12,6 +12,8 @@
 #include "AlbumArtworkComponent.h"
 #include "OutputStageComponent.h"
 #include "OutputMixerComponent.h"
+#include "OutputCalibrationComponent.h"
+#include "PresetControls.h"
 #include "SkinFallbackDiagnostic.h"
 #include "SkinLayoutHost.h"
 #include "SkinEffectChainViewport.h"
@@ -86,6 +88,10 @@ private:
     void refreshEffectScopes();
     void updateTransportState();
     void updateOutputView();
+    void refreshPresetControls();
+    juce::Result handlePresetAction (PlayerController::PresetKind, PresetControls::Action,
+                                    const juce::String& id, const juce::String& name);
+    void choosePresetFile (PlayerController::PresetKind, const juce::String& id, bool importing);
     [[nodiscard]] bool shouldDeferTransportCommands() const;
     void dispatchQueuedTransportCommands();
     void handleRemoteTransportCommand (const RemoteTransportCommand&);
@@ -206,6 +212,7 @@ private:
     juce::Label artworkMetaLabel;
     juce::Label effectsSummaryLabel;
     juce::Label settingsTitleLabel;
+    juce::Label calibrationTitleLabel;
     juce::Label emptyRackLabel;
     juce::Label deviceStatusLabel;
     juce::Label volumeLabel;
@@ -220,6 +227,9 @@ private:
     AlbumArtworkComponent albumArtwork;
     OutputStageComponent outputStage;
     OutputMixerComponent outputMixer;
+    OutputCalibrationComponent outputCalibration;
+    PresetControls listeningPresetControls { "Listening setup" };
+    PresetControls effectPresetControls { "Effect preset" };
     SkinFallbackDiagnostic skinFallbackDiagnostic;
     SkinLayoutHost skinLayoutHost;
     juce::TooltipWindow tooltipWindow { this, 600 };

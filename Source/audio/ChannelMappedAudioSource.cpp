@@ -8,6 +8,14 @@ ChannelMappedAudioSource::ChannelMappedAudioSource (std::unique_ptr<juce::AudioF
 {
 }
 
+ChannelMappedAudioSource::ChannelMappedAudioSource (const ChannelMappedAudioSource& original,
+                                                    juce::AudioChannelSet layout)
+    : sourceLayout (original.sourceLayout), destinationLayout (std::move (layout)),
+      reader (original.reader), nextReadPosition (original.nextReadPosition), looping (original.looping)
+{
+    prepareToPlay (original.scratchBuffer.getNumSamples(), reader->sampleRate);
+}
+
 void ChannelMappedAudioSource::prepareToPlay (int samplesPerBlockExpected, double)
 {
     scratchBuffer.setSize (sourceLayout.size(),
@@ -86,6 +94,11 @@ void ChannelMappedAudioSource::setLooping (bool shouldLoop)
 void ChannelMappedAudioSource::setDestinationLayout (juce::AudioChannelSet layout)
 {
     destinationLayout = std::move (layout);
+}
+
+std::unique_ptr<ChannelMappedAudioSource> ChannelMappedAudioSource::forkForLayout (juce::AudioChannelSet layout) const
+{
+    return std::unique_ptr<ChannelMappedAudioSource> (new ChannelMappedAudioSource (*this, std::move (layout)));
 }
 
 const juce::AudioChannelSet& ChannelMappedAudioSource::getSourceLayout() const

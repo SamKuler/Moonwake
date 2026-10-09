@@ -27,10 +27,11 @@ juce::StringArray exactIds()
         "transport.next", "transport.seek", "transport.time", "transport.shuffle",
         "transport.repeat", "transport.repeatCycle", "transport.volumeLabel", "transport.volumeValue",
         "transport.volume", "effects.open", "effects.close", "effects.summary",
-        "effects.title", "effects.filterLabel", "effects.filter",
+        "effects.title", "listeningPreset.select", "listeningPreset.actions",
+        "effects.preset.select", "effects.preset.actions", "effects.filterLabel", "effects.filter",
         "effects.typeFilter", "effects.manufacturerFilter", "effects.formatFilter", "effects.catalog", "effects.scope", "effects.scopeLabel",
         "effects.add", "effects.clearTails", "effects.bypassAll", "effects.chain", "effects.empty", "effects.outputLayout",
-        "output.stage", "output.mixer", "output.mode", "output.reset", "settings.title", "settings.close", "settings.audio.heading",
+        "output.stage", "output.mixer", "output.calibration", "output.mode", "output.reset", "settings.title", "settings.close", "settings.audio.heading", "settings.calibration.title",
         "settings.audio.device", "settings.audio.deviceConfiguration",
         "settings.audio.sampleRate", "settings.audio.bufferSize",
         "settings.audio.channelLayout", "settings.audio.channelMap", "settings.audio.routing",
@@ -92,6 +93,7 @@ std::unique_ptr<juce::Component> componentFor (SkinComponentKind kind, double& p
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:
         case SkinComponentKind::channelMixer:
+        case SkinComponentKind::outputCalibration:
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:

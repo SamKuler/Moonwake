@@ -32,7 +32,7 @@
             "component": "workspace.studio",
             "style": "textButton.primary",
             "width": 112,
-            "focusOrder": 10
+            "focusOrder": 1
           },
           {
             "id": "listening-mode",
@@ -40,7 +40,7 @@
             "component": "workspace.listening",
             "style": "textButton.neutral",
             "width": 112,
-            "focusOrder": 20
+            "focusOrder": 2
           },
           {
             "id": "open-settings",
@@ -48,7 +48,7 @@
             "component": "settings.open",
             "style": "textButton.neutral",
             "width": 88,
-            "focusOrder": 30
+            "focusOrder": 3
           }
         ]
       },
@@ -66,6 +66,35 @@
             "gap": 8,
             "style": "surface.card",
             "children": [
+              {
+                "id": "studio-library-card-preset",
+                "type": "row",
+                "height": 36,
+                "shrink": 0,
+                "gap": 8,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "studio-library-card-preset-select",
+                    "type": "component",
+                    "component": "listeningPreset.select",
+                    "style": "comboBox.default",
+                    "grow": 1,
+                    "height": 32,
+                    "focusOrder": 4
+                  },
+                  {
+                    "id": "studio-library-card-preset-actions",
+                    "type": "component",
+                    "component": "listeningPreset.actions",
+                    "style": "textButton.default",
+                    "width": 92,
+                    "height": 32,
+                    "shrink": 0,
+                    "focusOrder": 5
+                  }
+                ]
+              },
               {
                 "id": "studio-library-title-row",
                 "type": "row",
@@ -99,7 +128,7 @@
                     "type": "component",
                     "component": "library.collections",
                     "grow": 1,
-                    "focusOrder": 100
+                    "focusOrder": 6
                   },
                   {
                     "id": "studio-library-add",
@@ -107,7 +136,7 @@
                     "component": "library.add",
                     "style": "textButton.primary",
                     "width": 104,
-                    "focusOrder": 110
+                    "focusOrder": 7
                   }
                 ]
               },
@@ -123,7 +152,7 @@
                     "type": "component",
                     "component": "library.search",
                     "grow": 1,
-                    "focusOrder": 115
+                    "focusOrder": 8
                   },
                   {
                     "id": "studio-library-new",
@@ -131,7 +160,7 @@
                     "component": "library.newPlaylist",
                     "style": "textButton.neutral",
                     "width": 92,
-                    "focusOrder": 116
+                    "focusOrder": 9
                   },
                   {
                     "id": "studio-library-actions",
@@ -139,7 +168,7 @@
                     "component": "library.actions",
                     "style": "textButton.neutral",
                     "width": 92,
-                    "focusOrder": 117
+                    "focusOrder": 10
                   }
                 ]
               },
@@ -149,7 +178,7 @@
                 "component": "library.tracks",
                 "presentation": "table",
                 "grow": 1,
-                "focusOrder": 120
+                "focusOrder": 11
               },
               {
                 "id": "studio-library-empty",
@@ -178,14 +207,14 @@
                     "type": "component",
                     "component": "output.mode",
                     "grow": 1,
-                    "focusOrder": 251
+                    "focusOrder": 12
                   },
                   {
                     "id": "studio-output-reset",
                     "type": "component",
                     "component": "output.reset",
                     "width": 60,
-                    "focusOrder": 252
+                    "focusOrder": 13
                   }
                 ]
               },
@@ -195,7 +224,7 @@
                 "component": "effects.outputLayout",
                 "height": 32,
                 "shrink": 0,
-                "focusOrder": 253
+                "focusOrder": 14
               },
               {
                 "id": "studio-output-view",
@@ -224,7 +253,7 @@
                       "top": 0,
                       "bottom": 0
                     },
-                    "focusOrder": 254
+                    "focusOrder": 15
                   }
                 ]
               }
@@ -256,7 +285,7 @@
                 "component": "transport.seek",
                 "style": "linearSlider.seek",
                 "height": 28,
-                "focusOrder": 290
+                "focusOrder": 17
               },
               {
                 "id": "studio-time",
@@ -275,21 +304,21 @@
                     "type": "component",
                     "component": "transport.previous",
                     "style": "textButton.neutral",
-                    "focusOrder": 260
+                    "focusOrder": 18
                   },
                   {
                     "id": "studio-play",
                     "type": "component",
                     "component": "transport.playPause",
                     "style": "textButton.primary",
-                    "focusOrder": 270
+                    "focusOrder": 19
                   },
                   {
                     "id": "studio-next",
                     "type": "component",
                     "component": "transport.next",
                     "style": "textButton.neutral",
-                    "focusOrder": 280
+                    "focusOrder": 20
                   }
                 ]
               },
@@ -299,7 +328,36 @@
                 "component": "transport.volume",
                 "presentation": "linearHorizontal",
                 "height": 32,
-                "focusOrder": 300
+                "focusOrder": 21
+              },
+              {
+                "id": "studio-effects-presets",
+                "type": "row",
+                "height": 36,
+                "shrink": 0,
+                "gap": 8,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "studio-effects-presets-select",
+                    "type": "component",
+                    "component": "effects.preset.select",
+                    "style": "comboBox.default",
+                    "height": 32,
+                    "grow": 1,
+                    "focusOrder": 22
+                  },
+                  {
+                    "id": "studio-effects-presets-actions",
+                    "type": "component",
+                    "component": "effects.preset.actions",
+                    "style": "textButton.default",
+                    "height": 32,
+                    "width": 92,
+                    "shrink": 0,
+                    "focusOrder": 23
+                  }
+                ]
               },
               {
                 "id": "studio-effects",
@@ -308,7 +366,7 @@
                 "style": "textButton.neutral",
                 "width": 112,
                 "height": 34,
-                "focusOrder": 310
+                "focusOrder": 24
               }
             ]
           }

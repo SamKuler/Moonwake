@@ -8,6 +8,8 @@
 #include "audio/OutputLayout.h"
 #include "audio/OutputChannelMix.h"
 #include "audio/OutputMeter.h"
+#include "audio/OutputCalibrationProcessor.h"
+#include "audio/ListeningOutputConfiguration.h"
 #include "audio/AudioOutputRoute.h"
 
 #include <array>
@@ -111,10 +113,31 @@ public:
     [[nodiscard]] std::vector<OutputChannelMix> getOutputChannelMix() const;
     bool setOutputChannelMix (juce::AudioChannelSet::ChannelType, float gain, bool muted, bool solo);
     void resetOutputChannelMix();
+    [[nodiscard]] std::vector<OutputChannelCalibration> getOutputCalibration() const;
+    juce::String setOutputCalibration (juce::AudioChannelSet::ChannelType, float trimDb,
+                                       double delayMs, bool inverted);
+    void resetOutputCalibration();
+    [[nodiscard]] juce::String validateCalibrationTestSignal (const CalibrationTestSignal&) const;
+    juce::String setCalibrationTestSignal (CalibrationTestSignal);
+    void stopCalibrationTestSignal() noexcept;
+    [[nodiscard]] CalibrationTestSignal getCalibrationTestSignal() const;
+
+    struct PreparedEffect
+    {
+        int slotId = 0;
+        std::unique_ptr<juce::AudioPluginInstance> plugin;
+        EffectScope scope;
+        bool bypassed = false;
+    };
+    juce::String replaceEffectPlugins (std::vector<PreparedEffect>);
+    juce::String applyListeningConfiguration (const ListeningOutputConfiguration&,
+                                              std::vector<PreparedEffect>);
     juce::String setOutputLayout (OutputLayout layout,
                                  const std::vector<AudioOutputRoute>& savedRoutes = {},
                                  juce::String* routingWarning = nullptr);
     [[nodiscard]] AudioDeviceSettingsView getDeviceSettings() const;
+    [[nodiscard]] uint64_t getDeviceConfigurationRevision() const noexcept;
+    juce::String takeOutputError();
     juce::String selectOutputDevice (const juce::String& deviceName,
                                     const std::vector<AudioOutputRoute>& savedRoutes = {},
                                     juce::String* routingWarning = nullptr);
@@ -162,6 +185,7 @@ private:
         explicit DeviceOutputSource (juce::AudioSource& source) : logicalSource (source) {}
         void setRouting (const std::vector<int>&);
         void setActiveOutputs (const juce::BigInteger&);
+        [[nodiscard]] int getLogicalChannelCount() const noexcept { return static_cast<int> (routes.size()); }
         void prepareToPlay (int, double) override;
         void releaseResources() override;
         void getNextAudioBlock (const juce::AudioSourceChannelInfo&) override;
@@ -176,10 +200,30 @@ private:
     class RoutedSourcePlayer final : public juce::AudioSourcePlayer
     {
     public:
-        explicit RoutedSourcePlayer (DeviceOutputSource& source) : outputSource (source) {}
+        RoutedSourcePlayer (DeviceOutputSource& source, std::atomic<uint64_t>& revision)
+            : outputSource (source), deviceRevision (revision) {}
         void audioDeviceAboutToStart (juce::AudioIODevice*) override;
+        void audioDeviceStopped() override;
+        void audioDeviceIOCallbackWithContext (const float* const*, int, float* const*, int, int,
+                                               const juce::AudioIODeviceCallbackContext&) override;
+        void beginConfiguration() noexcept { retainingResources = true; }
+        void endConfiguration() noexcept { retainingResources = false; }
+        juce::String prepareOutput (double sampleRate, int blockSize, bool force = false);
+        void isolateOutput() noexcept;
+        void invalidatePreparedOutput() noexcept { prepared = false; isolateOutput(); }
+        void resetDeviceState() noexcept;
+        [[nodiscard]] bool isOutputIsolated() const noexcept { return isolated; }
+        bool takePreparationFailure() noexcept { return preparationFailurePending.exchange (false); }
     private:
         DeviceOutputSource& outputSource;
+        std::atomic<uint64_t>& deviceRevision;
+        std::atomic_bool renderingEnabled { false };
+        std::atomic_bool preparationFailurePending { false };
+        std::atomic_bool retainingResources { false }, isolated { false };
+        bool prepared = false;
+        double preparedSampleRate = 0.0;
+        int preparedBlockSize = 0, preparedChannels = 0;
+        [[nodiscard]] bool matchesPreparedOutput (double sampleRate, int blockSize) const noexcept;
     };
 
     class EffectProcessingSource final : public juce::AudioSource
@@ -205,9 +249,12 @@ private:
         bool setBypassed (int slotId, bool shouldBypass);
         void setAllBypassed (bool value) noexcept { allBypassed.store (value, std::memory_order_relaxed); }
         [[nodiscard]] bool areAllBypassed() const noexcept { return allBypassed.load (std::memory_order_relaxed); }
-        bool clearTails (juce::String& errorMessage) { return effectGraph.clearTails (errorMessage); }
+        bool clearTails (juce::String& errorMessage) { return effectGraph->clearTails (errorMessage); }
         bool setScope (int slotId, const EffectScope&, juce::String& errorMessage);
         bool setChannelLayout (const juce::AudioChannelSet& layout, juce::String& errorMessage);
+        std::unique_ptr<EffectGraph> replaceGraph (std::unique_ptr<EffectGraph>,
+            const juce::AudioChannelSet&, double sampleRate, int blockSize);
+        OutputCalibrationProcessor calibration;
         void setChannelGainTargets (const std::array<float, maximumOutputChannels>&) noexcept;
         [[nodiscard]] int getPluginCount() const;
         [[nodiscard]] juce::AudioPluginInstance* getPlugin (int slotId) const;
@@ -218,7 +265,9 @@ private:
 
     private:
         juce::AudioTransportSource& transport;
-        EffectGraph effectGraph;
+        std::unique_ptr<EffectGraph> effectGraph = std::make_unique<EffectGraph>();
+        double stagedSampleRate = 0.0;
+        int stagedBlockSize = 0;
         juce::MidiBuffer midiBuffer;
         juce::AudioChannelSet channelLayout = juce::AudioChannelSet::stereo();
         std::array<std::atomic<float>, maximumOutputChannels>& outputPeakLevels;
@@ -245,13 +294,19 @@ private:
     OutputMeter outputMeter;
     EffectProcessingSource effectProcessingSource;
     DeviceOutputSource deviceOutputSource;
+    std::atomic<uint64_t> deviceConfigurationRevision { 0 };
     RoutedSourcePlayer sourcePlayer;
 
     OutputLayout outputLayout = OutputLayout::stereo;
     std::vector<OutputChannelMix> outputChannelMix = defaultOutputChannelMix();
+    std::vector<OutputChannelCalibration> outputCalibration = defaultOutputCalibration();
+    CalibrationTestSignal calibrationTestSignal;
     std::vector<int> outputRouting { 0, 1 };
     bool initialised = false;
     void updateOutputChannelMixTargets();
+    void updateOutputCalibrationTargets();
+    std::unique_ptr<EffectGraph> prepareEffectGraph (std::vector<PreparedEffect>,
+        const juce::AudioChannelSet&, double sampleRate, int bufferSize, juce::String& error);
     // These configuration steps require the device callback to be detached.
     juce::String applyOutputRouting (const std::vector<int>&, const juce::BigInteger&);
     juce::String restoreOutputRouting (const std::vector<AudioOutputRoute>&);

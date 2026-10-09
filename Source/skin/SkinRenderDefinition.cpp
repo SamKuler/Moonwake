@@ -268,7 +268,7 @@ const std::vector<juce::String>& skinRenderTargetNames()
         "linearSlider", "rotarySlider", "progressBar", "scrollBar", "popupMenu",
         "tooltip", "table", "surface", "artwork", "effectChain", "outputStage",
         "channelMap", "pluginList", "skinList", "channelMixer", "playlistGrid",
-        "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList"
+        "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList", "outputCalibration"
     };
     return names;
 }
@@ -439,6 +439,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
         case SkinRenderTarget::directoryList:
         case SkinRenderTarget::smartPlaylistEditor:
         case SkinRenderTarget::smartPlaylistRuleList:
+        case SkinRenderTarget::outputCalibration:
             break;
         case SkinRenderTarget::surface:
             break;
@@ -543,6 +544,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
             break;
         case SkinRenderTarget::smartPlaylistEditor:
         case SkinRenderTarget::smartPlaylistRuleList:
+        case SkinRenderTarget::outputCalibration:
             break;
         case SkinRenderTarget::skinList:
             addContext (result, {

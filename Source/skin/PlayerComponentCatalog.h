@@ -15,7 +15,7 @@ enum class SkinComponentKind
     label, textButton, toggleButton, comboBox, textEditor, linearSlider,
     slider, progressBar, table, artwork, effectChain, outputStage,
     channelMap, pluginList, skinList, channelMixer, playlistGrid,
-    directoryList, smartPlaylistEditor, smartPlaylistRuleList
+    directoryList, smartPlaylistEditor, smartPlaylistRuleList, outputCalibration
 };
 
 enum class SkinLayoutEntry { studio, listening, effects, settings, library, collection };

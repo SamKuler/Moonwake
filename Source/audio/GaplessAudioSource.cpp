@@ -6,6 +6,7 @@
 #include <deque>
 #include <limits>
 #include <optional>
+#include <stdexcept>
 
 namespace
 {
@@ -199,7 +200,6 @@ void GaplessAudioSource::stopPreparing()
     readAheadThread.removeTimeSliceClient (this);
     rendering->resampler.reset();
     rendering->nativeStream.reset();
-    rendering->decoder.reset();
     rendering->futureCutoverFrame.reset();
 }
 
@@ -238,7 +238,15 @@ bool GaplessAudioSource::prepareDecoder (uint64_t sequence, double startSeconds)
     if (index < 0) return false;
     const auto& item = rendering->plan.items[static_cast<size_t> (index)];
     auto next = std::make_unique<Decoder>();
-    if (const auto cached = rendering->cachedTracks[static_cast<size_t> (index)])
+    if (rendering->decoder && rendering->decoder->boundary.sequence == sequence
+        && rendering->decoder->source)
+    {
+        next->sampleRate = rendering->decoder->sampleRate;
+        next->lengthFrames = rendering->decoder->lengthFrames;
+        next->source = std::move (rendering->decoder->source);
+        next->source->setDestinationLayout (destinationLayout);
+    }
+    else if (const auto cached = rendering->cachedTracks[static_cast<size_t> (index)])
     {
         next->cached = cached;
         next->sampleRate = cached->sampleRate;
@@ -371,10 +379,11 @@ bool GaplessAudioSource::NativeStream::fill (int minimumFrames, long double thro
     return true;
 }
 
-bool GaplessAudioSource::resetAt (uint64_t sequence, double startSeconds)
+bool GaplessAudioSource::resetAt (uint64_t sequence, double startSeconds, PlaybackBuffer* target)
 {
+    const auto previous = progress();
     stopPreparing();
-    rendering->queue = playbackBuffer();
+    rendering->queue = target != nullptr ? target : playbackBuffer();
     rendering->producedFrames = 0;
     consumedFrames.store (0);
     rendering->producerSequence = sequence;
@@ -387,6 +396,12 @@ bool GaplessAudioSource::resetAt (uint64_t sequence, double startSeconds)
         rendering->queue->readFailed.store (true);
         loaded.store (false);
         rendering->queue->finalFrame.store (0);
+        if (previous.generation == rendering->generation && previous.sequence == sequence)
+        {
+            const auto position = juce::jlimit (0.0, previous.lengthSeconds, startSeconds);
+            rendering->queue->publish ({ 0, position * deviceSampleRate, sequence,
+                previous.token, previous.lengthSeconds, 0.0L }, 0);
+        }
         return false;
     }
     rendering->resampler = std::make_unique<juce::ResamplingAudioSource> (rendering->nativeStream.get(), false, maximumOutputChannels);
@@ -411,6 +426,7 @@ bool GaplessAudioSource::loadPlan (AudioPlaybackPlan nextPlan, double startSecon
         || nextPlan.repeatFrom >= static_cast<int> (nextPlan.items.size()))
         return false;
     stopPreparing();
+    rendering->decoder.reset();
     rendering->plan = std::move (nextPlan);
     rendering->unavailable.assign (rendering->plan.items.size(), false);
     rendering->cachedTracks.clear();
@@ -558,6 +574,7 @@ bool GaplessAudioSource::seekToSeconds (double seconds)
 void GaplessAudioSource::clear()
 {
     stopPreparing();
+    rendering->decoder.reset();
     loaded.store (false);
     rendering->plan = {};
     rendering->unavailable.clear();
@@ -582,6 +599,88 @@ void GaplessAudioSource::setDestinationLayout (juce::AudioChannelSet layout)
         static_cast<void> (resetAt (current.sequence, current.positionSeconds));
 }
 
+juce::Result GaplessAudioSource::reconfigureOutput (juce::AudioChannelSet layout, double sampleRate,
+                                                   const std::function<juce::Result()>& prepareOutput)
+{
+    if (! std::isfinite (sampleRate) || sampleRate <= 0.0)
+        return juce::Result::fail ("The output sample rate is invalid.");
+    if (destinationLayout == layout && juce::approximatelyEqual (deviceSampleRate, sampleRate))
+        return prepareOutput ? prepareOutput() : juce::Result::ok();
+
+    if (! isLoaded())
+    {
+        if (prepareOutput)
+            if (const auto result = prepareOutput(); result.failed()) return result;
+        setDestinationLayout (std::move (layout));
+        deviceSampleRate = sampleRate;
+        return juce::Result::ok();
+    }
+
+    readAheadThread.removeTimeSliceClient (this);
+    const auto previousProgress = progress();
+    const auto previousLayout = destinationLayout;
+    const auto previousRate = deviceSampleRate;
+    const auto previousConsumed = consumedFrames.load();
+    std::vector<AudioPreparationFailure> previousFailures;
+    {
+        const std::lock_guard lock (failureMutex);
+        previousFailures = failures;
+    }
+    auto previous = std::move (rendering);
+    bool committed = false;
+    const juce::ScopeGuard restorePrevious { [&]
+    {
+        if (committed) return;
+        readAheadThread.removeTimeSliceClient (this);
+        rendering = std::move (previous);
+        destinationLayout = previousLayout;
+        deviceSampleRate = previousRate;
+        consumedFrames.store (previousConsumed);
+        loaded.store (true);
+        {
+            const std::lock_guard lock (failureMutex);
+            failures = std::move (previousFailures);
+        }
+        if (rendering->queue->finalFrame.load() == unknownEnd && ! rendering->queue->readFailed.load())
+            readAheadThread.addTimeSliceClient (this);
+    } };
+
+    rendering = std::make_unique<RenderState>();
+    rendering->plan = previous->plan;
+    rendering->generation = previous->generation;
+    rendering->unavailable = previous->unavailable;
+    rendering->cachedTracks.resize (previous->cachedTracks.size());
+    if (layout == previousLayout)
+    {
+        rendering->cachedTracks = previous->cachedTracks;
+        rendering->cachedFrames = previous->cachedFrames;
+    }
+    if (previous->decoder && previous->decoder->source
+        && previous->decoder->boundary.sequence == previousProgress.sequence)
+    {
+        auto& decoder = rendering->decoder = std::make_unique<Decoder>();
+        decoder->source = previous->decoder->source->forkForLayout (layout);
+        decoder->sampleRate = previous->decoder->sampleRate;
+        decoder->lengthFrames = previous->decoder->lengthFrames;
+        decoder->boundary = previous->decoder->boundary;
+    }
+    destinationLayout = std::move (layout);
+    deviceSampleRate = sampleRate;
+    const auto active = bufferState.load (std::memory_order_acquire);
+    jassert ((active & 1u) == 0);
+    auto* stagingBuffer = buffers[static_cast<size_t> (((active >> 1) & 1u) ^ 1u)].get();
+    if (! resetAt (previousProgress.sequence, previousProgress.positionSeconds, stagingBuffer))
+        return juce::Result::fail ("The playback source could not prepare the requested output format. Previous audio was restored.");
+    if (prepareOutput)
+        if (const auto result = prepareOutput(); result.failed()) return result;
+
+    // The callback is suspended. Publish only after preparation succeeds, keeping
+    // the old PCM, resampler and decoder available throughout the transaction.
+    bufferState.store ((active + 4u) ^ 2u, std::memory_order_release);
+    committed = true;
+    return juce::Result::ok();
+}
+
 bool GaplessAudioSource::isLoaded() const noexcept
 {
     return loaded.load (std::memory_order_acquire);
@@ -592,13 +691,8 @@ void GaplessAudioSource::prepareToPlay (int, double sampleRate)
     if (sampleRate <= 0.0) return;
     if (! juce::approximatelyEqual (deviceSampleRate, sampleRate))
     {
-        const auto current = progress();
-        stopPreparing();
-        deviceSampleRate = sampleRate;
-        for (auto& cached : rendering->cachedTracks) cached.reset();
-        rendering->cachedFrames = 0;
-        if (isLoaded())
-            static_cast<void> (resetAt (current.sequence, current.positionSeconds));
+        const auto result = reconfigureOutput (destinationLayout, sampleRate);
+        if (result.failed()) throw std::runtime_error (result.getErrorMessage().toStdString());
     }
     else if (isLoaded())
     {

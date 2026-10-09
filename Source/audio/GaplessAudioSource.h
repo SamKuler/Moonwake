@@ -7,6 +7,7 @@
 
 #include <array>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -59,6 +60,10 @@ public:
     bool seekToSeconds (double);
     void clear();
     void setDestinationLayout (juce::AudioChannelSet);
+    // Changes output format once, restoring the previous renderable source on failure.
+    // The optional output preparation runs before publishing the replacement PCM.
+    juce::Result reconfigureOutput (juce::AudioChannelSet, double sampleRate,
+                                   const std::function<juce::Result()>& prepareOutput = {});
     [[nodiscard]] bool isLoaded() const noexcept;
     [[nodiscard]] AudioPlaybackProgress progress() const noexcept;
     std::vector<AudioPreparationFailure> drainPreparationFailures();
@@ -92,7 +97,7 @@ private:
     [[nodiscard]] PlaybackBuffer* playbackBuffer() const noexcept;
     bool prepareDecoder (uint64_t sequence, double startSeconds);
     bool produceChunk();
-    bool resetAt (uint64_t sequence, double startSeconds);
+    bool resetAt (uint64_t sequence, double startSeconds, PlaybackBuffer* target = nullptr);
     void stopPreparing();
     void recordFailure (uint64_t sequence, const juce::String&, bool hadBufferedAudio = false);
     [[nodiscard]] int indexForSequence (uint64_t sequence) const noexcept;

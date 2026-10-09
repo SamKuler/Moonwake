@@ -32,6 +32,7 @@ private:
 PlayerController::PlayerController()
     : artworkStore (ProductPaths::artworkCacheRoot())
 {
+    presetFile = ProductPaths::applicationDataRoot().getChildFile ("presets.xml");
     audioInitialisationError = audioEngine.initialise();
     rememberAudioDeviceSettings();
     lastStatusMessage = audioInitialisationError.isEmpty()
@@ -51,6 +52,7 @@ PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend
       artworkStore (artworkCacheRoot == juce::File {} ? ProductPaths::artworkCacheRoot()
                                                     : std::move (artworkCacheRoot))
 {
+    presetFile = ProductPaths::applicationDataRoot().getChildFile ("presets.xml");
     audioInitialisationError = audioEngine.initialise();
     rememberAudioDeviceSettings();
     lastStatusMessage = audioInitialisationError.isEmpty()
@@ -115,6 +117,7 @@ bool PlayerController::playOrPause()
 
 bool PlayerController::setPlaying (bool shouldPlay)
 {
+    if (shouldPlay) stopCalibrationTestSignal();
     if (! shouldPlay) audioEngine.pause();
     const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
     synchronizePlayback();
@@ -168,6 +171,13 @@ bool PlayerController::previousTrack()
 bool PlayerController::handlePlaybackFinished()
 {
     return synchronizePlayback();
+}
+
+juce::String PlayerController::takeAudioOutputError()
+{
+    auto error = audioEngine.takeOutputError();
+    if (error.isNotEmpty()) lastStatusMessage = error;
+    return error;
 }
 
 bool PlayerController::handlePlaybackReadError()
@@ -525,6 +535,12 @@ void PlayerController::setSkinPersistenceState (SkinPersistenceState state)
 bool PlayerController::setOutputChannelMix (juce::AudioChannelSet::ChannelType channel,
                                            float gain, bool muted, bool solo)
 {
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the effect chain operation to finish.";
+        return false;
+    }
+
     const OutputChannelMix requested { channel, gain, muted, solo };
     const auto previous = audioEngine.getOutputChannelMix();
     if (std::find (previous.begin(), previous.end(), requested) != previous.end())
@@ -535,21 +551,35 @@ bool PlayerController::setOutputChannelMix (juce::AudioChannelSet::ChannelType c
         return false;
     }
     ++stateRevision;
+    ++outputConfigurationRevision;
     return true;
 }
 
 void PlayerController::resetOutputChannelMix()
 {
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the effect chain operation to finish.";
+        return;
+    }
+
     const auto previous = audioEngine.getOutputChannelMix();
     if (std::none_of (previous.begin(), previous.end(), [] (const auto& mix)
         { return mix != OutputChannelMix { mix.channel }; }))
         return;
     audioEngine.resetOutputChannelMix();
     ++stateRevision;
+    ++outputConfigurationRevision;
 }
 
 juce::String PlayerController::setOutputLayout (OutputLayout layout)
 {
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the effect chain operation to finish.";
+        return lastStatusMessage;
+    }
+
     for (const auto& slot : effectChain.getSlots())
     {
         juce::String error;
@@ -569,6 +599,7 @@ juce::String PlayerController::setOutputLayout (OutputLayout layout)
     {
         preferredOutputLayout = layout;
         ++stateRevision;
+        ++outputConfigurationRevision;
     }
     return error.isNotEmpty() ? error : routingWarning;
 }
@@ -576,6 +607,12 @@ juce::String PlayerController::setOutputLayout (OutputLayout layout)
 juce::String PlayerController::selectOutputDevice (
     const juce::String& deviceName)
 {
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the effect chain operation to finish.";
+        return lastStatusMessage;
+    }
+
     juce::String routingWarning;
     const auto error = audioEngine.selectOutputDevice (deviceName, audioDevicePreferences.outputRoutes, &routingWarning);
     lastStatusMessage = error.isNotEmpty()
@@ -587,12 +624,19 @@ juce::String PlayerController::selectOutputDevice (
     {
         rememberAudioDeviceSettings();
         ++stateRevision;
+        ++outputConfigurationRevision;
     }
     return error.isNotEmpty() ? error : routingWarning;
 }
 
 juce::String PlayerController::setOutputRouting (const std::vector<int>& routing)
 {
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the effect chain operation to finish.";
+        return lastStatusMessage;
+    }
+
     const auto before = audioEngine.getDeviceSettings();
     const auto error = audioEngine.setOutputRouting (routing);
     if (error.isNotEmpty()) return lastStatusMessage = error;
@@ -606,6 +650,7 @@ juce::String PlayerController::setOutputRouting (const std::vector<int>& routing
     if (found == routes.end()) routes.push_back (std::move (route));
     else *found = std::move (route);
     ++stateRevision;
+    ++outputConfigurationRevision;
     lastStatusMessage = "Output routing updated.";
     return {};
 }
@@ -619,6 +664,12 @@ juce::String PlayerController::openAudioDeviceConfiguration()
 
 juce::String PlayerController::setAudioSampleRate (double sampleRate)
 {
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the effect chain operation to finish.";
+        return lastStatusMessage;
+    }
+
     const auto error = audioEngine.setSampleRate (sampleRate);
     lastStatusMessage = error.isNotEmpty()
                             ? error
@@ -628,12 +679,19 @@ juce::String PlayerController::setAudioSampleRate (double sampleRate)
     {
         rememberAudioDeviceSettings();
         ++stateRevision;
+        ++outputConfigurationRevision;
     }
     return error;
 }
 
 juce::String PlayerController::setAudioBufferSize (int bufferSize)
 {
+    if (restoringEffects)
+    {
+        lastStatusMessage = "Wait for the effect chain operation to finish.";
+        return lastStatusMessage;
+    }
+
     const auto error = audioEngine.setBufferSize (bufferSize);
     lastStatusMessage = error.isNotEmpty()
                             ? error
@@ -643,6 +701,7 @@ juce::String PlayerController::setAudioBufferSize (int bufferSize)
     {
         rememberAudioDeviceSettings();
         ++stateRevision;
+        ++outputConfigurationRevision;
     }
     return error;
 }
@@ -795,7 +854,6 @@ void PlayerController::addPluginByIdentifierAsync (const juce::String& identifie
                                                      description.createIdentifierString(),
                                                      description.pluginFormatName, requestedScope);
             juce::String graphError;
-            plugin->addListener (this);
             if (! audioEngine.addEffectPlugin (slotId, std::move (plugin), graphError, requestedScope))
             {
                 effectChain.removeSlot (slotId);
@@ -803,6 +861,7 @@ void PlayerController::addPluginByIdentifierAsync (const juce::String& identifie
                 return;
             }
 
+            if (auto* livePlugin = audioEngine.getEffectPlugin (slotId)) livePlugin->addListener (this);
             ++effectChainRevision;
             ++stateRevision;
             pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
@@ -966,6 +1025,9 @@ bool PlayerController::applyPreparedState (StateRestoreResult result)
         lastStatusMessage = "Session restore cancelled.";
         return false;
     }
+
+    if (result.presetFile != juce::File {}) presetFile = result.presetFile;
+    if (result.presets) presetLibrary = std::move (*result.presets);
 
     const auto failed = result.errorMessage.isNotEmpty();
     restoreDiagnostics = std::move (result.warnings);
@@ -1165,6 +1227,7 @@ bool PlayerController::execute (const PlaybackAction& action)
         case PlaybackActionType::loadAndPlay:
             return loadTrackById (action.trackId, true);
         case PlaybackActionType::play:
+            stopCalibrationTestSignal();
             audioEngine.play();
             return true;
         case PlaybackActionType::pause:
@@ -1217,7 +1280,7 @@ bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPl
         playbackCoordinator.loadFailed();
         return false;
     }
-    if (shouldPlay) audioEngine.play();
+    if (shouldPlay) { stopCalibrationTestSignal(); audioEngine.play(); }
     playbackCheckpoint.reset (trackId, audioEngine.getCurrentPositionSeconds());
     ++stateRevision;
     lastStatusMessage = (shouldPlay ? "Playing " : "Loaded ") + title;
@@ -1232,27 +1295,24 @@ juce::String PlayerController::getSelectedTrackId() const
     return {};
 }
 
-bool PlayerController::captureStateSnapshot (PlayerAppState& state,
-                                             juce::String& errorMessage)
+bool PlayerController::captureEffectChainSnapshot (EffectChainState& snapshot,
+                                                    juce::String& errorMessage, bool force)
 {
-    synchronizePlayback();
     errorMessage.clear();
-    state = {};
-    state.playlist = playlist;
-    state.library = library;
-    state.musicDirectories = musicDirectories;
-    state.libraryCollectionId = libraryCollectionId;
-    state.librarySearchQuery = librarySearchQuery;
-    state.effectChain = effectChain;
-    state.pluginFormats = pluginManager.getFormatPreferences();
-    state.customVst3Directories = pluginManager.getCustomVst3Directories();
-
+    if (! juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        errorMessage = "Plug-in state must be captured on the message thread.";
+        return false;
+    }
+    snapshot = effectChain;
     const auto pluginRevision = pluginStateRevision.load (
         std::memory_order_acquire);
     // Reuse cached opaque state while playing; pausing/finishing advances the app
     // revision so autosave captures any deferred plug-in edits afterwards.
-    if (pluginRevision != capturedPluginStateRevision && ! audioEngine.isPlaying())
+    if (force || (pluginRevision != capturedPluginStateRevision && ! audioEngine.isPlaying()))
     {
+        std::optional<AudioEngine::ScopedPlaybackEdit> playbackEdit;
+        if (force) playbackEdit.emplace (audioEngine);
         if (! audioEngine.beginEffectStateCapture())
         {
             errorMessage = "Timed out while preparing plug-ins for state capture.";
@@ -1272,7 +1332,7 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
         {
             for (const auto& slot : effectChain.getSlots())
             {
-                auto* savedSlot = state.effectChain.getSlotById (slot.id);
+                auto* savedSlot = snapshot.getSlotById (slot.id);
                 auto* plugin = audioEngine.getEffectPlugin (slot.id);
                 if (savedSlot != nullptr && plugin != nullptr)
                 {
@@ -1284,12 +1344,10 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
                     plugin->getStateInformation (
                         savedSlot->serializedState);
                 }
-
-                if (savedSlot != nullptr)
-                    if (auto* cachedSlot = effectChain.getSlotById (slot.id))
-                        cachedSlot->serializedState =
-                            savedSlot->serializedState;
             }
+            for (const auto& savedSlot : snapshot.getSlots())
+                if (auto* cachedSlot = effectChain.getSlotById (savedSlot.id))
+                    cachedSlot->serializedState = savedSlot.serializedState;
 
             capturedPluginStateRevision = pluginRevision;
         }
@@ -1300,9 +1358,29 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
         }
     }
 
+    return true;
+}
+
+bool PlayerController::captureStateSnapshot (PlayerAppState& state,
+                                             juce::String& errorMessage)
+{
+    synchronizePlayback();
+    errorMessage.clear();
+    state = {};
+    state.playlist = playlist;
+    state.library = library;
+    state.musicDirectories = musicDirectories;
+    state.libraryCollectionId = libraryCollectionId;
+    state.librarySearchQuery = librarySearchQuery;
+    state.pluginFormats = pluginManager.getFormatPreferences();
+    state.customVst3Directories = pluginManager.getCustomVst3Directories();
+
+    if (! captureEffectChainSnapshot (state.effectChain, errorMessage, false)) return false;
+
     state.volume = audioEngine.getGain();
     state.outputLayout = preferredOutputLayout;
     state.outputChannelMix = audioEngine.getOutputChannelMix();
+    state.outputCalibration = audioEngine.getOutputCalibration();
     state.audioDevice = audioDevicePreferences;
     state.workspaceMode = workspaceMode;
     state.activeSkinId = skinPersistenceState.activeSkinId;
@@ -1361,6 +1439,10 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
 
     static_cast<void> (pluginManager.setCustomVst3Directories (state.customVst3Directories));
     const auto generation = ++effectRestoreGeneration;
+    restoringEffects = false;
+    activeEffectPresetId.clear();
+    activeListeningPresetId.clear();
+    stopCalibrationTestSignal();
     effectChain = {};
     audioEngine.unload();
     playbackCoordinator.loadFailed();
@@ -1401,6 +1483,12 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     for (const auto& mix : state.outputChannelMix)
         if (! audioEngine.setOutputChannelMix (mix.channel, mix.gain, mix.muted, mix.solo))
             restoreDiagnostics.add ("An invalid saved output channel mix was ignored.");
+    audioEngine.resetOutputCalibration();
+    for (const auto& calibration : state.outputCalibration)
+        if (const auto error = audioEngine.setOutputCalibration (calibration.channel, calibration.trimDb,
+                                                               calibration.delayMs, calibration.inverted);
+            error.isNotEmpty()) restoreDiagnostics.add (error);
+    ++outputConfigurationRevision;
     if (const auto* selectedTrack = playlist.getSelectedTrack();
         selectedTrack != nullptr)
         playbackCheckpoint.reset (selectedTrack->id,
@@ -1504,9 +1592,9 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
                     plugin->setStateInformation (savedSlot.serializedState.getData(),
                                                  static_cast<int> (savedSlot.serializedState.getSize()));
 
-                plugin->addListener (this);
                 if (audioEngine.addEffectPlugin (savedSlot.id, std::move (plugin), error, savedSlot.scope))
                 {
+                    if (auto* livePlugin = audioEngine.getEffectPlugin (savedSlot.id)) livePlugin->addListener (this);
                     static_cast<void> (audioEngine.setEffectBypassed (savedSlot.id, savedSlot.bypassed));
                     effectChain.setAvailability (savedSlot.id, true);
                     static_cast<void> (audioEngine.setEffectPluginOrder (getAvailableEffectSlotIds()));

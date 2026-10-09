@@ -5,6 +5,8 @@
 #include "ui/settings/SkinLibraryPanel.h"
 #include "ui/settings/SettingsSkinContext.h"
 #include "ui/SkinLayoutHost.h"
+#include "ui/PresetControls.h"
+#include "ui/OutputCalibrationComponent.h"
 #include "plugins/PluginManager.h"
 #include "skin/SkinBuiltInPackages.h"
 #include "skin/SkinCompiler.h"
@@ -1211,6 +1213,10 @@ public:
             expect (controller.selectOutputDevice ("Aggregate 10ch").isEmpty());
             expect (controller.setOutputLayout (OutputLayout::sevenOneTwo).isEmpty());
             AudioSettingsPanel audio (controller, &foundationSkin.adapter);
+            PresetControls listeningPresets ("Listening setup");
+            OutputCalibrationComponent calibration;
+            juce::Label calibrationTitle;
+            juce::TextButton calibrationReset { "Reset" };
             PluginSettingsPanel plugins (controller, &foundationSkin.adapter);
             MusicDirectoriesPanel music (foundationSkin.adapter);
             SkinLibraryPanel skins (manager, &foundationSkin.adapter);
@@ -1228,6 +1234,10 @@ public:
             root.addAndMakeVisible (title);
             root.addAndMakeVisible (close);
             audio.addTo (root);
+            listeningPresets.addTo (root);
+            root.addAndMakeVisible (calibration);
+            root.addAndMakeVisible (calibrationTitle);
+            root.addAndMakeVisible (calibrationReset);
             music.addTo (root);
             plugins.addTo (root);
             skins.addTo (root);
@@ -1247,6 +1257,10 @@ public:
             expect (bindings.bind ("library.browseFavourites", favouritesOpen, report));
             expect (bindings.bind ("library.browseQueue", queueOpen, report));
             audio.bind (bindings, report);
+            listeningPresets.bind (bindings, "listeningPreset", report);
+            expect (bindings.bind ("output.calibration", calibration, report));
+            expect (bindings.bind ("settings.calibration.title", calibrationTitle, report));
+            expect (bindings.bind ("output.reset", calibrationReset, report));
             music.bind (bindings, report);
             plugins.bind (bindings, report);
             skins.bind (bindings, report);
@@ -1262,6 +1276,11 @@ public:
             expect (! favouritesOpen.isVisible());
             expect (! queueOpen.isVisible());
             expect (addMusic.isVisible() && ! addMusic.getBounds().isEmpty());
+            expect (listeningPresets.selector.isVisible() && ! listeningPresets.selector.getBounds().isEmpty());
+            expect (listeningPresets.actions.isVisible() && ! listeningPresets.actions.getBounds().isEmpty());
+            expect (listeningPresets.selector.getExplicitFocusOrder() < listeningPresets.actions.getExplicitFocusOrder());
+            expect (calibration.isVisible() && calibration.getHeight() >= 160);
+            expect (calibrationTitle.isVisible() && calibrationReset.isVisible());
             expect (audio.deviceControl().isVisible(), "Audio device control must be visible.");
             expect (audio.headingControl().isVisible(), "Audio heading must be visible.");
             const auto audioHeadingBounds = root.getLocalArea (
@@ -1324,6 +1343,8 @@ public:
             expect (! favouritesOpen.isVisible());
             expect (! queueOpen.isVisible());
             expect (addMusic.isVisible() && ! addMusic.getBounds().isEmpty());
+            expect (listeningPresets.selector.isVisible() && listeningPresets.selector.getWidth() >= 60);
+            expect (listeningPresets.actions.isVisible() && listeningPresets.actions.getWidth() >= 28);
             const auto compactAudio = root.getLocalArea (
                 &audio.deviceControl(), audio.deviceControl().getLocalBounds());
             const auto compactPlugins = root.getLocalArea (

@@ -4,6 +4,7 @@
 
 #include "audio/OutputLayout.h"
 #include "audio/OutputChannelMix.h"
+#include "audio/OutputCalibration.h"
 #include "audio/AudioOutputRoute.h"
 #include "app/WorkspaceMode.h"
 #include "playlist/PlaylistModel.h"
@@ -34,6 +35,7 @@ struct PlayerAppState
     double playbackPositionSeconds = 0.0;
     OutputLayout outputLayout = OutputLayout::stereo;
     std::vector<OutputChannelMix> outputChannelMix = defaultOutputChannelMix();
+    std::vector<OutputChannelCalibration> outputCalibration = defaultOutputCalibration();
     AudioDevicePreferences audioDevice;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     juce::String activeSkinId = "builtin.default";

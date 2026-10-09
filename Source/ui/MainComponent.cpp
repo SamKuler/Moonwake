@@ -496,6 +496,8 @@ MainComponent::MainComponent()
         grabKeyboardFocus();
     };
 
+    calibrationTitleLabel.setText ("Speaker calibration", juce::dontSendNotification);
+    calibrationTitleLabel.setJustificationType (juce::Justification::centredLeft);
     pluginFilterLabel.setText ("Filter", juce::dontSendNotification);
     pluginFilterLabel.setJustificationType (juce::Justification::centredLeft);
     pluginFilters.search.setTextToShowWhenEmpty (
@@ -509,7 +511,7 @@ MainComponent::MainComponent()
     meterModeBox.addItem ("Loudness", 3);
     meterModeBox.addItem ("Mixer", 4);
     meterModeBox.setSelectedId (2, juce::dontSendNotification);
-    meterModeBox.setTitle ("Output meter mode");
+    meterModeBox.setTitle ("Output view");
     resetMeterButton.setTooltip ("Start a new loudness measurement");
     meterModeBox.onChange = [this]
     {
@@ -517,9 +519,15 @@ MainComponent::MainComponent()
     };
     resetMeterButton.onClick = [this]
     {
-        if (outputMixer.isVisible()) controller.resetOutputChannelMix();
+        if (outputCalibration.isVisible())
+        {
+            controller.stopCalibrationTestSignal();
+            controller.resetOutputCalibration();
+        }
+        else if (outputMixer.isVisible()) controller.resetOutputChannelMix();
         else controller.resetOutputMeter();
         updateTransportState();
+        if (outputCalibration.isVisible()) outputCalibration.discardEdits();
     };
     outputMixer.onChange = [this] (auto channel, float gain, bool muted, bool solo)
     {
@@ -527,6 +535,57 @@ MainComponent::MainComponent()
             showStatus ("Unable to update output channel", true);
         updateTransportState();
     };
+    outputCalibration.onChange = [this] (const auto& calibration)
+    {
+        const auto result = controller.setOutputCalibration (calibration);
+        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<MainComponent> (this)]
+        {
+            if (safe != nullptr) safe->updateTransportState();
+        });
+        return result;
+    };
+    outputCalibration.onTestChange = [this] (auto& signal, bool starting)
+    {
+        auto result = juce::Result::ok();
+        if (! starting && signal.kind != CalibrationTestSignal::Kind::off
+            && controller.getCalibrationTestSignal().kind == CalibrationTestSignal::Kind::off)
+            signal.kind = CalibrationTestSignal::Kind::off;
+        else
+        {
+            result = controller.setCalibrationTestSignal (signal);
+            if (result.wasOk()) signal = controller.getCalibrationTestSignal();
+        }
+        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<MainComponent> (this)]
+        {
+            if (safe != nullptr) safe->updateTransportState();
+        });
+        return result;
+    };
+    for (auto [controls, kind] : { std::pair { &listeningPresetControls, PlayerController::PresetKind::listening },
+                                  std::pair { &effectPresetControls, PlayerController::PresetKind::effectChain } })
+    {
+        controls->onApply = [this, kind] (const auto& id)
+        {
+            const juce::Component::SafePointer<MainComponent> safe (this);
+            const auto result = controller.applyPreset (kind, id,
+                [safe] (bool success, const juce::String& error)
+                {
+                    if (safe == nullptr) return;
+                    safe->audioSettingsPanel.refresh();
+                    safe->refreshEffectScopes();
+                    safe->refreshEffects();
+                    safe->updateTransportState();
+                    if (! success) safe->showStatus (error, true);
+                }, [safe] { if (safe != nullptr) safe->closePluginEditors(); });
+            refreshPresetControls();
+            return result;
+        };
+        controls->onAction = [this, kind] (auto action, const auto& id, const auto& name)
+        {
+            return handlePresetAction (kind, action, id, name);
+        };
+        controls->onError = [this] (const auto& error) { showStatus (error, true); };
+    }
     refreshEffectScopes();
     effectRackViewport.setViewedComponent (&effectRackContent, false);
     effectRackViewport.setScrollBarsShown (true, false);
@@ -616,6 +675,7 @@ MainComponent::MainComponent()
                                     &artworkMetaLabel,
                                     &effectsSummaryLabel,
                                     &settingsTitleLabel,
+                                    &calibrationTitleLabel,
                                     &deviceStatusLabel,
                                     &previousButton,
                                     &playPauseButton,
@@ -636,6 +696,7 @@ MainComponent::MainComponent()
                                     &albumArtwork,
                                     &outputStage,
                                     &outputMixer,
+                                    &outputCalibration,
                                     &skinFallbackDiagnostic };
 
     for (auto* child : children)
@@ -643,6 +704,8 @@ MainComponent::MainComponent()
     statusLabel.setVisible (false);
     skinFallbackDiagnostic.setVisible (! skinReady);
 
+    listeningPresetControls.addTo (*this);
+    effectPresetControls.addTo (*this);
     pluginFilters.addTo (*this);
     audioSettingsPanel.addTo (*this);
     pluginSettingsPanel.addTo (*this);
@@ -968,6 +1031,7 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    controller.stopCalibrationTestSignal();
     stopTimer (1);
     stopTimer (2);
     stateRestoreService.cancel();
@@ -1121,13 +1185,17 @@ void MainComponent::bindSkinComponents()
         { "effects.outputLayout", &outputLayoutBox },
         { "output.stage", &outputStage },
         { "output.mixer", &outputMixer },
+        { "output.calibration", &outputCalibration },
         { "output.mode", &meterModeBox },
         { "output.reset", &resetMeterButton },
         { "settings.title", &settingsTitleLabel },
+        { "settings.calibration.title", &calibrationTitleLabel },
         { "settings.close", &settingsCloseButton }
     };
     for (const auto& [id, component] : publicComponents)
         static_cast<void> (skinBindings.bind (id, *component, report));
+    listeningPresetControls.bind (skinBindings, "listeningPreset", report);
+    effectPresetControls.bind (skinBindings, "effects.preset", report);
     pluginFilters.bind (skinBindings, "effects", report);
     audioSettingsPanel.bind (skinBindings, report);
     pluginSettingsPanel.bind (skinBindings, report);
@@ -1184,6 +1252,14 @@ void MainComponent::resized()
         librarySearchEditor.setText (controller.getLibrarySearchQuery(), false);
     else if (! libraryPages)
         librarySearchEditor.setText (libraryFilter.query(), false);
+    if (requestedEntry != activeSkinLayoutEntry)
+    {
+        controller.stopCalibrationTestSignal();
+        listeningPresetControls.cancelEditing();
+        effectPresetControls.cancelEditing();
+    }
+    const auto listeningEdit = listeningPresetControls.captureEditingState();
+    const auto effectEdit = effectPresetControls.captureEditingState();
     SkinValidationReport report;
     if (skinLayoutHost.apply (requestedEntry, getLocalBounds(),
                               1.0f, report, workspaceMode, { queueOpen }))
@@ -1230,6 +1306,8 @@ void MainComponent::resized()
             skinFallbackDiagnostic.toFront (false);
         }
     }
+    listeningPresetControls.restoreEditingState (listeningEdit);
+    effectPresetControls.restoreEditingState (effectEdit);
     statusLabel.setVisible (statusVisibleUntil > juce::Time::getMillisecondCounterHiRes() / 1000.0);
     if (statusLabel.isVisible()) statusLabel.toFront (false);
     updateEmptyQueueState();
@@ -1248,6 +1326,13 @@ std::unique_ptr<juce::ComponentTraverser> MainComponent::createKeyboardFocusTrav
 
 bool MainComponent::keyPressed (const juce::KeyPress& key)
 {
+    if (key == juce::KeyPress::escapeKey
+        && controller.getCalibrationTestSignal().kind != CalibrationTestSignal::Kind::off)
+    {
+        controller.stopCalibrationTestSignal();
+        updateTransportState();
+        return true;
+    }
     if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) return false;
     if (key == juce::KeyPress::escapeKey && statusLabel.isVisible())
     {
@@ -1332,6 +1417,7 @@ void MainComponent::setWorkspaceMode (WorkspaceMode mode)
     if (workspaceMode == mode && ! settingsDrawerOpen && ! effectsDrawerOpen)
         return;
 
+    controller.stopCalibrationTestSignal();
     closeDrawers();
     workspaceMode = mode;
     controller.setWorkspaceMode (mode);
@@ -1405,6 +1491,8 @@ void MainComponent::timerCallback (int timerID)
     if (preparationFailed || readFailed)
         showStatus ((readFailed ? "Could not read an audio file. " : juce::String{})
                     + controller.getLastStatusMessage(), true);
+    if (const auto error = controller.takeAudioOutputError(); error.isNotEmpty())
+        showStatus (error, true);
 
     controller.checkpointPlaybackPosition();
     pluginSettingsPanel.refreshScanState();
@@ -2240,17 +2328,94 @@ void MainComponent::updateOutputView()
         && outputMixer.getParentComponent() != this;
     const auto stagePlaced = outputStage.getParentComponent() != nullptr
         && outputStage.getParentComponent() != this;
+    const auto calibrationPlaced = outputCalibration.getParentComponent() != nullptr
+        && outputCalibration.getParentComponent() != this;
     meterModeBox.setItemEnabled (4, mixerPlaced);
-    if (! mixerPlaced && meterModeBox.getSelectedId() == 4
+    if ((! mixerPlaced && meterModeBox.getSelectedId() == 4)
         && meterModeBox.getParentComponent() != nullptr && meterModeBox.getParentComponent() != this)
         meterModeBox.setSelectedId (2, juce::dontSendNotification);
     const auto mixing = meterModeBox.getSelectedId() == 4 && mixerPlaced;
+    const auto calibrating = calibrationPlaced;
     outputMixer.setVisible (mixing);
-    outputStage.setVisible (stagePlaced && ! mixing);
-    if (meterModeBox.getSelectedId() != 4)
+    outputCalibration.setVisible (calibrating);
+    outputStage.setVisible (stagePlaced && ! mixing && ! calibrating);
+    if (! calibrating) controller.stopCalibrationTestSignal();
+    if (meterModeBox.getSelectedId() >= 1 && meterModeBox.getSelectedId() <= 3)
         outputStage.setMeterMode (static_cast<OutputStageComponent::MeterMode> (meterModeBox.getSelectedId() - 1));
-    resetMeterButton.setTooltip (mixing ? "Reset all channel gains, mutes and solos"
-                                      : "Start a new loudness measurement");
+    resetMeterButton.setTooltip (calibrating ? "Stop the test and reset all channel calibration"
+        : mixing ? "Reset all channel gains, mutes and solos" : "Start a new loudness measurement");
+}
+
+void MainComponent::refreshPresetControls()
+{
+    const auto& library = controller.getPresetLibrary();
+    std::vector<PresetControls::Entry> listening, effects;
+    for (const auto& preset : library.getListeningPresets()) listening.push_back ({ preset.id, preset.name });
+    for (const auto& preset : library.getEffectChainPresets()) effects.push_back ({ preset.id, preset.name });
+    listeningPresetControls.setState (std::move (listening), controller.getActiveListeningPresetId(),
+                                      controller.isListeningPresetModified());
+    effectPresetControls.setState (std::move (effects), controller.getActiveEffectPresetId(),
+                                   controller.isEffectPresetModified());
+    const auto ready = restoreStatus != RestoreStatus::loading && ! controller.isPresetApplyRunning();
+    listeningPresetControls.setEnabled (ready && ! pluginInsertionInProgress);
+    effectPresetControls.setEnabled (ready && ! pluginInsertionInProgress);
+    outputCalibration.setEnabled (ready);
+    outputMixer.setEnabled (ready);
+    effectRackContent.setEnabled (ready);
+    outputLayoutBox.setEnabled (ready);
+    resetMeterButton.setEnabled (ready);
+    addEffectButton.setEnabled (ready && ! pluginInsertionInProgress && pluginCombo.getSelectedId() > 0);
+    if (! ready)
+    {
+        clearEffectTailsButton.setEnabled (false);
+        bypassAllEffectsButton.setEnabled (false);
+    }
+}
+
+juce::Result MainComponent::handlePresetAction (PlayerController::PresetKind kind, PresetControls::Action action,
+                                               const juce::String& id, const juce::String& name)
+{
+    auto result = juce::Result::ok();
+    switch (action)
+    {
+        case PresetControls::Action::saveAs: result = controller.savePreset (kind, name); break;
+        case PresetControls::Action::update:
+        {
+            const auto& library = controller.getPresetLibrary();
+            const auto* effect = kind == PlayerController::PresetKind::effectChain ? library.findEffectChain (id) : nullptr;
+            const auto* listening = kind == PlayerController::PresetKind::listening ? library.findListening (id) : nullptr;
+            result = controller.savePreset (kind, effect != nullptr ? effect->name
+                : listening != nullptr ? listening->name : juce::String{}, id);
+            break;
+        }
+        case PresetControls::Action::rename: result = controller.renamePreset (kind, id, name); break;
+        case PresetControls::Action::duplicate: result = controller.duplicatePreset (kind, id, name); break;
+        case PresetControls::Action::remove: result = controller.deletePreset (kind, id); break;
+        case PresetControls::Action::importFile: choosePresetFile (kind, id, true); break;
+        case PresetControls::Action::exportFile: choosePresetFile (kind, id, false); break;
+    }
+    refreshPresetControls();
+    return result;
+}
+
+void MainComponent::choosePresetFile (PlayerController::PresetKind kind, const juce::String& id, bool importing)
+{
+    fileChooser = std::make_unique<juce::FileChooser> (importing ? "Import preset" : "Export preset",
+        importing ? juce::File{} : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+            .getChildFile ("Preset.moonwake-preset"), "*.moonwake-preset");
+    const auto flags = juce::FileBrowserComponent::canSelectFiles
+        | (importing ? juce::FileBrowserComponent::openMode
+                     : juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting);
+    fileChooser->launchAsync (flags,
+        [safe = juce::Component::SafePointer<MainComponent> (this), kind, id, importing] (const juce::FileChooser& chooser)
+        {
+            if (safe == nullptr || chooser.getResult() == juce::File{}) return;
+            const auto result = importing ? safe->controller.importPreset (chooser.getResult())
+                : safe->controller.exportPreset (kind, id, chooser.getResult());
+            safe->refreshPresetControls();
+            safe->showStatus (result.wasOk() ? (importing ? "Preset imported." : "Preset exported.")
+                                            : result.getErrorMessage(), result.failed());
+        });
 }
 
 void MainComponent::updateTransportState()
@@ -2379,6 +2544,9 @@ void MainComponent::updateTransportState()
     const auto meterReadings = controller.getOutputMeterReadings();
     outputStage.setMeterReadings (meterReadings);
     outputMixer.setState (state.outputLayout, controller.getOutputChannelMix(), meterReadings.samplePeak);
+    if (! outputCalibration.isShowing()) controller.stopCalibrationTestSignal();
+    outputCalibration.setState (state.outputLayout, controller.getOutputCalibration(), controller.getCalibrationTestSignal());
+    refreshPresetControls();
 
     const auto hasSelection = playlistTable.getSelectedRow() >= 0;
     const auto* selectedQueueEntry = queueEntryAtRow (playlistTable.getSelectedRow());

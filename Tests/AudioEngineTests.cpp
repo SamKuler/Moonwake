@@ -6,8 +6,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
+#include <stdexcept>
 #include <thread>
+#include <tuple>
 
 namespace
 {
@@ -15,20 +18,20 @@ class OfflineAudioDeviceBackend final : public IAudioDeviceBackend,
                                         private juce::AudioIODevice
 {
 public:
-    OfflineAudioDeviceBackend() : AudioIODevice ("Offline 16ch", "Test")
+    explicit OfflineAudioDeviceBackend (int bufferSize = 256) : AudioIODevice ("Offline 16ch", "Test")
     {
         setup.outputDeviceName = getName();
         setup.sampleRate = 48000.0;
-        setup.bufferSize = 256;
+        setup.bufferSize = bufferSize;
         setup.useDefaultOutputChannels = false;
         setup.outputChannels.setRange (0, 2, true);
     }
 
     juce::String initialiseWithDefaultDevices (int, int) override { return {}; }
-    juce::StringArray getOutputDeviceNames() const override { return { getName() }; }
+    juce::StringArray getOutputDeviceNames() const override { return { getName(), "Offline alternate" }; }
     AudioDeviceBackendState getCurrentDeviceState() const override
     {
-        return { true, getName(), setup.sampleRate, { setup.sampleRate },
+        return { true, setup.outputDeviceName, setup.sampleRate, { 48000.0, 96000.0 },
                  setup.bufferSize, { setup.bufferSize }, 16, {}, setup.outputChannels };
     }
     juce::AudioDeviceManager::AudioDeviceSetup getAudioDeviceSetup() const override
@@ -38,7 +41,16 @@ public:
     juce::String setAudioDeviceSetup (
         const juce::AudioDeviceManager::AudioDeviceSetup& requested, bool) override
     {
+        if (setupFailuresRemaining > 0)
+        {
+            --setupFailuresRemaining;
+            if (mutateOnSetupFailure && (! leaveRollbackFailureUnchanged || setupFailuresRemaining > 0)) setup = requested;
+            return "Injected device failure";
+        }
         setup = requested;
+        if (setup.sampleRate == 0.0)
+            setup.sampleRate = setup.outputDeviceName == "Offline alternate" ? 96000.0 : 48000.0;
+        if (setup.bufferSize == 0) setup.bufferSize = 256;
         return {};
     }
     void addAudioCallback (juce::AudioIODeviceCallback* callback) override
@@ -54,6 +66,10 @@ public:
             callback->audioDeviceStopped();
         }
     }
+
+    int setupFailuresRemaining = 0;
+    bool mutateOnSetupFailure = false;
+    bool leaveRollbackFailureUnchanged = false;
 
     void render (juce::AudioBuffer<float>& output)
     {
@@ -79,6 +95,13 @@ public:
     {
         attachedCallback->audioDeviceStopped();
         setup.outputChannels.clearBit (port);
+        attachedCallback->audioDeviceAboutToStart (this);
+    }
+
+    void restartAt (double sampleRate)
+    {
+        attachedCallback->audioDeviceStopped();
+        setup.sampleRate = sampleRate;
         attachedCallback->audioDeviceAboutToStart (this);
     }
 
@@ -124,13 +147,17 @@ public:
         if (reportsLatency) setLatencySamples (latencySamples);
     }
     int prepares = 0, releases = 0;
+    double rejectedSampleRate = 0.0;
+    std::function<void()> onPrepare;
     const juce::String getName() const override { return "Delay probe"; }
     void fillInPluginDescription (juce::PluginDescription& description) const override
     {
         description.name = getName();
     }
-    void prepareToPlay (double, int) override
+    void prepareToPlay (double rate, int) override
     {
+        if (juce::exactlyEqual (rate, rejectedSampleRate)) throw std::runtime_error ("Unsupported probe sample rate");
+        if (onPrepare) onPrepare();
         ++prepares;
         delay.setSize (getTotalNumOutputChannels(), delaySamples);
         delay.clear();
@@ -212,6 +239,858 @@ public:
     void getStateInformation (juce::MemoryBlock&) override {}
     void setStateInformation (const void*, int) override {}
 };
+
+class AudioOutputTransactionTests final : public juce::UnitTest
+{
+public:
+    AudioOutputTransactionTests() : UnitTest ("AudioOutputTransactions", "audio") {}
+    void runTest() override
+    {
+        for (const auto pluginFails : { false, true })
+        {
+            beginTest (pluginFails ? "failed staged effect preparation preserves the old delay history"
+                                   : "a rejected device change preserves the old delay history");
+            juce::TemporaryFile file (juce::File::getCurrentWorkingDirectory().getChildFile ("output-transaction.wav"));
+            writeAudio (file.getFile(), true);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::make_unique<DelayProbePlugin> (512), error));
+            expect (engine.loadFile (file.getFile()));
+            engine.play();
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            auto configuration = alternateConfiguration();
+            configuration.sampleRate = 0.0;
+            std::vector<AudioEngine::PreparedEffect> replacement;
+            if (pluginFails)
+            {
+                auto plugin = std::make_unique<DelayProbePlugin>();
+                plugin->rejectedSampleRate = 96000.0;
+                replacement.push_back ({ 2, std::move (plugin), {}, false });
+            }
+            else device->setupFailuresRemaining = 1;
+            expect (engine.applyListeningConfiguration (configuration, std::move (replacement)).isNotEmpty());
+            expect (engine.getEffectPlugin (1) != nullptr);
+            expectEquals (engine.getCurrentAudioSampleRate(), 48000.0);
+            device->render (block);
+            device->render (block);
+            expectWithinAbsoluteError (block.getMagnitude (0, 256), 0.4f, 0.0001f);
+        }
+
+        for (const auto& operation : { juce::String ("layout"), juce::String ("rate"), juce::String ("device") })
+        {
+            beginTest ("a rejected manual " + operation + " change preserves delayed audio");
+            juce::TemporaryFile file (juce::File::getCurrentWorkingDirectory().getChildFile ("manual-transaction.wav"));
+            writeAudio (file.getFile(), true);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::make_unique<DelayProbePlugin> (512), error));
+            expect (engine.loadFile (file.getFile()));
+            engine.play();
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            device->setupFailuresRemaining = 1;
+            error = operation == "layout" ? engine.setOutputLayout (OutputLayout::fiveOne)
+                : operation == "rate" ? engine.setSampleRate (96000.0) : engine.selectOutputDevice ("Offline alternate");
+            expect (error.isNotEmpty());
+            device->render (block); device->render (block);
+            expectWithinAbsoluteError (block.getMagnitude (0, 256), 0.4f, 0.0001f);
+        }
+
+        beginTest ("only external device preparation failures publish a single output error");
+        {
+            juce::TemporaryFile file (juce::File::getCurrentWorkingDirectory().getChildFile ("output-error.wav"));
+            writeAudio (file.getFile(), false);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            auto plugin = std::make_unique<DelayProbePlugin> (1);
+            plugin->rejectedSampleRate = 96000.0;
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::move (plugin), error));
+            expect (engine.loadFile (file.getFile()));
+            engine.play();
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            const auto before = engine.getCurrentPositionSeconds();
+            expect (engine.setSampleRate (96000.0).isNotEmpty());
+            expect (engine.takeOutputError().isEmpty());
+            expectEquals (engine.getCurrentAudioSampleRate(), 48000.0);
+            expectEquals (engine.getCurrentPositionSeconds(), before);
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.0001f);
+            device->restartAt (96000.0);
+            expect (engine.takeOutputError().isNotEmpty());
+            expect (engine.takeOutputError().isEmpty());
+            device->render (block);
+            expectEquals (block.getMagnitude (0, 256), 0.0f);
+            expect (engine.selectOutputDevice ("Offline 16ch").isEmpty());
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.0001f);
+            device->restartAt (96000.0);
+            expect (engine.selectOutputDevice ("Offline 16ch").isEmpty());
+            expect (engine.takeOutputError().isEmpty());
+        }
+
+        beginTest ("successful routing starts a new measurement while rejected routing retains the old one");
+        {
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error));
+            juce::AudioBuffer<float> block (2, 256);
+            for (int pass = 0; pass < 16; ++pass) device->render (block);
+            auto before = engine.getOutputMeterReadings();
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1000.0;
+            while (before.measuredSeconds <= 0.0 && juce::Time::getMillisecondCounterHiRes() < deadline)
+            {
+                juce::Thread::sleep (1);
+                before = engine.getOutputMeterReadings();
+            }
+            expect (before.measuredSeconds > 0.0);
+            device->setupFailuresRemaining = 1;
+            expect (engine.setOutputRouting ({ 1, 0 }).isNotEmpty());
+            expect (engine.getOutputMeterReadings().measuredSeconds >= before.measuredSeconds);
+            expect (engine.setOutputRouting ({ 1, 0 }).isEmpty());
+            expectEquals (engine.getOutputMeterReadings().measuredSeconds, 0.0);
+            expectEquals (engine.getOutputMeterReadings().maxTruePeak[0], 0.0f);
+        }
+
+        beginTest ("failed hardware rollback isolates retained audio until the original device timing returns");
+        {
+            juce::TemporaryFile original (juce::File::getCurrentWorkingDirectory().getChildFile ("output-transaction-original.wav"));
+            juce::TemporaryFile moved (juce::File::getCurrentWorkingDirectory().getChildFile ("output-transaction-moved.wav"));
+            writeAudio (original.getFile(), false);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            expect (engine.loadPlaybackPlan ({ { { original.getFile(), 73 } }, -1 }));
+            juce::Thread::sleep (100);
+            engine.play();
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            const auto before = engine.getPlaybackProgress();
+            expect (original.getFile().moveFileTo (moved.getFile()));
+            device->setupFailuresRemaining = 2;
+            device->mutateOnSetupFailure = true;
+            device->leaveRollbackFailureUnchanged = true;
+            expect (engine.applyListeningConfiguration (alternateConfiguration(), {}).isNotEmpty());
+            expectEquals (engine.getCurrentAudioSampleRate(), 96000.0);
+            expect (engine.setOutputRouting ({ 0, 1 }).isEmpty());
+            device->restartAt (96000.0);
+            device->render (block);
+            expectEquals (block.getMagnitude (0, 256), 0.0f);
+            expect (! engine.hasReadError());
+            expect (engine.isPlaying());
+            expectEquals (engine.getPlaybackProgress().token, before.token);
+            expectEquals (engine.getCurrentPositionSeconds(), before.positionSeconds);
+            expect (engine.selectOutputDevice ("Offline 16ch").isEmpty());
+            device->render (block);
+            expect (engine.isPlaying());
+            expect (! engine.hasReadError());
+            expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.0001f);
+        }
+
+        for (const auto& [previousLayout, requestedLayout, previousChannels, requestedChannels]
+             : { std::tuple { OutputLayout::stereo, OutputLayout::fiveOne, 2, 6 },
+                 std::tuple { OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo, 8, 10 } })
+        {
+            beginTest ("failed " + juce::String (previousChannels) + " to " + juce::String (requestedChannels)
+                + " channel preparation restores host buses even when hardware rollback fails");
+            juce::TemporaryFile file (juce::File::getCurrentWorkingDirectory().getChildFile ("layout-rollback.wav"));
+            writeAudio (file.getFile(), false, 16);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            int requestedPreparations = 0;
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            expect (engine.setOutputLayout (previousLayout).isEmpty());
+            auto plugin = std::make_unique<DelayProbePlugin> (1);
+            auto* probe = plugin.get();
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::move (plugin), error));
+            expect (engine.loadFile (file.getFile()));
+            engine.play();
+            juce::AudioBuffer<float> block (previousChannels, 256);
+            device->render (block);
+            for (int channel = 0; channel < previousChannels; ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 128), 0.08f, 0.0001f);
+            const auto before = engine.getPlaybackProgress();
+            probe->onPrepare = [&]
+            {
+                if (probe->getTotalNumOutputChannels() == requestedChannels && ++requestedPreparations == 2)
+                {
+                    device->setupFailuresRemaining = 1;
+                    throw std::runtime_error ("Injected output preparation failure");
+                }
+            };
+
+            error = engine.setOutputLayout (requestedLayout);
+            expect (error.contains ("Outputs are disconnected"), error);
+            expect (engine.getOutputLayout() == previousLayout);
+            expectEquals (probe->getTotalNumInputChannels(), previousChannels);
+            expectEquals (probe->getTotalNumOutputChannels(), previousChannels);
+            expectEquals (device->getAudioDeviceSetup().outputChannels.countNumberOfSetBits(), requestedChannels);
+            device->render (block);
+            expectEquals (block.getMagnitude (0, block.getNumSamples()), 0.0f);
+            expectEquals (engine.getCurrentPositionSeconds(), before.positionSeconds);
+            expect (engine.isPlaying());
+            expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine,
+                juce::AudioChannelSet::left, -30.0f, 1000.0 }).isNotEmpty());
+            expect (engine.getCalibrationTestSignal().kind == CalibrationTestSignal::Kind::off);
+
+            expect (engine.selectOutputDevice ("Offline 16ch").isEmpty());
+            expect (engine.getOutputLayout() == previousLayout);
+            expectEquals (probe->getTotalNumInputChannels(), previousChannels);
+            expectEquals (probe->getTotalNumOutputChannels(), previousChannels);
+            expectEquals (device->getAudioDeviceSetup().outputChannels.countNumberOfSetBits(), previousChannels);
+            device->render (block);
+            for (int channel = 0; channel < previousChannels; ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 128), 0.08f, 0.0001f);
+            expect (engine.getCurrentPositionSeconds() > before.positionSeconds);
+            expect (engine.isPlaying());
+            expect (! engine.hasReadError());
+        }
+
+        beginTest ("failed external rate preparation preserves queued audio until the previous rate is restored");
+        {
+            juce::TemporaryFile original (juce::File::getCurrentWorkingDirectory().getChildFile ("external-rate-source.wav"));
+            juce::TemporaryFile moved (juce::File::getCurrentWorkingDirectory().getChildFile ("external-rate-moved.wav"));
+            writeAudio (original.getFile(), false);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            expect (engine.loadPlaybackPlan ({ { { original.getFile(), 84 } }, -1 }));
+            juce::Thread::sleep (100);
+            engine.play();
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            const auto before = engine.getPlaybackProgress();
+            expect (original.getFile().moveFileTo (moved.getFile()));
+
+            device->restartAt (96000.0);
+            expect (engine.takeOutputError().isNotEmpty());
+            expect (engine.takeOutputError().isEmpty());
+            expect (! engine.hasReadError());
+            expect (engine.drainPreparationFailures().empty());
+            expect (engine.isPlaying());
+            expectEquals (engine.getPlaybackProgress().token, before.token);
+            expectEquals (engine.getCurrentPositionSeconds(), before.positionSeconds);
+            device->render (block);
+            expectEquals (block.getMagnitude (0, block.getNumSamples()), 0.0f);
+            expectEquals (engine.getCurrentPositionSeconds(), before.positionSeconds);
+
+            expect (engine.setSampleRate (48000.0).isEmpty());
+            device->render (block);
+            expect (engine.isPlaying());
+            expect (! engine.hasReadError());
+            expect (engine.takeOutputError().isEmpty());
+            expectEquals (engine.getPlaybackProgress().token, before.token);
+            expect (engine.getCurrentPositionSeconds() > before.positionSeconds);
+            for (int channel = 0; channel < 2; ++channel)
+                expectWithinAbsoluteError (block.getSample (channel, 128), 0.08f, 0.0001f);
+        }
+
+        beginTest ("an external plug-in preparation failure retains PCM for recovery after the source file moves");
+        {
+            juce::TemporaryFile original (juce::File::getCurrentWorkingDirectory().getChildFile ("external-plugin-source.wav"));
+            juce::TemporaryFile moved (juce::File::getCurrentWorkingDirectory().getChildFile ("external-plugin-moved.wav"));
+            writeAudio (original.getFile(), false);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            auto plugin = std::make_unique<DelayProbePlugin> (1);
+            plugin->rejectedSampleRate = 96000.0;
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::move (plugin), error), error);
+            expect (engine.loadPlaybackPlan ({ { { original.getFile(), 85 } }, -1 }));
+            juce::Thread::sleep (100);
+            engine.play();
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            const auto before = engine.getPlaybackProgress();
+            device->restartAt (96000.0);
+            expect (engine.takeOutputError().isNotEmpty());
+            juce::Thread::sleep (100);
+            expect (original.getFile().moveFileTo (moved.getFile()));
+            const auto restored = engine.setSampleRate (48000.0);
+            expect (restored.isEmpty(), restored);
+            expectEquals (engine.getCurrentAudioSampleRate(), 48000.0);
+            expectEquals (engine.getPlaybackProgress().token, before.token);
+            expectEquals (engine.getCurrentPositionSeconds(), before.positionSeconds);
+            expect (engine.isPlaying());
+            expect (! engine.hasReadError());
+            expect (engine.drainPreparationFailures().empty());
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.0001f);
+            expect (engine.getCurrentPositionSeconds() > before.positionSeconds);
+        }
+
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+            for (const auto blockSize : { 128, 512 })
+            {
+                beginTest ("resuming music during test fade preserves every frame in " + toString (layout)
+                    + " with " + juce::String (blockSize) + " sample blocks");
+                juce::TemporaryFile file (juce::File::getCurrentWorkingDirectory().getChildFile ("test-resume.wav"));
+                writeAudio (file.getFile(), false, 16);
+                auto backend = std::make_unique<OfflineAudioDeviceBackend> (blockSize);
+                auto* device = backend.get();
+                AudioEngine engine (std::move (backend));
+                expect (engine.initialise().isEmpty());
+                expect (engine.setOutputLayout (layout).isEmpty());
+                expect (engine.loadFile (file.getFile()));
+                expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine,
+                    juce::AudioChannelSet::left, -30.0f, 1000.0 }).isEmpty());
+                juce::AudioBuffer<float> block (getChannelCount (layout), blockSize);
+                for (int pass = 0; pass < 10; ++pass) device->render (block);
+                engine.stopCalibrationTestSignal();
+                engine.play();
+                for (int pass = 0; pass < 2; ++pass)
+                {
+                    device->render (block);
+                    for (int channel = 1; channel < block.getNumChannels(); ++channel)
+                        for (int sample = 0; sample < blockSize; ++sample)
+                            expectWithinAbsoluteError (block.getSample (channel, sample), 0.08f, 0.0001f);
+                }
+                expectWithinAbsoluteError (engine.getCurrentPositionSeconds(), 2.0 * blockSize / 48000.0, 0.000001);
+            }
+
+        for (const auto target : { OutputLayout::lcr, OutputLayout::twoOne })
+            for (const auto listeningPreset : { false, true })
+            {
+                beginTest ("same-count layout changes refresh speaker loudness mapping for " + toString (target)
+                    + (listeningPreset ? " through a listening configuration" : " through device settings"));
+                auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+                auto* device = backend.get();
+                AudioEngine engine (std::move (backend));
+                expect (engine.initialise().isEmpty());
+                expect (engine.setOutputLayout (target == OutputLayout::lcr ? OutputLayout::twoOne : OutputLayout::lcr).isEmpty());
+                if (listeningPreset)
+                {
+                    auto configuration = alternateConfiguration();
+                    configuration.deviceIdentifier = configuration.deviceName = "Offline 16ch";
+                    configuration.sampleRate = 48000.0;
+                    configuration.layout = target;
+                    configuration.routing = { 0, 1, 2 };
+                    expect (engine.applyListeningConfiguration (configuration, {}).isEmpty());
+                }
+                else expect (engine.setOutputLayout (target).isEmpty());
+                expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine,
+                    target == OutputLayout::lcr ? juce::AudioChannelSet::centre : juce::AudioChannelSet::LFE,
+                    -30.0f, 1000.0 }).isEmpty());
+                juce::AudioBuffer<float> block (3, 256);
+                for (int pass = 0; pass < 120; ++pass)
+                {
+                    device->render (block);
+                    juce::Thread::sleep (1);
+                }
+                auto readings = engine.getOutputMeterReadings();
+                const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1000.0;
+                while (readings.measuredSeconds < 0.6 && juce::Time::getMillisecondCounterHiRes() < deadline)
+                {
+                    juce::Thread::sleep (1);
+                    readings = engine.getOutputMeterReadings();
+                }
+                expect (readings.available && readings.measuredSeconds >= 0.6);
+                expect (block.getMagnitude (2, 0, 256) > 0.02f);
+                expect (target == OutputLayout::lcr ? std::isfinite (readings.momentaryLufs)
+                                                    : std::isinf (readings.momentaryLufs) && readings.momentaryLufs < 0.0);
+            }
+
+        beginTest ("ordinary external device restarts prepare new timing and keep playback audible");
+        {
+            juce::TemporaryFile file (juce::File::getCurrentWorkingDirectory().getChildFile ("output-transaction.wav"));
+            writeAudio (file.getFile(), false);
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            expect (engine.loadFile (file.getFile()));
+            engine.play();
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            const auto before = engine.getCurrentPositionSeconds();
+            device->restartAt (96000.0);
+            expectWithinAbsoluteError (engine.getCurrentPositionSeconds(), before, 0.00003);
+            device->render (block);
+            expect (engine.isPlaying());
+            expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.0001f);
+        }
+
+        for (const auto channel : { juce::AudioChannelSet::left, juce::AudioChannelSet::LFE })
+        {
+            beginTest ("resubmitting an active calibration signal preserves its phase and delayed history for speaker "
+                       + juce::String (static_cast<int> (channel)));
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto controlBackend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            auto* controlDevice = controlBackend.get();
+            AudioEngine engine (std::move (backend)), control (std::move (controlBackend));
+            const CalibrationTestSignal signal { CalibrationTestSignal::Kind::sine, channel, -30.0f, 1000.0 };
+            for (auto* candidate : { &engine, &control })
+            {
+                expect (candidate->initialise().isEmpty());
+                expect (candidate->setOutputLayout (OutputLayout::fiveOne).isEmpty());
+                expect (candidate->setOutputCalibration (channel, 0.0f, 20.0, false).isEmpty());
+                expect (candidate->setCalibrationTestSignal (signal).isEmpty());
+            }
+            juce::AudioBuffer<float> actual (6, 256), expected (6, 256);
+            for (int block = 0; block < 20; ++block) { device->render (actual); controlDevice->render (expected); }
+            expect (engine.setCalibrationTestSignal (signal).isEmpty());
+            device->render (actual); controlDevice->render (expected);
+            for (int speaker = 0; speaker < 6; ++speaker)
+                expect (std::equal (actual.getReadPointer (speaker), actual.getReadPointer (speaker) + 256,
+                                   expected.getReadPointer (speaker)));
+            device->restartAt (48000.0);
+            expect (engine.getCalibrationTestSignal().kind == CalibrationTestSignal::Kind::off);
+            expect (engine.setCalibrationTestSignal (signal).isEmpty());
+            for (int block = 0; block < 20; ++block) device->render (actual);
+            expect (actual.getMagnitude (0, 256) > 0.001f);
+        }
+    }
+private:
+    ListeningOutputConfiguration alternateConfiguration() const
+    {
+        ListeningOutputConfiguration configuration;
+        configuration.deviceIdentifier = configuration.deviceName = "Offline alternate";
+        configuration.layout = OutputLayout::stereo;
+        configuration.sampleRate = 96000.0;
+        configuration.bufferSize = 256;
+        configuration.routing = { 0, 1 };
+        return configuration;
+    }
+    void writeAudio (const juce::File& file, bool impulse, int channels = 2)
+    {
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::OutputStream> stream = file.createOutputStream();
+        auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions()
+            .withSampleRate (48000.0)
+            .withChannelLayout (channels == 2 ? juce::AudioChannelSet::stereo()
+                                             : juce::AudioChannelSet::discreteChannels (channels))
+            .withBitsPerSample (16));
+        expect (writer != nullptr);
+        if (writer == nullptr) return;
+        juce::AudioBuffer<float> samples (channels, 8192);
+        samples.clear();
+        for (int channel = 0; channel < channels; ++channel)
+            if (impulse) samples.setSample (channel, 0, 0.5f);
+            else std::fill_n (samples.getWritePointer (channel), samples.getNumSamples(), 0.1f);
+        expect (writer->writeFromAudioSampleBuffer (samples, 0, samples.getNumSamples()));
+    }
+} audioOutputTransactionTests;
+
+class CalibrationEngineTests final : public juce::UnitTest
+{
+public:
+    CalibrationEngineTests() : UnitTest ("CalibrationEngine", "audio") {}
+    void runTest() override
+    {
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo,
+                                   OutputLayout::nineOneSix })
+        {
+            beginTest ("calibration test bypasses effects mute solo and follows physical routing in " + toString (layout));
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            expect (engine.setOutputLayout (layout).isEmpty());
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error), error);
+            const auto speakers = toAudioChannelSet (layout);
+            const auto testSpeaker = speakers.getTypeOfChannel (speakers.size() - 1);
+            std::vector<int> routing;
+            for (int channel = 0; channel < speakers.size(); ++channel)
+            {
+                routing.push_back (15 - channel);
+                expect (engine.setOutputChannelMix (speakers.getTypeOfChannel (channel), 0.0f, true, channel == 0));
+            }
+            expect (engine.setOutputRouting (routing).isEmpty());
+            expect (engine.setOutputCalibration (testSpeaker, -6.0206f, 1.0, true).isEmpty());
+            engine.setGain (0.4);
+            expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine, testSpeaker, -30.0f, 1000.0 }).isEmpty());
+            juce::AudioBuffer<float> physical (16, 256);
+            for (int block = 0; block < 8; ++block) device->renderPhysicalOutputs (physical);
+            {
+                juce::UnitTestAllocationChecker allocations (*this);
+                device->renderPhysicalOutputs (physical);
+            }
+            for (int port = 0; port < 16; ++port)
+                expectWithinAbsoluteError (physical.getMagnitude (port, 0, 256),
+                    port == routing.back() ? 0.00632455f : 0.0f, 0.00001f);
+            expect (engine.getOutputPeakLevels()[static_cast<size_t> (speakers.size() - 1)] > 0.006f);
+            expect (! engine.isPlaying());
+            std::swap (routing[0], routing[1]);
+            expect (engine.setOutputRouting (routing).isEmpty());
+            expect (engine.getCalibrationTestSignal().kind == CalibrationTestSignal::Kind::off);
+            expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine, testSpeaker, -30.0f, 1000.0 }).isEmpty());
+            expect (engine.setOutputLayout (OutputLayout::mono).isEmpty());
+            expect (engine.getCalibrationTestSignal().kind == CalibrationTestSignal::Kind::off);
+            expect (engine.setOutputLayout (layout).isEmpty());
+            const auto calibration = engine.getOutputCalibration();
+            const auto saved = std::find_if (calibration.begin(), calibration.end(), [testSpeaker] (const auto& value)
+                { return value.channel == testSpeaker; });
+            expect (saved != calibration.end() && saved->inverted);
+            expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine, juce::AudioChannelSet::unknown, -30.0f, 1000.0 }).isNotEmpty());
+            expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine, testSpeaker, 0.0f, 1000.0 }).isNotEmpty());
+        }
+
+        beginTest ("a disconnected speaker cannot start a calibration test");
+        {
+            AudioEngine engine (std::make_unique<OfflineAudioDeviceBackend>());
+            expect (engine.initialise().isEmpty());
+            expect (engine.setOutputRouting ({ -1, 1 }).isEmpty());
+            const CalibrationTestSignal signal { CalibrationTestSignal::Kind::sine,
+                juce::AudioChannelSet::left, -30.0f, 1000.0 };
+            expect (engine.validateCalibrationTestSignal (signal).containsIgnoreCase ("physical output"));
+            expect (engine.setCalibrationTestSignal (signal).isNotEmpty());
+            expect (engine.getCalibrationTestSignal().kind == CalibrationTestSignal::Kind::off);
+        }
+
+        beginTest ("a physical port removed during a device restart cannot start a calibration test");
+        {
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            device->disconnectPhysicalPort (0);
+            const CalibrationTestSignal signal { CalibrationTestSignal::Kind::sine,
+                juce::AudioChannelSet::left, -30.0f, 1000.0 };
+            expect (engine.validateCalibrationTestSignal (signal).containsIgnoreCase ("physical output"));
+            expect (engine.setCalibrationTestSignal (signal).isNotEmpty());
+            expect (engine.getCalibrationTestSignal().kind == CalibrationTestSignal::Kind::off);
+        }
+
+        beginTest ("effect replacement rejects an incompatible staged chain without removing the audible graph");
+        {
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            juce::String error;
+            auto oldPlugin = std::make_unique<MixProbePlugin>();
+            auto* oldIdentity = oldPlugin.get();
+            expect (engine.addEffectPlugin (1, std::move (oldPlugin), error), error);
+            std::vector<AudioEngine::PreparedEffect> requested;
+            requested.push_back ({ 2, std::make_unique<MixProbePlugin>(), {}, false });
+            requested.push_back ({ 3, std::make_unique<MixProbePlugin>(), { juce::AudioChannelSet::LFE }, false });
+            expect (engine.replaceEffectPlugins (std::move (requested)).isNotEmpty());
+            expect (engine.getEffectPlugin (1) == oldIdentity);
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.00001f);
+            expect (engine.replaceEffectPlugins ({}).isEmpty());
+            expectEquals (engine.getEffectPluginCount(), 0);
+            device->render (block);
+            expectEquals (block.getMagnitude (0, 0, 256), 0.0f);
+        }
+
+        beginTest ("listening configuration commits actual routing calibration and chain together");
+        {
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            engine.setGain (0.5);
+            ListeningOutputConfiguration configuration;
+            configuration.deviceIdentifier = configuration.deviceName = "Offline alternate";
+            configuration.layout = OutputLayout::fiveOne;
+            configuration.sampleRate = 96000.0;
+            configuration.bufferSize = 256;
+            configuration.routing = { 15, 14, 13, 12, 11, 10 };
+            configuration.calibration = { { juce::AudioChannelSet::left, 6.0206f, 1.0, true } };
+            configuration.channelMix = { { juce::AudioChannelSet::right, 1.0f, true, false } };
+            std::vector<AudioEngine::PreparedEffect> requested;
+            requested.push_back ({ 8, std::make_unique<MixProbePlugin>(), {}, false });
+            expect (engine.applyListeningConfiguration (configuration, std::move (requested)).isEmpty());
+            expect (engine.getOutputLayout() == OutputLayout::fiveOne);
+            expectEquals (engine.getCurrentAudioSampleRate(), 96000.0);
+            expectEquals (engine.getCurrentAudioDeviceName(), juce::String ("Offline alternate"));
+            expectEquals (engine.getGain(), 0.5);
+            expect (engine.getEffectPlugin (8) != nullptr);
+            juce::AudioBuffer<float> block (16, 256);
+            for (int pass = 0; pass < 3; ++pass) device->renderPhysicalOutputs (block);
+            expectWithinAbsoluteError (block.getSample (15, 128), -0.1f, 0.00001f);
+            expectEquals (block.getMagnitude (14, 0, 256), 0.0f);
+            expectWithinAbsoluteError (block.getSample (10, 128), 0.3f, 0.00001f);
+        }
+
+        beginTest ("listening device and layout changes preserve playback identity position intent and master gain");
+        {
+            juce::TemporaryFile temporary (juce::File::getCurrentWorkingDirectory().getChildFile ("calibration-source.wav"));
+            juce::WavAudioFormat wav;
+            std::unique_ptr<juce::OutputStream> stream = temporary.getFile().createOutputStream();
+            auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions()
+                .withSampleRate (48000.0).withNumChannels (2).withBitsPerSample (16));
+            expect (writer != nullptr);
+            if (writer != nullptr)
+            {
+                juce::AudioBuffer<float> input (2, 48000);
+                for (int channel = 0; channel < 2; ++channel)
+                    std::fill_n (input.getWritePointer (channel), input.getNumSamples(), 0.1f);
+                expect (writer->writeFromAudioSampleBuffer (input, 0, input.getNumSamples()));
+                writer.reset();
+                auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+                auto* device = backend.get();
+                AudioEngine engine (std::move (backend));
+                expect (engine.initialise().isEmpty());
+                expect (engine.loadPlaybackPlan ({ { { temporary.getFile(), 41 } }, 0 }, 0.25));
+                engine.setGain (0.37);
+                engine.play();
+                const auto before = engine.getPlaybackProgress();
+                ListeningOutputConfiguration configuration;
+                configuration.deviceIdentifier = configuration.deviceName = "Offline alternate";
+                configuration.layout = OutputLayout::fiveOne;
+                configuration.sampleRate = 96000.0;
+                configuration.bufferSize = 256;
+                configuration.routing = { 0, 1, 2, 3, 4, 5 };
+                expect (engine.applyListeningConfiguration (configuration, {}).isEmpty());
+                const auto after = engine.getPlaybackProgress();
+                expect (engine.isPlaying());
+                expectEquals (after.token, before.token);
+                expectEquals (after.sequence, before.sequence);
+                expectWithinAbsoluteError (after.positionSeconds, before.positionSeconds, 0.00003);
+                expectWithinAbsoluteError (engine.getGain(), 0.37, 0.000001);
+
+                beginTest ("calibration monitoring lets old effect tails decay without feeding them to speakers");
+                juce::String error;
+                expect (engine.addEffectPlugin (1, std::make_unique<DelayProbePlugin>(), error), error);
+                juce::AudioBuffer<float> block (6, 256);
+                device->render (block);
+                engine.pause();
+                expect (engine.setCalibrationTestSignal ({ CalibrationTestSignal::Kind::sine,
+                    juce::AudioChannelSet::left, -30.0f, 1000.0 }).isEmpty());
+                for (int pass = 0; pass < 8; ++pass) device->render (block);
+                engine.stopCalibrationTestSignal();
+                for (int pass = 0; pass < 3; ++pass) device->render (block);
+                expectEquals (block.getMagnitude (0, 0, 256), 0.0f);
+            }
+        }
+
+        beginTest ("moving an open audio file preserves its reader through listening layout and rate changes");
+        {
+            juce::TemporaryFile original (juce::File::getCurrentWorkingDirectory().getChildFile ("calibration-open.wav"));
+            juce::TemporaryFile moved (juce::File::getCurrentWorkingDirectory().getChildFile ("calibration-moved.wav"));
+            juce::WavAudioFormat wav;
+            std::unique_ptr<juce::OutputStream> stream = original.getFile().createOutputStream();
+            auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions()
+                .withSampleRate (48000.0).withNumChannels (2).withBitsPerSample (16));
+            expect (writer != nullptr);
+            if (writer != nullptr)
+            {
+                juce::AudioBuffer<float> input (2, 480000);
+                for (int channel = 0; channel < 2; ++channel)
+                    std::fill_n (input.getWritePointer (channel), input.getNumSamples(), 0.1f);
+                expect (writer->writeFromAudioSampleBuffer (input, 0, input.getNumSamples()));
+                writer.reset();
+                auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+                auto* device = backend.get();
+                AudioEngine engine (std::move (backend));
+                expect (engine.initialise().isEmpty());
+                expect (engine.loadPlaybackPlan ({ { { original.getFile(), 99 } }, -1 }, 0.25));
+                expect (original.getFile().moveFileTo (moved.getFile()));
+                engine.play();
+                for (const auto layout : { OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
+                    OutputLayout::sevenOneTwo, OutputLayout::nineOneSix, OutputLayout::stereo })
+                {
+                    const auto before = engine.getPlaybackProgress();
+                    ListeningOutputConfiguration configuration;
+                    configuration.deviceIdentifier = configuration.deviceName = "Offline alternate";
+                    configuration.layout = layout;
+                    configuration.sampleRate = layout == OutputLayout::stereo ? 48000.0 : 96000.0;
+                    configuration.bufferSize = 256;
+                    for (int channel = 0; channel < getChannelCount (layout); ++channel) configuration.routing.push_back (channel);
+                    const auto error = engine.applyListeningConfiguration (configuration, {});
+                    expect (error.isEmpty(), error);
+                    expect (! engine.hasReadError());
+                    expect (engine.isPlaying());
+                    const auto after = engine.getPlaybackProgress();
+                    expectEquals (after.token, before.token);
+                    expectWithinAbsoluteError (after.positionSeconds, before.positionSeconds, 0.00003);
+                    juce::AudioBuffer<float> block (getChannelCount (layout), 256);
+                    device->render (block);
+                    expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.001f);
+                }
+            }
+        }
+
+        beginTest ("failed source reconfiguration restores cached audio and preserves transport intent and position");
+        {
+            juce::TemporaryFile original (juce::File::getCurrentWorkingDirectory().getChildFile ("calibration-cached.wav"));
+            juce::TemporaryFile moved (juce::File::getCurrentWorkingDirectory().getChildFile ("calibration-cached-moved.wav"));
+            juce::WavAudioFormat wav;
+            std::unique_ptr<juce::OutputStream> stream = original.getFile().createOutputStream();
+            auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions()
+                .withSampleRate (48000.0).withNumChannels (2).withBitsPerSample (16));
+            expect (writer != nullptr);
+            if (writer != nullptr)
+            {
+                juce::AudioBuffer<float> input (2, 1024);
+                for (int channel = 0; channel < 2; ++channel)
+                    std::fill_n (input.getWritePointer (channel), input.getNumSamples(), 0.1f);
+                expect (writer->writeFromAudioSampleBuffer (input, 0, input.getNumSamples()));
+                writer.reset();
+                auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+                auto* device = backend.get();
+                AudioEngine engine (std::move (backend));
+                expect (engine.initialise().isEmpty());
+                expect (engine.loadPlaybackPlan ({ { { original.getFile(), 99 } }, -1 }));
+                expect (engine.seekToSeconds (0.01));
+                engine.play();
+                const auto before = engine.getPlaybackProgress();
+                expect (original.getFile().moveFileTo (moved.getFile()));
+                juce::String error;
+                expect (engine.addEffectPlugin (1, std::make_unique<DelayProbePlugin> (1), error), error);
+                const auto* originalPlugin = engine.getEffectPlugin (1);
+                ListeningOutputConfiguration configuration;
+                configuration.deviceIdentifier = configuration.deviceName = "Offline alternate";
+                configuration.layout = OutputLayout::fiveOne;
+                configuration.sampleRate = 96000.0;
+                configuration.bufferSize = 256;
+                configuration.routing = { 0, 1, 2, 3, 4, 5 };
+                const auto failure = engine.applyListeningConfiguration (configuration, {});
+                expect (failure.isNotEmpty());
+                expect (failure.containsIgnoreCase ("source"));
+                expect (engine.getEffectPlugin (1) == originalPlugin);
+                expect (engine.getOutputLayout() == OutputLayout::stereo);
+                expectEquals (engine.getCurrentAudioSampleRate(), 48000.0);
+                expect (! engine.hasReadError());
+                expect (engine.isPlaying());
+                expect (engine.drainPreparationFailures().empty());
+                expectEquals (engine.getPlaybackProgress().token, before.token);
+                expectWithinAbsoluteError (engine.getCurrentPositionSeconds(), before.positionSeconds, 0.00003);
+                juce::AudioBuffer<float> block (2, 256);
+                device->render (block);
+                expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.001f);
+            }
+        }
+
+        beginTest ("failed listening device apply retains old calibration graph and audio after verified rollback");
+        {
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine engine (std::move (backend));
+            expect (engine.initialise().isEmpty());
+            juce::String error;
+            expect (engine.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error), error);
+            const auto* oldPlugin = engine.getEffectPlugin (1);
+            ListeningOutputConfiguration configuration;
+            configuration.deviceIdentifier = configuration.deviceName = "Offline 16ch";
+            configuration.layout = OutputLayout::fiveOne;
+            configuration.sampleRate = 96000.0;
+            configuration.bufferSize = 256;
+            configuration.routing = { 15, 14, 13, 12, 11, 10 };
+            configuration.calibration = { { juce::AudioChannelSet::left, -24.0f, 20.0, true } };
+            configuration.deviceIdentifier = "disconnected-device-identity";
+            expect (engine.applyListeningConfiguration (configuration, {}).isNotEmpty());
+            expectEquals (engine.getCurrentAudioSampleRate(), 48000.0);
+            expect (engine.getEffectPlugin (1) == oldPlugin);
+            configuration.deviceIdentifier = "Offline 16ch";
+            device->setupFailuresRemaining = 1;
+            device->mutateOnSetupFailure = true;
+            expect (engine.applyListeningConfiguration (configuration, {}).isNotEmpty());
+            expect (engine.getOutputLayout() == OutputLayout::stereo);
+            expectEquals (engine.getCurrentAudioSampleRate(), 48000.0);
+            expect (engine.getEffectPlugin (1) == oldPlugin);
+            expect (engine.getDeviceSettings().outputRouting == std::vector<int> ({ 0, 1 }));
+            juce::AudioBuffer<float> block (2, 256);
+            device->render (block);
+            expectWithinAbsoluteError (block.getSample (0, 128), 0.08f, 0.00001f);
+            device->setupFailuresRemaining = 2;
+            device->mutateOnSetupFailure = false;
+            const auto rollbackError = engine.applyListeningConfiguration (configuration, {});
+            expect (rollbackError.contains ("Outputs are disconnected"));
+            expect (engine.getEffectPlugin (1) == oldPlugin);
+            expect (engine.getDeviceSettings().outputRouting == std::vector<int> ({ -1, -1 }));
+            device->render (block);
+            expectEquals (block.getMagnitude (0, 0, 256), 0.0f);
+        }
+
+        for (const auto& operation : { "listening preset", "output layout", "sample rate", "output device" })
+            checkBufferedEngineRollback (operation);
+
+    }
+
+private:
+    void checkBufferedEngineRollback (const juce::String& operation)
+    {
+        beginTest ("a failed " + operation + " change retains queued playback and device configuration");
+        const auto directory = juce::File::getCurrentWorkingDirectory();
+        juce::TemporaryFile original (directory.getChildFile ("buffered-engine-source.wav"));
+        juce::TemporaryFile moved (directory.getChildFile ("buffered-engine-moved.wav"));
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::OutputStream> stream = original.getFile().createOutputStream();
+        auto writer = wav.createWriterFor (stream, juce::AudioFormatWriterOptions()
+            .withSampleRate (48000.0).withNumChannels (2).withBitsPerSample (16));
+        expect (writer != nullptr);
+        if (writer == nullptr) return;
+        juce::AudioBuffer<float> input (2, 8192);
+        for (int channel = 0; channel < 2; ++channel)
+            for (int sample = 0; sample < input.getNumSamples(); ++sample)
+                input.setSample (channel, sample, 0.1f + 0.02f * std::sin (static_cast<float> (sample) * 0.01f));
+        expect (writer->writeFromAudioSampleBuffer (input, 0, input.getNumSamples()));
+        writer.reset();
+        auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+        auto controlBackend = std::make_unique<OfflineAudioDeviceBackend>();
+        auto* device = backend.get();
+        auto* controlDevice = controlBackend.get();
+        AudioEngine engine (std::move (backend)), control (std::move (controlBackend));
+        for (auto* candidate : { &engine, &control })
+        {
+            expect (candidate->initialise().isEmpty());
+            expect (candidate->loadPlaybackPlan ({ { { original.getFile(), 41 } }, -1 }));
+            candidate->play();
+        }
+        juce::AudioBuffer<float> actual (2, 256), expected (2, 256);
+        device->render (actual);
+        controlDevice->render (expected);
+        const auto before = engine.getPlaybackProgress();
+        expect (original.getFile().moveFileTo (moved.getFile()));
+        juce::String error;
+        if (operation == "output layout") error = engine.setOutputLayout (OutputLayout::fiveOne);
+        else if (operation == "sample rate") error = engine.setSampleRate (96000.0);
+        else if (operation == "output device") error = engine.selectOutputDevice ("Offline alternate");
+        else
+        {
+            ListeningOutputConfiguration configuration;
+            configuration.deviceIdentifier = configuration.deviceName = "Offline alternate";
+            configuration.layout = OutputLayout::fiveOne;
+            configuration.sampleRate = 96000.0;
+            configuration.bufferSize = 256;
+            configuration.routing = { 0, 1, 2, 3, 4, 5 };
+            error = engine.applyListeningConfiguration (configuration, {});
+        }
+        expect (error.containsIgnoreCase ("source"), error);
+        expectEquals (engine.getCurrentAudioDeviceName(), juce::String ("Offline 16ch"));
+        expectEquals (engine.getCurrentAudioSampleRate(), 48000.0);
+        expect (engine.getOutputLayout() == OutputLayout::stereo);
+        expect (engine.isPlaying());
+        expect (! engine.hasReadError());
+        expectEquals (engine.getPlaybackProgress().positionSeconds, before.positionSeconds);
+        expect (engine.drainPreparationFailures().empty());
+        for (int frame = 256; frame < 8192; frame += 256)
+        {
+            device->render (actual);
+            controlDevice->render (expected);
+            for (int channel = 0; channel < 2; ++channel)
+                expect (std::equal (actual.getReadPointer (channel), actual.getReadPointer (channel) + 256,
+                                    expected.getReadPointer (channel)), "Buffered audio differs from uninterrupted playback");
+        }
+    }
+} calibrationEngineTests;
 
 class AudioEngineTests final : public juce::UnitTest
 {

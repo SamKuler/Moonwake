@@ -55,7 +55,7 @@
                     "style": "textButton.mode",
                     "width": 118,
                     "height": 36,
-                    "focusOrder": 10
+                    "focusOrder": 1
                   },
                   {
                     "id": "studio-workspace-listening",
@@ -64,7 +64,7 @@
                     "style": "textButton.mode",
                     "width": 118,
                     "height": 36,
-                    "focusOrder": 20
+                    "focusOrder": 2
                   }
                 ]
               },
@@ -75,7 +75,7 @@
                 "style": "textButton.iconNeutral",
                 "width": 44,
                 "height": 44,
-                "focusOrder": 40
+                "focusOrder": 3
               }
             ]
           },
@@ -93,314 +93,385 @@
                 "gap": 16,
                 "children": [
                   {
-                    "id": "studio-studio-queue-panel",
-                    "type": "column",
-                    "gap": 8,
-                    "padding": 12,
-                    "style": "surface.default",
-                    "children": [
-                      {
-                        "id": "studio-studio-queue-heading",
-                        "type": "row",
-                        "height": 32,
-                        "gap": 6,
-                        "align": "center",
-                        "children": [
-                          {
-                            "id": "studio-studio-queue-title",
-                            "type": "component",
-                            "component": "queue.title",
-                            "style": "label.section",
-                            "height": 28,
-                            "width": 64
-                          },
-                          {
-                            "id": "studio-studio-search",
-                            "type": "component",
-                            "component": "library.search",
-                            "style": "textEditor.default",
-                            "height": 32,
-                            "focusOrder": 100,
-                            "shrink": 0,
-                            "grow": 1
-                          },
-                          {
-                            "id": "studio-studio-queue-count",
-                            "type": "component",
-                            "component": "queue.count",
-                            "style": "label.data",
-                            "width": 52,
-                            "height": 24
-                          },
-                          {
-                            "id": "studio-studio-add",
-                            "type": "component",
-                            "component": "library.add",
-                            "style": "textButton.iconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 110
-                          }
-                        ],
-                        "shrink": 0
-                      },
-                      {
-                        "id": "studio-studio-queue-body",
-                        "type": "stack",
-                        "grow": 1,
-                        "children": [
-                          {
-                            "id": "studio-studio-queue",
-                            "type": "component",
-                            "component": "queue.table",
-                            "style": "table.default",
-                            "presentation": "table",
-                            "anchors": {
-                              "top": 0,
-                              "right": 0,
-                              "bottom": 0,
-                              "left": 0
-                            },
-                            "focusOrder": 120
-                          },
-                          {
-                            "id": "studio-studio-empty",
-                            "type": "component",
-                            "component": "queue.empty",
-                            "style": "label.muted",
-                            "anchors": {
-                              "top": 0,
-                              "right": 0,
-                              "bottom": 0,
-                              "left": 0
-                            }
-                          }
-                        ]
-                      },
-                      {
-                        "id": "studio-studio-queue-actions",
-                        "type": "row",
-                        "height": 32,
-                        "gap": 6,
-                        "align": "center",
-                        "children": [
-                          {
-                            "id": "studio-studio-remove",
-                            "type": "component",
-                            "component": "queue.remove",
-                            "style": "textButton.iconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 130
-                          },
-                          {
-                            "id": "studio-studio-up",
-                            "type": "component",
-                            "component": "queue.moveUp",
-                            "style": "textButton.iconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 140
-                          },
-                          {
-                            "id": "studio-studio-down",
-                            "type": "component",
-                            "component": "queue.moveDown",
-                            "style": "textButton.iconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 150
-                          },
-                          {
-                            "id": "studio-studio-clear",
-                            "type": "component",
-                            "component": "queue.clear",
-                            "style": "textButton.default",
-                            "width": 70,
-                            "height": 32,
-                            "focusOrder": 160
-                          },
-                          {
-                            "id": "studio-studio-action-gap",
-                            "type": "visual",
-                            "style": "surface.default",
-                            "grow": 1
-                          }
-                        ],
-                        "shrink": 0
-                      }
-                    ],
-                    "shrink": 1,
-                    "grow": 1,
-                    "minHeight": 204
-                  },
-                  {
-                    "id": "studio-rack",
-                    "type": "column",
-                    "height": 260,
+                    "id": "studio-main-column-preset",
+                    "type": "row",
+                    "height": 36,
                     "shrink": 0,
-                    "padding": 12,
                     "gap": 8,
-                    "style": "surface.default",
+                    "align": "center",
                     "children": [
                       {
-                        "id": "studio-rack-header",
-                        "type": "row",
-                        "height": 28,
-                        "shrink": 0,
-                        "gap": 8,
-                        "children": [
-                          {
-                            "id": "studio-rack-title",
-                            "type": "component",
-                            "component": "effects.title",
-                            "style": "label.section",
-                            "grow": 1
-                          },
-                          {
-                            "id": "studio-rack-summary",
-                            "type": "component",
-                            "component": "effects.summary",
-                            "style": "label.data",
-                            "width": 136
-                          },
-                          {
-                            "id": "studio-rack-header-clearTails",
-                            "type": "component",
-                            "component": "effects.clearTails",
-                            "style": "textButton.default",
-                            "width": 104,
-                            "height": 28,
-                            "shrink": 0,
-                            "focusOrder": 290
-                          },
-                          {
-                            "id": "studio-rack-header-bypassAll",
-                            "type": "component",
-                            "component": "effects.bypassAll",
-                            "style": "textButton.default",
-                            "width": 104,
-                            "height": 28,
-                            "shrink": 0,
-                            "focusOrder": 295
-                          }
-                        ]
-                      },
-                      {
-                        "id": "studio-rack-filters",
-                        "type": "row",
-                        "height": 32,
-                        "shrink": 0,
-                        "gap": 6,
-                        "children": [
-                          {
-                            "id": "studio-rack-search",
-                            "type": "component",
-                            "component": "effects.filter",
-                            "style": "textEditor.default",
-                            "grow": 1,
-                            "focusOrder": 300
-                          },
-                          {
-                            "id": "studio-rack-type",
-                            "type": "component",
-                            "component": "effects.typeFilter",
-                            "style": "comboBox.default",
-                            "width": 100,
-                            "focusOrder": 310
-                          },
-                          {
-                            "id": "studio-rack-vendor",
-                            "type": "component",
-                            "component": "effects.manufacturerFilter",
-                            "style": "comboBox.default",
-                            "width": 142,
-                            "focusOrder": 320
-                          },
-                          {
-                            "id": "studio-rack-format",
-                            "type": "component",
-                            "component": "effects.formatFilter",
-                            "style": "comboBox.default",
-                            "width": 98,
-                            "focusOrder": 330
-                          }
-                        ]
-                      },
-                      {
-                        "id": "studio-rack-add",
-                        "type": "row",
-                        "height": 32,
-                        "shrink": 0,
-                        "gap": 6,
-                        "children": [
-                          {
-                            "id": "studio-rack-catalog",
-                            "type": "component",
-                            "component": "effects.catalog",
-                            "style": "comboBox.default",
-                            "grow": 1,
-                            "focusOrder": 340
-                          },
-                          {
-                            "id": "studio-rack-add-label",
-                            "type": "component",
-                            "component": "effects.scopeLabel",
-                            "style": "label.data",
-                            "width": 42
-                          },
-                          {
-                            "id": "studio-rack-scope",
-                            "type": "component",
-                            "component": "effects.scope",
-                            "style": "comboBox.default",
-                            "width": 148,
-                            "focusOrder": 350
-                          },
-                          {
-                            "id": "studio-rack-insert",
-                            "type": "component",
-                            "component": "effects.add",
-                            "style": "textButton.iconPrimary",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 360
-                          }
-                        ]
-                      },
-                      {
-                        "id": "studio-rack-content",
-                        "type": "stack",
+                        "id": "studio-main-column-preset-select",
+                        "type": "component",
+                        "component": "listeningPreset.select",
+                        "style": "comboBox.default",
                         "grow": 1,
-                        "children": [
-                          {
-                            "id": "studio-rack-chain",
-                            "type": "component",
-                            "component": "effects.chain",
-                            "style": "effectChain.default",
-                            "anchors": {
-                              "left": 0,
-                              "right": 0,
-                              "top": 0,
-                              "bottom": 0
-                            },
-                            "focusOrder": 370
-                          },
-                          {
-                            "id": "studio-rack-empty",
-                            "type": "component",
-                            "component": "effects.empty",
-                            "style": "label.muted",
-                            "anchors": {
-                              "left": 0,
-                              "right": 0,
-                              "top": 0,
-                              "bottom": 0
-                            }
-                          }
-                        ]
+                        "height": 32,
+                        "focusOrder": 4
+                      },
+                      {
+                        "id": "studio-main-column-preset-actions",
+                        "type": "component",
+                        "component": "listeningPreset.actions",
+                        "style": "textButton.default",
+                        "width": 92,
+                        "height": 32,
+                        "shrink": 0,
+                        "focusOrder": 5
                       }
                     ]
+                  },
+                  {
+                    "id": "studio-main-scroll",
+                    "type": "scroll",
+                    "direction": "vertical",
+                    "grow": 1,
+                    "child": {
+                      "id": "studio-main-content",
+                      "type": "column",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "id": "studio-studio-queue-panel",
+                          "type": "column",
+                          "gap": 8,
+                          "padding": 12,
+                          "style": "surface.default",
+                          "children": [
+                            {
+                              "id": "studio-studio-queue-heading",
+                              "type": "row",
+                              "height": 32,
+                              "gap": 6,
+                              "align": "center",
+                              "children": [
+                                {
+                                  "id": "studio-studio-queue-title",
+                                  "type": "component",
+                                  "component": "queue.title",
+                                  "style": "label.section",
+                                  "height": 28,
+                                  "width": 64
+                                },
+                                {
+                                  "id": "studio-studio-search",
+                                  "type": "component",
+                                  "component": "library.search",
+                                  "style": "textEditor.default",
+                                  "height": 32,
+                                  "focusOrder": 6,
+                                  "shrink": 0,
+                                  "grow": 1
+                                },
+                                {
+                                  "id": "studio-studio-queue-count",
+                                  "type": "component",
+                                  "component": "queue.count",
+                                  "style": "label.data",
+                                  "width": 52,
+                                  "height": 24
+                                },
+                                {
+                                  "id": "studio-studio-add",
+                                  "type": "component",
+                                  "component": "library.add",
+                                  "style": "textButton.iconNeutral",
+                                  "width": 32,
+                                  "height": 32,
+                                  "focusOrder": 7
+                                }
+                              ],
+                              "shrink": 0
+                            },
+                            {
+                              "id": "studio-studio-queue-body",
+                              "type": "stack",
+                              "grow": 1,
+                              "children": [
+                                {
+                                  "id": "studio-studio-queue",
+                                  "type": "component",
+                                  "component": "queue.table",
+                                  "style": "table.default",
+                                  "presentation": "table",
+                                  "anchors": {
+                                    "top": 0,
+                                    "right": 0,
+                                    "bottom": 0,
+                                    "left": 0
+                                  },
+                                  "focusOrder": 8
+                                },
+                                {
+                                  "id": "studio-studio-empty",
+                                  "type": "component",
+                                  "component": "queue.empty",
+                                  "style": "label.muted",
+                                  "anchors": {
+                                    "top": 0,
+                                    "right": 0,
+                                    "bottom": 0,
+                                    "left": 0
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "studio-studio-queue-actions",
+                              "type": "row",
+                              "height": 32,
+                              "gap": 6,
+                              "align": "center",
+                              "children": [
+                                {
+                                  "id": "studio-studio-remove",
+                                  "type": "component",
+                                  "component": "queue.remove",
+                                  "style": "textButton.iconNeutral",
+                                  "width": 32,
+                                  "height": 32,
+                                  "focusOrder": 9
+                                },
+                                {
+                                  "id": "studio-studio-up",
+                                  "type": "component",
+                                  "component": "queue.moveUp",
+                                  "style": "textButton.iconNeutral",
+                                  "width": 32,
+                                  "height": 32,
+                                  "focusOrder": 10
+                                },
+                                {
+                                  "id": "studio-studio-down",
+                                  "type": "component",
+                                  "component": "queue.moveDown",
+                                  "style": "textButton.iconNeutral",
+                                  "width": 32,
+                                  "height": 32,
+                                  "focusOrder": 11
+                                },
+                                {
+                                  "id": "studio-studio-clear",
+                                  "type": "component",
+                                  "component": "queue.clear",
+                                  "style": "textButton.default",
+                                  "width": 70,
+                                  "height": 32,
+                                  "focusOrder": 12
+                                },
+                                {
+                                  "id": "studio-studio-action-gap",
+                                  "type": "visual",
+                                  "style": "surface.default",
+                                  "grow": 1
+                                }
+                              ],
+                              "shrink": 0
+                            }
+                          ],
+                          "shrink": 1,
+                          "grow": 1,
+                          "minHeight": 204
+                        },
+                        {
+                          "id": "studio-rack",
+                          "type": "column",
+                          "height": 304,
+                          "shrink": 0,
+                          "padding": 12,
+                          "gap": 8,
+                          "style": "surface.default",
+                          "children": [
+                            {
+                              "id": "studio-rack-header",
+                              "type": "row",
+                              "height": 28,
+                              "shrink": 0,
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "id": "studio-rack-title",
+                                  "type": "component",
+                                  "component": "effects.title",
+                                  "style": "label.section",
+                                  "grow": 1
+                                },
+                                {
+                                  "id": "studio-rack-summary",
+                                  "type": "component",
+                                  "component": "effects.summary",
+                                  "style": "label.data",
+                                  "width": 136
+                                },
+                                {
+                                  "id": "studio-rack-header-clearTails",
+                                  "type": "component",
+                                  "component": "effects.clearTails",
+                                  "style": "textButton.default",
+                                  "width": 104,
+                                  "height": 28,
+                                  "shrink": 0,
+                                  "focusOrder": 13
+                                },
+                                {
+                                  "id": "studio-rack-header-bypassAll",
+                                  "type": "component",
+                                  "component": "effects.bypassAll",
+                                  "style": "textButton.default",
+                                  "width": 104,
+                                  "height": 28,
+                                  "shrink": 0,
+                                  "focusOrder": 14
+                                }
+                              ]
+                            },
+                            {
+                              "id": "studio-rack-presets",
+                              "type": "row",
+                              "height": 36,
+                              "shrink": 0,
+                              "gap": 8,
+                              "align": "center",
+                              "children": [
+                                {
+                                  "id": "studio-rack-presets-select",
+                                  "type": "component",
+                                  "component": "effects.preset.select",
+                                  "style": "comboBox.default",
+                                  "height": 32,
+                                  "grow": 1,
+                                  "focusOrder": 15
+                                },
+                                {
+                                  "id": "studio-rack-presets-actions",
+                                  "type": "component",
+                                  "component": "effects.preset.actions",
+                                  "style": "textButton.default",
+                                  "height": 32,
+                                  "width": 92,
+                                  "shrink": 0,
+                                  "focusOrder": 16
+                                }
+                              ]
+                            },
+                            {
+                              "id": "studio-rack-filters",
+                              "type": "row",
+                              "height": 32,
+                              "shrink": 0,
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "id": "studio-rack-search",
+                                  "type": "component",
+                                  "component": "effects.filter",
+                                  "style": "textEditor.default",
+                                  "grow": 1,
+                                  "focusOrder": 17
+                                },
+                                {
+                                  "id": "studio-rack-type",
+                                  "type": "component",
+                                  "component": "effects.typeFilter",
+                                  "style": "comboBox.default",
+                                  "width": 100,
+                                  "focusOrder": 18
+                                },
+                                {
+                                  "id": "studio-rack-vendor",
+                                  "type": "component",
+                                  "component": "effects.manufacturerFilter",
+                                  "style": "comboBox.default",
+                                  "width": 142,
+                                  "focusOrder": 19
+                                },
+                                {
+                                  "id": "studio-rack-format",
+                                  "type": "component",
+                                  "component": "effects.formatFilter",
+                                  "style": "comboBox.default",
+                                  "width": 98,
+                                  "focusOrder": 20
+                                }
+                              ]
+                            },
+                            {
+                              "id": "studio-rack-add",
+                              "type": "row",
+                              "height": 32,
+                              "shrink": 0,
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "id": "studio-rack-catalog",
+                                  "type": "component",
+                                  "component": "effects.catalog",
+                                  "style": "comboBox.default",
+                                  "grow": 1,
+                                  "focusOrder": 21
+                                },
+                                {
+                                  "id": "studio-rack-add-label",
+                                  "type": "component",
+                                  "component": "effects.scopeLabel",
+                                  "style": "label.data",
+                                  "width": 42
+                                },
+                                {
+                                  "id": "studio-rack-scope",
+                                  "type": "component",
+                                  "component": "effects.scope",
+                                  "style": "comboBox.default",
+                                  "width": 148,
+                                  "focusOrder": 22
+                                },
+                                {
+                                  "id": "studio-rack-insert",
+                                  "type": "component",
+                                  "component": "effects.add",
+                                  "style": "textButton.iconPrimary",
+                                  "width": 32,
+                                  "height": 32,
+                                  "focusOrder": 23
+                                }
+                              ]
+                            },
+                            {
+                              "id": "studio-rack-content",
+                              "type": "stack",
+                              "grow": 1,
+                              "children": [
+                                {
+                                  "id": "studio-rack-chain",
+                                  "type": "component",
+                                  "component": "effects.chain",
+                                  "style": "effectChain.default",
+                                  "anchors": {
+                                    "left": 0,
+                                    "right": 0,
+                                    "top": 0,
+                                    "bottom": 0
+                                  },
+                                  "focusOrder": 24
+                                },
+                                {
+                                  "id": "studio-rack-empty",
+                                  "type": "component",
+                                  "component": "effects.empty",
+                                  "style": "label.muted",
+                                  "anchors": {
+                                    "left": 0,
+                                    "right": 0,
+                                    "top": 0,
+                                    "bottom": 0
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
                   }
                 ]
               },
@@ -424,7 +495,7 @@
                         "component": "effects.outputLayout",
                         "style": "comboBox.default",
                         "grow": 1,
-                        "focusOrder": 80
+                        "focusOrder": 25
                       },
                       {
                         "id": "studio-meter-mode",
@@ -432,7 +503,7 @@
                         "component": "output.mode",
                         "style": "comboBox.default",
                         "grow": 1,
-                        "focusOrder": 85
+                        "focusOrder": 26
                       },
                       {
                         "id": "studio-meter-reset",
@@ -440,7 +511,7 @@
                         "component": "output.reset",
                         "style": "textButton.default",
                         "width": 62,
-                        "focusOrder": 90
+                        "focusOrder": 27
                       }
                     ]
                   },
@@ -472,7 +543,7 @@
                           "top": 0,
                           "bottom": 0
                         },
-                        "focusOrder": 95
+                        "focusOrder": 28
                       }
                     ]
                   }
@@ -504,7 +575,7 @@
                     "style": "linearSlider.default",
                     "presentation": "linearHorizontal",
                     "grow": 1,
-                    "focusOrder": 200
+                    "focusOrder": 30
                   },
                   {
                     "id": "studio-transport-time",
@@ -569,7 +640,7 @@
                         "style": "toggleButton.shuffle",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 205
+                        "focusOrder": 31
                       },
                       {
                         "id": "studio-transport-previous",
@@ -578,7 +649,7 @@
                         "style": "textButton.iconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 210
+                        "focusOrder": 32
                       },
                       {
                         "id": "studio-transport-playPause",
@@ -587,7 +658,7 @@
                         "style": "textButton.iconPrimary",
                         "width": 52,
                         "height": 52,
-                        "focusOrder": 220
+                        "focusOrder": 33
                       },
                       {
                         "id": "studio-transport-next",
@@ -596,7 +667,7 @@
                         "style": "textButton.iconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 230
+                        "focusOrder": 34
                       },
                       {
                         "id": "studio-transport-repeat-cycle",
@@ -605,7 +676,7 @@
                         "style": "textButton.iconNeutral",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 235
+                        "focusOrder": 35
                       }
                     ]
                   },
@@ -648,7 +719,7 @@
                         "style": "linearSlider.default",
                         "presentation": "linearHorizontal",
                         "height": 28,
-                        "focusOrder": 240
+                        "focusOrder": 36
                       }
                     ]
                   }

@@ -1,6 +1,7 @@
 #include "StateRestoreService.h"
 
 #include "library/LibraryRestore.h"
+#include "state/ListeningPresetStore.h"
 
 #include <exception>
 #include <utility>
@@ -87,6 +88,18 @@ StateRestoreResult StateRestoreService::prepare (
         return result;
     }
 
+    result.presetFile = stateFile.getSiblingFile ("presets.xml");
+    if (result.presetFile.existsAsFile() || ListeningPresetStore::backupFileFor (result.presetFile).existsAsFile())
+    {
+        ListeningPresetLibrary library;
+        juce::String message;
+        if (ListeningPresetStore::readFromFile (result.presetFile, library, message))
+            result.presets = std::move (library);
+        if (message.isNotEmpty()) result.warnings.add (message);
+    }
+    else
+        result.presets.emplace();
+
     if (pluginListFile.existsAsFile())
     {
         result.pluginCache = juce::XmlDocument::parse (pluginListFile);
@@ -111,6 +124,7 @@ StateRestoreResult StateRestoreService::prepare (
     {
         result.cancelled = true;
         result.state.reset();
+        result.presets.reset();
         result.pluginCache.reset();
     }
     return result;
@@ -145,6 +159,7 @@ void StateRestoreService::run()
                 {
                     result->cancelled = true;
                     result->state.reset();
+                    result->presets.reset();
                     result->pluginCache.reset();
                 }
                 completion (std::move (*result));

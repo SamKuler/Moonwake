@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.8.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.9.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -150,10 +150,12 @@ set(MOONWAKE_SOURCES
     Source/app/PlayerController.cpp
     Source/app/PlayerLibraryActions.cpp
     Source/app/PlayerMusicDirectories.cpp
+    Source/app/PlayerPresets.cpp
     Source/app/AutoSaveScheduler.cpp
     Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
     Source/audio/OutputMeter.cpp
+    Source/audio/OutputCalibrationProcessor.cpp
     Source/audio/GaplessAudioSource.cpp
     Source/audio/ChannelRouter.cpp
     Source/audio/ChannelMappedAudioSource.cpp
@@ -178,6 +180,9 @@ set(MOONWAKE_SOURCES
     Source/plugins/PluginManager.cpp
     Source/plugins/PluginScanProcess.cpp
     Source/state/AppStateStore.cpp
+    Source/state/ListeningPresets.cpp
+    Source/state/ListeningPresetStore.cpp
+    Source/state/EffectChainSerialization.cpp
     Source/state/StateSaveService.cpp
     Source/state/StateRestoreService.cpp
     Source/skin/SkinCompatibilityChecker.cpp
@@ -224,6 +229,8 @@ set(MOONWAKE_SOURCES
     Source/ui/AlbumArtworkComponent.cpp
     Source/ui/MainComponent.cpp
     Source/ui/OutputMixerComponent.cpp
+    Source/ui/OutputCalibrationComponent.cpp
+    Source/ui/PresetControls.cpp
     Source/ui/OutputStageComponent.cpp
     Source/ui/SkinFallbackDiagnostic.cpp
 )
@@ -355,8 +362,10 @@ add_executable(MoonwakeTests
         Source/app/PlayerController.cpp
         Source/app/PlayerLibraryActions.cpp
         Source/app/PlayerMusicDirectories.cpp
+        Source/app/PlayerPresets.cpp
         Source/audio/AudioEngine.cpp
         Source/audio/OutputMeter.cpp
+        Source/audio/OutputCalibrationProcessor.cpp
         Source/audio/GaplessAudioSource.cpp
         Source/audio/TrackArtistTags.cpp
         Source/audio/TrackMetadataReader.cpp
@@ -383,6 +392,9 @@ add_executable(MoonwakeTests
         Source/app/NowPlayingCoordinator.cpp
         Source/audio/OutputLayout.cpp
         Source/state/AppStateStore.cpp
+        Source/state/ListeningPresets.cpp
+        Source/state/ListeningPresetStore.cpp
+        Source/state/EffectChainSerialization.cpp
         Source/state/StateSaveService.cpp
         Source/state/StateRestoreService.cpp
         Source/skin/SkinCompatibilityChecker.cpp
@@ -429,9 +441,16 @@ add_executable(MoonwakeTests
         Source/ui/settings/SkinLibraryPanel.cpp
         Source/ui/AlbumArtworkComponent.cpp
         Source/ui/OutputMixerComponent.cpp
+        Source/ui/OutputCalibrationComponent.cpp
+        Source/ui/PresetControls.cpp
         Source/ui/OutputStageComponent.cpp
         Source/ui/SkinFallbackDiagnostic.cpp
         Tests/TestMain.cpp
+        Tests/ListeningPresetsTests.cpp
+        Tests/PlayerPresetControllerTests.cpp
+        Tests/PresetControlsTests.cpp
+        Tests/OutputCalibrationTests.cpp
+        Tests/OutputCalibrationComponentTests.cpp
         Tests/AppStateStoreTests.cpp
         Tests/AudioEngineTests.cpp
         Tests/QueuePublicationTests.cpp

@@ -900,10 +900,10 @@ public:
             expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 16,
                     "Studio meters must use the actual channel list through 9.1.6");
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
-            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.8.0"));
+            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.9.0"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.8.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.9.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
@@ -1362,7 +1362,8 @@ public:
                     expect (parents.contains ("settings.open"));
                     expect (! parents.contains ("effects.open"));
                     if (entry == SkinLayoutEntry::studio)
-                        expect (parents.contains ("effects.chain") && parents.contains ("output.stage"),
+                        expect (parents.contains ("effects.chain") && parents.contains ("output.stage")
+                                && parents.contains ("effects.preset.select") && parents.contains ("effects.preset.actions"),
                                 "Studio exposes the effect chain beside output monitoring.");
                     if (skin == foundation.get())
                         expectWithinAbsoluteError (
@@ -1394,7 +1395,8 @@ public:
                 const auto settings = componentParents (
                     skin->layouts.at (SkinLayoutEntry::settings));
                 for (const auto& id : {
-                         "settings.title",
+                         "settings.title", "listeningPreset.select", "listeningPreset.actions",
+                         "settings.calibration.title", "output.calibration", "output.reset",
                          "settings.audio.device", "settings.audio.sampleRate",
                          "settings.audio.bufferSize", "settings.audio.channelLayout",
                          "settings.audio.routing", "settings.audio.deviceConfiguration", "settings.plugins.formats",
@@ -1425,6 +1427,8 @@ public:
                                     || id == "library.open" || id == "player.open"
                                     || id == "library.add"
                                     || id == "effects.open" || id == "settings.open"))
+                            || id == "listeningPreset.select" || id == "listeningPreset.actions"
+                            || id == "settings.calibration.title" || id == "output.calibration" || id == "output.reset"
                             || id.startsWith ("settings.audio.")
                             || id.startsWith ("settings.plugins.")
                             || id.startsWith ("settings.skins.")

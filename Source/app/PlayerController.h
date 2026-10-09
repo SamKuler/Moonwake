@@ -9,6 +9,7 @@
 #include "plugins/EffectChainState.h"
 #include "plugins/PluginManager.h"
 #include "state/AppStateStore.h"
+#include "state/ListeningPresetStore.h"
 #include "state/StateRestoreService.h"
 #include "library/ArtworkStore.h"
 #include "library/MusicDirectoryScanService.h"
@@ -39,6 +40,29 @@ class PlayerController : private juce::AudioProcessorListener
 {
 public:
     using PluginInsertionCallback = std::function<void (bool, const juce::String&)>;
+    enum class PresetKind { effectChain, listening };
+
+    [[nodiscard]] const ListeningPresetLibrary& getPresetLibrary() const noexcept { return presetLibrary; }
+    [[nodiscard]] juce::String getActiveEffectPresetId() const { return activeEffectPresetId; }
+    [[nodiscard]] juce::String getActiveListeningPresetId() const { return activeListeningPresetId; }
+    [[nodiscard]] bool isEffectPresetModified() const;
+    [[nodiscard]] bool isListeningPresetModified() const;
+    [[nodiscard]] bool isPresetApplyRunning() const noexcept { return restoringEffects; }
+    juce::Result savePreset (PresetKind, const juce::String& name, const juce::String& overwriteId = {});
+    juce::Result renamePreset (PresetKind, const juce::String& id, const juce::String& name);
+    juce::Result duplicatePreset (PresetKind, const juce::String& id, const juce::String& name);
+    juce::Result deletePreset (PresetKind, const juce::String& id);
+    juce::Result importPreset (const juce::File&);
+    juce::Result exportPreset (PresetKind, const juce::String& id, const juce::File&);
+    juce::Result applyPreset (PresetKind, const juce::String& id, PluginInsertionCallback completed,
+                              std::function<void()> beforeCommit = {});
+    [[nodiscard]] std::vector<OutputChannelCalibration> getOutputCalibration() const { return audioEngine.getOutputCalibration(); }
+    juce::Result setOutputCalibration (const OutputChannelCalibration&);
+    void resetOutputCalibration();
+    juce::Result setCalibrationTestSignal (CalibrationTestSignal);
+    [[nodiscard]] CalibrationTestSignal getCalibrationTestSignal() const { return audioEngine.getCalibrationTestSignal(); }
+    void stopCalibrationTestSignal();
+
 
     PlayerController();
     explicit PlayerController (std::unique_ptr<IAudioDeviceBackend>);
@@ -142,6 +166,7 @@ public:
     bool loadState (const juce::File& stateFile, const juce::File& pluginListFile);
     bool applyPreparedState (StateRestoreResult result);
 
+    juce::String takeAudioOutputError();
     [[nodiscard]] const juce::String& getAudioInitialisationError() const noexcept { return audioInitialisationError; }
     [[nodiscard]] const juce::StringArray& getRestoreDiagnostics() const noexcept { return restoreDiagnostics; }
     [[nodiscard]] const PlaylistModel& getPlaylist() const;
@@ -193,6 +218,24 @@ private:
     void setLibraryTrackAvailable (const juce::String& occurrenceId, bool available);
     bool finishQueueEdit();
     bool makeQueueOccurrences (const std::vector<juce::String>&, std::vector<TrackItem>&);
+    ListeningPresetLibrary presetLibrary;
+    juce::File presetFile;
+    juce::String activeEffectPresetId, activeListeningPresetId;
+    uint64_t outputConfigurationRevision = 0;
+    std::pair<uint64_t, uint64_t> effectPresetBaseline {};
+    std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> listeningPresetBaseline {};
+    [[nodiscard]] bool captureEffectChainSnapshot (EffectChainState&, juce::String&, bool force);
+    [[nodiscard]] ListeningOutputConfiguration captureListeningOutput() const;
+    juce::Result persistPresetLibrary (ListeningPresetLibrary);
+    struct PresetRevision
+    {
+        uint64_t effects = 0, parameters = 0, output = 0, device = 0;
+    };
+    [[nodiscard]] PresetRevision capturePresetRevision() const;
+    void markPresetActive (PresetKind, const juce::String&, const PresetRevision&);
+    struct PendingPresetApply;
+    void prepareNextPresetEffect (std::shared_ptr<PendingPresetApply>, size_t index);
+    void finishPresetApply (const std::shared_ptr<PendingPresetApply>&, juce::String error);
     EffectChainState effectChain;
     AudioEngine audioEngine;
     PluginManager pluginManager;

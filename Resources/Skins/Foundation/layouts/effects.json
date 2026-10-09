@@ -34,7 +34,7 @@
             "width": 104,
             "height": 28,
             "shrink": 0,
-            "focusOrder": 90
+            "focusOrder": 1
           },
           {
             "id": "effects-header-bypassAll",
@@ -44,7 +44,36 @@
             "width": 104,
             "height": 28,
             "shrink": 0,
-            "focusOrder": 95
+            "focusOrder": 2
+          }
+        ]
+      },
+      {
+        "id": "effects-header-preset",
+        "type": "row",
+        "height": 36,
+        "shrink": 0,
+        "gap": 8,
+        "align": "center",
+        "children": [
+          {
+            "id": "effects-header-preset-select",
+            "type": "component",
+            "component": "effects.preset.select",
+            "style": "comboBox.default",
+            "grow": 1,
+            "height": 32,
+            "focusOrder": 3
+          },
+          {
+            "id": "effects-header-preset-actions",
+            "type": "component",
+            "component": "effects.preset.actions",
+            "style": "textButton.default",
+            "width": 92,
+            "height": 32,
+            "shrink": 0,
+            "focusOrder": 4
           }
         ]
       },
@@ -67,7 +96,7 @@
             "type": "component",
             "component": "effects.filter",
             "style": "textEditor.default",
-            "focusOrder": 100,
+            "focusOrder": 5,
             "grow": 1
           },
           {
@@ -77,7 +106,7 @@
             "style": "comboBox.default",
             "width": 116,
             "shrink": 0,
-            "focusOrder": 102
+            "focusOrder": 6
           },
           {
             "id": "effects-filter-manufacturerFilter",
@@ -86,7 +115,7 @@
             "style": "comboBox.default",
             "width": 180,
             "shrink": 0,
-            "focusOrder": 104
+            "focusOrder": 7
           },
           {
             "id": "effects-filter-formatFilter",
@@ -95,7 +124,7 @@
             "style": "comboBox.default",
             "width": 132,
             "shrink": 0,
-            "focusOrder": 106
+            "focusOrder": 8
           }
         ]
       },
@@ -111,7 +140,7 @@
             "component": "effects.catalog",
             "style": "comboBox.default",
             "grow": 1,
-            "focusOrder": 110
+            "focusOrder": 9
           },
           {
             "id": "effects-add",
@@ -119,7 +148,7 @@
             "component": "effects.add",
             "style": "textButton.iconPrimary",
             "width": 36,
-            "focusOrder": 120,
+            "focusOrder": 10,
             "height": 36,
             "shrink": 0
           }
@@ -131,7 +160,7 @@
         "component": "effects.chain",
         "style": "effectChain.default",
         "grow": 1,
-        "focusOrder": 130
+        "focusOrder": 11
       }
     ]
   },

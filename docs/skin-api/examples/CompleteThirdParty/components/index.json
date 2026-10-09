@@ -116,5 +116,27 @@
         "rule.remove": "textButton.default"
       }
     }
+  },
+  "outputCalibration": {
+    "default": {
+      "renderer": "components/output-calibration.json",
+      "slots": {
+        "calibration.channelLabel": "label.muted",
+        "calibration.channel": "comboBox.default",
+        "calibration.trimLabel": "label.muted",
+        "calibration.trim": "textEditor.default",
+        "calibration.delayLabel": "label.muted",
+        "calibration.delay": "textEditor.default",
+        "calibration.polarity": "textButton.default",
+        "calibration.signalLabel": "label.muted",
+        "calibration.signal": "comboBox.default",
+        "calibration.levelLabel": "label.muted",
+        "calibration.level": "textEditor.default",
+        "calibration.frequencyLabel": "label.muted",
+        "calibration.frequency": "textEditor.default",
+        "calibration.startStop": "textButton.primary",
+        "calibration.status": "label.calibrationStatus"
+      }
+    }
   }
 }
