@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.7.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.8.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -149,6 +149,7 @@ set(MOONWAKE_SOURCES
     Source/app/PlaybackCheckpoint.cpp
     Source/app/PlayerController.cpp
     Source/app/PlayerLibraryActions.cpp
+    Source/app/PlayerMusicDirectories.cpp
     Source/app/AutoSaveScheduler.cpp
     Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
@@ -158,11 +159,14 @@ set(MOONWAKE_SOURCES
     Source/audio/ChannelMappedAudioSource.cpp
     Source/audio/EffectGraph.cpp
     Source/audio/OutputLayout.cpp
+    Source/audio/TrackArtistTags.cpp
     Source/audio/TrackMetadataReader.cpp
     Source/library/ArtworkExtractor.cpp
     Source/library/ArtworkStore.cpp
     Source/library/LibraryProjection.cpp
     Source/library/MusicLibrary.cpp
+    Source/library/SmartPlaylistRules.cpp
+    Source/library/MusicDirectoryScanService.cpp
     Source/playlist/PlaylistFile.cpp
     Source/library/LibraryFilter.cpp
     Source/library/LibraryImportService.cpp
@@ -210,6 +214,8 @@ set(MOONWAKE_SOURCES
     Source/ui/SkinEffectChainViewport.cpp
     Source/ui/SkinLayoutHost.cpp
     Source/ui/MusicLibraryPanel.cpp
+    Source/ui/SmartPlaylistEditor.cpp
+    Source/ui/settings/MusicDirectoriesPanel.cpp
     Source/ui/PlaylistGridComponent.cpp
     Source/ui/SkinTableListBox.cpp
     Source/ui/settings/AudioSettingsPanel.cpp
@@ -348,14 +354,18 @@ add_executable(MoonwakeTests
         Source/app/PlaybackCheckpoint.cpp
         Source/app/PlayerController.cpp
         Source/app/PlayerLibraryActions.cpp
+        Source/app/PlayerMusicDirectories.cpp
         Source/audio/AudioEngine.cpp
         Source/audio/OutputMeter.cpp
         Source/audio/GaplessAudioSource.cpp
+        Source/audio/TrackArtistTags.cpp
         Source/audio/TrackMetadataReader.cpp
         Source/library/ArtworkExtractor.cpp
         Source/library/ArtworkStore.cpp
         Source/library/LibraryProjection.cpp
         Source/library/MusicLibrary.cpp
+        Source/library/SmartPlaylistRules.cpp
+        Source/library/MusicDirectoryScanService.cpp
         Source/playlist/PlaylistFile.cpp
         Source/library/LibraryFilter.cpp
         Source/library/LibraryImportService.cpp
@@ -410,6 +420,8 @@ add_executable(MoonwakeTests
         Source/ui/SkinEffectChainViewport.cpp
         Source/ui/SkinLayoutHost.cpp
         Source/ui/MusicLibraryPanel.cpp
+        Source/ui/SmartPlaylistEditor.cpp
+        Source/ui/settings/MusicDirectoriesPanel.cpp
         Source/ui/PlaylistGridComponent.cpp
         Source/ui/SkinTableListBox.cpp
         Source/ui/settings/AudioSettingsPanel.cpp
@@ -436,10 +448,14 @@ add_executable(MoonwakeTests
         Tests/OutputLayoutTests.cpp
         Tests/PlayerLibraryTests.cpp
         Tests/MusicLibraryPanelTests.cpp
+        Tests/SmartPlaylistEditorTests.cpp
+        Tests/MusicDirectoriesPanelTests.cpp
         Tests/PlaylistGridTests.cpp
         Tests/LibraryProjectionTests.cpp
         Tests/SkinEditableComboTests.cpp
         Tests/MusicLibraryTests.cpp
+        Tests/SmartPlaylistRulesTests.cpp
+        Tests/MusicDirectoryScanServiceTests.cpp
         Tests/PlaylistFileTests.cpp
         Tests/PlaylistModelTests.cpp
         Tests/PluginManagerTests.cpp

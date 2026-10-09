@@ -267,7 +267,8 @@ const std::vector<juce::String>& skinRenderTargetNames()
         "label", "textButton", "toggleButton", "comboBox", "textEditor",
         "linearSlider", "rotarySlider", "progressBar", "scrollBar", "popupMenu",
         "tooltip", "table", "surface", "artwork", "effectChain", "outputStage",
-        "channelMap", "pluginList", "skinList", "channelMixer", "playlistGrid"
+        "channelMap", "pluginList", "skinList", "channelMixer", "playlistGrid",
+        "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList"
     };
     return names;
 }
@@ -435,6 +436,9 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
         case SkinRenderTarget::pluginList:
         case SkinRenderTarget::skinList:
         case SkinRenderTarget::playlistGrid:
+        case SkinRenderTarget::directoryList:
+        case SkinRenderTarget::smartPlaylistEditor:
+        case SkinRenderTarget::smartPlaylistRuleList:
             break;
         case SkinRenderTarget::surface:
             break;
@@ -530,6 +534,16 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
                 { "collection.hasArtwork", Type::boolean }
             });
             break;
+        case SkinRenderTarget::directoryList:
+            addContext (result, {
+                { "directory.index", Type::number }, { "directory.id", Type::string },
+                { "directory.name", Type::string }, { "directory.path", Type::string },
+                { "directory.automatic", Type::boolean }
+            });
+            break;
+        case SkinRenderTarget::smartPlaylistEditor:
+        case SkinRenderTarget::smartPlaylistRuleList:
+            break;
         case SkinRenderTarget::skinList:
             addContext (result, {
                 { "skin.index", Type::number },
@@ -609,7 +623,7 @@ std::optional<juce::String> skinRenderSlotTarget (
 bool skinRenderIsAncillaryTarget (SkinRenderTarget target)
 {
     return target == SkinRenderTarget::scrollBar || target == SkinRenderTarget::popupMenu
-        || target == SkinRenderTarget::tooltip;
+        || target == SkinRenderTarget::tooltip || target == SkinRenderTarget::smartPlaylistEditor;
 }
 
 bool skinRenderPropertyTypesCompatible (SkinRenderValueType expected,

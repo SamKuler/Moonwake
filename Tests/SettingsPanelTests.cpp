@@ -1,5 +1,6 @@
 #include "fixtures/TestComponentPeer.h"
 #include "ui/settings/AudioSettingsPanel.h"
+#include "ui/settings/MusicDirectoriesPanel.h"
 #include "ui/settings/PluginSettingsPanel.h"
 #include "ui/settings/SkinLibraryPanel.h"
 #include "ui/settings/SettingsSkinContext.h"
@@ -1211,6 +1212,7 @@ public:
             expect (controller.setOutputLayout (OutputLayout::sevenOneTwo).isEmpty());
             AudioSettingsPanel audio (controller, &foundationSkin.adapter);
             PluginSettingsPanel plugins (controller, &foundationSkin.adapter);
+            MusicDirectoriesPanel music (foundationSkin.adapter);
             SkinLibraryPanel skins (manager, &foundationSkin.adapter);
             TestUiRoot root;
             juce::Label title;
@@ -1226,6 +1228,7 @@ public:
             root.addAndMakeVisible (title);
             root.addAndMakeVisible (close);
             audio.addTo (root);
+            music.addTo (root);
             plugins.addTo (root);
             skins.addTo (root);
 
@@ -1244,6 +1247,7 @@ public:
             expect (bindings.bind ("library.browseFavourites", favouritesOpen, report));
             expect (bindings.bind ("library.browseQueue", queueOpen, report));
             audio.bind (bindings, report);
+            music.bind (bindings, report);
             plugins.bind (bindings, report);
             skins.bind (bindings, report);
             expect (! report.hasErrors(), report.toText());
@@ -1262,11 +1266,18 @@ public:
             expect (audio.headingControl().isVisible(), "Audio heading must be visible.");
             const auto audioHeadingBounds = root.getLocalArea (
                 &audio.headingControl(), audio.headingControl().getLocalBounds());
+            auto* musicHeading = bindings.find ("settings.music.heading");
+            expect (musicHeading != nullptr && musicHeading->isVisible());
+            if (musicHeading == nullptr) return;
+            const auto musicHeadingBounds = root.getLocalArea (musicHeading, musicHeading->getLocalBounds());
             const auto pluginHeadingBounds = root.getLocalArea (
                 &plugins.formatsControl(), plugins.formatsControl().getLocalBounds());
             const auto skinHeadingBounds = root.getLocalArea (
                 &skins.headingControl(), skins.headingControl().getLocalBounds());
             expect (audioHeadingBounds.getY() < pluginHeadingBounds.getY());
+            expect (musicHeadingBounds.getY() > audioHeadingBounds.getY()
+                    && musicHeadingBounds.getY() < pluginHeadingBounds.getY());
+            expectEquals (musicHeadingBounds.getX(), audioHeadingBounds.getX());
             expectEquals (audioHeadingBounds.getX(), pluginHeadingBounds.getX());
             expect (skinHeadingBounds.getY() > pluginHeadingBounds.getY(),
                     "Skins must be stacked below plug-ins; plugin y="
@@ -1334,7 +1345,8 @@ public:
             };
             auto* page = outerViewport (audio.headingControl());
             expect (page != nullptr && page == outerViewport (plugins.formatsControl())
-                    && page == outerViewport (skins.headingControl()), "All three sections share one page scroller.");
+                    && page == outerViewport (skins.headingControl()) && page == outerViewport (*musicHeading),
+                    "All four sections share one page scroller.");
             if (page != nullptr)
             {
                 root.setVisible (true);

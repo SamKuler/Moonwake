@@ -138,6 +138,41 @@ public:
     {
         const auto tokens = makeTokens();
 
+        beginTest ("music management renderers require geometry and isolate directory row context");
+        {
+            for (const auto* target : { "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList" })
+            {
+                SkinValidationReport report;
+                expect (! compile (renderDocument (target, { rectLayer ("body") }), tokens, report));
+                expect (report.hasErrors());
+            }
+            expect (! skinRenderContextForTarget (SkinRenderTarget::directoryList).contains ("directory.path"));
+            const auto rowContext = skinRenderContextForCompositeSlot (
+                SkinRenderTarget::directoryList, "row.path", SkinRenderTarget::label);
+            expect (rowContext.at ("directory.path") == SkinExpressionType::string);
+            expect (rowContext.at ("directory.automatic") == SkinExpressionType::boolean);
+            expect (skinRenderIsAncillaryTarget (SkinRenderTarget::smartPlaylistEditor));
+            expect (! skinRenderIsAncillaryTarget (SkinRenderTarget::directoryList));
+            const auto raw = juce::JSON::parse (R"json({
+                "apiVersion":1,"target":"smartPlaylistRuleList","layers":[],
+                "rowLayout":{"rowHeight":36,"slots":{
+                    "rule.field":{"x":0,"y":0,"width":150,"height":36},
+                    "rule.operator":{"x":160,"y":0,"width":150,"height":36},
+                    "rule.value":{"x":320,"y":0,"width":200,"height":36},
+                    "rule.boolean":{"x":320,"y":0,"width":200,"height":36}
+                }}
+            })json");
+            SkinValidationReport report;
+            const auto program = compile (raw, tokens, report);
+            if (program)
+            {
+                SkinRenderContext context;
+                context.bounds = context.contentBounds = { 0, 0, 700, 200 };
+                expect (! resolveSkinRowLayout (*program, context, report));
+            }
+            expect (report.hasErrors(), "Missing Remove geometry must be rejected.");
+        }
+
         beginTest ("playlist grid metrics resolve against individual card widths");
         {
             auto raw = juce::JSON::parse (R"json({
@@ -521,7 +556,7 @@ public:
                           juce::String ("urn:uuid:f37db386-b854-462a-a26f-b281c16b38fb"));
             expectEquals (renderSchema.getProperty ("x-generatedBy", {}).toString(),
                           juce::String ("Moonwake SkinSchemaRegistry"));
-            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 21);
+            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 24);
             expectEquals (static_cast<int> (skinPrimitiveNames().size()), 11);
             expectEquals (static_cast<int> (skinRepeatSourceDescriptors().size()), 3);
 

@@ -94,6 +94,7 @@ bool LibraryFilter::CachedSearchableText::matches (
         && file == track.file
         && title == track.title
         && artist == track.artist
+        && artists == track.artists
         && album == track.album
         && albumArtist == track.albumArtist
         && genre == track.genre
@@ -110,6 +111,7 @@ void LibraryFilter::CachedSearchableText::updateFrom (const TrackItem& track)
     file = track.file;
     title = track.title;
     artist = track.artist;
+    artists = track.artists;
     album = track.album;
     albumArtist = track.albumArtist;
     genre = track.genre;
@@ -221,5 +223,6 @@ juce::String LibraryFilter::searchableText (const TrackItem& track)
         juce::String (track.year), juce::String (track.trackNumber),
         juce::String (track.channelCount), juce::String (track.sampleRate, 0)
     };
+    fields.addArray (track.artists);
     return normalise (fields.joinIntoString (" "));
 }

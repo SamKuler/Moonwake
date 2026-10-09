@@ -682,6 +682,14 @@ private:
             return;
         }
 
+        if (node.blocksPointer && alpha > 0.0f)
+        {
+            auto barrier = std::make_unique<LayoutLayer>();
+            barrier->setInterceptsMouseClicks (true, false);
+            static_cast<void> (addLayer (std::move (barrier), *contentParent,
+                relativeBounds (node.bounds.getIntersection (node.clipBounds), contentOrigin), visible, 1.0f));
+        }
+
         addSurface (node, *contentParent, contentOrigin, visible, alpha, report);
         if (failed || node.type == SkinLayoutNodeType::visual) return;
         if (node.type == SkinLayoutNodeType::scroll)

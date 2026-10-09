@@ -2,6 +2,7 @@
 
 #include "playlist/PlaylistModel.h"
 #include "library/MusicLibrary.h"
+#include "library/MusicDirectory.h"
 
 #include <atomic>
 
@@ -10,4 +11,5 @@
     PlaylistModel& playlist,
     const juce::File& artworkCacheRoot,
     const std::atomic_bool* cancelled,
-    juce::StringArray& warnings);
+    juce::StringArray& warnings,
+    const std::vector<MusicDirectory>& managedDirectories = {});

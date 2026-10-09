@@ -1,7 +1,9 @@
 #pragma once
 
 #include "playlist/TrackItem.h"
+#include "SmartPlaylistRules.h"
 
+#include <optional>
 #include <vector>
 #include <set>
 #include <string>
@@ -25,6 +27,7 @@ struct SavedPlaylist
     juce::int64 createdAtMs = 0;
     juce::int64 updatedAtMs = 0;
     juce::String artworkCacheKey;
+    std::optional<SmartPlaylistRules> smartRules;
 };
 
 class MusicLibrary
@@ -39,6 +42,10 @@ public:
     bool replaceTrack (const juce::String& id, TrackItem);
 
     juce::String createPlaylist (juce::String name);
+    juce::String createSmartPlaylist (juce::String name, SmartPlaylistRules);
+    bool setSmartPlaylistRules (const juce::String& id, SmartPlaylistRules);
+    juce::String materializeSmartPlaylist (const juce::String& id, juce::String name,
+                                          juce::int64 nowMs = juce::Time::currentTimeMillis());
     bool renamePlaylist (const juce::String& id, juce::String name);
     juce::String duplicatePlaylist (const juce::String& id, juce::String name);
     bool setPlaylistArtwork (const juce::String& id, juce::String cacheKey);
@@ -68,7 +75,6 @@ private:
     std::vector<SavedPlaylist> playlists;
     std::vector<juce::String> favourites;
     std::unordered_set<std::string> favouriteIds;
-    std::vector<juce::String> fileIdentities;
     std::unordered_map<std::string, size_t> trackIndices;
     // Restored records can share a physical file; the first record remains the alias match.
     std::unordered_map<std::string, std::set<size_t>> filePathIndices, fileIdentityIndices;

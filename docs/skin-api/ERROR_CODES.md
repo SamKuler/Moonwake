@@ -46,7 +46,7 @@
 | SCHEMA002 | error | 字段类型不符合 Schema |
 | SCHEMA003 | error | 枚举值未知 |
 | SCHEMA004 | error | 数值、长度、数组或字符串限制失败 |
-| SCHEMA005 | error | oneOf/条件 Schema 没有唯一匹配 |
+| SCHEMA005 | error | oneOf/条件 Schema 没有唯一匹配；例如布局 visual 节点使用只对容器开放的 pointerEvents: block |
 
 ## Tokens
 
@@ -117,7 +117,7 @@
 | RENDER001 | error | renderer target 未知 |
 | RENDER002 | error | layer type 未知 |
 | RENDER003 | error | layer id 重复 |
-| RENDER004 | error | layer property 类型或组合非法、交互控件或拥有键盘焦点的 slot（含 playlistGrid 的 card.surface）缺少可见焦点反馈、playlistGrid 缺少 controlStyle／rowLayout／卡片几何或度量越界，或 contentClip 未引用受支持列表 target 的根层 rect/roundedRect/ellipse |
+| RENDER004 | error | layer property 类型或组合非法、交互控件或拥有键盘焦点的 slot（含 playlistGrid 的 card.surface）缺少可见焦点反馈、playlistGrid 缺少 controlStyle／rowLayout／卡片几何或度量越界，directoryList／smartPlaylistEditor／smartPlaylistRuleList 缺少 rowLayout 或智能编辑器缺少必需槽位，或 contentClip 未引用受支持列表 target 的根层 rect/roundedRect/ellipse |
 | RENDER005 | error | context path 或结果类型非法 |
 | RENDER006 | error | token 类型与绘制属性不兼容 |
 | RENDER007 | error | asset path 非法 |

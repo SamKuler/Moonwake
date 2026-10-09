@@ -900,10 +900,10 @@ public:
             expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 16,
                     "Studio meters must use the actual channel list through 9.1.6");
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
-            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.6.1"));
+            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.8.0"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.7.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.8.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
@@ -1004,9 +1004,10 @@ public:
                             expect (queue != nullptr, juce::String (tableId) + " must belong to this route");
                             if (queue)
                             {
-                                expectEquals (queue->presentation, juce::String (
-                                    ! player || workspace == WorkspaceMode::studio ? "table" : "list"));
-                                expectEquals (queue->style, "table." + theme + (player ? "" : "Collection"));
+                                expectEquals (queue->presentation, juce::String (player ? "list" : "table"));
+                                const auto suffix = ! player ? "Collection"
+                                    : workspace == WorkspaceMode::studio ? "Queue" : "";
+                                expectEquals (queue->style, "table." + theme + suffix);
                                 expect (queue->visible && ! queue->bounds.isEmpty() && bounds.contains (queue->bounds),
                                         juce::String (tableId) + " must fit inside the window");
                             }
@@ -1046,6 +1047,101 @@ public:
                                         && bounds.contains (component->bounds), id);
                             }
                         }
+                    }
+        }
+
+        beginTest ("Default queue overlays preserve page geometry and keep navigation and transport accessible");
+        if (defaultSkin)
+        {
+            for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+                for (const auto entry : { workspace == WorkspaceMode::studio
+                                             ? SkinLayoutEntry::studio : SkinLayoutEntry::listening,
+                                         SkinLayoutEntry::library, SkinLayoutEntry::collection })
+                    for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
+                                               juce::Rectangle<float> (0, 0, 1240, 800) })
+                    {
+                        SkinValidationReport report;
+                        const auto closed = SkinLayoutEngine::resolve (
+                            defaultSkin->layouts.at (entry), bounds, 1.0f, report,
+                            workspace, defaultSkin.get(), { false });
+                        const auto opened = SkinLayoutEngine::resolve (
+                            defaultSkin->layouts.at (entry), bounds, 1.0f, report,
+                            workspace, defaultSkin.get(), { true });
+                        expect (closed && opened, report.toText());
+                        if (! closed || ! opened) continue;
+
+                        const auto pageComponents = [] (const SkinResolvedNode& root)
+                        {
+                            std::map<juce::String, const SkinResolvedNode*> result;
+                            const auto collect = [&] (const auto& self, const SkinResolvedNode& node) -> void
+                            {
+                                if (node.componentId.isNotEmpty()
+                                    && (! node.componentId.startsWith ("queue.") || node.componentId == "queue.toggle"))
+                                    result.emplace (node.componentId, &node);
+                                for (const auto& child : node.children) self (self, child);
+                            };
+                            collect (collect, root);
+                            return result;
+                        };
+                        const auto before = pageComponents (closed->root);
+                        const auto after = pageComponents (opened->root);
+                        expectEquals (static_cast<int> (before.size()), static_cast<int> (after.size()));
+                        for (const auto& [id, component] : before)
+                        {
+                            expect (after.contains (id), id);
+                            if (! after.contains (id)) continue;
+                            const auto* expanded = after.at (id);
+                            expect (component->bounds == expanded->bounds, id + " moves when the queue opens");
+                            expect (component->clipBounds == expanded->clipBounds, id + " changes clipping when the queue opens");
+                            expectEquals (component->style, expanded->style, id);
+                            expectEquals (component->presentation, expanded->presentation, id);
+                            expect (component->visible == expanded->visible, id);
+                        }
+
+                        expect (closed->component ("queue.table") == nullptr);
+                        const auto* table = opened->component ("queue.table");
+                        expect (table != nullptr);
+                        const auto panel = std::find_if (opened->root.children.begin(), opened->root.children.end(),
+                            [] (const auto& node) { return node.nodeId.endsWith ("queue-panel"); });
+                        expect (panel != opened->root.children.end(), "The queue must be a root stack overlay");
+                        if (panel == opened->root.children.end() || table == nullptr) continue;
+                        expect (opened->root.type == SkinLayoutNodeType::stack && panel->zIndex > 0);
+                        expect (panel->blocksPointer, "Queue padding must block clicks into the covered page");
+                        expect (bounds.contains (panel->bounds) && panel->bounds.contains (table->bounds));
+                        expect (table->bounds.getWidth() >= 280.0f && table->bounds.getHeight() >= 240.0f,
+                                "Queue rows need a usable viewport at the minimum window size");
+                        expectWithinAbsoluteError (panel->bounds.getRight(), bounds.getRight() - 24.0f, 0.01f);
+
+                        for (const auto& [id, component] : after)
+                            if (id.startsWith ("transport.") || id.startsWith ("nowPlaying.")
+                                || id.startsWith ("workspace.") || id == "queue.toggle"
+                                || id == "library.open" || id == "player.open" || id == "settings.open"
+                                || id == "library.add" || id == "app.brand.title")
+                                expect (! panel->bounds.intersects (component->bounds),
+                                        id + " must remain outside the queue overlay");
+
+                        const auto* title = opened->component ("queue.title");
+                        const auto* count = opened->component ("queue.count");
+                        const auto* actions = opened->component ("queue.actions");
+                        const auto* empty = opened->component ("queue.empty");
+                        expect (title && count && actions && empty);
+                        if (title && count && actions && empty)
+                        {
+                            expect (panel->bounds.contains (title->bounds) && panel->bounds.contains (count->bounds)
+                                    && panel->bounds.contains (actions->bounds));
+                            expect (! title->bounds.intersects (count->bounds)
+                                    && ! title->bounds.intersects (actions->bounds)
+                                    && ! count->bounds.intersects (actions->bounds));
+                            expect (table->bounds.getY() >= title->bounds.getBottom());
+                            expect (table->bounds == empty->bounds);
+                        }
+
+                        const auto* content = opened->component (
+                            entry == SkinLayoutEntry::library ? "library.grid"
+                            : entry == SkinLayoutEntry::collection ? "library.tracks"
+                            : workspace == WorkspaceMode::studio ? "output.stage" : "artwork.cover");
+                        expect (content != nullptr && panel->bounds.intersects (content->bounds),
+                                "The queue must cover existing page content without reserving a column");
                     }
         }
 
@@ -1136,7 +1232,7 @@ public:
                                        juce::Rectangle<float> (0, 0, 1240, 800) })
             {
                 std::map<juce::String, juce::Rectangle<float>> navigation, transport;
-                std::optional<juce::Rectangle<float>> leftCard, rightCard;
+                std::optional<juce::Rectangle<float>> contentBounds;
                 for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
                     for (const auto entry : { workspace == WorkspaceMode::studio
                                                  ? SkinLayoutEntry::studio : SkinLayoutEntry::listening,
@@ -1161,26 +1257,24 @@ public:
                             }
                         };
                         checkAnchors (navigation, std::array { "app.brand.title", "workspace.studio", "workspace.listening",
-                                                               "settings.open" });
+                                                               "library.open", "player.open", "settings.open" });
                         if (entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening
                             || entry == SkinLayoutEntry::library || entry == SkinLayoutEntry::collection)
                         {
                             checkAnchors (transport, std::array { "transport.previous", "transport.playPause", "transport.next",
                                                                  "transport.seek", "transport.time", "transport.volume",
                                                                  "transport.volumeLabel", "transport.volumeValue",
-                                                                 "transport.shuffle", "transport.repeatCycle" });
-                            if (entry == SkinLayoutEntry::library || entry == SkinLayoutEntry::collection) continue;
-                            const auto& cards = layout->root.children.at (0).children.at (1).children;
-                            expectEquals (static_cast<int> (cards.size()), 2);
-                            if (cards.size() == 2)
+                                                                 "transport.shuffle", "transport.repeatCycle", "queue.toggle" });
+                            const auto& body = layout->root.children.at (0).children.at (1);
+                            if (contentBounds)
+                                expect (*contentBounds == body.bounds,
+                                        "Content boundaries must remain fixed across workspaces and pages");
+                            else
+                                contentBounds = body.bounds;
+                            for (const auto& column : body.children)
                             {
-                                if (leftCard && rightCard)
-                                    expect (*leftCard == cards[0].bounds && *rightCard == cards[1].bounds,
-                                            "Card boundaries must remain fixed across A/B");
-                                leftCard = cards[0].bounds;
-                                rightCard = cards[1].bounds;
-                                expectWithinAbsoluteError (leftCard->getY(), rightCard->getY(), 0.01f);
-                                expectWithinAbsoluteError (leftCard->getBottom(), rightCard->getBottom(), 0.01f);
+                                expectWithinAbsoluteError (column.bounds.getY(), body.bounds.getY(), 0.01f);
+                                expectWithinAbsoluteError (column.bounds.getBottom(), body.bounds.getBottom(), 0.01f);
                             }
                         }
                         if (entry == SkinLayoutEntry::settings)
@@ -1309,7 +1403,10 @@ public:
                          "settings.plugins.progress", "settings.skins.library",
                          "settings.skins.import", "settings.skins.remove",
                          "settings.skins.preview", "settings.skins.apply",
-                         "settings.skins.cancelPreview", "settings.skins.reload" })
+                         "settings.skins.cancelPreview", "settings.skins.reload",
+                         "settings.music.heading", "settings.music.directories", "settings.music.add",
+                         "settings.music.scan", "settings.music.cancel", "settings.music.remove",
+                         "settings.music.automatic", "settings.music.status" })
                     expect (settings.contains (id), id);
                 expect (settings.contains ("library.add") == (skin == defaultSkin.get()));
                 expect (! settings.contains ("settings.close"));
@@ -1330,7 +1427,8 @@ public:
                                     || id == "effects.open" || id == "settings.open"))
                             || id.startsWith ("settings.audio.")
                             || id.startsWith ("settings.plugins.")
-                            || id.startsWith ("settings.skins."), id);
+                            || id.startsWith ("settings.skins.")
+                            || id.startsWith ("settings.music."), id);
                 }
 
                 const auto effects = componentParents (

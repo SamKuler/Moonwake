@@ -1240,6 +1240,7 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
     state = {};
     state.playlist = playlist;
     state.library = library;
+    state.musicDirectories = musicDirectories;
     state.libraryCollectionId = libraryCollectionId;
     state.librarySearchQuery = librarySearchQuery;
     state.effectChain = effectChain;
@@ -1368,6 +1369,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     retainArtworkForStateSave (state);
     playlist = std::move (state.playlist);
     library = std::move (state.library);
+    musicDirectories = std::move (state.musicDirectories);
     auto restoredTracks = playlist.getTracks();
     bool linkedTracks = false;
     for (auto& track : restoredTracks)

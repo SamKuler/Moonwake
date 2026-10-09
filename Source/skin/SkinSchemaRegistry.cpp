@@ -420,6 +420,7 @@ juce::var layoutSchema()
     };
 
     auto flexAdditions = object();
+    flexAdditions.getDynamicObject()->setProperty ("pointerEvents", enumSchema ({ "none", "block" }));
     flexAdditions.getDynamicObject()->setProperty ("gap", boundedNumber ("number", 0, 10000));
     flexAdditions.getDynamicObject()->setProperty (
         "align", enumSchema ({ "start", "center", "end", "stretch" }));
@@ -431,6 +432,7 @@ juce::var layoutSchema()
     auto column = nodeSchema ("column", flexAdditions, { "children" });
 
     auto gridAdditions = object();
+    gridAdditions.getDynamicObject()->setProperty ("pointerEvents", enumSchema ({ "none", "block" }));
     gridAdditions.getDynamicObject()->setProperty (
         "columns", arraySchema (reference ("#/$defs/trackLength"), 1, 32));
     gridAdditions.getDynamicObject()->setProperty (
@@ -444,6 +446,7 @@ juce::var layoutSchema()
     auto grid = nodeSchema ("grid", gridAdditions, { "columns", "rows", "children" });
 
     auto stackAdditions = object();
+    stackAdditions.getDynamicObject()->setProperty ("pointerEvents", enumSchema ({ "none", "block" }));
     stackAdditions.getDynamicObject()->setProperty (
         "children", arraySchema (reference ("#/$defs/node"), -1, 1024));
     auto stack = nodeSchema ("stack", stackAdditions, { "children" });

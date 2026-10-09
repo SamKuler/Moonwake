@@ -9,6 +9,85 @@ public:
 
     void runTest() override
     {
+        beginTest ("smart playlist lifecycle preserves rules and rejects manual entry edits");
+        {
+            MusicLibrary library;
+            TrackItem first { juce::File ("/music/smart-a.wav"), "A", 10.0 };
+            first.genre = "Ambient";
+            const auto a = library.upsertTrack (first);
+            const auto b = library.upsertTrack ({ juce::File ("/music/smart-b.wav"), "B", 20.0 });
+            SmartPlaylistRules rules { SmartPlaylistMatch::all,
+                { { SmartPlaylistField::genre, SmartPlaylistOperator::equals, "ambient" } } };
+            expect (library.createSmartPlaylist ("Invalid", {}).isEmpty());
+            const auto id = library.createSmartPlaylist ("Quiet", rules);
+            expect (id.isNotEmpty());
+            if (id.isNotEmpty())
+            {
+                expect (library.getPlaylist (id)->smartRules == rules);
+                expect (library.getPlaylist (id)->entries.empty());
+                expect (library.addToPlaylist (id, { a }).empty());
+                expect (! library.removeEntries (id, { "entry" }));
+                expect (! library.moveEntries (id, { "entry" }, 0));
+                expect (! library.replacePlaylistEntries (id, { { "entry", a } }));
+                expect (library.renamePlaylist (id, "Still quiet"));
+                expect (library.setPlaylistArtwork (id, "custom-cover"));
+                const auto copy = library.duplicatePlaylist (id, "Quiet copy");
+                expect (copy.isNotEmpty());
+                if (copy.isNotEmpty()) expect (library.getPlaylist (copy)->smartRules == rules);
+                const auto regular = library.materializeSmartPlaylist (id, "Saved songs", 1000);
+                expect (regular.isNotEmpty());
+                if (regular.isNotEmpty())
+                {
+                    const auto* saved = library.getPlaylist (regular);
+                    expect (! saved->smartRules.has_value());
+                    expectEquals (saved->artworkCacheKey, juce::String ("custom-cover"));
+                    expectEquals (static_cast<int> (saved->entries.size()), 1);
+                    if (! saved->entries.empty()) expectEquals (saved->entries.front().trackId, a);
+                    expect (library.addToPlaylist (regular, { b }).size() == 1);
+                    expect (! library.setSmartPlaylistRules (regular, rules));
+                }
+                rules.rules[0].textValue = "Rock";
+                expect (library.setSmartPlaylistRules (id, rules));
+                expect (! library.setSmartPlaylistRules (id, {}));
+                expect (library.removePlaylist (id));
+            }
+        }
+
+        beginTest ("import time survives metadata replacements and restored unknown timestamps stay unknown");
+        {
+            MusicLibrary library;
+            const auto before = juce::Time::currentTimeMillis();
+            const auto id = library.upsertTrack ({ juce::File ("/music/added-time.wav"), "Old", 1.0 });
+            const auto added = library.getTrack (id)->addedAtMs;
+            expect (added >= before && added <= juce::Time::currentTimeMillis());
+            TrackItem updated { juce::File ("/music/added-time.wav"), "New", 2.0 };
+            updated.addedAtMs = 123;
+            expectEquals (library.upsertTrack (updated), id);
+            expectEquals (library.getTrack (id)->addedAtMs, added);
+            expect (library.replaceTrack (id, updated));
+            expectEquals (library.getTrack (id)->addedAtMs, added);
+            auto saved = library.getTracks();
+            saved[0].addedAtMs = 0;
+            expect (library.restore (saved, {}, {}));
+            expectEquals (library.upsertTrack (updated), id);
+            expectEquals (library.getTrack (id)->addedAtMs, juce::int64 { 0 });
+        }
+
+        beginTest ("restored smart playlists reject invalid rules and stored manual entries atomically");
+        {
+            MusicLibrary library;
+            const auto existing = library.createPlaylist ("Existing");
+            TrackItem track { juce::File ("/music/restore-smart.wav"), "Track", 10.0 };
+            SavedPlaylist smart;
+            smart.name = "Invalid";
+            smart.smartRules = SmartPlaylistRules{};
+            expect (! library.restore ({ track }, { smart }, {}));
+            smart.smartRules->rules = { { SmartPlaylistField::title, SmartPlaylistOperator::contains, "Track" } };
+            smart.entries = { { "manual", track.id } };
+            expect (! library.restore ({ track }, { smart }, {}));
+            expect (library.getPlaylist (existing) != nullptr);
+        }
+
         beginTest ("file aliases merge while playlist occurrences remain independent");
         {
             const auto directory = juce::File::getCurrentWorkingDirectory().getChildFile ("build")

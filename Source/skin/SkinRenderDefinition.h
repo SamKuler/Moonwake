@@ -19,7 +19,8 @@ enum class SkinRenderTarget
 {
     label, textButton, toggleButton, comboBox, textEditor, linearSlider,
     rotarySlider, progressBar, scrollBar, popupMenu, tooltip, table, surface,
-    artwork, effectChain, outputStage, channelMap, pluginList, skinList, channelMixer, playlistGrid
+    artwork, effectChain, outputStage, channelMap, pluginList, skinList, channelMixer, playlistGrid,
+    directoryList, smartPlaylistEditor, smartPlaylistRuleList
 };
 
 enum class SkinPrimitive

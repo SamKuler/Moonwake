@@ -11,6 +11,7 @@
 #include "state/AppStateStore.h"
 #include "state/StateRestoreService.h"
 #include "library/ArtworkStore.h"
+#include "library/MusicDirectoryScanService.h"
 
 #include <atomic>
 #include <functional>
@@ -60,6 +61,14 @@ public:
                                       const juce::String& targetCollectionId);
     juce::String importPreparedPlaylist (juce::String name, std::vector<TrackMetadataResult>);
     juce::String createSavedPlaylist (juce::String name);
+    juce::String createSmartPlaylist (juce::String name, const SmartPlaylistRules&);
+    bool updateSmartPlaylist (const juce::String& id, juce::String name, const SmartPlaylistRules&);
+    juce::String materializeSmartPlaylist (const juce::String& id);
+    [[nodiscard]] const std::vector<MusicDirectory>& getMusicDirectories() const noexcept { return musicDirectories; }
+    juce::String addMusicDirectory (const juce::File&);
+    bool removeMusicDirectory (const juce::String& id);
+    bool setMusicDirectoryAutomatic (const juce::String& id, bool enabled);
+    bool applyMusicDirectoryScan (MusicDirectoryScanResult);
     void choosePlaylistArtwork (const juce::String& id, juce::File image,
                                 std::function<void(bool, const juce::String&)> completion);
     bool resetPlaylistArtwork (const juce::String& id);
@@ -162,6 +171,7 @@ public:
 private:
     PlaylistModel playlist;
     MusicLibrary library;
+    std::vector<MusicDirectory> musicDirectories;
     juce::String libraryCollectionId = "all";
     juce::String librarySearchQuery;
     struct CollectionEdit

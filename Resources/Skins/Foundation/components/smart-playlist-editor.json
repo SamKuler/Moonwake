@@ -1,0 +1,160 @@
+{
+  "apiVersion": 1,
+  "target": "smartPlaylistEditor",
+  "layers": [
+    {
+      "id": "scrim",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000040"
+    },
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2"
+        },
+        "width": {
+          "$expr": "min(840, max(560, bounds.width - 48))"
+        },
+        "height": {
+          "$expr": "min(530, max(360, bounds.height - 64))"
+        }
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$ref": "colors.surfaceRaised"
+      },
+      "stroke": {
+        "color": {
+          "$ref": "colors.border"
+        },
+        "width": 1
+      }
+    }
+  ],
+  "variants": {
+    "focused": {
+      "body.fill": {
+        "$expr": "mix(token.colors.surfaceRaised, token.colors.focus, 0.06)"
+      }
+    }
+  },
+  "rowLayout": {
+    "rowHeight": {
+      "$expr": "container.height"
+    },
+    "slots": {
+      "editor.heading": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + 24"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + 20"
+        },
+        "width": {
+          "$expr": "min(840, max(560, bounds.width - 48)) - 48"
+        },
+        "height": 32
+      },
+      "editor.nameLabel": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + 24"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + 60"
+        },
+        "width": {
+          "$expr": "min(840, max(560, bounds.width - 48)) - 48"
+        },
+        "height": 20
+      },
+      "editor.name": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + 24"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + 84"
+        },
+        "width": {
+          "$expr": "min(840, max(560, bounds.width - 48)) - 272"
+        },
+        "height": 36
+      },
+      "editor.match": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + min(840, max(560, bounds.width - 48)) - 224"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + 84"
+        },
+        "width": 200,
+        "height": 36
+      },
+      "editor.rules": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + 24"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + 136"
+        },
+        "width": {
+          "$expr": "min(840, max(560, bounds.width - 48)) - 48"
+        },
+        "height": {
+          "$expr": "min(530, max(360, bounds.height - 64)) - 236"
+        }
+      },
+      "editor.add": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + 24"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + min(530, max(360, bounds.height - 64)) - 88"
+        },
+        "width": 116,
+        "height": 32
+      },
+      "editor.preview": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + 24"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + min(530, max(360, bounds.height - 64)) - 48"
+        },
+        "width": {
+          "$expr": "min(840, max(560, bounds.width - 48)) - 320"
+        },
+        "height": 32
+      },
+      "editor.save": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + min(840, max(560, bounds.width - 48)) - 272"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + min(530, max(360, bounds.height - 64)) - 48"
+        },
+        "width": 136,
+        "height": 32
+      },
+      "editor.cancel": {
+        "x": {
+          "$expr": "(bounds.width - min(840, max(560, bounds.width - 48))) / 2 + min(840, max(560, bounds.width - 48)) - 124"
+        },
+        "y": {
+          "$expr": "(bounds.height - min(530, max(360, bounds.height - 64))) / 2 + min(530, max(360, bounds.height - 64)) - 48"
+        },
+        "width": 100,
+        "height": 32
+      }
+    }
+  }
+}

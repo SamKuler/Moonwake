@@ -185,7 +185,8 @@ struct LibraryPanelFixture
         peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point,
                                juce::ModifierKeys::leftButtonModifier, 0.0f, 0.0f, time + 1);
         peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0.0f, 0.0f, time + 2);
-        return true;
+        activeMenu = juce::Component::getCurrentlyModalComponent();
+        return chooseAction (activeMenu, 20);
     }
 
     static bool waitUntil (const std::function<bool()>& complete)
@@ -560,6 +561,42 @@ public:
             if (exported.size() == expected.size())
                 for (size_t index = 0; index < expected.size(); ++index)
                     expectEquals (exported[index].id, expected[index].id);
+        }
+
+        beginTest ("smart playlist menus edit captured rules and keep result rows read-only");
+        {
+            LibraryPanelFixture fixture (skin, root, prepared);
+            SmartPlaylistRules rules { SmartPlaylistMatch::all, {
+                { SmartPlaylistField::available, SmartPlaylistOperator::equals, {}, 0, true } } };
+            const auto smart = fixture.controller.createSmartPlaylist ("Available songs", rules);
+            expect (smart.isNotEmpty());
+            fixture.panel.selectCollection ("playlist:" + smart);
+            fixture.select ({ 0 });
+            expect (fixture.model().getDragSourceDescription (fixture.table().getSelectedRows()).isVoid());
+            const auto count = fixture.panel.currentTracks().size();
+            fixture.table().keyPressed (juce::KeyPress (juce::KeyPress::deleteKey));
+            expectEquals (static_cast<int> (fixture.panel.currentTracks().size()), static_cast<int> (count));
+            fixture.model().sortOrderChanged (1, false);
+            expect (fixture.controller.getLibrary().getPlaylist (smart)->entries.empty());
+            juce::String edited;
+            fixture.panel.onEditSmartPlaylist = [&] (const auto& id) { edited = id; };
+            auto menu = fixture.openDetailMenu ("library.title");
+            expect (menu != nullptr);
+            if (menu != nullptr)
+            {
+                const auto titles = LibraryPanelFixture::menuTitles (*menu);
+                expect (titles.contains ("Edit rules..."));
+                expect (titles.contains ("Save as regular playlist"));
+            }
+            fixture.panel.selectCollection ("playlist:" + fixture.playlistId);
+            expect (fixture.chooseAction (menu, 43));
+            expectEquals (edited, smart);
+            fixture.panel.showLibrary();
+            menu = fixture.openActions();
+            expect (menu != nullptr);
+            if (menu != nullptr) expect (LibraryPanelFixture::menuTitles (*menu).contains ("New smart playlist..."));
+            expect (fixture.chooseAction (menu, 42));
+            expect (edited.isEmpty());
         }
 
         beginTest ("queue row menu exposes upcoming moves and whole-queue actions");

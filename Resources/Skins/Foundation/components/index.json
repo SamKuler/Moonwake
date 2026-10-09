@@ -258,5 +258,45 @@
         "row.solo": "toggleButton.default"
       }
     }
+  },
+  "directoryList": {
+    "default": {
+      "renderer": "components/directory-list.json",
+      "slots": {
+        "row.surface": "surface.skinRow",
+        "row.name": "label.default",
+        "row.path": "label.muted",
+        "row.status": "label.muted",
+        "empty.message": "label.muted"
+      }
+    }
+  },
+  "smartPlaylistEditor": {
+    "default": {
+      "renderer": "components/smart-playlist-editor.json",
+      "slots": {
+        "editor.heading": "label.section",
+        "editor.nameLabel": "label.muted",
+        "editor.name": "textEditor.default",
+        "editor.match": "comboBox.default",
+        "editor.rules": "smartPlaylistRuleList.default",
+        "editor.add": "textButton.default",
+        "editor.preview": "label.muted",
+        "editor.save": "textButton.primary",
+        "editor.cancel": "textButton.default"
+      }
+    }
+  },
+  "smartPlaylistRuleList": {
+    "default": {
+      "renderer": "components/smart-playlist-rules.json",
+      "slots": {
+        "rule.field": "comboBox.default",
+        "rule.operator": "comboBox.default",
+        "rule.value": "textEditor.default",
+        "rule.boolean": "comboBox.default",
+        "rule.remove": "textButton.default"
+      }
+    }
   }
 }

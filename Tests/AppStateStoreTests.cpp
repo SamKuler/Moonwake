@@ -15,6 +15,148 @@ public:
 
     void runTest() override
     {
+        beginTest ("artist members survive XML round trips while legacy display names remain unsplit");
+        {
+            PlayerAppState state;
+            TrackItem track { juce::File ("/music/collaboration.flac"), "Shared", 20.0 };
+            track.artist = "Shared credit";
+            track.artists = { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
+            const auto id = state.library.upsertTrack (track);
+            auto occurrence = *state.library.getTrack (id);
+            occurrence.libraryId = id;
+            occurrence.id = "queue-occurrence";
+            state.playlist.addTrack (occurrence);
+            auto tree = AppStateStore::toValueTree (state);
+            const auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*tree.createXml()));
+            expect (restored.library.getTrack (id)->artists == track.artists);
+            expectEquals (restored.library.getTrack (id)->artist, track.artist);
+            expect (restored.playlist.getTrack (0)->artists == track.artists);
+            auto stored = tree.getChildWithName ("MusicLibrary").getChildWithName ("Tracks").getChild (0);
+            stored.removeChild (stored.getChildWithName ("Artists"), nullptr);
+            stored.setProperty ("artist", "AC/DC, Earth & Friends", nullptr);
+            const auto legacy = AppStateStore::fromValueTree (tree);
+            expect (legacy.library.getTrack (id)->artists.isEmpty());
+            expect (legacy.library.getTrack (id)->artistNames() == juce::StringArray { "AC/DC, Earth & Friends" });
+        }
+
+        beginTest ("managed directories and smart playlists round trip with scan metadata");
+        {
+            PlayerAppState state;
+            state.musicDirectories = { { "root-a", juce::File ("/music/managed"), true },
+                                       { "root-b", juce::File ("/offline/managed"), false } };
+            TrackItem track { juce::File ("/music/managed/track.wav"), "Saved", 10.0 };
+            track.addedAtMs = 1700000000123LL;
+            track.fileModifiedAtMs = 1700000000456LL;
+            track.fileSizeBytes = 123456;
+            track.fileIdentity = "posix:123:abc";
+            expect (state.library.restore ({ track }, {}, {}));
+            SmartPlaylistRules rules { SmartPlaylistMatch::any, {
+                { SmartPlaylistField::title, SmartPlaylistOperator::contains, "Saved" },
+                { SmartPlaylistField::year, SmartPlaylistOperator::greaterOrEqual, {}, 2020.0 },
+                { SmartPlaylistField::favourite, SmartPlaylistOperator::equals, {}, 0.0, false } } };
+            const auto id = state.library.createSmartPlaylist ("Smart", rules);
+            auto tree = AppStateStore::toValueTree (state);
+            const auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*tree.createXml()));
+            expect (restored.musicDirectories == state.musicDirectories);
+            const auto* saved = restored.library.getTrack (track.id);
+            expect (saved != nullptr);
+            if (saved != nullptr)
+            {
+                expectEquals (saved->addedAtMs, track.addedAtMs);
+                expectEquals (saved->fileModifiedAtMs, track.fileModifiedAtMs);
+                expectEquals (saved->fileSizeBytes, track.fileSizeBytes);
+                expectEquals (saved->fileIdentity, track.fileIdentity);
+            }
+            const auto* smart = restored.library.getPlaylist (id);
+            expect (smart != nullptr);
+            if (smart != nullptr) expect (smart->smartRules == rules && smart->entries.empty());
+            tree.removeChild (tree.getChildWithName ("MusicDirectories"), nullptr);
+            auto storedTrack = tree.getChildWithName ("MusicLibrary").getChildWithName ("Tracks").getChild (0);
+            storedTrack.removeProperty ("addedAtMs", nullptr);
+            storedTrack.removeProperty ("fileSizeBytes", nullptr);
+            storedTrack.removeProperty ("fileModifiedAtMs", nullptr);
+            storedTrack.removeProperty ("fileIdentity", nullptr);
+            const auto legacy = AppStateStore::fromValueTree (tree);
+            expect (legacy.musicDirectories.empty());
+            if (const auto* old = legacy.library.getTrack (track.id))
+            {
+                expectEquals (old->addedAtMs, juce::int64 { 0 });
+                expectEquals (old->fileModifiedAtMs, juce::int64 { 0 });
+            }
+        }
+
+        beginTest ("renaming a file while closed reuses the persisted recording identity on next import");
+        {
+            const auto root = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
+                .getNonexistentChildFile ("moonwake-identity-state", {});
+            expect (root.createDirectory());
+            const auto original = root.getChildFile ("old.wav");
+            const auto renamed = root.getChildFile ("new.wav");
+            expect (original.replaceWithText ("recording fixture"));
+            PlayerAppState state;
+            const auto id = state.library.upsertTrack ({ original, "Original", 10.0 });
+            const auto list = state.library.createPlaylist ("Keep references");
+            const auto entries = state.library.addToPlaylist (list, { id, id });
+            state.library.setFavourite (id, true);
+            const auto serialized = AppStateStore::toValueTree (state).createXml();
+            expect (original.moveFileTo (renamed));
+            auto restored = AppStateStore::fromValueTree (juce::ValueTree::fromXml (*serialized));
+            expectEquals (restored.library.upsertTrack ({ renamed, "Renamed", 20.0 }), id);
+            expectEquals (static_cast<int> (restored.library.getTracks().size()), 1);
+            expect (restored.library.getPlaylist (list)->entries == entries);
+            expect (restored.library.isFavourite (id));
+            expect (restored.library.getTrack (id)->file == renamed);
+            expect (root.deleteRecursively());
+        }
+
+        beginTest ("invalid managed roots and smart rules fail state reads without replacing caller state");
+        {
+            const auto root = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
+                .getNonexistentChildFile ("moonwake-invalid-roots", {});
+            expect (root.createDirectory());
+            const auto file = root.getChildFile ("state.xml");
+            PlayerAppState source;
+            source.musicDirectories = { { "root", juce::File ("/music/root"), true } };
+            for (int corruption = 0; corruption < 3; ++corruption)
+            {
+                auto tree = AppStateStore::toValueTree (source);
+                auto directories = tree.getChildWithName ("MusicDirectories");
+                expect (directories.isValid());
+                if (! directories.isValid()) continue;
+                if (corruption == 0)
+                    directories.getChild (0).setProperty ("path", "relative/path", nullptr);
+                else
+                {
+                    auto copy = directories.getChild (0).createCopy();
+                    copy.setProperty (corruption == 1 ? "path" : "id",
+                                      corruption == 1 ? "/different" : "different", nullptr);
+                    directories.appendChild (copy, nullptr);
+                }
+                expect (tree.createXml()->writeTo (file));
+                PlayerAppState destination;
+                destination.volume = 0.31;
+                juce::String error;
+                expect (! AppStateStore::readFromFile (file, destination, error));
+                expect (error.isNotEmpty());
+                expectWithinAbsoluteError (destination.volume, 0.31, 0.0001);
+            }
+            SavedPlaylist smart;
+            smart.name = "Bad rules";
+            smart.smartRules = SmartPlaylistRules { SmartPlaylistMatch::all,
+                { { SmartPlaylistField::title, SmartPlaylistOperator::contains, "valid" } } };
+            expect (source.library.restore ({}, { smart }, {}));
+            auto tree = AppStateStore::toValueTree (source);
+            auto rule = tree.getChildWithName ("MusicLibrary").getChildWithName ("SavedPlaylists")
+                .getChild (0).getChildWithName ("SmartRules").getChild (0);
+            expect (rule.isValid());
+            if (rule.isValid()) rule.setProperty ("comparison", "not-an-operator", nullptr);
+            expect (tree.createXml()->writeTo (file));
+            PlayerAppState destination;
+            juce::String error;
+            expect (! AppStateStore::readFromFile (file, destination, error));
+            expect (root.deleteRecursively());
+        }
+
         beginTest ("schema 11 migration keeps queue occurrences and creates one referenced library");
         {
             juce::ValueTree root ("MoonwakeState");
@@ -39,6 +181,7 @@ public:
             root.appendChild (queue, nullptr);
             const auto restored = AppStateStore::fromValueTree (root);
             expectEquals (restored.playlist.size(), 3);
+            if (! restored.library.getTracks().empty()) expectEquals (restored.library.getTracks()[0].addedAtMs, juce::int64 { 0 });
             expectEquals (static_cast<int> (restored.library.getTracks().size()), 2);
             expectEquals (restored.playlist.getTrack (0)->id, juce::String ("first-occurrence"));
             expectEquals (restored.playlist.getSelectedTrack()->id, juce::String ("second-occurrence"));
@@ -261,7 +404,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 12);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 13);
             expect (restored.customVst3Directories == state.customVst3Directories);
             expectEquals (static_cast<int> (restored.audioDevice.outputRoutes.size()), 1);
             if (! restored.audioDevice.outputRoutes.empty())

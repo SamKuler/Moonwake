@@ -54,7 +54,7 @@ SavedPlaylist* MusicLibrary::editablePlaylist (const juce::String& id)
 
 juce::String MusicLibrary::upsertTrack (TrackItem track)
 {
-    auto identity = trackFileIdentity (track.file);
+    auto identity = track.fileIdentity.isNotEmpty() ? track.fileIdentity : trackFileIdentity (track.file);
     const auto path = filePathIndices.find (pathIndexKey (track.file));
     const auto alias = fileIdentityIndices.find (identity.toStdString());
     if (path != filePathIndices.end() || alias != fileIdentityIndices.end())
@@ -67,7 +67,8 @@ juce::String MusicLibrary::upsertTrack (TrackItem track)
     while (track.id.isEmpty() || getTrack (track.id) != nullptr)
         track.id = juce::Uuid().toString();
     track.libraryId.clear();
-    fileIdentities.push_back (std::move (identity));
+    track.fileIdentity = std::move (identity);
+    if (track.addedAtMs == 0) track.addedAtMs = juce::Time::currentTimeMillis();
     tracks.push_back (std::move (track));
     indexTrack (tracks.size() - 1);
     return tracks.back().id;
@@ -77,7 +78,10 @@ bool MusicLibrary::replaceTrack (const juce::String& id, TrackItem replacement)
 {
     const auto existing = trackIndices.find (id.toStdString());
     if (existing == trackIndices.end()) return false;
-    auto identity = trackFileIdentity (replacement.file);
+    auto identity = replacement.fileIdentity.isNotEmpty() ? replacement.fileIdentity : trackFileIdentity (replacement.file);
+    if (replacement.fileIdentity.isEmpty() && ! replacement.file.existsAsFile()
+        && replacement.file == tracks[existing->second].file)
+        identity = tracks[existing->second].fileIdentity;
     return replaceTrackAt (existing->second, std::move (replacement), std::move (identity));
 }
 
@@ -85,14 +89,14 @@ void MusicLibrary::indexTrack (size_t index)
 {
     trackIndices.emplace (tracks[index].id.toStdString(), index);
     filePathIndices[pathIndexKey (tracks[index].file)].insert (index);
-    fileIdentityIndices[fileIdentities[index].toStdString()].insert (index);
+    fileIdentityIndices[tracks[index].fileIdentity.toStdString()].insert (index);
 }
 
 bool MusicLibrary::replaceTrackAt (size_t index, TrackItem replacement, juce::String identity)
 {
     const auto oldPath = pathIndexKey (tracks[index].file);
     const auto newPath = pathIndexKey (replacement.file);
-    const auto oldIdentity = fileIdentities[index].toStdString();
+    const auto oldIdentity = tracks[index].fileIdentity.toStdString();
     const auto newIdentity = identity.toStdString();
     if (oldPath != newPath)
     {
@@ -111,7 +115,8 @@ bool MusicLibrary::replaceTrackAt (size_t index, TrackItem replacement, juce::St
     }
     replacement.id = tracks[index].id;
     replacement.libraryId.clear();
-    fileIdentities[index] = std::move (identity);
+    replacement.addedAtMs = tracks[index].addedAtMs;
+    replacement.fileIdentity = std::move (identity);
     tracks[index] = std::move (replacement);
     return true;
 }
@@ -183,7 +188,7 @@ std::vector<PlaylistEntry> MusicLibrary::addToPlaylist (
     const juce::String& playlistId, const std::vector<juce::String>& trackIds, int insertIndex)
 {
     auto* playlist = editablePlaylist (playlistId);
-    if (playlist == nullptr || trackIds.empty() || std::any_of (trackIds.begin(), trackIds.end(),
+    if (playlist == nullptr || playlist->smartRules.has_value() || trackIds.empty() || std::any_of (trackIds.begin(), trackIds.end(),
         [&] (const auto& id) { return getTrack (id) == nullptr; })) return {};
     std::vector<PlaylistEntry> added;
     for (const auto& id : trackIds) added.push_back ({ juce::Uuid().toString(), id });
@@ -198,7 +203,7 @@ bool MusicLibrary::removeEntries (const juce::String& playlistId,
                                   const std::vector<juce::String>& entryIds)
 {
     auto* playlist = editablePlaylist (playlistId);
-    if (playlist == nullptr || entryIds.empty()) return false;
+    if (playlist == nullptr || playlist->smartRules.has_value() || entryIds.empty()) return false;
     std::unordered_set<std::string> requested;
     requested.reserve (entryIds.size());
     for (const auto& id : entryIds) requested.insert (id.toStdString());
@@ -218,7 +223,7 @@ bool MusicLibrary::moveEntries (const juce::String& playlistId,
                                 const std::vector<juce::String>& entryIds, int insertBeforeIndex)
 {
     auto* playlist = editablePlaylist (playlistId);
-    if (playlist == nullptr || entryIds.empty() || insertBeforeIndex < 0
+    if (playlist == nullptr || playlist->smartRules.has_value() || entryIds.empty() || insertBeforeIndex < 0
         || insertBeforeIndex > static_cast<int> (playlist->entries.size())) return false;
     std::unordered_set<std::string> requested;
     requested.reserve (entryIds.size());
@@ -258,7 +263,7 @@ bool MusicLibrary::replacePlaylistEntries (const juce::String& playlistId,
                                            std::vector<PlaylistEntry> entries)
 {
     auto* playlist = editablePlaylist (playlistId);
-    if (playlist == nullptr || ! validEntries (entries) || playlist->entries == entries) return false;
+    if (playlist == nullptr || playlist->smartRules.has_value() || ! validEntries (entries) || playlist->entries == entries) return false;
     playlist->entries = std::move (entries);
     playlist->updatedAtMs = juce::Time::currentTimeMillis();
     return true;
@@ -295,13 +300,15 @@ bool MusicLibrary::restore (std::vector<TrackItem> restoredTracks,
     {
         if (track.id.isEmpty() || ! trackIds.insert (track.id).second) return false;
         track.libraryId.clear();
-        restored.fileIdentities.push_back (trackFileIdentity (track.file));
+        if (track.fileIdentity.isEmpty()) track.fileIdentity = trackFileIdentity (track.file);
         restored.tracks.push_back (std::move (track));
         restored.indexTrack (restored.tracks.size() - 1);
     }
     for (const auto& playlist : restoredPlaylists)
         if (playlist.id.isEmpty() || playlist.name.trim().isEmpty()
-            || ! playlistIds.insert (playlist.id).second || ! restored.validEntries (playlist.entries))
+            || ! playlistIds.insert (playlist.id).second || ! restored.validEntries (playlist.entries)
+            || (playlist.smartRules.has_value() && (! playlist.entries.empty()
+                || validateSmartPlaylistRules (*playlist.smartRules).failed())))
             return false;
     for (const auto& id : restoredFavourites)
         if (restored.getTrack (id) == nullptr || ! restored.favouriteIds.insert (id.toStdString()).second) return false;
@@ -309,4 +316,39 @@ bool MusicLibrary::restore (std::vector<TrackItem> restoredTracks,
     restored.favourites = std::move (restoredFavourites);
     *this = std::move (restored);
     return true;
+}
+
+
+juce::String MusicLibrary::createSmartPlaylist (juce::String name, SmartPlaylistRules rules)
+{
+    if (validateSmartPlaylistRules (rules).failed()) return {};
+    const auto id = createPlaylist (std::move (name));
+    if (auto* playlist = editablePlaylist (id)) playlist->smartRules = std::move (rules);
+    return id;
+}
+
+bool MusicLibrary::setSmartPlaylistRules (const juce::String& id, SmartPlaylistRules rules)
+{
+    auto* playlist = editablePlaylist (id);
+    if (playlist == nullptr || ! playlist->smartRules.has_value()
+        || validateSmartPlaylistRules (rules).failed() || *playlist->smartRules == rules) return false;
+    playlist->smartRules = std::move (rules);
+    playlist->updatedAtMs = juce::Time::currentTimeMillis();
+    return true;
+}
+
+juce::String MusicLibrary::materializeSmartPlaylist (const juce::String& id, juce::String name,
+                                                    juce::int64 nowMs)
+{
+    const auto* source = getPlaylist (id);
+    if (source == nullptr || ! source->smartRules.has_value() || name.trim().isEmpty()) return {};
+    SavedPlaylist saved;
+    saved.name = name.trim();
+    saved.artworkCacheKey = source->artworkCacheKey;
+    saved.createdAtMs = saved.updatedAtMs = juce::Time::currentTimeMillis();
+    for (const auto& track : tracks)
+        if (matchesSmartPlaylistRules (*source->smartRules, track, isFavourite (track.id), nowMs))
+            saved.entries.push_back ({ juce::Uuid().toString(), track.id });
+    playlists.push_back (std::move (saved));
+    return playlists.back().id;
 }

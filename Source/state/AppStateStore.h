@@ -8,6 +8,7 @@
 #include "app/WorkspaceMode.h"
 #include "playlist/PlaylistModel.h"
 #include "library/MusicLibrary.h"
+#include "library/MusicDirectory.h"
 #include "plugins/EffectChainState.h"
 #include "plugins/PluginFormatPreferences.h"
 
@@ -23,6 +24,7 @@ struct PlayerAppState
 {
     PlaylistModel playlist;
     MusicLibrary library;
+    std::vector<MusicDirectory> musicDirectories;
     juce::String libraryCollectionId = "all";
     juce::String librarySearchQuery;
     EffectChainState effectChain;

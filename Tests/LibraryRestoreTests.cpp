@@ -51,6 +51,47 @@ public:
 
     void runTest() override
     {
+        beginTest ("startup refresh preserves moved file identity when a different recording occupies its old path");
+        {
+            RestoreDirectory directory;
+            const auto original = directory.root.getChildFile ("original.wav");
+            const auto moved = directory.root.getChildFile ("moved.wav");
+            expect (writeRestoreWave (original));
+            MusicLibrary library;
+            TrackItem saved { original, "Original recording", 1.0 };
+            saved.fileSizeBytes = original.getSize();
+            saved.fileModifiedAtMs = original.getLastModificationTime().toMilliseconds();
+            const auto id = library.upsertTrack (saved);
+            const auto identity = library.getTrack (id)->fileIdentity;
+            const auto savedTracks = library.getTracks();
+            expect (original.moveFileTo (moved));
+            expect (writeRestoreWave (original));
+            expect (original.setLastModificationTime (juce::Time (saved.fileModifiedAtMs + 5000)));
+            expect (library.restore (savedTracks, {}, {}));
+            PlaylistModel queue;
+            juce::StringArray warnings;
+            expect (prepareLibraryRestore (library, queue, directory.root.getChildFile ("cache"), nullptr, warnings,
+                                            { { "managed", directory.root, true } }));
+            expectEquals (library.getTrack (id)->fileIdentity, identity);
+            expect (library.findTrackByFile (moved) == library.getTrack (id));
+            expectEquals (library.getTrack (id)->title, saved.title);
+            expectEquals (library.getTrack (id)->fileSizeBytes, saved.fileSizeBytes);
+            expectEquals (library.getTrack (id)->fileModifiedAtMs, saved.fileModifiedAtMs);
+            expectWithinAbsoluteError (library.getTrack (id)->durationSeconds, saved.durationSeconds, 0.0001);
+            expect (! library.getTrack (id)->available);
+            expect (warnings.joinIntoString (" ").contains ("moved or replaced"));
+            expectEquals (library.upsertTrack ({ moved, "Original recovered", 1.0 }), id);
+            expect (library.getTrack (id)->available);
+            expect (library.restore (savedTracks, {}, {}));
+            expect (prepareLibraryRestore (library, queue, directory.root.getChildFile ("cache"), nullptr, warnings,
+                                            { { "paused", directory.root, false } }));
+            expect (library.getTrack (id)->available);
+            expectEquals (library.getTrack (id)->title, juce::String ("Fresh title"));
+            expect (library.restore (savedTracks, {}, {}));
+            expect (prepareLibraryRestore (library, queue, directory.root.getChildFile ("cache"), nullptr, warnings));
+            expect (library.getTrack (id)->available);
+        }
+
         beginTest ("unique library refresh synchronizes repeated queue occurrences without changing identities");
         {
             RestoreDirectory directory;
@@ -103,6 +144,7 @@ public:
             readable.id = "readable-id";
             readable.artist = "Saved artist";
             readable.album = "Saved album";
+            readable.addedAtMs = 1700000000123LL;
             TrackItem missing { directory.root.getChildFile ("missing.wav"),
                                 "Missing title", 123.0 };
             missing.id = "missing-id";
@@ -110,6 +152,9 @@ public:
             missing.album = "Missing album";
             missing.channelCount = 6;
             missing.sampleRate = 96000.0;
+            missing.fileIdentity = "posix:abc:def";
+            missing.fileSizeBytes = 999;
+            missing.fileModifiedAtMs = 1700000000999LL;
             PlaylistModel playlist;
             MusicLibrary library;
             readable.libraryId = library.upsertTrack (readable);
@@ -128,6 +173,13 @@ public:
             expectEquals (refreshed->title, juce::String ("Fresh title"));
             expectEquals (refreshed->artist, readable.artist);
             expectEquals (refreshed->album, readable.album);
+            expectEquals (refreshed->addedAtMs, readable.addedAtMs);
+            expectEquals (refreshed->fileSizeBytes, audio.getSize());
+            expectEquals (refreshed->fileModifiedAtMs, audio.getLastModificationTime().toMilliseconds());
+            expect (refreshed->fileIdentity.isNotEmpty());
+            expectEquals (playlist.getTrack (1)->fileIdentity, missing.fileIdentity);
+            expectEquals (playlist.getTrack (1)->fileSizeBytes, missing.fileSizeBytes);
+            expectEquals (playlist.getTrack (1)->fileModifiedAtMs, missing.fileModifiedAtMs);
             expectWithinAbsoluteError (refreshed->durationSeconds, 0.1, 0.0001);
             expectWithinAbsoluteError (refreshed->sampleRate, 48000.0, 0.001);
             expectEquals (refreshed->channelCount, 2);

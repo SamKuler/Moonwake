@@ -51,6 +51,7 @@ struct SkinLayoutCommon
     float aspectRatio = 0.0f, opacity = 1.0f;
     int zIndex = 0, gridColumn = 0, gridRow = 0, columnSpan = 1, rowSpan = 1;
     bool visible = true, clip = false;
+    bool blocksPointer = false;
     std::optional<std::array<bool, 2>> visibleWhen;
     SkinAnchors anchors;
     SkinAlign alignSelf = SkinAlign::automatic;

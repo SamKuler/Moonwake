@@ -3,6 +3,7 @@
 #include "app/ProductIdentity.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <unordered_set>
 
 namespace
@@ -14,7 +15,7 @@ const juce::Identifier effectChainType { "EffectChain" };
 const juce::Identifier slotType { "Slot" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 12;
+constexpr int currentSchemaVersion = 13;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -88,6 +89,17 @@ juce::ValueTree trackToTree (const TrackItem& track)
     tree.setProperty (idProperty, track.id, nullptr);
     tree.setProperty (titleProperty, track.title, nullptr);
     tree.setProperty (artistProperty, track.artist, nullptr);
+    if (! track.artists.isEmpty())
+    {
+        juce::ValueTree artists ("Artists");
+        for (const auto& name : track.artistNames())
+        {
+            juce::ValueTree artist ("Artist");
+            artist.setProperty ("name", name, nullptr);
+            artists.addChild (artist, -1, nullptr);
+        }
+        tree.addChild (artists, -1, nullptr);
+    }
     tree.setProperty (albumProperty, track.album, nullptr);
     tree.setProperty (albumArtistProperty, track.albumArtist, nullptr);
     tree.setProperty (genreProperty, track.genre, nullptr);
@@ -101,6 +113,10 @@ juce::ValueTree trackToTree (const TrackItem& track)
     tree.setProperty (formatNameProperty, track.formatName, nullptr);
     tree.setProperty (artworkCacheKeyProperty, track.artworkCacheKey, nullptr);
     tree.setProperty (availableProperty, track.available, nullptr);
+    tree.setProperty ("addedAtMs", track.addedAtMs, nullptr);
+    tree.setProperty ("fileSizeBytes", track.fileSizeBytes, nullptr);
+    tree.setProperty ("fileModifiedAtMs", track.fileModifiedAtMs, nullptr);
+    tree.setProperty ("fileIdentity", track.fileIdentity, nullptr);
     tree.setProperty ("reservedEffectChainState", track.reservedEffectChainState, nullptr);
     return tree;
 }
@@ -113,6 +129,10 @@ TrackItem trackFromTree (const juce::ValueTree& tree)
     const auto id = tree.getProperty (idProperty).toString();
     if (id.isNotEmpty()) track.id = id;
     track.artist = tree.getProperty (artistProperty).toString();
+    for (const auto member : tree.getChildWithName ("Artists"))
+        if (const auto name = member.getProperty ("name").toString().trim();
+            member.hasType ("Artist") && name.isNotEmpty())
+            track.artists.addIfNotAlreadyThere (name);
     track.album = tree.getProperty (albumProperty).toString();
     track.albumArtist = tree.getProperty (albumArtistProperty).toString();
     track.genre = tree.getProperty (genreProperty).toString();
@@ -125,8 +145,105 @@ TrackItem trackFromTree (const juce::ValueTree& tree)
     track.formatName = tree.getProperty (formatNameProperty).toString();
     track.artworkCacheKey = tree.getProperty (artworkCacheKeyProperty).toString();
     track.available = static_cast<bool> (tree.getProperty (availableProperty, true));
+    track.addedAtMs = juce::jmax (juce::int64 { 0 }, static_cast<juce::int64> (tree.getProperty ("addedAtMs", 0)));
+    track.fileSizeBytes = juce::jmax (juce::int64 { 0 }, static_cast<juce::int64> (tree.getProperty ("fileSizeBytes", 0)));
+    track.fileModifiedAtMs = static_cast<juce::int64> (tree.getProperty ("fileModifiedAtMs", 0));
+    track.fileIdentity = tree.getProperty ("fileIdentity").toString();
     track.reservedEffectChainState = tree.getProperty ("reservedEffectChainState").toString();
     return track;
+}
+
+constexpr const char* smartFieldNames[] {
+    "title", "artist", "album", "albumArtist", "genre", "format",
+    "year", "channelCount", "sampleRate", "addedWithinDays", "favourite", "available"
+};
+constexpr const char* smartComparisonNames[] {
+    "contains", "notContains", "equals", "notEquals", "lessThan", "lessOrEqual",
+    "greaterThan", "greaterOrEqual", "withinLastDays"
+};
+
+template <typename Enum, size_t Size>
+bool parseSmartEnum (const juce::String& name, const char* const (&names)[Size], Enum& value)
+{
+    for (size_t index = 0; index < Size; ++index)
+        if (name == names[index])
+        {
+            value = static_cast<Enum> (index);
+            return true;
+        }
+    return false;
+}
+
+juce::ValueTree smartRulesToTree (const SmartPlaylistRules& rules)
+{
+    juce::ValueTree tree ("SmartRules");
+    tree.setProperty ("match", rules.match == SmartPlaylistMatch::all ? "all" : "any", nullptr);
+    for (const auto& rule : rules.rules)
+    {
+        juce::ValueTree child ("Rule");
+        child.setProperty ("field", smartFieldNames[static_cast<size_t> (rule.field)], nullptr);
+        child.setProperty ("comparison", smartComparisonNames[static_cast<size_t> (rule.comparison)], nullptr);
+        child.setProperty ("textValue", rule.textValue, nullptr);
+        child.setProperty ("numberValue", rule.numberValue, nullptr);
+        child.setProperty ("boolValue", rule.boolValue, nullptr);
+        tree.appendChild (child, nullptr);
+    }
+    return tree;
+}
+
+bool smartRulesFromTree (const juce::ValueTree& tree, SmartPlaylistRules& rules)
+{
+    const auto match = tree.getProperty ("match").toString();
+    if (match != "all" && match != "any") return false;
+    rules.match = match == "all" ? SmartPlaylistMatch::all : SmartPlaylistMatch::any;
+    for (const auto child : tree)
+    {
+        SmartPlaylistRule rule;
+        if (! child.hasType ("Rule")
+            || ! parseSmartEnum (child.getProperty ("field").toString(), smartFieldNames, rule.field)
+            || ! parseSmartEnum (child.getProperty ("comparison").toString(), smartComparisonNames, rule.comparison))
+            return false;
+        rule.textValue = child.getProperty ("textValue").toString();
+        rule.numberValue = static_cast<double> (child.getProperty ("numberValue", 0.0));
+        rule.boolValue = static_cast<bool> (child.getProperty ("boolValue", true));
+        const auto kind = smartPlaylistValueKind (rule.field);
+        if (kind == SmartPlaylistValueKind::number)
+        {
+            const auto value = child.getProperty ("numberValue").toString().trim();
+            const auto* start = value.toRawUTF8();
+            char* end = nullptr;
+            rule.numberValue = std::strtod (start, &end);
+            if (start == end || *end != '\0') return false;
+        }
+        else if (kind == SmartPlaylistValueKind::boolean)
+        {
+            const auto value = child.getProperty ("boolValue").toString();
+            if (value != "0" && value != "1" && value != "true" && value != "false") return false;
+            rule.boolValue = value == "1" || value == "true";
+        }
+        rules.rules.push_back (std::move (rule));
+    }
+    return validateSmartPlaylistRules (rules).wasOk();
+}
+
+bool restoreMusicDirectories (const juce::ValueTree& root, std::vector<MusicDirectory>& directories)
+{
+    std::unordered_set<std::string> ids, paths;
+    std::vector<MusicDirectory> restored;
+    for (const auto child : root.getChildWithName ("MusicDirectories"))
+    {
+        const auto id = child.getProperty (idProperty).toString();
+        const auto path = child.getProperty (pathProperty).toString();
+        if (! child.hasType ("Directory") || id.trim().isEmpty()
+            || ! ids.insert (id.toStdString()).second || ! juce::File::isAbsolutePath (path)) return false;
+        const juce::File folder (path);
+        const auto canonical = folder.getFullPathName();
+        const auto key = juce::File::areFileNamesCaseSensitive() ? canonical : canonical.toUpperCase();
+        if (! paths.insert (key.toStdString()).second) return false;
+        restored.push_back ({ id, folder, static_cast<bool> (child.getProperty ("automatic", true)) });
+    }
+    directories = std::move (restored);
+    return true;
 }
 
 bool restoreLibrary (const juce::ValueTree& root, MusicLibrary& library)
@@ -158,9 +275,16 @@ bool restoreLibrary (const juce::ValueTree& root, MusicLibrary& library)
         playlist.updatedAtMs = static_cast<juce::int64> (child.getProperty ("updatedAtMs", 0));
         for (const auto entry : child)
         {
-            if (! entry.hasType ("Entry")) return false;
-            playlist.entries.push_back ({ entry.getProperty (idProperty).toString(),
-                                          entry.getProperty ("trackId").toString() });
+            if (entry.hasType ("SmartRules"))
+            {
+                if (playlist.smartRules.has_value()) return false;
+                playlist.smartRules.emplace();
+                if (! smartRulesFromTree (entry, *playlist.smartRules)) return false;
+            }
+            else if (entry.hasType ("Entry"))
+                playlist.entries.push_back ({ entry.getProperty (idProperty).toString(),
+                                              entry.getProperty ("trackId").toString() });
+            else return false;
         }
         playlists.push_back (std::move (playlist));
     }
@@ -203,7 +327,14 @@ bool readStateTree (const juce::File& sourceFile,
         return false;
     }
 
-    if (schemaVersion == currentSchemaVersion || tree.getChildWithName ("MusicLibrary").isValid())
+    std::vector<MusicDirectory> musicDirectories;
+    if (! restoreMusicDirectories (tree, musicDirectories))
+    {
+        errorMessage = "Player state contains invalid or duplicate music directories.";
+        return false;
+    }
+
+    if (schemaVersion >= 12 || tree.getChildWithName ("MusicLibrary").isValid())
     {
         MusicLibrary library;
         bool valid = restoreLibrary (tree, library) && tree.getChildWithName (playlistType).isValid();
@@ -238,6 +369,16 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
         directories.appendChild (directory, nullptr);
     }
     root.appendChild (directories, nullptr);
+    juce::ValueTree musicDirectories ("MusicDirectories");
+    for (const auto& rootDirectory : state.musicDirectories)
+    {
+        juce::ValueTree directory ("Directory");
+        directory.setProperty (idProperty, rootDirectory.id, nullptr);
+        directory.setProperty (pathProperty, rootDirectory.folder.getFullPathName(), nullptr);
+        directory.setProperty ("automatic", rootDirectory.automatic, nullptr);
+        musicDirectories.appendChild (directory, nullptr);
+    }
+    root.appendChild (musicDirectories, nullptr);
     juce::ValueTree routes ("OutputRoutes");
     for (const auto& route : state.audioDevice.outputRoutes)
     {
@@ -317,6 +458,7 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
         saved.setProperty (artworkCacheKeyProperty, playlist.artworkCacheKey, nullptr);
         saved.setProperty ("createdAtMs", playlist.createdAtMs, nullptr);
         saved.setProperty ("updatedAtMs", playlist.updatedAtMs, nullptr);
+        if (playlist.smartRules.has_value()) saved.appendChild (smartRulesToTree (*playlist.smartRules), nullptr);
         for (const auto& entry : playlist.entries)
         {
             juce::ValueTree child ("Entry");
@@ -377,6 +519,8 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
     PlayerAppState state;
     if (! tree.hasType (appStateType))
         return state;
+
+    if (! restoreMusicDirectories (tree, state.musicDirectories)) return {};
 
     for (const auto directory : tree.getChildWithName ("PluginDirectories"))
     {
@@ -485,7 +629,9 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
         imported.name = "Imported queue";
         for (const auto& id : migratedIds) imported.entries.push_back ({ juce::Uuid().toString(), id });
         // Legacy queue files contain no playlist creation or modification timestamps.
-        if (! state.library.restore (state.library.getTracks(), { std::move (imported) },
+        auto migratedTracks = state.library.getTracks();
+        for (auto& track : migratedTracks) track.addedAtMs = 0;
+        if (! state.library.restore (std::move (migratedTracks), { std::move (imported) },
                                      state.library.getFavouriteTrackIds())) return {};
     }
 
@@ -561,7 +707,14 @@ bool AppStateStore::writeAtomically (const PlayerAppState& state,
         return false;
     }
 
-    auto xml = toValueTree (state).createXml();
+    const auto tree = toValueTree (state);
+    std::vector<MusicDirectory> musicDirectories;
+    if (! restoreMusicDirectories (tree, musicDirectories))
+    {
+        errorMessage = "Cannot save invalid or duplicate music directories.";
+        return false;
+    }
+    auto xml = tree.createXml();
     if (xml == nullptr)
     {
         errorMessage = "Could not serialize player state.";

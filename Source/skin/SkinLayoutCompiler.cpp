@@ -331,6 +331,7 @@ private:
         common.aspectRatio = number (value, "aspectRatio", 0.0f);
         common.opacity = number (value, "opacity", 1.0f);
         common.clip = static_cast<bool> (value.getProperty ("clip", false));
+        common.blocksPointer = value.getProperty ("pointerEvents", "none").toString() == "block";
         common.zIndex = static_cast<int> (value.getProperty ("zIndex", 0));
         common.visible = static_cast<bool> (value.getProperty ("visible", true));
         if (hasProperty (value, "visibleWhen"))

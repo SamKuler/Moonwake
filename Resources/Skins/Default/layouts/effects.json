@@ -642,13 +642,15 @@
       "ancillaryStyles": {
         "popupMenu": "popupMenu.studio",
         "tooltip": "tooltip.studio",
-        "scrollBar": "scrollBar.studio"
+        "scrollBar": "scrollBar.studio",
+        "smartPlaylistEditor": "smartPlaylistEditor.studio"
       }
     }
   ],
   "ancillaryStyles": {
     "popupMenu": "popupMenu.listening",
     "tooltip": "tooltip.listening",
-    "scrollBar": "scrollBar.listening"
+    "scrollBar": "scrollBar.listening",
+    "smartPlaylistEditor": "smartPlaylistEditor.listening"
   }
 }

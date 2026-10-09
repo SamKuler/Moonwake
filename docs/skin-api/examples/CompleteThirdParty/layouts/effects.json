@@ -299,6 +299,7 @@
   "ancillaryStyles": {
     "popupMenu": "popupMenu.default",
     "tooltip": "tooltip.default",
-    "scrollBar": "scrollBar.default"
+    "scrollBar": "scrollBar.default",
+    "smartPlaylistEditor": "smartPlaylistEditor.default"
   }
 }

@@ -18,6 +18,7 @@ struct SkinResolvedNode
     float opacity = 1.0f;
     int focusOrder = 0, zIndex = 0;
     bool visible = true, scrollVertical = true;
+    bool blocksPointer = false;
     std::vector<SkinResolvedNode> children;
 };
 

@@ -1,0 +1,63 @@
+{
+  "apiVersion": 1,
+  "target": "smartPlaylistRuleList",
+  "layers": [
+    {
+      "id": "body",
+      "type": "rect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "fill": "#00000000"
+    }
+  ],
+  "variants": {
+    "focused": {
+      "body.fill": {
+        "$expr": "alpha(token.colors.listening.focus, 0.05)"
+      }
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 36,
+    "rowGap": 10,
+    "slots": {
+      "rule.field": {
+        "x": 0,
+        "y": 0,
+        "width": 156,
+        "height": 36
+      },
+      "rule.operator": {
+        "x": 166,
+        "y": 0,
+        "width": 176,
+        "height": 36
+      },
+      "rule.value": {
+        "x": 352,
+        "y": 0,
+        "width": {
+          "$expr": "max(60, bounds.width - 436)"
+        },
+        "height": 36
+      },
+      "rule.boolean": {
+        "x": 352,
+        "y": 0,
+        "width": {
+          "$expr": "max(60, bounds.width - 436)"
+        },
+        "height": 36
+      },
+      "rule.remove": {
+        "x": {
+          "$expr": "bounds.width - 74"
+        },
+        "y": 0,
+        "width": 74,
+        "height": 36
+      }
+    }
+  }
+}

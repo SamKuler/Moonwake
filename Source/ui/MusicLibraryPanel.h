@@ -42,7 +42,7 @@ public:
     [[nodiscard]] juce::ComboBox& collectionsControl() { return collections; }
     [[nodiscard]] std::vector<TrackItem> currentTracks() const { return tracks; }
     std::function<void()> onChanged, onImportPlaylist, onPageChanged, onShowQueue;
-    std::function<void(const juce::String&)> onChoosePlaylistArtwork;
+    std::function<void(const juce::String&)> onChoosePlaylistArtwork, onEditSmartPlaylist;
     std::function<void(const std::vector<TrackItem>&)> onExportPlaylist;
     std::function<void(const juce::String&)> onRelocateTrack;
     std::function<void(const juce::String&, bool)> onStatus;
@@ -66,6 +66,7 @@ private:
     };
     [[nodiscard]] std::vector<SelectedEntry> selectedEntries() const;
     [[nodiscard]] bool canReorder() const;
+    [[nodiscard]] bool isSmartCollection() const;
     void playFromRow (int);
     void prunePlaybackOrigins();
     void recordPlaybackOrigins (const juce::String&, const std::vector<juce::String>&,

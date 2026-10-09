@@ -18,6 +18,7 @@ struct TrackItem
     juce::String libraryId;
     juce::String title;
     juce::String artist;
+    juce::StringArray artists;
     juce::String album;
     juce::String albumArtist;
     juce::String genre;
@@ -30,6 +31,22 @@ struct TrackItem
     int bitDepth = 0;
     juce::String formatName;
     juce::String artworkCacheKey;
+    // Unix epoch milliseconds; zero means the import time is unknown.
+    juce::int64 addedAtMs = 0;
+    juce::int64 fileSizeBytes = 0;
+    juce::int64 fileModifiedAtMs = 0;
+    juce::String fileIdentity;
     bool available = true;
     juce::String reservedEffectChainState;
+
+    [[nodiscard]] juce::StringArray artistNames() const
+    {
+        juce::StringArray names;
+        for (const auto& name : artists)
+            if (const auto trimmed = name.trim(); trimmed.isNotEmpty())
+                names.addIfNotAlreadyThere (trimmed);
+        if (names.isEmpty() && artist.trim().isNotEmpty())
+            names.add (artist.trim());
+        return names;
+    }
 };

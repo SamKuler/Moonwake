@@ -50,6 +50,35 @@ public:
 
     void runTest() override
     {
+        beginTest ("imports audio through Unicode directory and file names");
+        {
+            const auto root = importFixtureDirectory();
+            const auto music = root.getChildFile (juce::String::fromUTF8 (u8"中文音乐"));
+            const auto album = music.getChildFile (juce::String::fromUTF8 (u8"专辑 🎵"));
+            const auto audio = album.getChildFile (juce::String::fromUTF8 (u8"月光 夜曲.wav"));
+            expect (album.createDirectory());
+            expect (writeImportWav (audio, "Unicode path"));
+            const auto discovered = LibraryImportService::collectAudioFiles ({ music });
+            expectEquals (discovered.size(), 1);
+            if (! discovered.isEmpty()) expect (discovered[0] == audio);
+            LibraryImportService service;
+            bool completed = false;
+            expect (service.start ({ music }, {}, [&] (LibraryImportResult result)
+            {
+                expect (! result.cancelled);
+                expect (result.skippedPaths.isEmpty());
+                expectEquals (static_cast<int> (result.tracks.size()), 1);
+                if (! result.tracks.empty())
+                {
+                    expect (result.tracks.front().track.file == audio);
+                    expectEquals (result.tracks.front().track.title, juce::String ("Unicode path"));
+                }
+                completed = true;
+            }));
+            expect (dispatchImportUntil ([&] { return completed; }));
+            expect (root.deleteRecursively());
+        }
+
         beginTest ("discovers supported files recursively and deduplicates inputs");
         {
             const auto root = importFixtureDirectory();

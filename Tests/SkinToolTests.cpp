@@ -1,4 +1,5 @@
 #include "skin/SkinSchemaRegistry.h"
+#include "skin/PlayerComponentCatalog.h"
 #include "skin/SkinToolCommands.h"
 
 #include <juce_core/juce_core.h>
@@ -126,6 +127,44 @@ public:
 
     void runTest() override
     {
+        beginTest ("shipped Settings roots keep every control in unique visual focus order");
+        for (const auto* path : { "Resources/Skins/Default/layouts/settings.json",
+                                  "Resources/Skins/Foundation/layouts/settings.json",
+                                  "docs/skin-api/examples/CompleteThirdParty/layouts/settings.json" })
+        {
+            const auto document = juce::JSON::parse (juce::File (MOONWAKE_SOURCE_DIR).getChildFile (path));
+            expect (document.isObject(), path);
+            juce::Array<juce::var> roots;
+            roots.add (document.getProperty ("root", {}));
+            if (const auto* breakpoints = document.getProperty ("breakpoints", {}).getArray())
+                for (const auto& breakpoint : *breakpoints)
+                    if (breakpoint.hasProperty ("root")) roots.add (breakpoint.getProperty ("root", {}));
+            for (const auto& root : roots)
+            {
+                int previous = 0;
+                juce::StringArray musicOrder;
+                const auto inspect = [&] (auto&& self, const juce::var& node) -> void
+                {
+                    if (! node.isObject()) return;
+                    const auto id = node.getProperty ("component", {}).toString();
+                    if (const auto* descriptor = PlayerComponentCatalog::find (id);
+                        descriptor != nullptr && descriptor->interactive)
+                    {
+                        const auto order = static_cast<int> (node.getProperty ("focusOrder", 0));
+                        expect (order > previous, juce::String (path) + ":" + id);
+                        previous = order;
+                        if (id.startsWith ("settings.music.")) musicOrder.add (id);
+                    }
+                    if (const auto* children = node.getProperty ("children", {}).getArray())
+                        for (const auto& child : *children) self (self, child);
+                    self (self, node.getProperty ("child", {}));
+                };
+                inspect (inspect, root);
+                expect (musicOrder == juce::StringArray { "settings.music.directories", "settings.music.add",
+                    "settings.music.scan", "settings.music.cancel", "settings.music.remove", "settings.music.automatic" });
+            }
+        }
+
         beginTest ("parser rejects incomplete and unknown commands deterministically");
         {
             const auto help = run ({});

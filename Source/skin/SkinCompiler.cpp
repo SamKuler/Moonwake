@@ -385,6 +385,9 @@ bool isInteractiveRendererTarget (SkinRenderTarget target)
         case SkinRenderTarget::pluginList:
         case SkinRenderTarget::skinList:
         case SkinRenderTarget::playlistGrid:
+        case SkinRenderTarget::directoryList:
+        case SkinRenderTarget::smartPlaylistEditor:
+        case SkinRenderTarget::smartPlaylistRuleList:
             return true;
         case SkinRenderTarget::label:
         case SkinRenderTarget::progressBar:

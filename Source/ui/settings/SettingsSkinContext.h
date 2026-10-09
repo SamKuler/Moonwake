@@ -7,6 +7,18 @@
 
 namespace SettingsSkinContext
 {
+inline std::optional<SkinExpressionValue> directoryListValue (
+    std::string_view path, int index, const juce::String& id,
+    const juce::String& name, const juce::String& folder, bool automatic)
+{
+    if (path == "directory.index") return SkinExpressionValue (static_cast<double> (index));
+    if (path == "directory.id") return SkinExpressionValue (id);
+    if (path == "directory.name") return SkinExpressionValue (name);
+    if (path == "directory.path") return SkinExpressionValue (folder);
+    if (path == "directory.automatic") return SkinExpressionValue (automatic);
+    return std::nullopt;
+}
+
 inline std::optional<SkinExpressionValue> channelMapValue (
     std::string_view path, int index,
     const juce::String& sourceLabel, const juce::String& deviceLabel,

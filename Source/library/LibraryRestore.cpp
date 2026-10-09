@@ -2,7 +2,9 @@
 
 #include "audio/TrackMetadataReader.h"
 #include "library/ArtworkStore.h"
+#include "playlist/TrackFileIdentity.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace
@@ -10,7 +12,8 @@ namespace
 bool prepareTracks (std::vector<TrackItem>& tracks,
                     const juce::File& artworkCacheRoot,
                     const std::atomic_bool* cancelled,
-                    juce::StringArray& warnings)
+                    juce::StringArray& warnings,
+                    const std::vector<MusicDirectory>& managedDirectories)
 {
     const auto isCancelled = [cancelled]
     {
@@ -35,6 +38,22 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
             return false;
 
         auto restored = saved;
+        const auto hasPhysicalIdentity = saved.fileIdentity.startsWith ("posix:")
+                                      || saved.fileIdentity.startsWith ("windows:");
+        const auto automaticallyManaged = std::any_of (managedDirectories.begin(), managedDirectories.end(),
+            [&] (const auto& directory) { return directory.automatic && saved.file.isAChildOf (directory.folder); });
+        if (hasPhysicalIdentity && automaticallyManaged)
+        {
+            const auto currentIdentity = trackFileIdentity (saved.file);
+            if (! currentIdentity.startsWith ("path:") && currentIdentity != saved.fileIdentity)
+            {
+                restored.available = false;
+                if (unavailableCount++ == 0)
+                    firstUnavailableError = "Audio file moved or replaced: " + saved.file.getFullPathName();
+                prepared.push_back (std::move (restored));
+                continue;
+            }
+        }
         const auto needsArtwork = restored.artworkCacheKey.isEmpty()
                                || ! artwork.isValid (restored.artworkCacheKey);
         if (needsArtwork && restored.artworkCacheKey.isNotEmpty())
@@ -58,13 +77,20 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
             restored.channelCount = metadata.track.channelCount;
             restored.bitDepth = metadata.track.bitDepth;
             restored.formatName = metadata.track.formatName;
+            restored.fileSizeBytes = metadata.track.fileSizeBytes;
+            restored.fileModifiedAtMs = metadata.track.fileModifiedAtMs;
+            restored.fileIdentity = metadata.track.fileIdentity;
             const auto updateText = [] (juce::String& destination,
                                         const juce::String& refreshed)
             {
                 if (refreshed.isNotEmpty()) destination = refreshed;
             };
             updateText (restored.title, metadata.track.title);
-            updateText (restored.artist, metadata.track.artist);
+            if (metadata.track.artist.isNotEmpty() || ! metadata.track.artists.isEmpty())
+            {
+                restored.artist = metadata.track.artist;
+                restored.artists = metadata.track.artists;
+            }
             updateText (restored.album, metadata.track.album);
             updateText (restored.albumArtist, metadata.track.albumArtist);
             updateText (restored.genre, metadata.track.genre);
@@ -115,10 +141,11 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
 bool prepareLibraryRestore (MusicLibrary& library, PlaylistModel& playlist,
                             const juce::File& artworkCacheRoot,
                             const std::atomic_bool* cancelled,
-                            juce::StringArray& warnings)
+                            juce::StringArray& warnings,
+                            const std::vector<MusicDirectory>& managedDirectories)
 {
     auto tracks = library.getTracks();
-    if (! prepareTracks (tracks, artworkCacheRoot, cancelled, warnings)) return false;
+    if (! prepareTracks (tracks, artworkCacheRoot, cancelled, warnings, managedDirectories)) return false;
     auto savedPlaylists = library.getPlaylists();
     const ArtworkStore artwork (artworkCacheRoot);
     for (auto& saved : savedPlaylists)

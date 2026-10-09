@@ -12,6 +12,92 @@ public:
 
     void runTest() override
     {
+        beginTest ("collaborations belong once to each artist while albums retain their album artist");
+        {
+            MusicLibrary library;
+            TrackItem track { juce::File ("/music/collaboration.wav"), "Collaboration", 12.0 };
+            track.artist = "Shared credit";
+            track.artists = { "First", "Second", "First", " ", " Second " };
+            track.album = "Collection";
+            track.albumArtist = "Curator";
+            const auto id = library.upsertTrack (track);
+            PlaylistModel queue;
+            const auto cards = libraryCollectionSummaries (library, "artists");
+            expectEquals (static_cast<int> (cards.size()), 2);
+            for (const auto& card : cards)
+            {
+                expect (card.name == "First" || card.name == "Second");
+                expectEquals (card.trackCount, 1);
+                expectWithinAbsoluteError (card.durationSeconds, 12.0, 0.0001);
+                const auto rows = libraryTracks (library, queue, card.id);
+                expectEquals (static_cast<int> (rows.size()), 1);
+                if (! rows.empty()) expectEquals (rows.front().libraryId, id);
+                expect (libraryCollectionSummary (library, queue, card.id) == card);
+            }
+            const auto albums = libraryCollectionSummaries (library, "albums");
+            expectEquals (static_cast<int> (albums.size()), 1);
+            if (! albums.empty())
+            {
+                expectEquals (albums.front().name, juce::String ("Collection"));
+                expectEquals (albums.front().subtitle, juce::String ("Curator"));
+                expectEquals (albums.front().trackCount, 1);
+            }
+            const auto collections = libraryCollections (library);
+            expectEquals (static_cast<int> (std::count_if (collections.begin(), collections.end(),
+                [] (const auto& item) { return item.section == "Artists"; })), 2);
+            LibraryFilter filter;
+            filter.setQuery ("Second");
+            std::vector<TrackItem> tracks { track };
+            filter.rebuild (tracks);
+            expectEquals (filter.visibleCount(), 1);
+            tracks.front().artists = { "First", "Third" };
+            filter.rebuild (tracks);
+            expectEquals (filter.visibleCount(), 0);
+            filter.setQuery ("Third");
+            filter.rebuild (tracks);
+            expectEquals (filter.visibleCount(), 1);
+        }
+
+        beginTest ("smart projections and summaries follow rules favourites availability and clock without queue changes");
+        {
+            constexpr juce::int64 day = 86400000;
+            MusicLibrary library;
+            TrackItem a { juce::File ("/music/smart-projection-a.wav"), "A", 12.0 };
+            a.addedAtMs = 8 * day;
+            a.artworkCacheKey = "cover-a";
+            TrackItem b { juce::File ("/music/smart-projection-b.wav"), "B", 20.0 };
+            b.addedAtMs = 9 * day;
+            b.available = false;
+            expect (library.restore ({ a, b }, {}, { a.id }));
+            PlaylistModel queue;
+            queue.addTrack (b);
+            SmartPlaylistRules rules { SmartPlaylistMatch::all, {
+                { SmartPlaylistField::addedWithinDays, SmartPlaylistOperator::withinLastDays, {}, 2.0 },
+                { SmartPlaylistField::favourite, SmartPlaylistOperator::equals, {}, 0.0, true } } };
+            const auto id = library.createSmartPlaylist ("Recent favourites", rules);
+            const auto rows = libraryTracks (library, queue, "playlist:" + id, 10 * day);
+            expectEquals (static_cast<int> (rows.size()), 1);
+            if (! rows.empty())
+            {
+                expectEquals (rows[0].libraryId, a.id);
+                expectEquals (rows[0].id, a.id);
+            }
+            const auto summary = libraryCollectionSummary (library, queue, "playlist:" + id, 10 * day);
+            expectEquals (summary.trackCount, 1);
+            expectWithinAbsoluteError (summary.durationSeconds, 12.0, 0.001);
+            expect (summary.artworkKeys == juce::StringArray { "cover-a" });
+            const auto cards = libraryCollectionSummaries (library, "playlists", 10 * day);
+            expectEquals (static_cast<int> (cards.size()), 2);
+            if (cards.size() == 2) expect (cards[1] == summary);
+            expect (libraryTracks (library, queue, "playlist:" + id, 10 * day + 1).empty());
+            expect (library.setFavourite (b.id, true));
+            const auto later = libraryTracks (library, queue, "playlist:" + id, 10 * day + 1);
+            expectEquals (static_cast<int> (later.size()), 1);
+            if (! later.empty()) expect (! later[0].available);
+            expectEquals (queue.size(), 1);
+            expectEquals (queue.getTrack (0)->id, b.id);
+        }
+
         beginTest ("favourites is a permanent playlist and custom covers override mosaics");
         {
             MusicLibrary library;

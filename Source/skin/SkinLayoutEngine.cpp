@@ -309,6 +309,7 @@ private:
         result.opacity = node.common.opacity;
         result.zIndex = node.common.zIndex;
         result.visible = node.common.visible;
+        result.blocksPointer = node.common.blocksPointer;
         if (node.type() == SkinLayoutNodeType::component)
         {
             const auto& component = std::get<SkinComponentLayout> (node.payload);

@@ -1,7 +1,10 @@
 #include "TrackMetadataReader.h"
+#include "TrackArtistTags.h"
 
 #include "library/ArtworkExtractor.h"
+#include "playlist/TrackFileIdentity.h"
 
+#include <algorithm>
 #include <cstring>
 #include <initializer_list>
 #include <vector>
@@ -61,6 +64,7 @@ int positiveLeadingInteger (const juce::String& value)
 struct MacAudioMetadata
 {
     juce::StringPairArray values;
+    juce::StringArray artists;
     juce::MemoryBlock artwork;
     int sourceBitDepth = 0;
 };
@@ -155,8 +159,19 @@ MacAudioMetadata readMacAudioMetadata (const juce::File& file,
 
                 const auto key = stringFromCFString (static_cast<CFStringRef> (
                     keys[static_cast<size_t> (index)]));
-                const auto value = stringFromCFValue (
-                    values[static_cast<size_t> (index)]);
+                const auto* rawValue = values[static_cast<size_t> (index)];
+                auto value = stringFromCFValue (rawValue);
+                if (normaliseKey (key) == "artist" && rawValue != nullptr
+                    && CFGetTypeID (rawValue) == CFArrayGetTypeID())
+                {
+                    const auto array = static_cast<CFArrayRef> (rawValue);
+                    for (CFIndex member = 0; member < juce::jmin (CFArrayGetCount (array), CFIndex { 128 }); ++member)
+                    {
+                        const auto name = sanitiseMetadataText (stringFromCFValue (CFArrayGetValueAtIndex (array, member)));
+                        if (name.isNotEmpty()) result.artists.addIfNotAlreadyThere (name);
+                    }
+                    value = result.artists.joinIntoString (" / ");
+                }
                 if (key.isNotEmpty() && value.isNotEmpty())
                     result.values.set (key, value);
             }
@@ -231,6 +246,19 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
 #endif
 
     applyMetadata (result.track, metadata);
+    auto artists = readTrackArtistTags (file);
+#if JUCE_MAC
+    if (artists.isEmpty()) artists = macMetadata.artists;
+#endif
+    if (! artists.isEmpty())
+    {
+        result.track.artists = std::move (artists);
+        const auto displayContainsEveryArtist = std::all_of (
+            result.track.artists.begin(), result.track.artists.end(), [&] (const auto& name)
+                { return result.track.artist.contains (name); });
+        if (! displayContainsEveryArtist)
+            result.track.artist = result.track.artists.joinIntoString (" / ");
+    }
     if (includeArtwork)
     {
 #if JUCE_MAC
@@ -239,6 +267,9 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
         if (result.artworkData.isEmpty())
             result.artworkData = ArtworkExtractor::find (file, metadata);
     }
+    result.track.fileSizeBytes = file.getSize();
+    result.track.fileModifiedAtMs = file.getLastModificationTime().toMilliseconds();
+    result.track.fileIdentity = trackFileIdentity (file);
     result.track.available = true;
     result.ok = true;
     return result;
@@ -258,6 +289,7 @@ void TrackMetadataReader::applyMetadata (TrackItem& track,
                                 "kAFInfoDictionary_Title" });
     setIfPresent (track.artist, { "artist", "id3artist", "author", "auth", "iart",
                                  "kAFInfoDictionary_Artist" });
+    track.artists = track.artist.isNotEmpty() ? juce::StringArray { track.artist } : juce::StringArray {};
     setIfPresent (track.album, { "album", "id3album", "iprd",
                                 "kAFInfoDictionary_Album" });
     setIfPresent (track.albumArtist, { "albumartist", "id3albumartist",

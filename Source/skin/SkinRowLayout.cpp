@@ -64,7 +64,8 @@ namespace
 bool interactiveSlotTarget (const juce::String& target)
 {
     return target == "textButton" || target == "toggleButton" || target == "linearSlider"
-        || target == "rotarySlider" || target == "comboBox" || target == "textEditor";
+        || target == "rotarySlider" || target == "comboBox" || target == "textEditor"
+        || target == "smartPlaylistRuleList";
 }
 
 SkinExpressionContext expressionContextFor (const SkinRenderContext& context,
@@ -166,15 +167,19 @@ std::optional<SkinResolvedRowLayout> resolveSkinRowLayout (
         for (const auto& [name, frame] : breakpoint.values.slots) values.slots.insert_or_assign (name, frame);
     }
     if (program.target == SkinRenderTarget::effectChain || program.target == SkinRenderTarget::channelMixer
-        || program.target == SkinRenderTarget::playlistGrid)
+        || program.target == SkinRenderTarget::playlistGrid
+        || program.target == SkinRenderTarget::smartPlaylistEditor
+        || program.target == SkinRenderTarget::smartPlaylistRuleList)
         for (const auto& component : PlayerComponentCatalog::descriptors())
             if (component.defaultRendererTarget == skinRenderTargetName (program.target))
                 for (const auto& slot : component.slots)
-                    if ((interactiveSlotTarget (slot.rendererTarget) || program.target == SkinRenderTarget::playlistGrid)
+                    if ((interactiveSlotTarget (slot.rendererTarget) || program.target == SkinRenderTarget::playlistGrid
+                         || program.target == SkinRenderTarget::smartPlaylistEditor
+                         || program.target == SkinRenderTarget::smartPlaylistRuleList)
                         && ! values.slots.contains (slot.name))
                     {
                         report.addError ("RENDER004", "rowLayout", "/slots/" + slot.name,
-                                         "Row layout must place every interactive slot and every playlist card slot.");
+                                         "Row layout must place every interactive slot and all playlist card and smart editor slots.");
                         return std::nullopt;
                     }
     SkinResolvedRowLayout result;

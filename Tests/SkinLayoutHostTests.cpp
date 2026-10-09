@@ -154,6 +154,9 @@ std::unique_ptr<juce::Component> componentFor (juce::StringRef id)
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
+        case SkinComponentKind::directoryList:
+        case SkinComponentKind::smartPlaylistEditor:
+        case SkinComponentKind::smartPlaylistRuleList:
         case SkinComponentKind::playlistGrid:
             return std::make_unique<juce::Component>();
     }
@@ -989,4 +992,96 @@ public:
 };
 
 SkinLayoutHostTests skinLayoutHostTests;
+
+class SkinOverlayInputTests final : public juce::UnitTest
+{
+public:
+    SkinOverlayInputTests() : UnitTest ("SkinOverlayInput", "skin") {}
+    void runTest() override
+    {
+        beginTest ("skin containers block covered controls without taking focus or blocking their own children");
+        for (const auto* pointerMode : { "none", "block" })
+        {
+            const auto storage = freshHostDirectory();
+            const auto source = writeScrollableHostSkin (storage);
+            const auto layoutFile = source.getChildFile ("layouts/listening.json");
+            auto document = juce::JSON::parse (layoutFile);
+            auto overlay = juce::JSON::parse (R"json({
+              "id":"overlay", "type":"column", "zIndex":2,
+              "width":600, "height":120, "anchors":{"top":60,"left":12},
+              "padding":8, "style":"surface.default",
+              "children":[{"id":"overlay-action", "type":"component",
+                "component":"queue.actions", "width":100, "height":28, "focusOrder":110}]
+            })json");
+            overlay.getDynamicObject()->setProperty ("pointerEvents", pointerMode);
+            document["root"]["children"].getArray()->add (overlay);
+            expect (layoutFile.replaceWithText (juce::JSON::toString (document)));
+            SkinValidationReport report;
+            SkinManager manager;
+            expect (manager.initialise (storage.getChildFile ("installs"), report), report.toText());
+            const auto imported = manager.importSkin (source);
+            expect (! imported.hasErrors(), imported.toText());
+            if (! imported.hasErrors())
+            {
+                expect (manager.activate ({ "com.example.scroll-host", "1.0.0" }, false, report), report.toText());
+                juce::Component root;
+                root.setBounds (0, 0, 1240, 800);
+                root.setVisible (true);
+                SkinComponentBindings bindings;
+                std::map<juce::String, std::unique_ptr<juce::Component>> controls;
+                for (const auto& descriptor : PlayerComponentCatalog::descriptors())
+                {
+                    auto control = componentFor (descriptor.id);
+                    root.addAndMakeVisible (*control);
+                    expect (bindings.bind (descriptor.id, *control, report));
+                    controls.emplace (descriptor.id, std::move (control));
+                }
+                SkinLayoutHost host (manager, bindings);
+                expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+                auto* queue = controls.at ("queue.table").get();
+                auto* hit = root.getComponentAt (juce::Point<int> (118, 116));
+                const auto hitQueue = hit == queue || queue->isParentOf (hit);
+                expect (juce::String (pointerMode) == "block" ? ! hitQueue : hitQueue,
+                        "Only the blocking overlay must intercept its blank area.");
+                if (juce::String (pointerMode) == "block")
+                {
+                    expect (hit != nullptr && ! hit->getWantsKeyboardFocus());
+                    auto* actions = controls.at ("queue.actions").get();
+                    expect (root.getComponentAt (rootBoundsFor (root, *actions).getCentre()) == actions,
+                            "The overlay's own controls must remain clickable.");
+                }
+                auto* volume = controls.at ("transport.volume").get();
+                const auto previousBounds = rootBoundsFor (root, *volume);
+                auto* outsideHit = root.getComponentAt (juce::Point<int> (900, 116));
+                expect (outsideHit == queue || queue->isParentOf (outsideHit),
+                        "Input outside the overlay must still reach the underlying queue.");
+                auto* page = queue->findParentComponentOfClass<juce::Viewport>();
+                expect (page != nullptr);
+                if (page != nullptr && hit != nullptr && outsideHit != nullptr)
+                {
+                    const auto wheelAt = [] (juce::Component& target)
+                    {
+                        const auto now = juce::Time::getCurrentTime();
+                        const juce::MouseEvent event { juce::Desktop::getInstance().getMainMouseSource(),
+                            { 1.0f, 1.0f }, {}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                            &target, &target, now, { 1.0f, 1.0f }, now, 1, false };
+                        target.mouseWheelMove (event, { 0.0f, -0.25f, false, true, false });
+                    };
+                    page->setViewPosition (0, 0);
+                    wheelAt (*hit);
+                    expect (juce::String (pointerMode) == "block" ? page->getViewPositionY() == 0
+                                                                 : page->getViewPositionY() > 0,
+                            "The blocking overlay must keep wheel input away from the covered scroller.");
+                    page->setViewPosition (0, 0);
+                    wheelAt (*outsideHit);
+                    expect (page->getViewPositionY() > 0, "Uncovered scroll content must remain usable.");
+                }
+                expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+                expect (rootBoundsFor (root, *volume) == previousBounds);
+            }
+            static_cast<void> (storage.deleteRecursively());
+        }
+    }
+};
+SkinOverlayInputTests skinOverlayInputTests;
 } // namespace

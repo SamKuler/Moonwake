@@ -321,5 +321,8 @@
         "height": 28
       }
     ]
+  },
+  "ancillaryStyles": {
+    "smartPlaylistEditor": "smartPlaylistEditor.default"
   }
 }

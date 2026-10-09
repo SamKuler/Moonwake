@@ -14,7 +14,8 @@ struct LibraryCollection
 [[nodiscard]] std::vector<LibraryCollection> libraryCollections (const MusicLibrary&);
 // Projected IDs identify list occurrences; libraryId identifies the shared recording.
 [[nodiscard]] std::vector<TrackItem> libraryTracks (
-    const MusicLibrary&, const PlaylistModel& queue, const juce::String& collectionId);
+    const MusicLibrary&, const PlaylistModel& queue, const juce::String& collectionId,
+    juce::int64 nowMs = juce::Time::currentTimeMillis());
 [[nodiscard]] juce::String libraryAlbumId (const TrackItem&);
 
 struct LibraryCollectionSummary
@@ -33,6 +34,8 @@ struct LibraryCollectionSummary
 };
 
 [[nodiscard]] std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
-    const MusicLibrary&, const juce::String& category);
+    const MusicLibrary&, const juce::String& category,
+    juce::int64 nowMs = juce::Time::currentTimeMillis());
 [[nodiscard]] LibraryCollectionSummary libraryCollectionSummary (
-    const MusicLibrary&, const PlaylistModel&, const juce::String& collectionId);
+    const MusicLibrary&, const PlaylistModel&, const juce::String& collectionId,
+    juce::int64 nowMs = juce::Time::currentTimeMillis());

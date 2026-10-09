@@ -28,6 +28,7 @@ private:
         juce::File file;
         juce::String title;
         juce::String artist;
+        juce::StringArray artists;
         juce::String album;
         juce::String albumArtist;
         juce::String genre;

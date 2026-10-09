@@ -246,7 +246,8 @@
                 "grow": 1,
                 "focusOrder": 920
               }
-            ]
+            ],
+            "pointerEvents": "block"
           }
         ]
       },
@@ -573,7 +574,8 @@
                     "grow": 1,
                     "focusOrder": 920
                   }
-                ]
+                ],
+                "pointerEvents": "block"
               }
             ]
           },
@@ -651,5 +653,8 @@
         "style": "surface.studio"
       }
     }
-  ]
+  ],
+  "ancillaryStyles": {
+    "smartPlaylistEditor": "smartPlaylistEditor.default"
+  }
 }

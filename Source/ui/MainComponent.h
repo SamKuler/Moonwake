@@ -19,6 +19,8 @@
 #include "SkinInputScope.h"
 #include "skin/SkinManager.h"
 #include "MusicLibraryPanel.h"
+#include "SmartPlaylistEditor.h"
+#include "ui/settings/MusicDirectoriesPanel.h"
 #include "ui/JuceSkinAdapter.h"
 #include "ui/settings/AudioSettingsPanel.h"
 #include "ui/settings/PluginSettingsPanel.h"
@@ -93,6 +95,11 @@ private:
     void moveEffectFromDrag (int fromIndex, int yInRackContent);
     void closePluginEditors();
     void setWorkspaceMode (WorkspaceMode mode);
+    void chooseMusicDirectory();
+    void musicDirectoriesChanged (bool scanNow);
+    void requestMusicDirectoryScan (bool automaticOnly);
+    void startMusicDirectoryScan();
+    void showSmartPlaylistEditor (const juce::String& id);
     void bindSkinComponents();
     void applyWorkspaceVisuals();
     void closeDrawers();
@@ -119,6 +126,11 @@ private:
     std::vector<PlaybackQueueEntry> visibleQueue;
     std::tuple<uint64_t, uint64_t, uint64_t, juce::String> queueViewVersion;
     LibraryImportService libraryImportService;
+    MusicDirectoryScanService musicDirectoryScanService;
+    std::optional<bool> pendingMusicDirectoryScan;
+    bool activeDirectoryScanAutomatic = true;
+    double nextDirectoryScanAt = 0.0;
+    juce::int64 smartPlaylistRefreshMinute = 0;
     SkinManager skinManager;
     SkinComponentBindings skinBindings;
     SkinRenderer skinRenderer;
@@ -126,8 +138,10 @@ private:
     JuceSkinAdapter skinAdapter;
     AudioSettingsPanel audioSettingsPanel;
     PluginSettingsPanel pluginSettingsPanel;
+    MusicDirectoriesPanel musicDirectoriesPanel;
     SkinLibraryPanel skinLibraryPanel;
     MusicLibraryPanel musicLibraryPanel;
+    std::unique_ptr<SmartPlaylistEditor> smartPlaylistEditor;
     bool hasAppliedSkinLayout = false;
     std::unique_ptr<juce::FileChooser> fileChooser;
     std::vector<std::unique_ptr<PluginEditorWindow>> pluginEditorWindows;

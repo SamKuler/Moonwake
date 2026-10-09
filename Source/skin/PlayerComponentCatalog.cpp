@@ -26,6 +26,9 @@ juce::String targetFor (SkinComponentKind kind)
         case SkinComponentKind::channelMixer: return "channelMixer";
         case SkinComponentKind::pluginList: return "pluginList";
         case SkinComponentKind::skinList: return "skinList";
+        case SkinComponentKind::directoryList: return "directoryList";
+        case SkinComponentKind::smartPlaylistEditor: return "smartPlaylistEditor";
+        case SkinComponentKind::smartPlaylistRuleList: return "smartPlaylistRuleList";
         case SkinComponentKind::playlistGrid: return "playlistGrid";
     }
     return {};
@@ -53,6 +56,9 @@ bool isInteractive (SkinComponentKind kind)
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
         case SkinComponentKind::playlistGrid:
+        case SkinComponentKind::directoryList:
+        case SkinComponentKind::smartPlaylistEditor:
+        case SkinComponentKind::smartPlaylistRuleList:
             return true;
     }
     return false;
@@ -337,7 +343,31 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeIconDescriptor ("settings.skins.preview", "preview", {}, "leading"),
         makeDescriptor ("settings.skins.apply", Kind::textButton, { Entry::settings }),
         makeDescriptor ("settings.skins.cancelPreview", Kind::textButton, { Entry::settings }),
-        makeIconDescriptor ("settings.skins.reload", "reload", {}, "leading")
+        makeIconDescriptor ("settings.skins.reload", "reload", {}, "leading"),
+        makeLabelDescriptor ("settings.music.heading"),
+        makeDescriptor ("settings.music.directories", Kind::directoryList, {}, {}, {}, {
+            Slot { "row.surface", "surface" }, Slot { "row.name", "label" },
+            Slot { "row.path", "label" }, Slot { "row.status", "label" },
+            Slot { "empty.message", "label" }
+        }),
+        makeDescriptor ("settings.music.add", Kind::textButton),
+        makeDescriptor ("settings.music.scan", Kind::textButton),
+        makeDescriptor ("settings.music.cancel", Kind::textButton),
+        makeDescriptor ("settings.music.remove", Kind::textButton),
+        makeDescriptor ("settings.music.automatic", Kind::toggleButton),
+        makeLabelDescriptor ("settings.music.status"),
+        makeDescriptor ("library.smartPlaylistEditor", Kind::smartPlaylistEditor, {}, {}, {}, {
+            Slot { "editor.heading", "label" }, Slot { "editor.nameLabel", "label" },
+            Slot { "editor.name", "textEditor" }, Slot { "editor.match", "comboBox" },
+            Slot { "editor.rules", "smartPlaylistRuleList" }, Slot { "editor.add", "textButton" },
+            Slot { "editor.preview", "label" }, Slot { "editor.save", "textButton" },
+            Slot { "editor.cancel", "textButton" }
+        }),
+        makeDescriptor ("library.smartPlaylistRules", Kind::smartPlaylistRuleList, {}, {}, {}, {
+            Slot { "rule.field", "comboBox" }, Slot { "rule.operator", "comboBox" },
+            Slot { "rule.value", "textEditor" }, Slot { "rule.boolean", "comboBox" },
+            Slot { "rule.remove", "textButton" }
+        })
     };
     return values;
 }
@@ -434,6 +464,9 @@ SkinComponentDimensions PlayerComponentCatalog::dimensionsForTarget (juce::Strin
     if (target == "artwork") return { 120, 120, 300, 300 };
     if (target == "effectChain") return { 220, 120, 360, 300 };
     if (target == "outputStage") return { 180, 140, 300, 420 };
+    if (target == "smartPlaylistEditor") return { 560, 360, 760, 480 };
+    if (target == "smartPlaylistRuleList") return { 512, 100, 700, 240 };
+    if (target == "directoryList") return { 180, 100, 360, 160 };
     if (target == "channelMixer" || target == "channelMap" || target == "pluginList" || target == "skinList")
         return { 180, 100, 360, 240 };
     return {};

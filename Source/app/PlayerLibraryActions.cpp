@@ -232,7 +232,10 @@ juce::String PlayerController::importPreparedTracks (std::vector<TrackMetadataRe
         else if (target == "favourites") setTrackFavourites (ids, true);
         else if (target.startsWith ("playlist:"))
         {
-            if (! addTracksToSavedPlaylist (playlistId (target), ids))
+            const auto* destination = library.getPlaylist (playlistId (target));
+            if (destination != nullptr && destination->smartRules)
+                destinationWarning = " The smart playlist will include songs that match its rules.";
+            else if (! addTracksToSavedPlaylist (playlistId (target), ids))
                 destinationWarning = " The destination playlist no longer exists; tracks were retained in the library.";
         }
         else if (target != "all")
@@ -278,6 +281,46 @@ juce::String PlayerController::createSavedPlaylist (juce::String name)
     if (id.isNotEmpty()) ++stateRevision;
     lastStatusMessage = id.isNotEmpty() ? "Playlist created." : "Enter a playlist name.";
     return id;
+}
+
+juce::String PlayerController::createSmartPlaylist (juce::String name, const SmartPlaylistRules& rules)
+{
+    const auto validation = validateSmartPlaylistRules (rules);
+    if (validation.failed()) { lastStatusMessage = validation.getErrorMessage(); return {}; }
+    const auto id = library.createSmartPlaylist (std::move (name), rules);
+    if (id.isNotEmpty()) ++stateRevision;
+    lastStatusMessage = id.isNotEmpty() ? "Smart playlist created." : "Enter a playlist name.";
+    return id;
+}
+
+bool PlayerController::updateSmartPlaylist (const juce::String& id, juce::String name,
+                                            const SmartPlaylistRules& rules)
+{
+    name = name.trim();
+    const auto validation = validateSmartPlaylistRules (rules);
+    const auto* saved = library.getPlaylist (id);
+    if (saved == nullptr || ! saved->smartRules)
+    { lastStatusMessage = "The smart playlist no longer exists."; return false; }
+    if (name.isEmpty()) { lastStatusMessage = "Enter a playlist name."; return false; }
+    if (validation.failed()) { lastStatusMessage = validation.getErrorMessage(); return false; }
+    if (saved->name != name || *saved->smartRules != rules)
+    {
+        if (saved->name != name) library.renamePlaylist (id, std::move (name));
+        library.setSmartPlaylistRules (id, rules);
+        invalidateCollectionUndo ("playlist:" + id);
+        ++stateRevision;
+    }
+    lastStatusMessage = "Smart playlist updated.";
+    return true;
+}
+
+juce::String PlayerController::materializeSmartPlaylist (const juce::String& id)
+{
+    const auto* saved = library.getPlaylist (id);
+    const auto created = saved != nullptr ? library.materializeSmartPlaylist (id, saved->name + " copy") : juce::String {};
+    if (created.isNotEmpty()) ++stateRevision;
+    lastStatusMessage = created.isNotEmpty() ? "Saved a regular playlist." : "Choose a smart playlist to copy.";
+    return created;
 }
 
 void PlayerController::choosePlaylistArtwork (const juce::String& id, juce::File imageFile,
@@ -384,6 +427,11 @@ bool PlayerController::moveSavedPlaylist (const juce::String& id, int toIndex)
 bool PlayerController::addTracksToSavedPlaylist (const juce::String& id,
                                                 const std::vector<juce::String>& ids)
 {
+    if (const auto* saved = library.getPlaylist (id); saved != nullptr && saved->smartRules)
+    {
+        lastStatusMessage = "Smart playlists select songs using their rules.";
+        return false;
+    }
     if (ids.empty() || library.addToPlaylist (id, ids).empty())
     {
         lastStatusMessage = "Choose tracks and an existing playlist.";
@@ -625,6 +673,11 @@ bool PlayerController::sortCollectionEntries (const juce::String& collection,
         return false;
     }
     const auto* saved = library.getPlaylist (playlistId (collection));
+    if (saved != nullptr && saved->smartRules)
+    {
+        lastStatusMessage = "Smart playlist entries are selected by their rules.";
+        return false;
+    }
     if (collection != "queue" && saved == nullptr)
     {
         lastStatusMessage = "Choose an existing playlist or queue to sort.";

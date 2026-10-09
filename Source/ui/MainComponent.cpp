@@ -349,6 +349,7 @@ MainComponent::MainComponent()
       remoteCommandLifetime (std::make_shared<std::atomic_bool> (true)),
       stateRestoreService (ProductPaths::artworkCacheRoot()),
       libraryImportService (ProductPaths::artworkCacheRoot()),
+      musicDirectoryScanService (ProductPaths::artworkCacheRoot()),
       skinAdapter ([this] (const juce::Component& component,
                            SkinRenderTarget target,
                            const juce::String& style)
@@ -374,6 +375,7 @@ MainComponent::MainComponent()
       }, skinRenderer),
       audioSettingsPanel (controller, &skinAdapter),
       pluginSettingsPanel (controller, &skinAdapter),
+      musicDirectoriesPanel (skinAdapter),
       skinLibraryPanel (skinManager, &skinAdapter),
       musicLibraryPanel (controller, skinAdapter),
       skinLayoutHost (skinManager, skinBindings)
@@ -644,6 +646,24 @@ MainComponent::MainComponent()
     pluginFilters.addTo (*this);
     audioSettingsPanel.addTo (*this);
     pluginSettingsPanel.addTo (*this);
+    musicDirectoriesPanel.addTo (*this);
+    musicDirectoriesPanel.onAdd = [this] { chooseMusicDirectory(); };
+    musicDirectoriesPanel.onScan = [this] { requestMusicDirectoryScan (false); };
+    musicDirectoriesPanel.onCancel = [this]
+    {
+        pendingMusicDirectoryScan.reset();
+        musicDirectoryScanService.cancel();
+        nextDirectoryScanAt = juce::Time::getMillisecondCounterHiRes() / 1000.0 + 60.0;
+    };
+    musicDirectoriesPanel.onRemove = [this] (const auto& id)
+    {
+        if (controller.removeMusicDirectory (id)) musicDirectoriesChanged (false);
+    };
+    musicDirectoriesPanel.onAutomaticChanged = [this] (const auto& id, bool enabled)
+    {
+        if (controller.setMusicDirectoryAutomatic (id, enabled)) musicDirectoriesChanged (enabled);
+    };
+    smartPlaylistEditor = std::make_unique<SmartPlaylistEditor> (skinAdapter);
     skinLibraryPanel.addTo (*this);
     musicLibraryPanel.addTo (*this);
     musicLibraryPanel.onChanged = [this] { refreshPlaylist(); updateTransportState(); };
@@ -661,6 +681,7 @@ MainComponent::MainComponent()
     musicLibraryPanel.onRelocateTrack = [this] (const auto& id) { chooseTrackRelocation (id); };
     musicLibraryPanel.onChoosePlaylistArtwork = [this] (const auto& id) { choosePlaylistArtwork (id); };
     musicLibraryPanel.onShowQueue = [this] { setQueueOpen (true); };
+    musicLibraryPanel.onEditSmartPlaylist = [this] (const auto& id) { showSmartPlaylistEditor (id); };
     addAndMakeVisible (queueToggleButton);
     addAndMakeVisible (queueActionsButton);
     queueActionsButton.onClick = [this] { musicLibraryPanel.showQueueActions (queueActionsButton); };
@@ -954,6 +975,8 @@ MainComponent::~MainComponent()
     nowPlayingCoordinator.setCommandHandler ({});
     nowPlayingCoordinator.clear();
     libraryImportService.cancel();
+    musicDirectoryScanService.cancel();
+    smartPlaylistEditor.reset();
     static_cast<void> (stateSaveService.waitForPendingWrite());
     controller.checkpointPlaybackPosition();
     skinManager.removeListener (this);
@@ -1018,6 +1041,7 @@ void MainComponent::finishStateRestore (StateRestoreResult result)
     refreshEffects();
     audioSettingsPanel.refresh();
     pluginSettingsPanel.refreshInventory();
+    musicDirectoriesPanel.refresh (controller.getMusicDirectories());
     skinLibraryPanel.refresh();
     applyWorkspaceVisuals();
     resized();
@@ -1107,6 +1131,7 @@ void MainComponent::bindSkinComponents()
     pluginFilters.bind (skinBindings, "effects", report);
     audioSettingsPanel.bind (skinBindings, report);
     pluginSettingsPanel.bind (skinBindings, report);
+    musicDirectoriesPanel.bind (skinBindings, report);
     skinLibraryPanel.bind (skinBindings, report);
     musicLibraryPanel.bind (skinBindings, report);
     if (report.hasErrors())
@@ -1118,6 +1143,7 @@ void MainComponent::skinChanged()
 {
     skinLibraryPanel.refresh();
     resized();
+    if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) smartPlaylistEditor->resized();
     repaint();
 }
 
@@ -1211,6 +1237,7 @@ void MainComponent::resized()
     musicLibraryPanel.updateVisibility();
     musicLibraryPanel.updateNavigation (libraryPages);
     layoutEffects();
+    if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) smartPlaylistEditor->toFront (false);
     repaint();
 }
 
@@ -1221,6 +1248,7 @@ std::unique_ptr<juce::ComponentTraverser> MainComponent::createKeyboardFocusTrav
 
 bool MainComponent::keyPressed (const juce::KeyPress& key)
 {
+    if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) return false;
     if (key == juce::KeyPress::escapeKey && statusLabel.isVisible())
     {
         for (auto* focused = juce::Component::getCurrentlyFocusedComponent();
@@ -1235,6 +1263,11 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
         closeDrawers();
         applyWorkspaceVisuals();
         resized();
+        return true;
+    }
+    if (key == juce::KeyPress::escapeKey && queueOpen && queueToggleButton.isShowing())
+    {
+        setQueueOpen (false);
         return true;
     }
     if (key == juce::KeyPress::spaceKey)
@@ -1381,6 +1414,25 @@ void MainComponent::timerCallback (int timerID)
         refreshEffects();
 
     const auto nowSeconds = juce::Time::getMillisecondCounterHiRes() / 1000.0;
+    if (restoreStatus == RestoreStatus::ready)
+    {
+        if (nowSeconds >= nextDirectoryScanAt && ! musicDirectoryScanService.isRunning())
+        {
+            nextDirectoryScanAt = nowSeconds + 60.0;
+            requestMusicDirectoryScan (true);
+        }
+        startMusicDirectoryScan();
+        const auto minute = juce::Time::currentTimeMillis() / 60000;
+        if (minute != smartPlaylistRefreshMinute)
+        {
+            smartPlaylistRefreshMinute = minute;
+            const auto& saved = controller.getLibrary().getPlaylists();
+            if (std::any_of (saved.begin(), saved.end(), [] (const auto& item) { return item.smartRules.has_value(); }))
+                musicLibraryPanel.refresh();
+            if (smartPlaylistEditor && smartPlaylistEditor->isVisible())
+                smartPlaylistEditor->refreshPreview();
+        }
+    }
     const auto revision = controller.getStateRevision();
     if (restoreStatus == RestoreStatus::ready
         && autoSaveScheduler.observe (revision, nowSeconds))
@@ -1599,6 +1651,140 @@ void MainComponent::filesDropped (const juce::StringArray& paths, int, int)
     startLibraryImport (std::move (files));
 }
 
+void MainComponent::chooseMusicDirectory()
+{
+    fileChooser = std::make_unique<juce::FileChooser> (
+        "Add a music folder", juce::File::getSpecialLocation (juce::File::userMusicDirectory), juce::String {});
+    const auto safe = juce::Component::SafePointer<MainComponent> (this);
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+        [safe] (const juce::FileChooser& chooser)
+        {
+            if (safe == nullptr || chooser.getResult() == juce::File()) return;
+            if (safe->controller.addMusicDirectory (chooser.getResult()).isEmpty())
+                safe->showStatus (safe->controller.getLastStatusMessage(), true);
+            else safe->musicDirectoriesChanged (true);
+        });
+}
+
+void MainComponent::musicDirectoriesChanged (bool scanNow)
+{
+    musicDirectoryScanService.cancel();
+    pendingMusicDirectoryScan.reset();
+    nextDirectoryScanAt = juce::Time::getMillisecondCounterHiRes() / 1000.0 + 60.0;
+    musicDirectoriesPanel.refresh (controller.getMusicDirectories());
+    musicDirectoriesPanel.setScanState (musicDirectoryScanService.isRunning(), controller.getLastStatusMessage());
+    if (scanNow) requestMusicDirectoryScan (true);
+}
+
+void MainComponent::requestMusicDirectoryScan (bool automaticOnly)
+{
+    if (! pendingMusicDirectoryScan || ! automaticOnly) pendingMusicDirectoryScan = automaticOnly;
+    startMusicDirectoryScan();
+}
+
+void MainComponent::startMusicDirectoryScan()
+{
+    if (! pendingMusicDirectoryScan || restoreStatus != RestoreStatus::ready
+        || musicDirectoryScanService.isRunning() || libraryImportService.isRunning()
+        || ! pendingLibraryImports.empty()) return;
+    const auto automaticOnly = *pendingMusicDirectoryScan;
+    pendingMusicDirectoryScan.reset();
+    const auto configuration = controller.getMusicDirectories();
+    auto directories = configuration;
+    if (automaticOnly) std::erase_if (directories, [] (const auto& directory) { return ! directory.automatic; });
+    if (directories.empty()) return;
+    activeDirectoryScanAutomatic = automaticOnly;
+    nextDirectoryScanAt = juce::Time::getMillisecondCounterHiRes() / 1000.0 + 60.0;
+    const auto safe = juce::Component::SafePointer<MainComponent> (this);
+    const auto artworkRoot = ProductPaths::artworkCacheRoot();
+    const auto started = musicDirectoryScanService.start (std::move (directories), controller.getLibrary().getTracks(),
+        [safe] (const MusicDirectoryScanProgress& progress)
+        {
+            if (safe == nullptr) return;
+            const auto message = progress.stage == LibraryImportProgress::Stage::discovering
+                ? juce::String ("Checking music folders...")
+                : "Reading " + juce::String (progress.processed) + " / " + juce::String (progress.total)
+                    + "  " + progress.currentFile;
+            safe->musicDirectoriesPanel.setScanState (true, message);
+        },
+        [safe, configuration, automaticOnly, artworkRoot] (MusicDirectoryScanResult result) mutable
+        {
+            if (safe == nullptr)
+            {
+                MusicDirectoryScanService::discardPreparedArtwork (result, artworkRoot);
+                return;
+            }
+            const auto cancelled = result.cancelled;
+            const auto stale = configuration != safe->controller.getMusicDirectories();
+            const auto hasErrors = ! result.errors.isEmpty() || ! result.artworkWarnings.isEmpty();
+            juce::String message;
+            if (cancelled || stale)
+            {
+                MusicDirectoryScanService::discardPreparedArtwork (result, artworkRoot);
+                message = stale ? safe->controller.getLastStatusMessage() : juce::String ("Music folder scan cancelled.");
+            }
+            else
+            {
+                const auto ok = safe->controller.applyMusicDirectoryScan (std::move (result));
+                message = safe->controller.getLastStatusMessage();
+                safe->refreshPlaylist();
+                safe->updateTransportState();
+                if (! automaticOnly && (! ok || hasErrors)) safe->showStatus (message, true);
+            }
+            safe->musicDirectoriesPanel.refresh (safe->controller.getMusicDirectories());
+            safe->musicDirectoriesPanel.setScanState (false, message);
+            safe->nextDirectoryScanAt = juce::Time::getMillisecondCounterHiRes() / 1000.0 + 60.0;
+            juce::MessageManager::callAsync ([safe]
+            {
+                if (safe == nullptr) return;
+                safe->startLibraryImport ({});
+                safe->startMusicDirectoryScan();
+            });
+        });
+    if (started) musicDirectoriesPanel.setScanState (true, "Checking music folders...");
+    else musicDirectoriesPanel.setScanState (false, "Could not start the music folder scan.");
+}
+
+void MainComponent::showSmartPlaylistEditor (const juce::String& id)
+{
+    SmartPlaylistRules draft;
+    draft.rules.push_back ({ SmartPlaylistField::genre, SmartPlaylistOperator::contains, {} });
+    juce::String initialName;
+    if (id.isNotEmpty())
+    {
+        const auto* saved = controller.getLibrary().getPlaylist (id);
+        if (saved == nullptr || ! saved->smartRules) return;
+        initialName = saved->name;
+        draft = *saved->smartRules;
+    }
+    const auto safe = juce::Component::SafePointer<MainComponent> (this);
+    smartPlaylistEditor->show (*this, initialName, std::move (draft),
+        [safe] (const SmartPlaylistRules& rules)
+        {
+            if (safe == nullptr) return 0;
+            const auto now = juce::Time::currentTimeMillis();
+            const auto& library = safe->controller.getLibrary();
+            return static_cast<int> (std::count_if (library.getTracks().begin(), library.getTracks().end(),
+                [&] (const auto& track) { return matchesSmartPlaylistRules (rules, track, library.isFavourite (track.id), now); }));
+        },
+        [safe, id] (const juce::String& name, const SmartPlaylistRules& rules)
+        {
+            if (safe == nullptr) return juce::Result::fail ("The library is no longer available.");
+            auto destination = id;
+            if (id.isEmpty()) destination = safe->controller.createSmartPlaylist (name, rules);
+            else if (! safe->controller.updateSmartPlaylist (id, name, rules))
+                return juce::Result::fail (safe->controller.getLastStatusMessage());
+            if (destination.isEmpty()) return juce::Result::fail (safe->controller.getLastStatusMessage());
+            juce::MessageManager::callAsync ([safe, destination]
+            {
+                if (safe == nullptr) return;
+                safe->refreshPlaylist();
+                safe->musicLibraryPanel.selectCollection ("playlist:" + destination);
+            });
+            return juce::Result::ok();
+        });
+}
+
 void MainComponent::startLibraryImport (juce::Array<juce::File> files)
 {
     if (! files.isEmpty())
@@ -1614,7 +1800,13 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
             else audioFiles.add (file);
         if (! audioFiles.isEmpty()) pendingLibraryImports.push_back ({ std::move (audioFiles), {}, target, {} });
     }
-    if (pendingLibraryImports.empty() || restoreStatus == RestoreStatus::loading || libraryImportService.isRunning()) return;
+    if (! files.isEmpty() && musicDirectoryScanService.isRunning())
+    {
+        musicDirectoryScanService.cancel();
+        if (! pendingMusicDirectoryScan) pendingMusicDirectoryScan = activeDirectoryScanAutomatic;
+    }
+    if (pendingLibraryImports.empty() || restoreStatus == RestoreStatus::loading
+        || libraryImportService.isRunning() || musicDirectoryScanService.isRunning()) return;
 
     auto request = std::move (pendingLibraryImports.front());
     pendingLibraryImports.erase (pendingLibraryImports.begin());
@@ -1726,11 +1918,20 @@ void MainComponent::choosePlaylistExport (std::vector<TrackItem> exportTracks)
 
 void MainComponent::setQueueOpen (bool open)
 {
+    const auto* focused = juce::Component::getCurrentlyFocusedComponent();
+    bool restoreQueueFocus = false;
+    if (! open && focused != nullptr)
+        for (const auto& id : skinBindings.ids())
+            if (id.startsWith ("queue.") && id != "queue.toggle")
+                if (const auto* component = skinBindings.find (id))
+                    restoreQueueFocus = restoreQueueFocus || component == focused || component->isParentOf (focused);
     queueVisibilityChosen = true;
     queueOpen = open;
     queueToggleButton.setToggleState (open, juce::dontSendNotification);
     queueToggleButton.setTooltip (open ? "Hide play queue" : "Show play queue");
     resized();
+    if (open && playlistTable.isShowing()) playlistTable.grabKeyboardFocus();
+    if (restoreQueueFocus && queueToggleButton.isShowing()) queueToggleButton.grabKeyboardFocus();
 }
 
 void MainComponent::choosePlaylistArtwork (juce::String playlistId)
@@ -1902,6 +2103,7 @@ void MainComponent::refreshPlaylist()
         juce::dontSendNotification);
     updateEmptyQueueState();
     musicLibraryPanel.refresh();
+    if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) smartPlaylistEditor->refreshPreview();
     repaint();
 }
 

@@ -4,7 +4,7 @@
 - 文档状态：开发期稳定契约；公开发布后在 Skin API 1 内保持兼容
 - 面向对象：第三方皮肤作者、设计工具作者和自动化构建工具作者
 - 文档位置：仓库公开文档 `docs/skin-api/`
-- 版本基线：应用 0.7.0、内置皮肤 1.0.0
+- 版本基线：应用 0.8.0、内置皮肤 1.0.0
 
 ## 1. Skin API 能做什么
 
@@ -540,11 +540,11 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 
 ### 列表内容裁切
 
-应用 0.6.1 起，table、channelMap、pluginList、skinList renderer 可声明顶层 `"contentClip": "body"`，引用该 renderer 根层的 rect、roundedRect 或 ellipse。原生列表的内容、表头和滚动条按该形状的描边内缘裁切；外层背景与焦点反馈保持完整。几何随 frame、radius、transform 和状态 variants 解析。被引用层的 visible/opacity 不影响裁切形状，因此可使用透明专用层。
+应用 0.6.1 起，table、channelMap、pluginList、skinList renderer 可声明顶层 `"contentClip": "body"`；应用 0.8.0 新增的 directoryList 同样支持该字段。它引用该 renderer 根层的 rect、roundedRect 或 ellipse。原生列表的内容、表头和滚动条按该形状的描边内缘裁切；外层背景与焦点反馈保持完整。几何随 frame、radius、transform 和状态 variants 解析。被引用层的 visible/opacity 不影响裁切形状，因此可使用透明专用层。
 
-未声明 contentClip 的皮肤保留矩形内容区域。引用未知层、嵌套层或不支持的形状／target 会产生 RENDER004。声明该字段的包将 minAppVersion 设为 0.6.1 或更高。
+未声明 contentClip 的皮肤保留矩形内容区域。引用未知层、嵌套层或不支持的形状／target 会产生 RENDER004。声明该字段的包将 minAppVersion 设为 0.6.1 或更高；使用 directoryList 时须为 0.8.0 或更高。
 
-`table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList`、`playlistGrid` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
+`table`、`effectChain`、`channelMap`、`channelMixer`、`pluginList`、`skinList`、`playlistGrid`、`directoryList`、`smartPlaylistEditor`、`smartPlaylistRuleList` 和 `popupMenu` renderer 可声明顶层 `rowLayout`，为行高、行间距、表头高度和内部 slot 提供统一几何。应用将同一份解析结果用于原生控件边界、绘制、滚动、拖放索引和焦点可见性。颜色、字体、图形与状态绘制继续由 renderer layers 和 slot styles 定义。
 
 下例为 `pluginList` 的行布局：
 
@@ -572,13 +572,13 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 }
 ```
 
-`rowHeight` 和 `slots` 必需。`effectChain` 和 `channelMixer` 在合并当前断点后必须包含其目录定义的全部原生交互 slot；`playlistGrid` 必须放置全部五个卡片 slot；其余 target 的 `slots` 可为空对象。`rowGap`、`headerHeight` 缺省为 `0`。数值接受 number、`$ref`、`$context`、`$expr`，与绘制属性共用类型检查、受限表达式和继承 token 重绑定。`rowHeight` 至少为 `1`，间距、表头高度和 slot 宽高不得为负；这些度量及 slot 坐标沿用 Skin Layout 的 100000 逻辑像素范围。slot 名称必须属于该 target 的 Component Catalog；原生交互 slot 同时遵循对应控件的目录最小尺寸，换算后的原生控件矩形必须完整位于行内，避免裁切后无法操作。声明 `header.label`、`empty.message` 等公开 slot 时，坐标相对于它们各自的宿主绘制区域。
+`rowHeight` 和 `slots` 必需。`effectChain` 和 `channelMixer` 在合并当前断点后必须包含其目录定义的全部原生交互 slot；`playlistGrid` 必须放置全部五个卡片 slot；`smartPlaylistEditor` 和 `smartPlaylistRuleList` 必须放置其目录定义的全部公开 slot；其余 target 的 `slots` 可为空对象。`rowGap`、`headerHeight` 缺省为 `0`。数值接受 number、`$ref`、`$context`、`$expr`，与绘制属性共用类型检查、受限表达式和继承 token 重绑定。`rowHeight` 至少为 `1`，间距、表头高度和 slot 宽高不得为负；这些度量及 slot 坐标沿用 Skin Layout 的 100000 逻辑像素范围。slot 名称必须属于该 target 的 Component Catalog；原生交互 slot 同时遵循对应控件的目录最小尺寸，换算后的原生控件矩形必须完整位于行内，避免裁切后无法操作。声明 `header.label`、`empty.message` 等公开 slot 时，坐标相对于它们各自的宿主绘制区域。
 
 度量解析时，`bounds`、`contentBounds` 来自整个组件；slot 矩形解析时，两者为从 `(0, 0)` 开始、宽度等于组件宽度、高度等于 `rowHeight` 的行矩形。`container.width`、`container.height` 表示传入的可用容器尺寸，供空态和表头布局引用。slot 表达式另可读取 `layout.rowHeight`、`layout.rowGap`、`layout.headerHeight`。所有行布局可读取 `table.rowCount`、`table.columnCount`；table 的宿主额外提供 `table.presentation`（`table` 或 `list`）。逐项业务字段仍只用于相应 slot 的绘制 context。
 
 `breakpoints` 最多 16 项；`when` 接受 `minWidth`、`maxWidth`，端点包含在内，至少声明一项。断点按声明顺序处理，匹配项覆写所声明的度量和 slot；未声明的值保留，slot 按 ID 合并。宽度为扣除可见滚动条后可用容器的局部宽度，单位与 Skin Layout 一致。布局几何不参与 renderer 状态动画。
 
-未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。新增 `playlistGrid` 必须声明 `rowLayout` 和 `controlStyle`，并放置全部五个卡片 slot。无效尺寸、未知或缺少必需 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。Foundation 为原有复合组件提供完整布局，使旧皮肤也有可用的几何回退。
+未声明 `rowLayout` 的既有 Skin API 1 renderer 继续有效，应用可采用 Foundation 的行布局。应用 0.7.0 新增的 `playlistGrid` 必须声明 `rowLayout` 和 `controlStyle`，并放置全部五个卡片 slot。应用 0.8.0 新增的 `directoryList`、`smartPlaylistEditor` 和 `smartPlaylistRuleList` 必须声明 `rowLayout`；两个智能歌单 target 还须放置全部公开 slot。无效尺寸、未知或缺少必需 slot、交互区域过小或越出行边界时报告 `RENDER004`；context 和表达式结果类型错误沿用 `RENDER005`，token 类型错误沿用 `RENDER006`，表达式诊断沿用 `EXPR` 错误码。Foundation 为原有复合组件提供完整布局，使旧皮肤也有可用的几何回退。
 
 ### 7.2 Renderer 调用粒度与专属 Context
 
@@ -604,6 +604,9 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | channelMixer | 每声道混音行及原生控制槽位 | text.primary、value.*、state.* | row.surface、row.source、row.destination、row.peak、row.gain、row.mute、row.solo |
 | pluginList | 主体一次；每个可见插件调用 slots | slots：plugin.index、plugin.name、plugin.manufacturer、plugin.format、plugin.enabled | row.surface、row.name、row.manufacturer、row.format、row.status、header.label、empty.message |
 | skinList | 主体一次；每个可见皮肤分别调用 slots | 行 slots：skin.index、skin.id、skin.name、skin.author、skin.version、skin.builtin、skin.active、skin.previewed | row.surface、row.name、row.author、row.version、row.status、empty.message |
+| directoryList | 主体一次；每个可见目录分别调用行 slots；空列表调用 empty.message | 行 slots：directory.index、directory.id、directory.name、directory.path、directory.automatic | row.surface、row.name、row.path、row.status、empty.message |
+| smartPlaylistEditor | 覆盖层主体一次；内部控件使用对应 slot 样式 | 标准 state.*、text.* 和控件 context | editor.heading、editor.nameLabel、editor.name、editor.match、editor.rules、editor.add、editor.preview、editor.save、editor.cancel |
+| smartPlaylistRuleList | 列表主体一次；每条规则的原生控件使用对应 slot 样式 | 标准 state.*、text.* 和控件 context | rule.field、rule.operator、rule.value、rule.boolean、rule.remove |
 
 复合 entry 与简单 entry 使用同一规范查找顺序：当前皮肤精确 style → 父皮肤同名精确 style → 当前皮肤 target.default → 父皮肤 target.default → builtin.foundation target.default。component 省略 style 时从当前皮肤 target.default 开始。某个 slot 未显式绑定时从该 slot 类型的当前皮肤 target.default 开始。Foundation 为原有 target 提供默认 renderer；`playlistGrid` 是应用 0.7.0 新增的可选 target，使用它的皮肤必须提供可解析的网格样式。未使用网格的旧皮肤无需增加 renderer 或页面。
 
@@ -927,17 +930,18 @@ Studio、Listening、Effects 和 Settings 是四个基础入口。应用 0.7.0 �
 
 共享面板的完整双工作区示例见 `examples/CompleteThirdParty/layouts/effects.json` 和 `layouts/settings.json`。
 
-布局文件与每个 breakpoint 还可声明可选的 `ancillaryStyles`，用于没有独立 Component Node 的 popup menu、tooltip 和 scroll bar：
+布局文件与每个 breakpoint 还可声明可选的 `ancillaryStyles`，用于没有独立 Component Node 的 popup menu、tooltip、scroll bar，以及应用创建的智能歌单编辑器：
 
 ```json
 {
   "popupMenu": "popupMenu.studio",
   "tooltip": "tooltip.studio",
-  "scrollBar": "scrollBar.studio"
+  "scrollBar": "scrollBar.studio",
+  "smartPlaylistEditor": "smartPlaylistEditor.studio"
 }
 ```
 
-该对象只允许 `popupMenu`、`tooltip`、`scrollBar` 三个键，每个值是已注册的完整 `target.style` 名称。选中 breakpoint 的映射逐键覆盖布局文件的映射；省略的键继承文件级映射，最终没有映射的 target 保持 `target.default`。该映射只替换相应附属控件的默认样式请求，不修改显式指定的 Component style 或 renderer slot。未知键报 `SCHEMA001`；target 不匹配或引用不存在报 `LAYOUT013`。使用 `ancillaryStyles` 的皮肤要求应用 `0.3.0` 或更高。完整示例在 Effects 与 Settings 的 Studio 分支中同时声明三个映射。
+该对象只允许 `popupMenu`、`tooltip`、`scrollBar` 和 `smartPlaylistEditor` 四个键，每个值是已注册的完整 `target.style` 名称。选中 breakpoint 的映射逐键覆盖布局文件的映射；省略的键继承文件级映射，最终没有映射的 target 保持 `target.default`。该映射只替换相应附属控件的默认样式请求，不修改显式指定的 Component style 或 renderer slot。未知键报 `SCHEMA001`；target 不匹配或引用不存在报 `LAYOUT013`。前三个键要求应用 `0.3.0` 或更高，`smartPlaylistEditor` 要求 `0.8.0` 或更高。完整示例在 Effects 与 Settings 的 Studio 分支中覆盖前三个映射，并继承文件级的 `smartPlaylistEditor.default`；内置 Default 皮肤为编辑器提供独立的 Studio 与 Listening 样式。
 
 ### 9.2 节点通用字段
 
@@ -962,6 +966,8 @@ Studio、Listening、Effects 和 Settings 是四个基础入口。应用 0.7.0 �
 | zIndex | integer | 0 | stack 层级 |
 | visible | boolean | true | 静态可见性 |
 | visibleWhen | string | 无 | 0.7.0 起：仅使用 `view.queueOpen` 的布尔表达式；为 false 时移除整个子树并回收其 flex 空间与间距 |
+
+应用 0.8.0 起，`row`、`column`、`grid` 和 `stack` 容器支持可选 `pointerEvents: "none" | "block"`，默认 `none`。`block` 让容器矩形内的空白区域阻挡指向下层内容的鼠标与滚轮输入，子控件仍正常接收输入；它不增加点击动作、键盘焦点或模态行为。阻挡区域受祖先裁剪约束，隐藏或完全透明的容器不阻挡输入，`clip` 的子节点裁剪语义保持不变。`visual` 仍只允许 `none`，`component` 和 `scroll` 保持各自原生输入行为。
 
 length 支持：
 
@@ -1244,7 +1250,7 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 
 `queue.toggle` 不导航到新页面。应用公开只读布局状态 `view.queueOpen`，皮肤可以将 `visibleWhen: "view.queueOpen"` 声明在队列容器上，也可通过 `not view.queueOpen` 切换其他装饰区域。条件在测量前求值；flex 的空隙、margin 和尺寸一并回收，grid 的显式轨道保持声明尺寸。仅支持这一实际使用的布尔状态；未知上下文、token 和非布尔结果均被拒绝。编译器验证开／关两个状态，数值运算错误报告 `LAYOUT018`。`queue.toggle` 必须在两个状态中可达。声明 `queue.toggle` 或兼容入口 `library.browseQueue` 的每个完整 root 都必须在展开状态提供可见的 `queue.table`；`library.tracks` 不能替代此目标。使用 `library.browseQueue` 打开可折叠队列时，还必须声明可达的 `queue.toggle` 以供收起；队列表格始终可见时可省略开关。这些可达性错误报告 `LAYOUT011`，交互节点继续使用唯一正数 `focusOrder`。布局引擎参数缺省为关闭。完整示例的 Library 与 Collection 入口演示内嵌队列，Library 同时保留兼容入口。
 
-应用默认在 Now Playing 展示队列；用户显式开关后，跨页面保留该选择。Library、Collection 与 Now Playing 复用同一个队列表格和播放计划；皮肤决定侧栏、上下布局以及收起后的空间分配。随机播放的后续顺序来自已成功发布给音频引擎的计划，手动 Next 与自然换曲均遵循它。循环队列只展示有限的剩余前缀与一轮循环；当前条目通过 `row.playing` 标记。移除操作以队列条目为单位，当前播放条目固定；移动仅在可保留实际待播顺序的相邻非当前条目间启用。
+应用默认在 Now Playing 展示队列；用户显式开关后，跨页面保留该选择。Library、Collection 与 Now Playing 复用同一个队列表格和播放计划；皮肤决定浮层、侧栏或上下布局。Default 皮肤将队列放在根 stack 中，通过锚点和 zIndex 覆盖正文，展开与收起不改变其他组件的尺寸和位置；容器声明 pointerEvents: "block" 防止空白区域点穿。点击队列按钮打开后，键盘焦点进入队列；再次点击按钮或由队列处理 Escape 时收起，队列中取得的键盘焦点回到开关按钮。当前编辑控件、状态提示及上层界面优先处理 Escape。内嵌队列继续遵循所在 flex 或 grid 的空间分配。随机播放的后续顺序来自已成功发布给音频引擎的计划，手动 Next 与自然换曲均遵循它。循环队列只展示有限的剩余前缀与一轮循环；当前条目通过 `row.playing` 标记。移除操作以队列条目为单位，当前播放条目固定；移动仅在可保留实际待播顺序的相邻非当前条目间启用。
 
 `queue.table` 与 `library.tracks` 使用相同的 table renderer target、slots 和最小尺寸，可设置 `presentation: "table"` 或 `presentation: "list"`。table 展示标题、位置和时长列；list 使用无表头的较高行，展示标题和时长。省略 presentation 等同于 `table`，行高、表头高度和列几何继续使用解析出的 Skin rowLayout。布局切换和窗口缩放保留表格中的用户列调整；组件从皮肤布局卸载时恢复宿主原始列宽、顺序、可见性、行高和表头高度。`queue.table` 的 presentation 选项自应用 `0.3.0` 起提供；新增 `library.*` 组件要求 `minAppVersion` 为 `0.7.0` 或更高。
 
@@ -1260,7 +1266,7 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 | card.cover | artwork | 单张封面或应用合成的拼贴；缺少封面时由 renderer 绘制占位图形 |
 | card.title | label | 集合名称 |
 | card.summary | label | 曲目数量与总时长摘要 |
-| card.date | label | 创建日期；历史记录没有时间戳时留空 |
+| card.date | label | 集合说明与已知创建日期；智能歌单包含类型说明，未知日期不显示 |
 
 五个 slot 均须在 `rowLayout.slots` 中声明。卡片是应用拥有的可访问按钮，键盘和点击行为由应用实现；slot 可以读取通用 `state.*`。这些 slot 还提供 `collection.id`、`collection.name`（string），`collection.trackCount`、`collection.durationSeconds`、`collection.createdAtMs`（number）和 `collection.hasArtwork`（boolean）。`createdAtMs` 使用 Unix 毫秒，0 表示未知；renderer 不应据此制造历史日期。`card.cover` 同时保留标准 `artwork.*` context。集合字段仅在网格卡片 slot 中可用，不属于独立 label、artwork 或网格背景的上下文。
 
@@ -1484,7 +1490,7 @@ outputStage 提供：
 | settings.skins.cancelPreview | textButton | 是 | 恢复预览前皮肤；未预览时 disabled |
 | settings.skins.reload | textButton | 否 | 开发目录 Reload |
 
-`settings.audio.routing` 的目标是当前设备的真实物理端口；输出布局决定逻辑扬声器顺序，效果链和 Mixer 保持该逻辑顺序。端口一对一分配，也可断开；其他声道已占用的端口不可重复选择。设置按设备身份和逻辑布局持久化，设备能力变化导致已保存路由不可用时，将输出断开并显示诊断，保留原配置以供设备恢复；没有保存路由的设备采用默认顺序。组件使用 channelMap 的行 slots。`row.output` 为 comboBox 槽位，使用标准 comboBox context（不提供 channel.*），几何由 rowLayout 决定，未声明时沿用 `row.destination` 的矩形；style 未映射时使用 comboBox.default。各行按扬声器顺序遍历，组件需声明正数且唯一的 focusOrder，内置布局为 140；推荐最小尺寸为 180×100。焦点反馈由各行 ComboBox 提供，容器无需重复绘制焦点；交互 slot 的可见焦点仍由编译器校验。下拉菜单使用所在 layout 的 popupMenu renderer。旧 `settings.audio.channelMap` 继续提供只读投影。
+`settings.audio.routing` 的目标是当前设备的真实物理端口；输出布局决定逻辑扬声器顺序，效果链和 Mixer 保持该逻辑顺序。端口一对一分配，也可断开；其他声道已占用的端口不可重复选择。设置按设备身份和逻辑布局持久化，设备能力变化导致已保存路由不可用时，将输出断开并显示诊断，保留原配置以供设备恢复；没有保存路由的设备采用默认顺序。组件使用 channelMap 的行 slots。`row.output` 为 comboBox 槽位，使用标准 comboBox context（不提供 channel.*），几何由 rowLayout 决定，未声明时沿用 `row.destination` 的矩形；style 未映射时使用 comboBox.default。各行按扬声器顺序遍历，组件需声明正数且唯一的 focusOrder，内置布局将其安排在声卡格式选项之后；推荐最小尺寸为 180×100。焦点反馈由各行 ComboBox 提供，容器无需重复绘制焦点；交互 slot 的可见焦点仍由编译器校验。下拉菜单使用所在 layout 的 popupMenu renderer。旧 `settings.audio.channelMap` 继续提供只读投影。
 
 `transport.repeatCycle` 最小尺寸为 28×28，使用 textButton 的 state.selected 表示循环开启，icon.repeatOne 表示单曲循环。应用提供状态名称与 tooltip；皮肤负责图形、尺寸及位置，推荐 focusOrder 为 235。一个布局选择 repeat 或 repeatCycle 即可。内置布局将 Shuffle、Previous、Play/Pause、Next、Repeat 放在同一播放控制组。
 
@@ -1933,6 +1939,7 @@ Settings 的功能分区：
 | 分区 | 功能 |
 |---|---|
 | Audio | CoreAudio 设备、采样率、缓冲区、输出布局及可选的端口映射 |
+| Music library | 音乐目录登记、手动扫描、取消扫描、停止管理及自动扫描开关 |
 | Plug-ins | AU/VST3 格式开关、插件搜索和筛选、已扫描清单、标准位置与额外 VST3 文件夹扫描、取消及进度 |
 | Appearance | 皮肤库、导入、预览、应用、删除，以及开发目录加载和重载 |
 
@@ -2101,3 +2108,49 @@ Suggestion: add one visible component node with component "library.add".
 - 不执行任意代码的安全模型。
 
 实现可以从 JUCE Component 重构为其他内部结构，但只要 Skin API 仍为 1，以上契约不会因内部 C++ 类名或布局实现变化而改变。
+
+
+## 音乐目录与智能歌单（0.8.0）
+
+使用本节组件的皮肤须声明 `minAppVersion: "0.8.0"`。Skin API 1 继续由应用拥有目录扫描、规则验证、预览和保存；皮肤负责组件几何、文字绘制、交互状态与焦点反馈。
+
+### Settings 音乐目录
+
+| Component ID | kind / renderer target | 行为 |
+|---|---|---|
+| settings.music.heading | label | Music library 分区标题 |
+| settings.music.directories | directoryList | 已注册文件夹的可滚动、可键盘选择列表 |
+| settings.music.add | textButton | 选择并注册文件夹 |
+| settings.music.scan | textButton | 扫描已注册文件夹，包含暂停自动扫描的目录 |
+| settings.music.cancel | textButton | 请求取消正在运行的扫描 |
+| settings.music.remove | textButton | 停止管理选中目录，保留曲库曲目与歌单 |
+| settings.music.automatic | toggleButton | 切换选中目录的自动扫描 |
+| settings.music.status | label | 扫描进度、完成状态或可恢复错误 |
+
+`directoryList` 最小尺寸为 180 × 100，建议为 360 × 160。必须提供 `rowLayout`；行高、间距以及 `row.surface`（surface）、`row.name`、`row.path`、`row.status`、`empty.message`（label）均由皮肤定义。行 slots 提供 `directory.index`（number）、`directory.id`、`directory.name`、`directory.path`（string）和 `directory.automatic`（boolean）。列表主体不提供行上下文；`state.selected` 指向当前选中行。`contentClip` 支持与其他原生列表相同的形状裁切。
+
+建议按目录列表 → Add folder → Scan now → Cancel scan → Stop managing → Automatic scanning 安排唯一且正数的 `focusOrder`。同一页面的各分区沿视觉顺序递增编号，目录分区位于 Audio 与 Plug-ins 之间。扫描期间取消按钮启用，目录配置操作禁用；空列表禁用扫描和选中项操作。`status` 为只读信息。分区放入 Settings 的垂直滚动容器，目录列表内部独立滚动。
+
+### 智能歌单编辑器
+
+`library.smartPlaylistEditor` 的 kind 和 renderer target 为 `smartPlaylistEditor`；`library.smartPlaylistRules` 为 `smartPlaylistRuleList`。两者由应用在智能歌单操作中创建，不要求在页面布局内常驻。当前页面通过 `ancillaryStyles.smartPlaylistEditor` 选择编辑器样式，例如 `smartPlaylistEditor.studio` 或 `smartPlaylistEditor.listening`；未声明时使用 `smartPlaylistEditor.default`。编辑器中 ComboBox 的菜单仍使用页面的 `popupMenu` 样式。Foundation 提供三个新增 target 的完整默认实现。
+
+编辑器覆盖宿主窗口；renderer layers 绘制遮罩和面板。其 `rowLayout` 接收宿主窗口尺寸；将 `rowHeight` 设为 `container.height` 时，slots 的 `bounds` 与宿主窗口边界相同。面板尺寸、位置和各控件几何完全由该 renderer 定义。推荐编辑区为 840 × 530 并在视口缩小时收缩；组件目录最小尺寸为 560 × 360，推荐尺寸为 760 × 480。
+
+| smartPlaylistEditor slot | target | 内容 |
+|---|---|---|
+| editor.heading | label | Smart playlist 标题 |
+| editor.nameLabel | label | Name 标签 |
+| editor.name | textEditor | 歌单名称 |
+| editor.match | comboBox | Match all rules / Match any rule |
+| editor.rules | smartPlaylistRuleList | 滚动规则列表 |
+| editor.add | textButton | 添加规则，达到 16 条时禁用 |
+| editor.preview | label | 匹配曲目数、规则错误或保存失败原因 |
+| editor.save | textButton | 保存有效草稿 |
+| editor.cancel | textButton | 放弃草稿并关闭 |
+
+`smartPlaylistRuleList` 最小尺寸为 512 × 100，推荐为 700 × 240。其 `rowLayout` 在每条规则的可用宽度下解析，行高与间距共同决定滚动范围。`rule.field`、`rule.operator`、`rule.boolean` 使用 comboBox；`rule.value` 使用 textEditor；`rule.remove` 使用 textButton。`rule.value` 和 `rule.boolean` 共享一个值区域，应用根据字段类型只显示其中一个。字段和运算符来自应用支持的规则集合，皮肤不能添加运算符或执行表达式来改变规则业务。
+
+两个智能歌单 target 必须声明 `rowLayout` 并放置全部公开 slots；交互槽位使用对应 primitive 控件的最小尺寸且须处于原生行边界内。槽位使用标准 `state.*`、`text.*` 和控件上下文，不公开曲库对象。焦点顺序为 Name → Match → 按行 Field / Operator / Value / Remove → Add rule → Save → Cancel。焦点由当前 primitive 控件绘制，列表与面板不叠加第二层焦点框。
+
+编辑器展示草稿的实时匹配数。名称为空或模型校验失败时禁用 Save；保存失败保留草稿并显示原因，成功保存后关闭；Cancel 和 Escape 不改变已保存歌单。规则结果显示在现有歌单详情中，不能手工添加、移除或重排曲目。播放、排队和收藏操作保持可用。

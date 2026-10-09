@@ -1,4 +1,5 @@
 #include "app/PlayerController.h"
+#include "library/LibraryProjection.h"
 #include "state/StateSaveService.h"
 
 #include <algorithm>
@@ -147,6 +148,224 @@ public:
             const auto* track = controller.getLibrary().findTrackByFile (file);
             return track != nullptr ? track->id : juce::String {};
         };
+        const auto scanDirectory = [&] (const PlayerController& controller, const juce::File& folder)
+        {
+            MusicDirectoryScanService scanner;
+            MusicDirectoryScanResult result;
+            bool completed = false;
+            expect (scanner.start ({ { "test-directory", folder, true } },
+                controller.getLibrary().getTracks(), {}, [&] (MusicDirectoryScanResult prepared)
+                {
+                    result = std::move (prepared);
+                    completed = true;
+                }));
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 5000.0;
+            while (! completed && juce::Time::getMillisecondCounterHiRes() < deadline)
+                juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            expect (completed);
+            expect (! result.cancelled);
+            return result;
+        };
+
+        beginTest ("managed directories preserve records and incomplete or cancelled scans cannot remove them");
+        {
+            PlayerController controller (std::make_unique<LibraryAudioBackend>());
+            controller.importPreparedTracks ({ reader.read (a), reader.read (b) }, "all");
+            const auto aid = idFor (controller, a);
+            const auto saved = controller.createSavedPlaylist ("Retained songs");
+            expect (controller.addTracksToSavedPlaylist (saved, { aid }));
+            expect (controller.setTrackFavourites ({ aid }, true));
+            const auto directory = controller.addMusicDirectory (root);
+            expect (directory.isNotEmpty());
+            expectEquals (controller.addMusicDirectory (root), directory);
+            expectEquals (static_cast<int> (controller.getMusicDirectories().size()), 1);
+            expect (controller.setMusicDirectoryAutomatic (directory, false));
+            PlayerAppState snapshot;
+            juce::String error;
+            expect (controller.captureStateSnapshot (snapshot, error), error);
+            expectEquals (static_cast<int> (snapshot.musicDirectories.size()), 1);
+            if (! snapshot.musicDirectories.empty()) expect (! snapshot.musicDirectories.front().automatic);
+            MusicDirectoryScanResult cancelled;
+            cancelled.cancelled = true;
+            cancelled.missingTrackIds.add (aid);
+            expect (! controller.applyMusicDirectoryScan (std::move (cancelled)));
+            expect (controller.getLibrary().getTrack (aid)->available);
+            expect (controller.removeMusicDirectory (directory));
+            expect (controller.getMusicDirectories().empty());
+            expect (controller.getLibrary().isFavourite (aid));
+            expectEquals (controller.getLibrary().getPlaylist (saved)->entries.front().trackId, aid);
+            expectEquals (static_cast<int> (controller.getLibrary().getTracks().size()), 2);
+        }
+
+        beginTest ("scanned moves preserve references while a replacement at the old path receives a new identity");
+        {
+            const auto folder = root.getChildFile ("scan-move");
+            expect (folder.createDirectory());
+            const auto original = folder.getChildFile ("A.wav");
+            const auto moved = folder.getChildFile ("Moved.wav");
+            expect (a.copyFileTo (original));
+            PlayerController controller (std::make_unique<LibraryAudioBackend>());
+            controller.importPreparedTracks ({ reader.read (original) }, "all");
+            const auto id = idFor (controller, original);
+            const auto addedAt = controller.getLibrary().getTrack (id)->addedAtMs;
+            const auto saved = controller.createSavedPlaylist ("Moved recording");
+            expect (controller.addTracksToSavedPlaylist (saved, { id, id }));
+            expect (controller.setTrackFavourites ({ id }, true));
+            expect (controller.enqueueLibraryTracks ({ id, id }, false));
+            const auto queued = controller.getPlaylist().getTracks();
+            expect (original.moveFileTo (moved));
+            expect (b.copyFileTo (original));
+            auto scanned = scanDirectory (controller, folder);
+            expectEquals (scanned.metadataReads, 1);
+            expectEquals (static_cast<int> (scanned.updates.size()), 2);
+            expect (controller.applyMusicDirectoryScan (std::move (scanned)), controller.getLastStatusMessage());
+            expectEquals (static_cast<int> (controller.getLibrary().getTracks().size()), 2);
+            expectEquals (idFor (controller, moved), id);
+            const auto replacementId = idFor (controller, original);
+            expect (replacementId.isNotEmpty() && replacementId != id);
+            expectEquals (controller.getLibrary().getTrack (id)->addedAtMs, addedAt);
+            expect (controller.getLibrary().isFavourite (id));
+            for (const auto& entry : controller.getLibrary().getPlaylist (saved)->entries)
+                expectEquals (entry.trackId, id);
+            expectEquals (controller.getPlaylist().size(), 2);
+            for (int index = 0; index < controller.getPlaylist().size(); ++index)
+            {
+                const auto* occurrence = controller.getPlaylist().getTrack (index);
+                expectEquals (occurrence->id, queued[static_cast<size_t> (index)].id);
+                expectEquals (occurrence->libraryId, id);
+                expect (occurrence->file == moved);
+            }
+        }
+
+        beginTest ("scanned path swaps rebuild both indices together and preserve the loaded occurrence");
+        {
+            const auto folder = root.getChildFile ("scan-swap");
+            expect (folder.createDirectory());
+            const auto first = folder.getChildFile ("First.wav");
+            const auto second = folder.getChildFile ("Second.wav");
+            const auto temporary = folder.getChildFile ("Temporary.wav");
+            expect (a.copyFileTo (first));
+            expect (b.copyFileTo (second));
+            auto backend = std::make_unique<LibraryAudioBackend>();
+            auto* device = backend.get();
+            PlayerController controller (std::move (backend));
+            controller.importPreparedTracks ({ reader.read (first), reader.read (second) }, "all");
+            const auto firstId = idFor (controller, first), secondId = idFor (controller, second);
+            const auto firstIdentity = controller.getLibrary().getTrack (firstId)->fileIdentity;
+            const auto secondIdentity = controller.getLibrary().getTrack (secondId)->fileIdentity;
+            const auto saved = controller.createSavedPlaylist ("Swapped paths");
+            expect (controller.addTracksToSavedPlaylist (saved, { firstId, secondId }));
+            expect (controller.setTrackFavourites ({ firstId }, true));
+            expect (controller.playLibraryTracks ({ firstId, secondId }));
+            const auto queued = controller.getPlaylist().getTracks();
+            juce::AudioBuffer<float> output (2, 256);
+            device->render (output);
+            const auto position = controller.getCurrentPositionSeconds();
+            const auto setups = device->setupChanges, attachments = device->callbackAttachments;
+            expect (first.moveFileTo (temporary));
+            expect (second.moveFileTo (first));
+            expect (temporary.moveFileTo (second));
+            auto scanned = scanDirectory (controller, folder);
+            expectEquals (scanned.metadataReads, 0);
+            expectEquals (static_cast<int> (scanned.updates.size()), 2);
+            expect (controller.applyMusicDirectoryScan (std::move (scanned)), controller.getLastStatusMessage());
+            expectEquals (idFor (controller, first), secondId);
+            expectEquals (idFor (controller, second), firstId);
+            expectEquals (controller.getLibrary().getTrack (firstId)->fileIdentity, firstIdentity);
+            expectEquals (controller.getLibrary().getTrack (secondId)->fileIdentity, secondIdentity);
+            expect (controller.getLibrary().isFavourite (firstId));
+            const auto* playlist = controller.getLibrary().getPlaylist (saved);
+            expectEquals (playlist->entries[0].trackId, firstId);
+            expectEquals (playlist->entries[1].trackId, secondId);
+            expectEquals (controller.getLoadedTrackId(), queued[0].id);
+            expectWithinAbsoluteError (controller.getCurrentPositionSeconds(), position, 0.000000001);
+            expectEquals (device->setupChanges, setups);
+            expectEquals (device->callbackAttachments, attachments);
+            expect (controller.isPlaying());
+            device->render (output);
+            expect (output.getSample (0, 255) > 0.1f && output.getSample (0, 255) < 0.3f);
+        }
+
+        beginTest ("cancelled scan application removes its staged cover and keeps library and queue ownership");
+        {
+            const auto artworkRoot = root.getChildFile ("cancelled-scan-artwork");
+            ArtworkStore artwork (artworkRoot);
+            PlayerController controller (std::make_unique<LibraryAudioBackend>(), {}, artworkRoot);
+            juce::Image image (juce::Image::RGB, 2, 2, true);
+            juce::MemoryOutputStream encoded;
+            juce::PNGImageFormat png;
+            expect (png.writeImageToStream (image, encoded));
+            auto original = reader.read (a);
+            original.artworkData = encoded.getMemoryBlock();
+            controller.importPreparedTracks ({ original }, "all");
+            const auto id = idFor (controller, a);
+            const auto existingKey = controller.getLibrary().getTrack (id)->artworkCacheKey;
+            expect (controller.enqueueLibraryTracks ({ id }, false));
+            const auto occurrenceId = controller.getPlaylist().getTrack (0)->id;
+            const auto revision = controller.getStateRevision();
+            juce::String error;
+            const auto stagedKey = artwork.store ("cancelled-scan", encoded.getMemoryBlock(), error);
+            expect (stagedKey.isNotEmpty(), error);
+            MusicDirectoryScanResult result;
+            result.cancelled = true;
+            auto candidate = reader.read (b);
+            candidate.track.artworkCacheKey = stagedKey;
+            result.updates.push_back (std::move (candidate));
+            result.preparedArtworkKeys.add (stagedKey);
+            result.missingTrackIds.add (id);
+            expect (! controller.applyMusicDirectoryScan (std::move (result)));
+            expectEquals (controller.getStateRevision(), revision);
+            expectEquals (static_cast<int> (controller.getLibrary().getTracks().size()), 1);
+            expect (controller.getLibrary().getTrack (id)->available);
+            expectEquals (controller.getLibrary().getTrack (id)->artworkCacheKey, existingKey);
+            expectEquals (controller.getPlaylist().size(), 1);
+            expectEquals (controller.getPlaylist().getTrack (0)->id, occurrenceId);
+            expect (artwork.isValid (existingKey));
+            expect (! artwork.resolve (stagedKey).existsAsFile());
+        }
+
+        beginTest ("smart rule changes update results without replacing playback queue or position");
+        {
+            auto backend = std::make_unique<LibraryAudioBackend>();
+            auto* device = backend.get();
+            PlayerController controller (std::move (backend));
+            controller.importPreparedTracks ({ reader.read (a), reader.read (b), reader.read (c) }, "all");
+            const auto aid = idFor (controller, a), bid = idFor (controller, b), cid = idFor (controller, c);
+            SmartPlaylistRules rules;
+            rules.rules.push_back ({ SmartPlaylistField::title, SmartPlaylistOperator::equals, "A" });
+            const auto saved = controller.createSmartPlaylist ("First selection", rules);
+            expect (saved.isNotEmpty());
+            const auto firstResults = libraryTracks (controller.getLibrary(), controller.getPlaylist(), "playlist:" + saved);
+            expectEquals (static_cast<int> (firstResults.size()), 1);
+            if (! firstResults.empty()) expectEquals (firstResults.front().libraryId, aid);
+            expect (controller.playLibraryTracks ({ aid, bid, cid }));
+            juce::AudioBuffer<float> output (2, 256);
+            device->render (output);
+            const auto position = controller.getCurrentPositionSeconds();
+            const auto queued = controller.getPlaylist().getTracks();
+            const auto playback = controller.getPlaybackQueue();
+            const auto loaded = controller.getLoadedTrackId();
+            const auto setups = device->setupChanges, attachments = device->callbackAttachments;
+            rules.rules.front().textValue = "B";
+            expect (controller.updateSmartPlaylist (saved, "Second selection", rules));
+            const auto updatedResults = libraryTracks (controller.getLibrary(), controller.getPlaylist(), "playlist:" + saved);
+            expectEquals (static_cast<int> (updatedResults.size()), 1);
+            if (! updatedResults.empty()) expectEquals (updatedResults.front().libraryId, bid);
+            expectEquals (controller.getPlaylist().size(), static_cast<int> (queued.size()));
+            const auto updatedPlayback = controller.getPlaybackQueue();
+            expectEquals (static_cast<int> (updatedPlayback.size()), static_cast<int> (playback.size()));
+            for (size_t index = 0; index < queued.size(); ++index)
+                expectEquals (controller.getPlaylist().getTrack (static_cast<int> (index))->id, queued[index].id);
+            for (size_t index = 0; index < std::min (playback.size(), updatedPlayback.size()); ++index)
+                expectEquals (updatedPlayback[index].key, playback[index].key);
+            expectEquals (controller.getLoadedTrackId(), loaded);
+            expectWithinAbsoluteError (controller.getCurrentPositionSeconds(), position, 0.000000001);
+            expectEquals (device->setupChanges, setups);
+            expectEquals (device->callbackAttachments, attachments);
+            expect (controller.isPlaying());
+            device->render (output);
+            expect (output.getSample (0, 255) > 0.1f && output.getSample (0, 255) < 0.3f);
+        }
 
         beginTest ("unloaded shuffle preview preserves first-play history and protects newly current entries");
         {
@@ -360,7 +579,7 @@ public:
         for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
                                    OutputLayout::sevenOneTwo, OutputLayout::nineOneSix })
         {
-            beginTest ("browse, playlist editing and queue insertion preserve every audio sample / " + toString (layout));
+            beginTest ("library edits and scanned metadata preserve every audio sample / " + toString (layout));
             auto backend = std::make_unique<LibraryAudioBackend>();
             auto* device = backend.get();
             auto referenceBackend = std::make_unique<LibraryAudioBackend>();
@@ -398,6 +617,29 @@ public:
                     expectEquals (controller.getPlaylist().getSelectedTrack()->id, selected);
                     expectEquals (controller.getPlaylist().getTrack (1)->libraryId, cid);
                     expectEquals (controller.getPlaylist().getTrack (2)->libraryId, bid);
+                    expectEquals (device->setupChanges, setupChanges);
+                    expectEquals (device->callbackAttachments, attachments);
+                    expectEquals (controller.getEffectChainRevision(), effectsRevision);
+                    expect (controller.isPlaying());
+                }
+                if (block == 16)
+                {
+                    const auto position = controller.getCurrentPositionSeconds();
+                    const auto queue = controller.getPlaylist().getTracks();
+                    TrackMetadataResult refreshed;
+                    refreshed.ok = true;
+                    refreshed.track = *controller.getLibrary().getTrack (aid);
+                    refreshed.track.title = "Scanned recording title";
+                    MusicDirectoryScanResult scanned;
+                    scanned.updates.push_back (std::move (refreshed));
+                    expect (controller.applyMusicDirectoryScan (std::move (scanned)), controller.getLastStatusMessage());
+                    expectWithinAbsoluteError (controller.getCurrentPositionSeconds(), position, 0.000000001);
+                    expectEquals (controller.getLoadedTrackId(), selected);
+                    expectEquals (controller.getPlaylist().getSelectedTrack()->title,
+                                  juce::String ("Scanned recording title"));
+                    expectEquals (controller.getPlaylist().size(), static_cast<int> (queue.size()));
+                    for (size_t index = 0; index < queue.size(); ++index)
+                        expectEquals (controller.getPlaylist().getTrack (static_cast<int> (index))->id, queue[index].id);
                     expectEquals (device->setupChanges, setupChanges);
                     expectEquals (device->callbackAttachments, attachments);
                     expectEquals (controller.getEffectChainRevision(), effectsRevision);

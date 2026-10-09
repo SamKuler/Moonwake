@@ -254,85 +254,6 @@
                   }
                 ],
                 "minWidth": 0
-              },
-              {
-                "id": "library-0-queue-panel",
-                "type": "column",
-                "visibleWhen": "view.queueOpen",
-                "style": "surface.listening",
-                "padding": 16,
-                "width": 300,
-                "shrink": 0,
-                "gap": 8,
-                "children": [
-                  {
-                    "id": "library-0-queue-heading",
-                    "type": "row",
-                    "height": 32,
-                    "gap": 8,
-                    "children": [
-                      {
-                        "id": "library-0-queue-title",
-                        "type": "component",
-                        "component": "queue.title",
-                        "style": "label.listeningSection",
-                        "grow": 1,
-                        "height": 32
-                      },
-                      {
-                        "id": "library-0-queue-count",
-                        "type": "component",
-                        "component": "queue.count",
-                        "style": "label.listeningMuted",
-                        "width": 64,
-                        "height": 28
-                      },
-                      {
-                        "id": "library-0-queue-actions",
-                        "type": "component",
-                        "component": "queue.actions",
-                        "style": "textButton.listeningNeutral",
-                        "width": 72,
-                        "height": 28,
-                        "focusOrder": 24
-                      }
-                    ]
-                  },
-                  {
-                    "id": "library-0-queue-rows",
-                    "type": "stack",
-                    "grow": 1,
-                    "minHeight": 80,
-                    "children": [
-                      {
-                        "id": "library-0-queue-table",
-                        "type": "component",
-                        "component": "queue.table",
-                        "style": "table.listening",
-                        "anchors": {
-                          "top": 0,
-                          "bottom": 0,
-                          "left": 0,
-                          "right": 0
-                        },
-                        "focusOrder": 15,
-                        "presentation": "list"
-                      },
-                      {
-                        "id": "library-0-queue-empty",
-                        "type": "component",
-                        "component": "queue.empty",
-                        "style": "label.listeningMuted",
-                        "anchors": {
-                          "top": 0,
-                          "bottom": 0,
-                          "left": 0,
-                          "right": 0
-                        }
-                      }
-                    ]
-                  }
-                ]
               }
             ]
           },
@@ -538,13 +459,100 @@
           "top": 60,
           "right": 24
         }
+      },
+      {
+        "id": "library-0-queue-panel",
+        "type": "column",
+        "visibleWhen": "view.queueOpen",
+        "style": "surface.listeningQueueOverlay",
+        "padding": 16,
+        "width": 360,
+        "gap": 8,
+        "children": [
+          {
+            "id": "library-0-queue-heading",
+            "type": "row",
+            "height": 32,
+            "gap": 8,
+            "children": [
+              {
+                "id": "library-0-queue-title",
+                "type": "component",
+                "component": "queue.title",
+                "style": "label.listeningSection",
+                "grow": 1,
+                "height": 32
+              },
+              {
+                "id": "library-0-queue-count",
+                "type": "component",
+                "component": "queue.count",
+                "style": "label.listeningMuted",
+                "width": 64,
+                "height": 28
+              },
+              {
+                "id": "library-0-queue-actions",
+                "type": "component",
+                "component": "queue.actions",
+                "style": "textButton.listeningNeutral",
+                "width": 72,
+                "height": 28,
+                "focusOrder": 24
+              }
+            ]
+          },
+          {
+            "id": "library-0-queue-rows",
+            "type": "stack",
+            "grow": 1,
+            "minHeight": 80,
+            "children": [
+              {
+                "id": "library-0-queue-table",
+                "type": "component",
+                "component": "queue.table",
+                "style": "table.listening",
+                "anchors": {
+                  "top": 0,
+                  "bottom": 0,
+                  "left": 0,
+                  "right": 0
+                },
+                "focusOrder": 15,
+                "presentation": "list"
+              },
+              {
+                "id": "library-0-queue-empty",
+                "type": "component",
+                "component": "queue.empty",
+                "style": "label.listeningMuted",
+                "anchors": {
+                  "top": 0,
+                  "bottom": 0,
+                  "left": 0,
+                  "right": 0
+                }
+              }
+            ]
+          }
+        ],
+        "anchors": {
+          "top": 68,
+          "right": 24,
+          "bottom": 152
+        },
+        "zIndex": 50,
+        "pointerEvents": "block",
+        "clip": true
       }
     ]
   },
   "ancillaryStyles": {
     "popupMenu": "popupMenu.listening",
     "tooltip": "tooltip.listening",
-    "scrollBar": "scrollBar.listening"
+    "scrollBar": "scrollBar.listening",
+    "smartPlaylistEditor": "smartPlaylistEditor.listening"
   },
   "breakpoints": [
     {
@@ -805,85 +813,6 @@
                       }
                     ],
                     "minWidth": 0
-                  },
-                  {
-                    "id": "library-1-queue-panel",
-                    "type": "column",
-                    "visibleWhen": "view.queueOpen",
-                    "style": "surface.studio",
-                    "padding": 16,
-                    "width": 300,
-                    "shrink": 0,
-                    "gap": 8,
-                    "children": [
-                      {
-                        "id": "library-1-queue-heading",
-                        "type": "row",
-                        "height": 32,
-                        "gap": 8,
-                        "children": [
-                          {
-                            "id": "library-1-queue-title",
-                            "type": "component",
-                            "component": "queue.title",
-                            "style": "label.studioSection",
-                            "grow": 1,
-                            "height": 32
-                          },
-                          {
-                            "id": "library-1-queue-count",
-                            "type": "component",
-                            "component": "queue.count",
-                            "style": "label.studioMuted",
-                            "width": 64,
-                            "height": 28
-                          },
-                          {
-                            "id": "library-1-queue-actions",
-                            "type": "component",
-                            "component": "queue.actions",
-                            "style": "textButton.studioNeutral",
-                            "width": 72,
-                            "height": 28,
-                            "focusOrder": 24
-                          }
-                        ]
-                      },
-                      {
-                        "id": "library-1-queue-rows",
-                        "type": "stack",
-                        "grow": 1,
-                        "minHeight": 80,
-                        "children": [
-                          {
-                            "id": "library-1-queue-table",
-                            "type": "component",
-                            "component": "queue.table",
-                            "style": "table.studioQueue",
-                            "anchors": {
-                              "top": 0,
-                              "bottom": 0,
-                              "left": 0,
-                              "right": 0
-                            },
-                            "focusOrder": 15,
-                            "presentation": "list"
-                          },
-                          {
-                            "id": "library-1-queue-empty",
-                            "type": "component",
-                            "component": "queue.empty",
-                            "style": "label.studioMuted",
-                            "anchors": {
-                              "top": 0,
-                              "bottom": 0,
-                              "left": 0,
-                              "right": 0
-                            }
-                          }
-                        ]
-                      }
-                    ]
                   }
                 ]
               },
@@ -1089,13 +1018,100 @@
               "top": 60,
               "right": 24
             }
+          },
+          {
+            "id": "library-1-queue-panel",
+            "type": "column",
+            "visibleWhen": "view.queueOpen",
+            "style": "surface.studioQueueOverlay",
+            "padding": 16,
+            "width": 360,
+            "gap": 8,
+            "children": [
+              {
+                "id": "library-1-queue-heading",
+                "type": "row",
+                "height": 32,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "library-1-queue-title",
+                    "type": "component",
+                    "component": "queue.title",
+                    "style": "label.studioSection",
+                    "grow": 1,
+                    "height": 32
+                  },
+                  {
+                    "id": "library-1-queue-count",
+                    "type": "component",
+                    "component": "queue.count",
+                    "style": "label.studioMuted",
+                    "width": 64,
+                    "height": 28
+                  },
+                  {
+                    "id": "library-1-queue-actions",
+                    "type": "component",
+                    "component": "queue.actions",
+                    "style": "textButton.studioNeutral",
+                    "width": 72,
+                    "height": 28,
+                    "focusOrder": 24
+                  }
+                ]
+              },
+              {
+                "id": "library-1-queue-rows",
+                "type": "stack",
+                "grow": 1,
+                "minHeight": 80,
+                "children": [
+                  {
+                    "id": "library-1-queue-table",
+                    "type": "component",
+                    "component": "queue.table",
+                    "style": "table.studioQueue",
+                    "anchors": {
+                      "top": 0,
+                      "bottom": 0,
+                      "left": 0,
+                      "right": 0
+                    },
+                    "focusOrder": 15,
+                    "presentation": "list"
+                  },
+                  {
+                    "id": "library-1-queue-empty",
+                    "type": "component",
+                    "component": "queue.empty",
+                    "style": "label.studioMuted",
+                    "anchors": {
+                      "top": 0,
+                      "bottom": 0,
+                      "left": 0,
+                      "right": 0
+                    }
+                  }
+                ]
+              }
+            ],
+            "anchors": {
+              "top": 68,
+              "right": 24,
+              "bottom": 152
+            },
+            "zIndex": 50,
+            "pointerEvents": "block",
+            "clip": true
           }
         ]
       },
       "ancillaryStyles": {
         "popupMenu": "popupMenu.studio",
         "tooltip": "tooltip.studio",
-        "scrollBar": "scrollBar.studio"
+        "scrollBar": "scrollBar.studio",
+        "smartPlaylistEditor": "smartPlaylistEditor.studio"
       }
     }
   ]

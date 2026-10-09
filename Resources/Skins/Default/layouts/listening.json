@@ -131,91 +131,7 @@
                   }
                 ],
                 "shrink": 1,
-                "grow": 1,
-                "width": "62%"
-              },
-              {
-                "id": "listening-listening-queue-panel",
-                "type": "column",
-                "gap": 8,
-                "padding": 12,
-                "style": "surface.listening",
-                "children": [
-                  {
-                    "id": "listening-queue-header",
-                    "type": "row",
-                    "height": 32,
-                    "shrink": 0,
-                    "align": "center",
-                    "gap": 8,
-                    "children": [
-                      {
-                        "id": "queue-title",
-                        "type": "component",
-                        "component": "queue.title",
-                        "style": "label.listeningSection",
-                        "grow": 1,
-                        "height": 32
-                      },
-                      {
-                        "id": "queue-count",
-                        "type": "component",
-                        "component": "queue.count",
-                        "style": "label.listeningMuted",
-                        "width": 64,
-                        "height": 28
-                      },
-                      {
-                        "id": "listening-0-queue-actions",
-                        "type": "component",
-                        "component": "queue.actions",
-                        "style": "textButton.listeningNeutral",
-                        "width": 72,
-                        "height": 28,
-                        "focusOrder": 16
-                      }
-                    ]
-                  },
-                  {
-                    "id": "listening-queue-list-stack",
-                    "type": "stack",
-                    "grow": 1,
-                    "minHeight": 80,
-                    "children": [
-                      {
-                        "id": "queue-table",
-                        "type": "component",
-                        "component": "queue.table",
-                        "style": "table.listening",
-                        "grow": 1,
-                        "anchors": {
-                          "top": 0,
-                          "right": 0,
-                          "bottom": 0,
-                          "left": 0
-                        },
-                        "focusOrder": 7,
-                        "presentation": "list"
-                      },
-                      {
-                        "id": "queue-empty",
-                        "type": "component",
-                        "component": "queue.empty",
-                        "style": "label.listeningMuted",
-                        "anchors": {
-                          "top": 0,
-                          "right": 0,
-                          "bottom": 0,
-                          "left": 0
-                        }
-                      }
-                    ]
-                  }
-                ],
-                "minHeight": 140,
-                "visibleWhen": "view.queueOpen",
-                "width": "38%",
-                "shrink": 0
+                "grow": 1
               }
             ]
           },
@@ -421,12 +337,102 @@
           "top": 60,
           "right": 24
         }
+      },
+      {
+        "id": "listening-listening-queue-panel",
+        "type": "column",
+        "gap": 8,
+        "padding": 16,
+        "style": "surface.listeningQueueOverlay",
+        "children": [
+          {
+            "id": "listening-queue-header",
+            "type": "row",
+            "height": 32,
+            "shrink": 0,
+            "align": "center",
+            "gap": 8,
+            "children": [
+              {
+                "id": "queue-title",
+                "type": "component",
+                "component": "queue.title",
+                "style": "label.listeningSection",
+                "grow": 1,
+                "height": 32
+              },
+              {
+                "id": "queue-count",
+                "type": "component",
+                "component": "queue.count",
+                "style": "label.listeningMuted",
+                "width": 64,
+                "height": 28
+              },
+              {
+                "id": "listening-0-queue-actions",
+                "type": "component",
+                "component": "queue.actions",
+                "style": "textButton.listeningNeutral",
+                "width": 72,
+                "height": 28,
+                "focusOrder": 16
+              }
+            ]
+          },
+          {
+            "id": "listening-queue-list-stack",
+            "type": "stack",
+            "grow": 1,
+            "minHeight": 80,
+            "children": [
+              {
+                "id": "queue-table",
+                "type": "component",
+                "component": "queue.table",
+                "style": "table.listening",
+                "grow": 1,
+                "anchors": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                },
+                "focusOrder": 7,
+                "presentation": "list"
+              },
+              {
+                "id": "queue-empty",
+                "type": "component",
+                "component": "queue.empty",
+                "style": "label.listeningMuted",
+                "anchors": {
+                  "top": 0,
+                  "right": 0,
+                  "bottom": 0,
+                  "left": 0
+                }
+              }
+            ]
+          }
+        ],
+        "visibleWhen": "view.queueOpen",
+        "width": 360,
+        "anchors": {
+          "top": 68,
+          "right": 24,
+          "bottom": 152
+        },
+        "zIndex": 50,
+        "pointerEvents": "block",
+        "clip": true
       }
     ]
   },
   "ancillaryStyles": {
     "popupMenu": "popupMenu.listening",
     "tooltip": "tooltip.listening",
-    "scrollBar": "scrollBar.listening"
+    "scrollBar": "scrollBar.listening",
+    "smartPlaylistEditor": "smartPlaylistEditor.listening"
   }
 }

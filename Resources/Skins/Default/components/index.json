@@ -391,7 +391,9 @@
     "studioTrackRow": "components/studio-track-row.json",
     "listeningTrackRow": "components/listening-track-row.json",
     "studioCollectionCard": "components/studio-collection-surface.json",
-    "listeningCollectionCard": "components/listening-collection-surface.json"
+    "listeningCollectionCard": "components/listening-collection-surface.json",
+    "studioQueueOverlay": "components/studio-queue-overlay.json",
+    "listeningQueueOverlay": "components/listening-queue-overlay.json"
   },
   "artwork": {
     "listening": {
@@ -582,6 +584,114 @@
         "card.title": "label.listeningCollectionTitle",
         "card.summary": "label.listeningCollectionSummary",
         "card.date": "label.listeningCollectionDate"
+      }
+    }
+  },
+  "directoryList": {
+    "listening": {
+      "renderer": "components/listening-directory-list.json",
+      "slots": {
+        "row.surface": "surface.listeningSkinCard",
+        "row.name": "label.listening",
+        "row.path": "label.listeningData",
+        "row.status": "label.listeningData",
+        "empty.message": "label.listeningData"
+      }
+    },
+    "studio": {
+      "renderer": "components/studio-directory-list.json",
+      "slots": {
+        "row.surface": "surface.studioSkinCard",
+        "row.name": "label.studio",
+        "row.path": "label.studioData",
+        "row.status": "label.studioData",
+        "empty.message": "label.studioData"
+      }
+    },
+    "default": {
+      "renderer": "components/listening-directory-list.json",
+      "slots": {
+        "row.surface": "surface.listeningSkinCard",
+        "row.name": "label.listening",
+        "row.path": "label.listeningData",
+        "row.status": "label.listeningData",
+        "empty.message": "label.listeningData"
+      }
+    }
+  },
+  "smartPlaylistEditor": {
+    "listening": {
+      "renderer": "components/listening-smart-playlist-editor.json",
+      "slots": {
+        "editor.heading": "label.listeningSection",
+        "editor.nameLabel": "label.listeningData",
+        "editor.name": "textEditor.listening",
+        "editor.match": "comboBox.listening",
+        "editor.rules": "smartPlaylistRuleList.listening",
+        "editor.add": "textButton.listeningNeutral",
+        "editor.preview": "label.listeningData",
+        "editor.save": "textButton.listeningPrimary",
+        "editor.cancel": "textButton.listeningNeutral"
+      }
+    },
+    "studio": {
+      "renderer": "components/studio-smart-playlist-editor.json",
+      "slots": {
+        "editor.heading": "label.studioSection",
+        "editor.nameLabel": "label.studioData",
+        "editor.name": "textEditor.studio",
+        "editor.match": "comboBox.studio",
+        "editor.rules": "smartPlaylistRuleList.studio",
+        "editor.add": "textButton.studioNeutral",
+        "editor.preview": "label.studioData",
+        "editor.save": "textButton.studioPrimary",
+        "editor.cancel": "textButton.studioNeutral"
+      }
+    },
+    "default": {
+      "renderer": "components/listening-smart-playlist-editor.json",
+      "slots": {
+        "editor.heading": "label.listeningSection",
+        "editor.nameLabel": "label.listeningData",
+        "editor.name": "textEditor.listening",
+        "editor.match": "comboBox.listening",
+        "editor.rules": "smartPlaylistRuleList.listening",
+        "editor.add": "textButton.listeningNeutral",
+        "editor.preview": "label.listeningData",
+        "editor.save": "textButton.listeningPrimary",
+        "editor.cancel": "textButton.listeningNeutral"
+      }
+    }
+  },
+  "smartPlaylistRuleList": {
+    "listening": {
+      "renderer": "components/listening-smart-playlist-rules.json",
+      "slots": {
+        "rule.field": "comboBox.listening",
+        "rule.operator": "comboBox.listening",
+        "rule.value": "textEditor.listening",
+        "rule.boolean": "comboBox.listening",
+        "rule.remove": "textButton.listeningNeutral"
+      }
+    },
+    "studio": {
+      "renderer": "components/studio-smart-playlist-rules.json",
+      "slots": {
+        "rule.field": "comboBox.studio",
+        "rule.operator": "comboBox.studio",
+        "rule.value": "textEditor.studio",
+        "rule.boolean": "comboBox.studio",
+        "rule.remove": "textButton.studioNeutral"
+      }
+    },
+    "default": {
+      "renderer": "components/listening-smart-playlist-rules.json",
+      "slots": {
+        "rule.field": "comboBox.listening",
+        "rule.operator": "comboBox.listening",
+        "rule.value": "textEditor.listening",
+        "rule.boolean": "comboBox.listening",
+        "rule.remove": "textButton.listeningNeutral"
       }
     }
   }

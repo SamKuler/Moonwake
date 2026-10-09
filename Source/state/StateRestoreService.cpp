@@ -104,7 +104,7 @@ StateRestoreResult StateRestoreService::prepare (
         PlayerAppState state;
         if (AppStateStore::readFromFile (stateFile, state, result.errorMessage)
             && prepareLibraryRestore (state.library, state.playlist, artworkCacheRoot,
-                                      cancelled, result.warnings))
+                                      cancelled, result.warnings, state.musicDirectories))
             result.state = std::move (state);
     }
     if (isCancelled())

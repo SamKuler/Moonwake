@@ -42,7 +42,11 @@ juce::StringArray exactIds()
         "settings.plugins.scanScope", "settings.plugins.defaultLocations", "settings.plugins.customDirectories", "settings.plugins.removeDirectory",
         "settings.skins.heading", "settings.skins.library", "settings.skins.import", "settings.skins.remove",
         "settings.skins.preview", "settings.skins.apply",
-        "settings.skins.cancelPreview", "settings.skins.reload"
+        "settings.skins.cancelPreview", "settings.skins.reload",
+        "settings.music.heading", "settings.music.directories", "settings.music.add",
+        "settings.music.scan", "settings.music.cancel", "settings.music.remove",
+        "settings.music.automatic", "settings.music.status",
+        "library.smartPlaylistEditor", "library.smartPlaylistRules"
     };
 }
 
@@ -91,6 +95,9 @@ std::unique_ptr<juce::Component> componentFor (SkinComponentKind kind, double& p
         case SkinComponentKind::channelMap:
         case SkinComponentKind::pluginList:
         case SkinComponentKind::skinList:
+        case SkinComponentKind::directoryList:
+        case SkinComponentKind::smartPlaylistEditor:
+        case SkinComponentKind::smartPlaylistRuleList:
         case SkinComponentKind::playlistGrid: return std::make_unique<juce::Component>();
     }
     return {};

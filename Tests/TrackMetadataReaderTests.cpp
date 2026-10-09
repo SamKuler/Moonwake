@@ -2,6 +2,11 @@
 #include <juce_core/juce_core.h>
 
 #include "audio/TrackMetadataReader.h"
+#include "audio/TrackArtistTags.h"
+#include "library/LibraryProjection.h"
+#include "library/LibraryRestore.h"
+#include "state/AppStateStore.h"
+#include "ArtistMetadataFixtures.h"
 
 namespace
 {
@@ -24,6 +29,216 @@ public:
 
     void runTest() override
     {
+        beginTest ("ID3v2.3 collaboration is indexed for each artist and legacy restore updates every occurrence");
+        {
+            const auto file = getMetadataTestDirectory().getNonexistentChildFile ("collaboration", ".mp3");
+            expect (artistMetadataFixtures::writeMp3 (file, 3, 1,
+                { juce::String::fromUTF8 ("3LAU/Said The Sky/NÉONHÈART") }));
+            TrackMetadataReader reader;
+            const auto metadata = reader.read (file, false);
+            expect (metadata.ok, metadata.error);
+            MusicLibrary library;
+            const auto id = library.upsertTrack (metadata.track);
+            PlaylistModel queue;
+            for (const auto& artist : juce::StringArray { "3LAU", "Said The Sky", juce::String::fromUTF8 ("NÉONHÈART") })
+            {
+                const auto rows = libraryTracks (library, queue, "artist:" + artist);
+                expectEquals (static_cast<int> (rows.size()), 1, artist);
+                const auto summary = libraryCollectionSummary (library, queue, "artist:" + artist);
+                expectEquals (summary.name, artist);
+                expectEquals (summary.trackCount, 1);
+            }
+            expectEquals (static_cast<int> (libraryCollectionSummaries (library, "artists").size()), 3);
+            expectEquals (static_cast<int> (libraryTracks (library, queue, "all").size()), 1);
+            SmartPlaylistRules rules { SmartPlaylistMatch::all,
+                { { SmartPlaylistField::artist, SmartPlaylistOperator::equals, "said the sky" } } };
+            expect (matchesSmartPlaylistRules (rules, *library.getTrack (id), false, 0));
+            rules.rules[0].comparison = SmartPlaylistOperator::notEquals;
+            expect (! matchesSmartPlaylistRules (rules, *library.getTrack (id), false, 0));
+
+            PlayerAppState legacy;
+            TrackItem saved { file, "Fire", 1.0 };
+            saved.artist = juce::String::fromUTF8 ("3LAU/Said The Sky/NÉONHÈART");
+            const auto savedId = legacy.library.upsertTrack (saved);
+            auto occurrence = *legacy.library.getTrack (savedId);
+            occurrence.libraryId = savedId;
+            occurrence.id = "first-occurrence";
+            legacy.playlist.addTrack (occurrence);
+            auto restored = AppStateStore::fromValueTree (AppStateStore::toValueTree (legacy));
+            juce::StringArray warnings;
+            expect (prepareLibraryRestore (restored.library, restored.playlist,
+                getMetadataTestDirectory().getChildFile ("artist-restore-cache"), nullptr, warnings));
+            expect (warnings.isEmpty(), warnings.joinIntoString ("; "));
+            expectEquals (restored.playlist.getTrack (0)->id, occurrence.id);
+            expectEquals (restored.playlist.getTrack (0)->libraryId, savedId);
+            expectEquals (static_cast<int> (libraryTracks (restored.library, restored.playlist,
+                                                          "artist:Said The Sky").size()), 1);
+            expect (file.deleteFile());
+        }
+
+        beginTest ("ID3v2.4 null-separated values preserve literal punctuation in every text encoding");
+        {
+            for (const auto encoding : { 0, 1, 2, 3 })
+            {
+                const auto file = getMetadataTestDirectory().getNonexistentChildFile ("multiple-id3-v4", ".mp3");
+                const juce::StringArray expected { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
+                expect (artistMetadataFixtures::writeMp3 (file, 4, encoding, expected));
+                TrackMetadataReader reader;
+                const auto result = reader.read (file, false);
+                expect (result.ok, result.error);
+                expect (result.track.artists == expected, "Encoding " + juce::String (encoding));
+                for (const auto& artist : expected) expect (result.track.artist.contains (artist));
+                expect (file.deleteFile());
+            }
+            TrackItem flat;
+            juce::StringPairArray metadata;
+            metadata.set ("ARTIST", "AC/DC, Earth & Friends");
+            TrackMetadataReader::applyMetadata (flat, metadata);
+            expect (flat.artists == juce::StringArray { "AC/DC, Earth & Friends" });
+            expectEquals (flat.artist, juce::String ("AC/DC, Earth & Friends"));
+        }
+
+        beginTest ("ID3 artist parsing handles versioned sizes unsynchronisation and extended headers");
+        {
+            const auto file = getMetadataTestDirectory().getNonexistentChildFile ("id3-bounds", ".tag");
+            const juce::StringArray expected { "First", juce::String::fromUTF8 ("NÉONHÈART") };
+            for (const auto version : { 3, 4 })
+            {
+                auto tag = artistMetadataFixtures::id3 (version, 1,
+                    version == 3 ? juce::StringArray { expected.joinIntoString ("/") } : expected);
+                const auto* source = static_cast<const unsigned char*> (tag.getData());
+                juce::MemoryOutputStream payload;
+                if (version == 3)
+                {
+                    payload.writeIntBigEndian (6);
+                    payload.writeShort (0);
+                    payload.writeInt (0);
+                }
+                else
+                {
+                    payload.writeIntBigEndian (6);
+                    payload.writeByte (1);
+                    payload.writeByte (0);
+                }
+                payload.write (source + 10, tag.getSize() - 10);
+                juce::MemoryBlock withExtended (source, 10);
+                withExtended.append (payload.getData(), payload.getDataSize());
+                auto* bytes = static_cast<unsigned char*> (withExtended.getData());
+                bytes[5] = 0x40;
+                for (int index = 6; index < 10; ++index)
+                    bytes[index] = static_cast<unsigned char> ((payload.getDataSize() >> ((9 - index) * 7)) & 0x7f);
+                expect (file.replaceWithData (withExtended.getData(), withExtended.getSize()));
+                expect (readTrackArtistTags (file) == expected);
+            }
+            auto tag = artistMetadataFixtures::id3 (3, 1, { "First/Second" });
+            const auto* source = static_cast<const unsigned char*> (tag.getData());
+            juce::MemoryOutputStream unsynchronised;
+            unsynchronised.write (source, 10);
+            for (size_t index = 10; index < tag.getSize(); ++index)
+            {
+                unsynchronised.writeByte (static_cast<char> (source[index]));
+                if (source[index] == 0xff) unsynchronised.writeByte (0);
+            }
+            auto storage = unsynchronised.getMemoryBlock();
+            auto* bytes = static_cast<unsigned char*> (storage.getData());
+            bytes[5] = 0x80;
+            for (int index = 6; index < 10; ++index)
+                bytes[index] = static_cast<unsigned char> (((storage.getSize() - 10) >> ((9 - index) * 7)) & 0x7f);
+            expect (file.replaceWithData (storage.getData(), storage.getSize()));
+            expect (readTrackArtistTags (file) == juce::StringArray { "First", "Second" });
+            for (size_t length = 0; length < tag.getSize(); ++length)
+            {
+                expect (file.replaceWithData (tag.getData(), length));
+                expect (readTrackArtistTags (file).isEmpty(), "Truncated tag at " + juce::String (length));
+            }
+            bytes[6] = 0x7f;
+            expect (file.replaceWithData (storage.getData(), storage.getSize()));
+            expect (readTrackArtistTags (file).isEmpty());
+            const unsigned char emptyTag[] { 'I', 'D', '3', 4, 0, 0, 0, 0, 0, 0 };
+            expect (file.replaceWithData (emptyTag, sizeof (emptyTag)));
+            expect (readTrackArtistTags (file).isEmpty());
+            auto invalid = artistMetadataFixtures::id3 (4, 1, { "X" });
+            auto* invalidBytes = static_cast<unsigned char*> (invalid.getData());
+            invalidBytes[23] = 0;
+            invalidBytes[24] = 0xd8;
+            expect (file.replaceWithData (invalid.getData(), invalid.getSize()));
+            expect (readTrackArtistTags (file).isEmpty());
+            expect (file.deleteFile());
+        }
+
+        beginTest ("FLAC and continued Ogg Vorbis comments retain repeated artists without splitting punctuation");
+        {
+            const juce::StringArray members { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART"), "AC/DC" };
+            const juce::StringArray expected { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
+            const auto comments = artistMetadataFixtures::vorbisComments (members);
+            const auto file = getMetadataTestDirectory().getNonexistentChildFile ("vorbis-artists", ".tag");
+            juce::MemoryOutputStream flac;
+            flac.write ("fLaC", 4);
+            flac.writeByte (static_cast<char> (0x84));
+            for (int shift = 2; shift >= 0; --shift)
+                flac.writeByte (static_cast<char> ((comments.getSize() >> (shift * 8)) & 0xff));
+            flac.write (comments.getData(), comments.getSize());
+            expect (file.replaceWithData (flac.getData(), flac.getDataSize()));
+            expect (readTrackArtistTags (file) == expected);
+
+            auto ogg = artistMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
+            juce::MemoryBlock packet ("\3vorbis", 7);
+            packet.append (comments.getData(), comments.getSize());
+            const auto page = artistMetadataFixtures::oggPage (packet, 1);
+            ogg.append (page.getData(), page.getSize());
+            expect (file.replaceWithData (ogg.getData(), ogg.getSize()));
+            expect (readTrackArtistTags (file) == expected);
+
+            const auto longName = juce::String::repeatedString ("A", 260);
+            const auto longer = artistMetadataFixtures::vorbisComments ({ longName, "Second" });
+            packet = juce::MemoryBlock ("\3vorbis", 7);
+            packet.append (longer.getData(), longer.getSize());
+            ogg = artistMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
+            const auto first = artistMetadataFixtures::oggPage (juce::MemoryBlock (packet.getData(), 255), 1, false, false);
+            const auto second = artistMetadataFixtures::oggPage (juce::MemoryBlock (
+                static_cast<const char*> (packet.getData()) + 255, packet.getSize() - 255), 2, true);
+            ogg.append (first.getData(), first.getSize());
+            ogg.append (second.getData(), second.getSize());
+            expect (file.replaceWithData (ogg.getData(), ogg.getSize()));
+            expect (readTrackArtistTags (file) == juce::StringArray { longName, "Second" });
+            expect (file.deleteFile());
+        }
+
+        beginTest ("real FLAC and Ogg readers preserve every repeated artist through projection");
+        {
+            for (const auto flac : { true, false })
+            {
+                const auto file = getMetadataTestDirectory().getNonexistentChildFile (
+                    "repeated-artists", flac ? ".flac" : ".ogg");
+                auto output = std::unique_ptr<juce::OutputStream> (file.createOutputStream());
+                std::unique_ptr<juce::AudioFormat> format;
+                if (flac) format = std::make_unique<juce::FlacAudioFormat>();
+                else format = std::make_unique<juce::OggVorbisAudioFormat>();
+                auto writer = format->createWriterFor (output, juce::AudioFormatWriterOptions{}
+                    .withSampleRate (44100.0).withNumChannels (2).withBitsPerSample (16));
+                expect (writer != nullptr);
+                if (writer != nullptr)
+                {
+                    juce::AudioBuffer<float> samples (2, 4410);
+                    samples.clear();
+                    expect (writer->writeFromAudioSampleBuffer (samples, 0, samples.getNumSamples()));
+                    writer.reset();
+                    const juce::StringArray artists { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
+                    expect (artistMetadataFixtures::replaceVorbisArtists (file, flac, artists));
+                    TrackMetadataReader reader;
+                    const auto read = reader.read (file, false);
+                    expect (read.ok, read.error);
+                    expect (read.track.artists == artists, flac ? "FLAC" : "Ogg Vorbis");
+                    expectWithinAbsoluteError (read.track.durationSeconds, 0.1, 0.001);
+                    MusicLibrary library;
+                    library.upsertTrack (read.track);
+                    const auto cards = libraryCollectionSummaries (library, "artists");
+                    expectEquals (static_cast<int> (cards.size()), 3);
+                }
+                expect (file.deleteFile());
+            }
+        }
+
         beginTest ("normalises common metadata aliases without replacing useful values");
         {
             TrackItem track { juce::File ("/Music/file-name.wav"), "file-name", 0.0 };
@@ -114,6 +329,10 @@ public:
             expectEquals (result.track.year, 2026);
             expect (result.track.available);
             expect (result.track.id.isNotEmpty());
+            expect (result.track.fileIdentity.isNotEmpty());
+            expectEquals (result.track.fileSizeBytes, wavFile.getSize());
+            expectEquals (result.track.fileModifiedAtMs, wavFile.getLastModificationTime().toMilliseconds());
+            expectEquals (result.track.addedAtMs, juce::int64 { 0 });
 
             expect (wavFile.deleteFile());
         }
@@ -193,45 +412,7 @@ public:
         {
             const auto mp3File = getMetadataTestDirectory()
                                      .getNonexistentChildFile ("tagged-with-artwork", ".mp3");
-            juce::MemoryBlock fixture;
-            juce::MemoryOutputStream fixtureStream (fixture, false);
-            expect (juce::Base64::convertFromBase64 (fixtureStream,
-                "SUQzAwAAAAADYVRJVDIAAAAOAAAARGF3biBDdXJyZW50AFRQRTEAAAALAAAAU2FtIEt1bGVy"
-                "AFRBTEIAAAAPAAAATmF0dXJhbCBXb3JrcwBUUEUyAAAAEwAAAE1vb253YWtlIEVuc2VtYmxl"
-                "AFRDT04AAAAJAAAAQW1iaWVudABUWUVSAAAABgAAADIwMjYAVFJDSwAAAAUAAAA0LzkAVFBP"
-                "UwAAAAUAAAAyLzIAVFNTRQAAAA8AAABMYXZmNjIuMTIuMTAyAEFQSUMAAAEQAAAAaW1hZ2Uv"
-                "anBlZwADQWxidW0gY292ZXIA/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYyLjI4LjEw"
-                "MgD/2wBDAAgEBAQEBAUFBQUFBQYGBgYGBgYGBgYGBgYHBwcICAgHBwcGBgcHCAgICAkJCQgI"
-                "CAgJCQoKCgwMCwsODg4RERT/xABMAAEBAAAAAAAAAAAAAAAAAAAABAEBAQAAAAAAAAAAAAAA"
-                "AAAAAAYQAQAAAAAAAAAAAAAAAAAAAAARAQAAAAAAAAAAAAAAAAAAAAD/wAARCABAAEADASIA"
-                "AhEAAxEA/9oADAMBAAIRAxEAPwCIBNrIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//2QAAAAAA"
-                "AAAAAAD/+1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABJbmZvAAAADwAAAAsA"
-                "AAVIADs7Ozs7Ozs7O05OTk5OTk5OTmJiYmJiYmJiYnZ2dnZ2dnZ2domJiYmJiYmJiZ2dnZ2d"
-                "nZ2dnbGxsbGxsbGxscTExMTExMTExNjY2NjY2NjY2Ozs7Ozs7Ozs7P///////////wAAAABM"
-                "YXZjNjIuMjgAAAAAAAAAAAAAAAAkBC8AAAAAAAAFSNGQBj4AAAAAAAAAAAAAAAAAAAAA//sQ"
-                "ZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTQuMFVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVVVVVVTEFNRTQuMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+xBkIg/w"
-                "AABpAAAACAAADSAAAAEAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVMQU1FNC4wVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EGRED/AAAGkA"
-                "AAAIAAANIAAAAQAAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVUxBTUU0LjBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQZGYP8AAAaQAAAAgA"
-                "AA0gAAABAAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "TEFNRTQuMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+xBkiA/wAABpAAAACAAADSAA"
-                "AAEAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EGSqD/AAAGkAAAAIAAANIAAAAQAA"
-                "AaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQZMwP8AAAaQAAAAgAAA0gAAABAAABpAAA"
-                "ACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+xBk3Y/wAABpAAAACAAADSAAAAEAAAGkAAAAIAAA"
-                "NIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVVVVVVVVVVVVVVVf/7EGTdj/AAAGkAAAAIAAANIAAAAQAAAaQAAAAgAAA0gAAA"
-                "BFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVVVVVVVVVV//sQZN2P8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAEVVVV"
-                "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVVVVVVX/+xBk3Y/wAABpAAAACAAADSAAAAEAAAGkAAAAIAAANIAAAARVVVVVVVVV"
-                "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-                "VVVVVVVVVQ=="));
-            fixtureStream.flush();
+            const auto fixture = artistMetadataFixtures::mp3();
             expect (mp3File.replaceWithData (fixture.getData(), fixture.getSize()));
 
             TrackMetadataReader metadataReader;

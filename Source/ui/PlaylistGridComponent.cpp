@@ -92,8 +92,11 @@ public:
         draw ("card.surface", SkinRenderTarget::surface, {});
         draw ("card.title", SkinRenderTarget::label, collection.name);
         draw ("card.summary", SkinRenderTarget::label, summaryText (collection));
-        draw ("card.date", SkinRenderTarget::label, collection.createdAtMs > 0
-            ? "Created " + juce::Time (collection.createdAtMs).formatted ("%b %d, %Y") : collection.subtitle);
+        auto description = collection.subtitle;
+        if (collection.createdAtMs > 0)
+            description += (description.isEmpty() ? juce::String ("Created ") : juce::String::fromUTF8 (" · "))
+                + juce::Time (collection.createdAtMs).formatted ("%b %d, %Y");
+        draw ("card.date", SkinRenderTarget::label, description);
     }
 
     void mouseDown (const juce::MouseEvent& event) override

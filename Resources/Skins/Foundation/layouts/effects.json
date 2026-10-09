@@ -134,5 +134,8 @@
         "focusOrder": 130
       }
     ]
+  },
+  "ancillaryStyles": {
+    "smartPlaylistEditor": "smartPlaylistEditor.default"
   }
 }

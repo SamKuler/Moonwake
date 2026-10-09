@@ -49,8 +49,8 @@ std::vector<LibraryCollection> libraryCollections (const MusicLibrary& library)
             albums[libraryAlbumId (track)] = track.album
                 + (artist.isEmpty() ? juce::String{} : juce::String::fromUTF8 (" — ") + artist);
         }
-        if (track.artist.isNotEmpty())
-            artists["artist:" + track.artist] = track.artist;
+        for (const auto& artist : track.artistNames())
+            artists["artist:" + artist] = artist;
     }
     const auto appendSorted = [&result] (const auto& values, const juce::String& section)
     {
@@ -69,7 +69,7 @@ std::vector<LibraryCollection> libraryCollections (const MusicLibrary& library)
 
 std::vector<TrackItem> libraryTracks (const MusicLibrary& library,
                                      const PlaylistModel& queue,
-                                     const juce::String& collectionId)
+                                     const juce::String& collectionId, juce::int64 nowMs)
 {
     if (collectionId == "queue") return queue.getTracks();
 
@@ -77,9 +77,18 @@ std::vector<TrackItem> libraryTracks (const MusicLibrary& library,
     if (collectionId.startsWith ("playlist:"))
     {
         if (const auto* playlist = library.getPlaylist (collectionId.substring (9)))
-            for (const auto& entry : playlist->entries)
-                if (const auto* track = library.getTrack (entry.trackId))
-                    result.push_back (libraryRow (*track, entry.id));
+        {
+            if (playlist->smartRules.has_value())
+            {
+                for (const auto& track : library.getTracks())
+                    if (matchesSmartPlaylistRules (*playlist->smartRules, track, library.isFavourite (track.id), nowMs))
+                        result.push_back (libraryRow (track, track.id));
+            }
+            else
+                for (const auto& entry : playlist->entries)
+                    if (const auto* track = library.getTrack (entry.trackId))
+                        result.push_back (libraryRow (*track, entry.id));
+        }
         return result;
     }
     const auto isAlbum = collectionId.startsWith ("album:");
@@ -88,7 +97,7 @@ std::vector<TrackItem> libraryTracks (const MusicLibrary& library,
     {
         if (collectionId == "favourites" && ! library.isFavourite (track.id)) continue;
         if (isAlbum && libraryAlbumId (track) != collectionId) continue;
-        if (isArtist && track.artist != collectionId.substring (7)) continue;
+        if (isArtist && ! track.artistNames().contains (collectionId.substring (7))) continue;
         result.push_back (libraryRow (track, track.id));
     }
     if (isAlbum)
@@ -108,7 +117,7 @@ void appendSummaryTrack (LibraryCollectionSummary& summary, const TrackItem& tra
 }
 
 std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
-    const MusicLibrary& library, const juce::String& category)
+    const MusicLibrary& library, const juce::String& category, juce::int64 nowMs)
 {
     std::vector<LibraryCollectionSummary> result;
     if (category == "playlists")
@@ -126,8 +135,16 @@ std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
             summary.id = "playlist:" + playlist.id;
             summary.name = playlist.name;
             summary.createdAtMs = playlist.createdAtMs;
-            for (const auto& entry : playlist.entries)
-                if (const auto* track = library.getTrack (entry.trackId)) appendSummaryTrack (summary, *track);
+            if (playlist.smartRules.has_value())
+            {
+                summary.subtitle = "Smart playlist";
+                for (const auto& track : library.getTracks())
+                    if (matchesSmartPlaylistRules (*playlist.smartRules, track, library.isFavourite (track.id), nowMs))
+                        appendSummaryTrack (summary, track);
+            }
+            else
+                for (const auto& entry : playlist.entries)
+                    if (const auto* track = library.getTrack (entry.trackId)) appendSummaryTrack (summary, *track);
             if (playlist.artworkCacheKey.isNotEmpty()) summary.artworkKeys = { playlist.artworkCacheKey };
             result.push_back (std::move (summary));
         }
@@ -137,9 +154,13 @@ std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
     std::map<juce::String, std::vector<const TrackItem*>> groups;
     for (const auto& track : library.getTracks())
     {
-        if ((album ? track.album : track.artist).isEmpty()) continue;
-        const auto id = album ? libraryAlbumId (track) : "artist:" + track.artist;
-        groups[id].push_back (&track);
+        if (album)
+        {
+            if (track.album.isNotEmpty()) groups[libraryAlbumId (track)].push_back (&track);
+        }
+        else
+            for (const auto& artist : track.artistNames())
+                groups["artist:" + artist].push_back (&track);
     }
     for (auto& [id, tracks] : groups)
     {
@@ -148,7 +169,7 @@ std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
                 { return albumTrackLess (*a, *b); });
         LibraryCollectionSummary summary;
         summary.id = id;
-        summary.name = album ? tracks.front()->album : tracks.front()->artist;
+        summary.name = album ? tracks.front()->album : id.substring (7);
         summary.subtitle = album ? albumArtist (*tracks.front()) : juce::String {};
         for (const auto* track : tracks) appendSummaryTrack (summary, *track);
         result.push_back (std::move (summary));
@@ -161,7 +182,7 @@ std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
 }
 
 LibraryCollectionSummary libraryCollectionSummary (
-    const MusicLibrary& library, const PlaylistModel& queue, const juce::String& collectionId)
+    const MusicLibrary& library, const PlaylistModel& queue, const juce::String& collectionId, juce::int64 nowMs)
 {
     LibraryCollectionSummary result;
     result.id = collectionId;
@@ -173,8 +194,9 @@ LibraryCollectionSummary libraryCollectionSummary (
         {
             result.name = playlist->name;
             result.createdAtMs = playlist->createdAtMs;
+            if (playlist->smartRules.has_value()) result.subtitle = "Smart playlist";
         }
-    const auto tracks = libraryTracks (library, queue, collectionId);
+    const auto tracks = libraryTracks (library, queue, collectionId, nowMs);
     if (! tracks.empty())
     {
         if (collectionId.startsWith ("album:"))
@@ -182,7 +204,7 @@ LibraryCollectionSummary libraryCollectionSummary (
             result.name = tracks.front().album;
             result.subtitle = albumArtist (tracks.front());
         }
-        else if (collectionId.startsWith ("artist:")) result.name = tracks.front().artist;
+        else if (collectionId.startsWith ("artist:")) result.name = collectionId.substring (7);
     }
     for (const auto& track : tracks) appendSummaryTrack (result, track);
     if (collectionId.startsWith ("playlist:"))

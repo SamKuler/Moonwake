@@ -1,0 +1,84 @@
+{
+  "apiVersion": 1,
+  "target": "directoryList",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.controlRadius"
+      },
+      "fill": "#00000000",
+      "stroke": {
+        "color": {
+          "$ref": "colors.listening.border"
+        },
+        "width": 0,
+        "placement": "inside"
+      }
+    }
+  ],
+  "variants": {
+    "focused": {
+      "body.fill": {
+        "$expr": "alpha(token.colors.listening.focus, token.metrics.focusSurfaceOpacity)"
+      }
+    }
+  },
+  "rowLayout": {
+    "rowHeight": 56,
+    "rowGap": 0,
+    "headerHeight": 0,
+    "slots": {
+      "row.surface": {
+        "x": 1,
+        "y": 0,
+        "width": {
+          "$expr": "max(0, bounds.width - 2)"
+        },
+        "height": {
+          "$expr": "layout.rowHeight"
+        }
+      },
+      "row.name": {
+        "x": 15,
+        "y": 6,
+        "width": {
+          "$expr": "max(0, bounds.width - 146)"
+        },
+        "height": 22
+      },
+      "row.path": {
+        "x": 15,
+        "y": 30,
+        "width": {
+          "$expr": "max(0, bounds.width - 30)"
+        },
+        "height": 20
+      },
+      "row.status": {
+        "x": {
+          "$expr": "max(0, bounds.width - 120)"
+        },
+        "y": 6,
+        "width": 105,
+        "height": 22
+      },
+      "empty.message": {
+        "x": 15,
+        "y": 6,
+        "width": {
+          "$expr": "max(0, bounds.width - 30)"
+        },
+        "height": {
+          "$expr": "max(0, container.height - 12)"
+        }
+      }
+    }
+  },
+  "contentClip": "body"
+}

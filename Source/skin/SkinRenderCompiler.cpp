@@ -141,7 +141,8 @@ public:
             const auto layer = std::find_if (result.baseLayers.begin(), result.baseLayers.end(), [&] (const auto& candidate)
             { return candidate.id == result.contentClip; });
             if ((target != SkinRenderTarget::table && target != SkinRenderTarget::channelMap
-                 && target != SkinRenderTarget::pluginList && target != SkinRenderTarget::skinList)
+                 && target != SkinRenderTarget::pluginList && target != SkinRenderTarget::skinList
+                 && target != SkinRenderTarget::directoryList)
                 || layer == result.baseLayers.end()
                 || (layer->primitive != SkinPrimitive::rectangle
                     && layer->primitive != SkinPrimitive::roundedRectangle
@@ -165,6 +166,12 @@ public:
             result.controlStyle = compileControlStyle (root.getProperty ("controlStyle", {}));
             usedContextPaths = renderContextPaths;
             if (! result.controlStyle) return std::nullopt;
+        }
+        if ((target == SkinRenderTarget::directoryList || target == SkinRenderTarget::smartPlaylistEditor
+             || target == SkinRenderTarget::smartPlaylistRuleList) && ! result.rowLayout)
+        {
+            fail ("RENDER004", "/rowLayout", "Music directory and smart playlist renderers require rowLayout.");
+            return std::nullopt;
         }
         if (target == SkinRenderTarget::playlistGrid && (! result.rowLayout || ! result.controlStyle))
         {
@@ -265,7 +272,8 @@ private:
             && target != SkinRenderTarget::channelMap && target != SkinRenderTarget::pluginList
             && target != SkinRenderTarget::channelMixer
             && target != SkinRenderTarget::skinList && target != SkinRenderTarget::popupMenu
-            && target != SkinRenderTarget::playlistGrid)
+            && target != SkinRenderTarget::playlistGrid && target != SkinRenderTarget::directoryList
+            && target != SkinRenderTarget::smartPlaylistEditor && target != SkinRenderTarget::smartPlaylistRuleList)
         {
             fail ("RENDER004", "/rowLayout", "This renderer target does not have a row layout.");
             return std::nullopt;

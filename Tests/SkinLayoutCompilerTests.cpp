@@ -246,6 +246,7 @@ public:
             auto row = object();
             row.getDynamicObject()->setProperty ("id", "row");
             row.getDynamicObject()->setProperty ("type", "row");
+            row.getDynamicObject()->setProperty ("pointerEvents", "block");
             auto rowVisual = visualNode ("row-visual");
             rowVisual.getDynamicObject()->setProperty ("width", "36%");
             row.getDynamicObject()->setProperty ("children", array ({ rowVisual }));
@@ -254,6 +255,7 @@ public:
             auto grid = object();
             grid.getDynamicObject()->setProperty ("id", "grid");
             grid.getDynamicObject()->setProperty ("type", "grid");
+            grid.getDynamicObject()->setProperty ("pointerEvents", "block");
             grid.getDynamicObject()->setProperty ("columns", array ({ "1fr", "2fr" }));
             grid.getDynamicObject()->setProperty ("rows", array ({ "auto" }));
             auto gridVisual = visualNode ("grid-visual");
@@ -265,6 +267,7 @@ public:
             auto stack = object();
             stack.getDynamicObject()->setProperty ("id", "stack");
             stack.getDynamicObject()->setProperty ("type", "stack");
+            stack.getDynamicObject()->setProperty ("pointerEvents", "none");
             auto anchored = visualNode ("anchored");
             auto anchors = object();
             anchors.getDynamicObject()->setProperty ("left", 4);
@@ -290,6 +293,9 @@ public:
                 const auto& base = std::get<SkinFlexLayout> (compiled->base.payload);
                 expect (base.children.size() == 16);
                 const auto& parsedRow = std::get<SkinFlexLayout> (base.children[12].payload);
+                expect (base.children[12].common.blocksPointer);
+                expect (base.children[13].common.blocksPointer);
+                expect (! base.children[14].common.blocksPointer);
                 expect (parsedRow.children[0].common.width.unit == SkinLength::Unit::percent
                         && parsedRow.children[0].common.width.value == 36.0f);
                 const auto& parsedGrid = std::get<SkinGridLayout> (base.children[13].payload);
