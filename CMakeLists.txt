@@ -229,7 +229,20 @@ juce_add_gui_app(Moonwake
     PRODUCT_NAME "Moonwake"
     VERSION "${PROJECT_VERSION}"
     BUILD_VERSION "${PROJECT_VERSION}"
-    DOCUMENT_EXTENSIONS wav aiff aif mp3 flac m4a aac alac caf ogg
+    PLIST_TO_MERGE [=[<plist><dict>
+        <key>CFBundleDocumentTypes</key>
+        <array><dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>wav</string><string>aiff</string><string>aif</string>
+                <string>mp3</string><string>flac</string><string>m4a</string>
+                <string>aac</string><string>alac</string><string>caf</string><string>ogg</string>
+            </array>
+            <key>CFBundleTypeName</key><string>Audio files</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+        </dict></array>
+    </dict></plist>]=]
 )
 
 target_sources(Moonwake
@@ -271,8 +284,13 @@ target_link_libraries(Moonwake
 add_dependencies(Moonwake MoonwakePluginScanner)
 
 if (APPLE)
+    get_target_property(MOONWAKE_INFO_PLIST Moonwake MACOSX_BUNDLE_INFO_PLIST)
+    get_target_property(MOONWAKE_SCANNER_INFO_PLIST MoonwakePluginScanner MACOSX_BUNDLE_INFO_PLIST)
+    # Bundle metadata changes must also re-embed the helper and refresh both signatures.
     set_property(TARGET Moonwake APPEND PROPERTY LINK_DEPENDS
-        "$<TARGET_FILE:MoonwakePluginScanner>")
+        "$<TARGET_FILE:MoonwakePluginScanner>"
+        "${MOONWAKE_INFO_PLIST}"
+        "${MOONWAKE_SCANNER_INFO_PLIST}")
     target_sources(Moonwake PRIVATE ThirdParty/libebur128/COPYING)
     set_source_files_properties(ThirdParty/libebur128/COPYING PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources/licenses/libebur128")
@@ -286,12 +304,6 @@ if (APPLE)
     option(MOONWAKE_ADHOC_SIGN_LOCAL_BUILDS
         "Ad-hoc sign local Moonwake bundles after embedding the scanner helper" ON)
     add_custom_command(TARGET Moonwake POST_BUILD
-        COMMAND /usr/libexec/PlistBuddy -c
-            "Set :CFBundleDocumentTypes:0:CFBundleTypeRole Viewer"
-            "$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Info.plist"
-        COMMAND /usr/libexec/PlistBuddy -c
-            "Set :CFBundleDocumentTypes:0:LSHandlerRank Alternate"
-            "$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Info.plist"
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Helpers"
         COMMAND ${CMAKE_COMMAND} -E rm -rf
@@ -534,6 +546,7 @@ endif()
 if (APPLE)
     add_test(NAME MoonwakeDocumentRole
         COMMAND ${CMAKE_COMMAND}
+            -DGENERATED_INFO_PLIST=${MOONWAKE_INFO_PLIST}
             -DINFO_PLIST=$<TARGET_BUNDLE_DIR:Moonwake>/Contents/Info.plist
             -P ${CMAKE_CURRENT_SOURCE_DIR}/Tests/VerifyBundleDocumentRole.cmake)
 endif()
