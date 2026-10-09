@@ -46,6 +46,7 @@ struct Options
     int height = 0;
     bool warningsAsErrors = false;
     bool force = false;
+    bool queueOpen = false;
 };
 
 struct ParseResult

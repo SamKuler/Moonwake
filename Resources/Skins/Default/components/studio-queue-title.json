@@ -1,0 +1,68 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    {
+      "id": "title",
+      "type": "text",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 10"
+        },
+        "y": {
+          "$expr": "bounds.y + 8"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 34)"
+        },
+        "height": 21
+      },
+      "text": {
+        "$context": "row.title"
+      },
+      "font": {
+        "$ref": "fonts.workspaceMedium"
+      },
+      "fontSize": {
+        "$ref": "metrics.textBody"
+      },
+      "color": {
+        "$ref": "colors.studio.text"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "artist",
+      "type": "text",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + 10"
+        },
+        "y": {
+          "$expr": "bounds.y + 30"
+        },
+        "width": {
+          "$expr": "max(0, bounds.width - 34)"
+        },
+        "height": 18
+      },
+      "text": {
+        "$context": "row.artist"
+      },
+      "font": {
+        "$ref": "fonts.workspaceBody"
+      },
+      "fontSize": {
+        "$ref": "metrics.textSecondary"
+      },
+      "color": {
+        "$ref": "colors.studio.muted"
+      },
+      "align": "left",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    }
+  ]
+}

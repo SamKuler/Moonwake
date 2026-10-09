@@ -313,7 +313,7 @@ public:
 
             beginTest ("focus changes invalidate the entire skinned list rather than selected-row fragments");
             {
-                expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report), report.toText());
+                expect (host.apply (SkinLayoutEntry::listening, root.getLocalBounds(), 1.0f, report, {}, { true }), report.toText());
                 root.addToDesktop (0);
                 root.toFront (true);
                 auto* list = components.at ("queue.table").get();
@@ -720,7 +720,7 @@ public:
             const juce::Rectangle<int> appliedBounds (37, 23, 1160, 740);
             const auto expected = SkinLayoutEngine::resolve (
                 skin->layouts.at (SkinLayoutEntry::listening),
-                appliedBounds.toFloat(), 1.25f, report);
+                appliedBounds.toFloat(), 1.25f, report, {}, skin.get(), { true });
             expect (expected.has_value(), report.toText());
             if (! expected) return;
             juce::StringArray ids;
@@ -745,7 +745,7 @@ public:
 
             SkinLayoutHost host (manager, bindings);
             expect (host.apply (SkinLayoutEntry::listening, appliedBounds,
-                                1.25f, report), report.toText());
+                                1.25f, report, {}, { true }), report.toText());
 
             for (const auto& id : ids)
                 if (const auto* node = expected->component (id))
@@ -784,6 +784,12 @@ public:
                 expect (volume->getSliderStyle() == (volumeNode->presentation == "rotary"
                     ? juce::Slider::RotaryHorizontalVerticalDrag : juce::Slider::LinearHorizontal));
             expect (components.at ("queue.title")->isVisible());
+            expect (host.apply (SkinLayoutEntry::listening, appliedBounds, 1.25f, report, {}, { false }), report.toText());
+            expect (! components.at ("queue.table")->isVisible());
+            expect (components.at ("queue.toggle")->isVisible());
+            expect (host.apply (SkinLayoutEntry::listening, appliedBounds, 1.25f, report, {}, { true }), report.toText());
+            expect (components.at ("queue.table")->isVisible());
+
 
             const auto previousBounds = rootBoundsFor (
                 root, *components.at ("transport.playPause"));

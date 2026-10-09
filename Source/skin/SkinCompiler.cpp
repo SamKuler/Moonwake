@@ -757,8 +757,9 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
         for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
                                    juce::Rectangle<float> (0, 0, 1240, 800) })
             for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
+            for (const auto queueOpen : { false, true })
             {
-                const auto resolved = SkinLayoutEngine::resolve (layout, bounds, 1.0f, report, workspace, compiled.get());
+                const auto resolved = SkinLayoutEngine::resolve (layout, bounds, 1.0f, report, workspace, compiled.get(), { queueOpen });
                 if (! resolved) return {};
                 const auto validateRows = [&] (auto&& self, const SkinResolvedNode& node) -> bool
                 {

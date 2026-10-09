@@ -101,13 +101,14 @@
 | LAYOUT008 | error | stack anchors 过约束 |
 | LAYOUT009 | error | scroll child 或 direction 非法 |
 | LAYOUT010 | error | breakpoint 范围非法，或在匹配的全部工作区中被先前分支完整覆盖 |
-| LAYOUT011 | error | 独立 required component 静态隐藏、透明或零尺寸，或必需替代组中没有可见、透明度大于 0 且具有非零尺寸的组件 |
+| LAYOUT011 | error | 必需组件或替代组没有可见、非零尺寸且透明度大于 0 的组件；队列入口缺少展开状态的 queue.table，或可折叠队列缺少可达的 queue.toggle |
 | LAYOUT012 | error | focusOrder 缺失或重复 |
 | LAYOUT013 | error | Component、容器或 ancillaryStyles 引用不存在或 target 不匹配 |
 | LAYOUT014 | error | component presentation 非法 |
 | LAYOUT015 | error | 任一交互 Component Node 的点击区域小于 28 × 28 |
 | LAYOUT016 | error | min constraint 无法放入最低窗口 |
 | LAYOUT017 | runtime error | resolved bounds 非有限、负数或越界 |
+| LAYOUT018 | compile error | visibleWhen 在某个布局状态无法求值或结果不是 boolean |
 
 ## Rendering
 

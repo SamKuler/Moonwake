@@ -59,6 +59,9 @@ private:
     void cellClicked (int row, int column, const juce::MouseEvent&) override;
     void returnKeyPressed (int row) override;
     void playQueueRow (int row);
+    const PlaybackQueueEntry* queueEntryAtRow (int row) const;
+    int queueSourceIndex (int row) const;
+    bool canMoveQueueSelection (int direction) const;
     bool isInterestedInFileDrag (const juce::StringArray&) override;
     void filesDropped (const juce::StringArray&, int, int) override;
 
@@ -66,6 +69,8 @@ private:
     void choosePlaylistImport();
     void choosePlaylistExport (std::vector<TrackItem>);
     void chooseTrackRelocation (juce::String);
+    void choosePlaylistArtwork (juce::String);
+    void setQueueOpen (bool);
     void startLibraryImport (juce::Array<juce::File>);
     void setLibraryImportRunning (bool);
     void choosePluginDirectory();
@@ -111,6 +116,8 @@ private:
     RestoreStatus restoreStatus = RestoreStatus::loading;
     std::vector<RemoteTransportCommand> queuedTransportCommands;
     LibraryFilter libraryFilter;
+    std::vector<PlaybackQueueEntry> visibleQueue;
+    std::tuple<uint64_t, uint64_t, uint64_t, juce::String> queueViewVersion;
     LibraryImportService libraryImportService;
     SkinManager skinManager;
     SkinComponentBindings skinBindings;
@@ -133,7 +140,7 @@ private:
         juce::String relocateTrackId;
     };
     std::vector<PendingLibraryImport> pendingLibraryImports;
-    juce::String legacySelectedQueueId;
+    juce::String selectedQueueKey;
     bool autoSaveFailureVisible = false;
     double statusVisibleUntil = 0.0;
 
@@ -168,6 +175,8 @@ private:
     juce::TextButton nextButton { "Next" };
     juce::ToggleButton shuffleButton { "Shuffle" };
     juce::ComboBox repeatModeBox;
+    juce::TextButton queueActionsButton { "Actions" };
+    juce::TextButton queueToggleButton { "Play queue" };
     juce::TextButton repeatButton { "Repeat off" };
     juce::ComboBox outputLayoutBox;
     std::optional<RepeatMode> lastSyncedRepeatMode;
@@ -202,6 +211,8 @@ private:
     juce::TooltipWindow tooltipWindow { this, 600 };
 
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
+    bool queueOpen = false;
+    bool queueVisibilityChosen = false;
     bool effectsDrawerOpen = false;
     bool settingsDrawerOpen = false;
     SkinLayoutEntry activeSkinLayoutEntry = SkinLayoutEntry::listening;

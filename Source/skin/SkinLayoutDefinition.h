@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/WorkspaceMode.h"
+#include <array>
 
 #include <juce_core/juce_core.h>
 
@@ -33,6 +34,11 @@ struct SkinAnchors
     std::optional<float> centreX, centreY;
 };
 
+struct SkinLayoutState
+{
+    bool queueOpen = false;
+};
+
 struct SkinLayoutCommon
 {
     juce::String id, style;
@@ -45,6 +51,7 @@ struct SkinLayoutCommon
     float aspectRatio = 0.0f, opacity = 1.0f;
     int zIndex = 0, gridColumn = 0, gridRow = 0, columnSpan = 1, rowSpan = 1;
     bool visible = true, clip = false;
+    std::optional<std::array<bool, 2>> visibleWhen;
     SkinAnchors anchors;
     SkinAlign alignSelf = SkinAlign::automatic;
 };

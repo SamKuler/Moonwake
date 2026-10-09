@@ -1,4 +1,5 @@
 #include "app/PlayerController.h"
+#include "state/StateSaveService.h"
 
 #include <algorithm>
 #include <cmath>
@@ -146,6 +147,215 @@ public:
             const auto* track = controller.getLibrary().findTrackByFile (file);
             return track != nullptr ? track->id : juce::String {};
         };
+
+        beginTest ("unloaded shuffle preview preserves first-play history and protects newly current entries");
+        {
+            auto backend = std::make_unique<LibraryAudioBackend>();
+            auto* device = backend.get();
+            PlayerController controller (std::move (backend));
+            controller.addPreparedTracks ({ reader.read (a), reader.read (b), reader.read (c) });
+            controller.setShuffleEnabled (true);
+            const auto preview = controller.getPlaybackQueue();
+            expect (controller.setPlaying (true));
+            const auto loaded = controller.getPlaybackQueue();
+            expectEquals (static_cast<int> (loaded.size()), static_cast<int> (preview.size()));
+            for (size_t i = 0; i < std::min (loaded.size(), preview.size()); ++i)
+                expectEquals (loaded[i].track.id, preview[i].track.id);
+            expectEquals (static_cast<int> (std::count_if (loaded.begin(), loaded.end(), [] (const auto& row) { return row.current; })), 1);
+            const auto first = controller.getLoadedTrackId();
+            expect (controller.nextTrack());
+            expect (controller.previousTrack());
+            expectEquals (controller.getLoadedTrackId(), first);
+            controller.setShuffleEnabled (false);
+            expect (controller.playLibraryTracks ({ idFor (controller, a), idFor (controller, b), idFor (controller, c) }));
+            const auto second = controller.getPlaylist().getTrack (1)->id;
+            const auto third = controller.getPlaylist().getTrack (2)->id;
+            juce::AudioBuffer<float> output (2, 256);
+            for (int block = 0; block < 755; ++block)
+            {
+                device->render (output);
+                if (block % 16 == 0) juce::Thread::sleep (1);
+            }
+            // UI has not polled the new boundary; the edit synchronizes inside its playback scope.
+            expect (! controller.removeUpcomingQueueEntries ({ second }));
+            expectEquals (controller.getLoadedTrackId(), second);
+            expect (! controller.moveUpcomingQueueEntry (third, -1));
+            expect (controller.isPlaying());
+            expectEquals (controller.getPlaylist().size(), 3);
+        }
+
+        beginTest ("published shuffle order survives natural progress and manual Next");
+        {
+            auto backend = std::make_unique<LibraryAudioBackend>();
+            auto* device = backend.get();
+            PlayerController controller (std::move (backend));
+            std::vector<TrackMetadataResult> imported;
+            for (int i = 0; i < 7; ++i) imported.push_back (reader.read (write ("Queue-" + juce::String (i), 0.1f * static_cast<float> (i + 1), 4800)));
+            controller.importPreparedTracks (std::move (imported), "all");
+            std::vector<juce::String> ids;
+            for (const auto& track : controller.getLibrary().getTracks()) ids.push_back (track.id);
+            controller.setShuffleEnabled (true);
+            expect (controller.playLibraryTracks (ids));
+            const auto initial = controller.getPlaybackQueue();
+            expectEquals (static_cast<int> (initial.size()), 7);
+            expectEquals (static_cast<int> (std::count_if (initial.begin(), initial.end(), [] (const auto& row) { return row.current; })), 1);
+            juce::AudioBuffer<float> output (2, 256);
+            for (int block = 0; block < 21; ++block)
+            {
+                device->render (output);
+                juce::Thread::sleep (1);
+            }
+            controller.synchronizePlayback();
+            auto current = controller.getPlaybackQueue();
+            expectEquals (static_cast<int> (current.size()), 6);
+            if (current.size() == 6 && initial.size() == 7)
+                for (size_t i = 0; i < current.size(); ++i)
+                {
+                    expectEquals (current[i].key, initial[i + 1].key);
+                    expectEquals (current[i].track.id, initial[i + 1].track.id);
+                }
+            expect (controller.setPlaying (false));
+            while (current.size() > 1)
+            {
+                const auto before = current;
+                expect (controller.nextTrack());
+                current = controller.getPlaybackQueue();
+                expectEquals (static_cast<int> (current.size()), static_cast<int> (before.size()) - 1);
+                if (current.size() + 1 != before.size()) break;
+                for (size_t i = 0; i < current.size(); ++i)
+                    expectEquals (current[i].track.id, before[i + 1].track.id);
+            }
+            expect (! controller.nextTrack());
+            controller.setRepeatMode (RepeatMode::all);
+            for (int i = 0; i < 16; ++i)
+            {
+                const auto before = controller.getPlaybackQueue();
+                expect (before.size() > 1);
+                expect (controller.nextTrack());
+                const auto after = controller.getPlaybackQueue();
+                expectEquals (static_cast<int> (std::count_if (after.begin(), after.end(), [] (const auto& row) { return row.current; })), 1);
+                for (size_t j = 0; j + 1 < before.size() && j < after.size(); ++j)
+                    expectEquals (after[j].track.id, before[j + 1].track.id);
+            }
+            controller.setRepeatMode (RepeatMode::one);
+            const auto repeated = controller.getPlaybackQueue();
+            expectEquals (static_cast<int> (repeated.size()), 1);
+            expect (controller.nextTrack(), "Manual Next skips Repeat one.");
+        }
+
+        beginTest ("preparation failures invalidate the published queue before a transport refresh");
+        {
+            PlayerController controller (std::make_unique<LibraryAudioBackend>());
+            const auto shortCurrent = write ("Before-corrupt", 0.2f, 4800);
+            auto corrupt = reader.read (b);
+            const auto broken = root.getChildFile ("corrupt-upcoming.wav");
+            expect (broken.replaceWithText ("not an audio file"));
+            corrupt.track.file = broken;
+            controller.importPreparedTracks ({ reader.read (shortCurrent), corrupt, reader.read (c) }, "all");
+            const auto aid = idFor (controller, shortCurrent), bid = idFor (controller, broken), cid = idFor (controller, c);
+            expect (controller.playLibraryTracks ({ aid, bid, cid }));
+            const auto before = controller.getPlaybackQueueVersion();
+            juce::Thread::sleep (100);
+            // Pause consumes preparation failures before the UI timer polls.
+            expect (controller.setPlaying (false));
+            const auto after = controller.getPlaybackQueueVersion();
+            expect (before != after);
+            const auto queue = controller.getPlaybackQueue();
+            expect (std::none_of (queue.begin(), queue.end(), [&] (const auto& row) { return row.track.libraryId == bid; }));
+            expectEquals (controller.getPlaylist().getSelectedTrack()->libraryId, aid);
+        }
+
+        beginTest ("visible upcoming neighbours move across unavailable source entries");
+        {
+            PlayerController controller (std::make_unique<LibraryAudioBackend>());
+            auto missing = reader.read (root.getChildFile ("unavailable.wav"));
+            const auto saved = controller.importPreparedPlaylist ("Gaps", { reader.read (a), reader.read (b), missing, reader.read (c) });
+            std::vector<juce::String> ids;
+            for (const auto& entry : controller.getLibrary().getPlaylist (saved)->entries) ids.push_back (entry.trackId);
+            expect (controller.playLibraryTracks (ids));
+            expect (controller.setPlaying (false));
+            const auto before = controller.getPlaybackQueue();
+            expectEquals (static_cast<int> (before.size()), 3);
+            if (before.size() == 3)
+            {
+                expect (controller.moveUpcomingQueueEntry (before[1].track.id, 1));
+                const auto after = controller.getPlaybackQueue();
+                expectEquals (after[1].track.id, before[2].track.id);
+                expectEquals (controller.getLoadedTrackId(), before[0].track.id);
+            }
+        }
+
+        beginTest ("collection playback continues past a first unreadable selection");
+        {
+            PlayerController controller (std::make_unique<LibraryAudioBackend>());
+            const auto removed = root.getChildFile ("removed-first.wav");
+            expect (a.copyFileTo (removed));
+            controller.importPreparedTracks ({ reader.read (removed), reader.read (b) }, "all");
+            const auto first = idFor (controller, removed), second = idFor (controller, b);
+            expect (removed.deleteFile());
+            expect (controller.playLibraryTracks ({ first, second }));
+            expectEquals (controller.getPlaylist().getSelectedTrack()->libraryId, second);
+        }
+
+        beginTest ("playlist covers persist, duplicate safely and reject corrupt replacements");
+        {
+            const auto artworkRoot = root.getChildFile ("playlist-covers");
+            PlayerController controller (std::make_unique<LibraryAudioBackend>(), {}, artworkRoot);
+            const auto id = controller.createSavedPlaylist ("Cover playlist");
+            const auto imageFile = root.getChildFile ("cover.png");
+            juce::Image image (juce::Image::RGB, 80, 50, true);
+            image.clear (image.getBounds(), juce::Colours::coral);
+            { auto stream = imageFile.createOutputStream(); juce::PNGImageFormat png; expect (png.writeImageToStream (image, *stream)); }
+            const auto choose = [&] (const juce::File& file)
+            {
+                bool done = false, ok = false;
+                controller.choosePlaylistArtwork (id, file, [&] (bool success, const auto&) { done = true; ok = success; });
+                const auto end = juce::Time::getMillisecondCounterHiRes() + 5000;
+                while (! done && juce::Time::getMillisecondCounterHiRes() < end)
+                    juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
+                expect (done);
+                return ok;
+            };
+            expect (choose (imageFile));
+            const auto key = controller.getLibrary().getPlaylist (id)->artworkCacheKey;
+            expect (key.isNotEmpty() && controller.resolveArtworkFile (key).existsAsFile());
+            const auto copy = controller.duplicateSavedPlaylist (id);
+            PlayerAppState state; juce::String error;
+            expect (controller.captureStateSnapshot (state, error), error);
+            const auto restored = AppStateStore::fromValueTree (AppStateStore::toValueTree (state));
+            expectEquals (restored.library.getPlaylist (id)->artworkCacheKey, key);
+            expect (imageFile.replaceWithText ("invalid image"));
+            expect (! choose (imageFile));
+            expectEquals (controller.getLibrary().getPlaylist (id)->artworkCacheKey, key);
+            const auto stateFile = root.getChildFile ("saved-cover.xml");
+            const auto pluginFile = root.getChildFile ("saved-cover-plugins.xml");
+            PlayerAppState pending;
+            expect (controller.captureStateSnapshot (pending, error));
+            const auto retained = controller.retainArtworkForStateSave (pending);
+            StateSaveService saver;
+            bool saved = false;
+            expect (saver.start (std::move (pending), stateFile, [&] (bool ok, juce::String message)
+            {
+                expect (ok, message);
+                if (ok) controller.acknowledgeSavedArtwork (retained);
+                saved = true;
+            }));
+            expect (controller.resetPlaylistArtwork (id));
+            expect (controller.resolveArtworkFile (key).existsAsFile(), "A duplicate retains the shared cover.");
+            expect (controller.deleteSavedPlaylist (copy));
+            expect (controller.resolveArtworkFile (key).existsAsFile(), "The in-flight snapshot still owns its custom cover.");
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 5000;
+            while (! saved && juce::Time::getMillisecondCounterHiRes() < deadline)
+                juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
+            expect (saved);
+            expect (controller.resolveArtworkFile (key).existsAsFile(), "The last durable state still owns its custom cover.");
+            const auto blocked = root.getChildFile ("blocked-state-parent");
+            expect (blocked.replaceWithText ("file"));
+            expect (! controller.saveState (blocked.getChildFile ("state.xml"), pluginFile));
+            expect (controller.resolveArtworkFile (key).existsAsFile(), "A failed save must not orphan the durable cover.");
+            expect (controller.saveState (stateFile, pluginFile));
+            expect (! controller.resolveArtworkFile (key).existsAsFile());
+        }
 
         for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
                                    OutputLayout::sevenOneTwo, OutputLayout::nineOneSix })

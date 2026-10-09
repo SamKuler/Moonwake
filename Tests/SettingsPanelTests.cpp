@@ -1218,10 +1218,10 @@ public:
             juce::Label brand, status;
             juce::TextButton studio, listening, effects, settings;
             juce::TextButton libraryOpen { "Library" }, playerOpen { "Now playing" };
-            juce::TextButton favouritesOpen { "Favourites" }, queueOpen { "Play queue" };
-            for (auto* component : std::array<juce::Component*, 10> {
+            juce::TextButton favouritesOpen { "Favourites" }, queueOpen { "Play queue" }, addMusic { "Add music" };
+            for (auto* component : std::array<juce::Component*, 11> {
                      &brand, &status, &studio, &listening, &effects, &settings,
-                     &libraryOpen, &playerOpen, &favouritesOpen, &queueOpen })
+                     &libraryOpen, &playerOpen, &favouritesOpen, &queueOpen, &addMusic })
                 root.addAndMakeVisible (component);
             root.addAndMakeVisible (title);
             root.addAndMakeVisible (close);
@@ -1239,6 +1239,7 @@ public:
             expect (bindings.bind ("effects.open", effects, report));
             expect (bindings.bind ("settings.open", settings, report));
             expect (bindings.bind ("library.open", libraryOpen, report));
+            expect (bindings.bind ("library.add", addMusic, report));
             expect (bindings.bind ("player.open", playerOpen, report));
             expect (bindings.bind ("library.browseFavourites", favouritesOpen, report));
             expect (bindings.bind ("library.browseQueue", queueOpen, report));
@@ -1254,8 +1255,9 @@ public:
                     report.toText());
             expect (libraryOpen.isVisible() && ! libraryOpen.getBounds().isEmpty());
             expect (playerOpen.isVisible() && ! playerOpen.getBounds().isEmpty());
-            expect (favouritesOpen.isVisible() && ! favouritesOpen.getBounds().isEmpty());
-            expect (queueOpen.isVisible() && ! queueOpen.getBounds().isEmpty());
+            expect (! favouritesOpen.isVisible());
+            expect (! queueOpen.isVisible());
+            expect (addMusic.isVisible() && ! addMusic.getBounds().isEmpty());
             expect (audio.deviceControl().isVisible(), "Audio device control must be visible.");
             expect (audio.headingControl().isVisible(), "Audio heading must be visible.");
             const auto audioHeadingBounds = root.getLocalArea (
@@ -1308,8 +1310,9 @@ public:
                     report.toText());
             expect (libraryOpen.isVisible() && ! libraryOpen.getBounds().isEmpty());
             expect (playerOpen.isVisible() && ! playerOpen.getBounds().isEmpty());
-            expect (favouritesOpen.isVisible() && ! favouritesOpen.getBounds().isEmpty());
-            expect (queueOpen.isVisible() && ! queueOpen.getBounds().isEmpty());
+            expect (! favouritesOpen.isVisible());
+            expect (! queueOpen.isVisible());
+            expect (addMusic.isVisible() && ! addMusic.getBounds().isEmpty());
             const auto compactAudio = root.getLocalArea (
                 &audio.deviceControl(), audio.deviceControl().getLocalBounds());
             const auto compactPlugins = root.getLocalArea (

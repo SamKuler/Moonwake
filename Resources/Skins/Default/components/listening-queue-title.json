@@ -13,7 +13,7 @@
           "$expr": "bounds.y + 8"
         },
         "width": {
-          "$expr": "max(0, bounds.width - 20)"
+          "$expr": "max(0, bounds.width - 34)"
         },
         "height": 21
       },
@@ -44,7 +44,7 @@
           "$expr": "bounds.y + 30"
         },
         "width": {
-          "$expr": "max(0, bounds.width - 20)"
+          "$expr": "max(0, bounds.width - 34)"
         },
         "height": 18
       },

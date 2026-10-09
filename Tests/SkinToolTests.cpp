@@ -152,6 +152,12 @@ public:
                                  "--size", "1240x800", "--theme", "studio",
                                  "--theme", "listening" }).exitCode, 2);
             expectEquals (run ({ "validate", "skin", "--theme", "studio" }).exitCode, 2);
+            expectEquals (run ({ "validate", "skin", "--queue-open" }).exitCode, 2);
+            expectEquals (run ({ "layout", "skin", "--workspace", "listening", "--size", "1040x700",
+                                 "--queue-open", "--queue-open" }).exitCode, 2);
+            const auto openedQueue = SkinTool::parse ({ "layout", "skin", "--workspace", "listening", "--size", "1040x700", "--queue-open" });
+            expect (openedQueue.options && openedQueue.options->queueOpen);
+
             expectEquals (run ({ "snapshot", "skin", "--workspace", "listening",
                                  "--size", "1240x800" }).exitCode, 2);
             expectEquals (run ({ "snapshot", "skin", "--workspace", "listening",

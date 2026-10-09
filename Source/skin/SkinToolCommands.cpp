@@ -286,7 +286,7 @@ std::optional<SkinResolvedLayout> resolveLayout (
         juce::Rectangle<float> (0.0f, 0.0f,
                                 static_cast<float> (options.width),
                                 static_cast<float> (options.height)),
-        1.0f, report, options.theme, &skin);
+        1.0f, report, options.theme, &skin, { options.queueOpen });
 }
 
 ExecutionResult layoutCommand (const Options& options)
@@ -420,7 +420,7 @@ bool drawStyle (juce::Graphics& graphics, const CompiledSkin& skin,
 
 bool drawResolvedNode (juce::Graphics& graphics, const CompiledSkin& skin,
                        const SkinResolvedNode& node, SkinLayoutEntry workspace,
-                       WorkspaceMode theme,
+                       WorkspaceMode theme, bool queueOpen,
                        SkinTool::SnapshotState snapshotState,
                        std::optional<int> representativeFocusOrder,
                        SkinValidationReport& report)
@@ -453,7 +453,8 @@ bool drawResolvedNode (juce::Graphics& graphics, const CompiledSkin& skin,
                     targetName = found->second;
             const auto target = skinRenderTargetFromName (targetName);
             const auto* style = target ? skin.resolveStyle (*target, node.style) : nullptr;
-            const auto selected = node.componentId == "workspace." + toString (theme);
+            const auto selected = node.componentId == "workspace." + toString (theme)
+                || (node.componentId == "queue.toggle" && queueOpen);
             ok = style != nullptr
                 && drawStyle (graphics, skin, *style, node,
                               PlayerComponentCatalog::isRequired (descriptor->id, workspace),
@@ -463,7 +464,7 @@ bool drawResolvedNode (juce::Graphics& graphics, const CompiledSkin& skin,
     }
 
     for (const auto& child : node.children)
-        ok = drawResolvedNode (graphics, skin, child, workspace, theme,
+        ok = drawResolvedNode (graphics, skin, child, workspace, theme, queueOpen,
                                snapshotState, representativeFocusOrder,
                                report) && ok;
 
@@ -508,7 +509,7 @@ ExecutionResult snapshotCommand (const Options& options)
     if (! drawResolvedNode (graphics, *loaded->compiled, resolved->root,
                             *options.workspace,
                             options.theme.value_or (loaded->compiled->layouts.at (*options.workspace).defaultWorkspace),
-                            options.snapshotState,
+                            options.queueOpen, options.snapshotState,
                             representativeFocusOrder,
                             loaded->report)
         || loaded->report.hasErrors())
@@ -764,8 +765,8 @@ juce::String helpText()
 Usage:
   MoonwakeSkinTool validate <path> [--warnings-as-errors]
   MoonwakeSkinTool pack <directory> --output <file.moonwake-skin> [--force]
-  MoonwakeSkinTool layout <path> --workspace <studio|listening|effects|settings|library|collection> --size <WxH> [--theme <studio|listening>]
-  MoonwakeSkinTool snapshot <path> --workspace <studio|listening|effects|settings|library|collection> --size <WxH> --output <file.png> [--theme <studio|listening>] [--state <representative|normal|hover|pressed|selected|focused|disabled>] [--force]
+  MoonwakeSkinTool layout <path> --workspace <studio|listening|effects|settings|library|collection> --size <WxH> [--theme <studio|listening>] [--queue-open]
+  MoonwakeSkinTool snapshot <path> --workspace <studio|listening|effects|settings|library|collection> --size <WxH> --output <file.png> [--theme <studio|listening>] [--queue-open] [--state <representative|normal|hover|pressed|selected|focused|disabled>] [--force]
   MoonwakeSkinTool schema --output-dir <directory> [--force]
   MoonwakeSkinTool verify-docs --guide <file.md> --example <skin-directory>
 
@@ -854,6 +855,13 @@ ParseResult parse (const juce::StringArray& arguments)
             options.width = size->first;
             options.height = size->second;
             hasSize = true;
+            continue;
+        }
+        if (argument == "--queue-open"
+            && (options.command == Command::layout || options.command == Command::snapshot)
+            && ! options.queueOpen)
+        {
+            options.queueOpen = true;
             continue;
         }
         if (argument == "--theme"

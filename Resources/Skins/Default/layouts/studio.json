@@ -45,27 +45,7 @@
                 "style": "textButton.studioMode",
                 "width": 100,
                 "height": 36,
-                "focusOrder": 2,
-                "shrink": 0
-              },
-              {
-                "id": "studio-studio-root-library-open-favourites",
-                "type": "component",
-                "component": "library.browseFavourites",
-                "style": "textButton.studioMode",
-                "width": 100,
-                "height": 36,
-                "focusOrder": 3,
-                "shrink": 0
-              },
-              {
-                "id": "studio-studio-root-player-open-queue",
-                "type": "component",
-                "component": "library.browseQueue",
-                "style": "textButton.studioMode",
-                "width": 100,
-                "height": 36,
-                "focusOrder": 4,
+                "focusOrder": 1,
                 "shrink": 0
               },
               {
@@ -75,7 +55,7 @@
                 "style": "textButton.studioMode",
                 "width": 100,
                 "height": 36,
-                "focusOrder": 5,
+                "focusOrder": 2,
                 "shrink": 0
               },
               {
@@ -96,7 +76,7 @@
                     "style": "textButton.studioMode",
                     "width": 100,
                     "height": 36,
-                    "focusOrder": 10
+                    "focusOrder": 3
                   },
                   {
                     "id": "studio-workspace-listening",
@@ -105,9 +85,19 @@
                     "style": "textButton.studioMode",
                     "width": 100,
                     "height": 36,
-                    "focusOrder": 20
+                    "focusOrder": 4
                   }
                 ]
+              },
+              {
+                "id": "studio-0-global-add-music",
+                "type": "component",
+                "component": "library.add",
+                "style": "textButton.studioIconNeutral",
+                "width": 32,
+                "height": 32,
+                "shrink": 0,
+                "focusOrder": 5
               },
               {
                 "id": "studio-settings-open",
@@ -116,7 +106,7 @@
                 "style": "textButton.studioIconNeutral",
                 "width": 44,
                 "height": 44,
-                "focusOrder": 40
+                "focusOrder": 6
               }
             ]
           },
@@ -129,8 +119,7 @@
               {
                 "id": "studio-main-column",
                 "type": "column",
-                "width": "62%",
-                "shrink": 0,
+                "shrink": 1,
                 "gap": 16,
                 "children": [
                   {
@@ -165,13 +154,13 @@
                             "height": 28
                           },
                           {
-                            "id": "studio-studio-root-library-add",
+                            "id": "studio-0-queue-actions",
                             "type": "component",
-                            "component": "library.add",
-                            "style": "textButton.studioIconNeutral",
-                            "width": 32,
-                            "height": 32,
-                            "focusOrder": 110
+                            "component": "queue.actions",
+                            "style": "textButton.studioNeutral",
+                            "width": 72,
+                            "height": 28,
+                            "focusOrder": 30
                           }
                         ]
                       },
@@ -193,7 +182,7 @@
                               "bottom": 0,
                               "left": 0
                             },
-                            "focusOrder": 130,
+                            "focusOrder": 7,
                             "presentation": "table"
                           },
                           {
@@ -213,7 +202,8 @@
                     ],
                     "shrink": 1,
                     "grow": 1,
-                    "minHeight": 140
+                    "minHeight": 140,
+                    "visibleWhen": "view.queueOpen"
                   },
                   {
                     "id": "studio-rack",
@@ -253,7 +243,7 @@
                             "width": 104,
                             "height": 28,
                             "shrink": 0,
-                            "focusOrder": 290
+                            "focusOrder": 8
                           },
                           {
                             "id": "studio-rack-header-bypassAll",
@@ -263,7 +253,7 @@
                             "width": 104,
                             "height": 28,
                             "shrink": 0,
-                            "focusOrder": 295
+                            "focusOrder": 9
                           }
                         ]
                       },
@@ -280,7 +270,7 @@
                             "component": "effects.filter",
                             "style": "textEditor.studio",
                             "grow": 1,
-                            "focusOrder": 300
+                            "focusOrder": 10
                           },
                           {
                             "id": "studio-rack-type",
@@ -288,7 +278,7 @@
                             "component": "effects.typeFilter",
                             "style": "comboBox.studio",
                             "width": 100,
-                            "focusOrder": 310
+                            "focusOrder": 11
                           },
                           {
                             "id": "studio-rack-vendor",
@@ -296,7 +286,7 @@
                             "component": "effects.manufacturerFilter",
                             "style": "comboBox.studio",
                             "width": 180,
-                            "focusOrder": 320
+                            "focusOrder": 12
                           },
                           {
                             "id": "studio-rack-format",
@@ -304,7 +294,7 @@
                             "component": "effects.formatFilter",
                             "style": "comboBox.studio",
                             "width": 120,
-                            "focusOrder": 330
+                            "focusOrder": 13
                           }
                         ]
                       },
@@ -321,7 +311,7 @@
                             "component": "effects.catalog",
                             "style": "comboBox.studio",
                             "grow": 1,
-                            "focusOrder": 340
+                            "focusOrder": 14
                           },
                           {
                             "id": "studio-rack-add-label",
@@ -336,7 +326,7 @@
                             "component": "effects.scope",
                             "style": "comboBox.studio",
                             "width": 148,
-                            "focusOrder": 350
+                            "focusOrder": 15
                           },
                           {
                             "id": "studio-rack-insert",
@@ -345,7 +335,7 @@
                             "style": "textButton.studioIconPrimary",
                             "width": 32,
                             "height": 32,
-                            "focusOrder": 360
+                            "focusOrder": 16
                           }
                         ]
                       },
@@ -365,7 +355,7 @@
                               "top": 0,
                               "bottom": 0
                             },
-                            "focusOrder": 370
+                            "focusOrder": 17
                           },
                           {
                             "id": "studio-rack-empty",
@@ -381,14 +371,16 @@
                           }
                         ]
                       }
-                    ]
+                    ],
+                    "grow": 1
                   }
-                ]
+                ],
+                "grow": 1,
+                "width": "62%"
               },
               {
                 "id": "studio-output-panel",
                 "type": "column",
-                "grow": 1,
                 "padding": 16,
                 "style": "surface.studio",
                 "children": [
@@ -405,7 +397,7 @@
                         "component": "effects.outputLayout",
                         "style": "comboBox.studio",
                         "grow": 1,
-                        "focusOrder": 80
+                        "focusOrder": 18
                       },
                       {
                         "id": "studio-meter-mode",
@@ -413,7 +405,7 @@
                         "component": "output.mode",
                         "style": "comboBox.studio",
                         "grow": 1,
-                        "focusOrder": 85
+                        "focusOrder": 19
                       },
                       {
                         "id": "studio-meter-reset",
@@ -421,7 +413,7 @@
                         "component": "output.reset",
                         "style": "textButton.studioNeutral",
                         "width": 62,
-                        "focusOrder": 90
+                        "focusOrder": 20
                       }
                     ]
                   },
@@ -453,12 +445,14 @@
                           "top": 0,
                           "bottom": 0
                         },
-                        "focusOrder": 95
+                        "focusOrder": 21
                       }
                     ]
                   }
                 ],
-                "gap": 8
+                "gap": 8,
+                "width": "38%",
+                "shrink": 0
               }
             ]
           },
@@ -485,7 +479,7 @@
                     "style": "linearSlider.studio",
                     "presentation": "linearHorizontal",
                     "grow": 1,
-                    "focusOrder": 200
+                    "focusOrder": 22
                   },
                   {
                     "id": "studio-transport-time",
@@ -550,7 +544,7 @@
                         "style": "toggleButton.studioShuffle",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 205
+                        "focusOrder": 23
                       },
                       {
                         "id": "studio-transport-previous",
@@ -559,7 +553,7 @@
                         "style": "textButton.studioIconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 210
+                        "focusOrder": 24
                       },
                       {
                         "id": "studio-transport-playPause",
@@ -568,7 +562,7 @@
                         "style": "textButton.studioIconPrimary",
                         "width": 52,
                         "height": 52,
-                        "focusOrder": 220
+                        "focusOrder": 25
                       },
                       {
                         "id": "studio-transport-next",
@@ -577,7 +571,7 @@
                         "style": "textButton.studioIconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 230
+                        "focusOrder": 26
                       },
                       {
                         "id": "studio-transport-repeat-cycle",
@@ -586,7 +580,7 @@
                         "style": "textButton.studioRepeat",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 235
+                        "focusOrder": 27
                       }
                     ]
                   },
@@ -596,7 +590,7 @@
                     "width": 180,
                     "height": 56,
                     "anchors": {
-                      "right": 0,
+                      "right": 48,
                       "centerY": 0
                     },
                     "gap": 4,
@@ -629,9 +623,22 @@
                         "style": "linearSlider.studioGain",
                         "presentation": "linearHorizontal",
                         "height": 28,
-                        "focusOrder": 240
+                        "focusOrder": 28
                       }
                     ]
+                  },
+                  {
+                    "id": "studio-0-queue-toggle",
+                    "type": "component",
+                    "component": "queue.toggle",
+                    "style": "textButton.studioIconNeutral",
+                    "width": 36,
+                    "height": 36,
+                    "anchors": {
+                      "right": 0,
+                      "centerY": 0.5
+                    },
+                    "focusOrder": 29
                   }
                 ]
               }

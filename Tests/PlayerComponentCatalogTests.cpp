@@ -20,7 +20,7 @@ juce::StringArray exactIds()
         "library.gridSearch", "library.grid", "library.detailCover", "library.description",
         "library.play", "library.shufflePlay", "library.search", "library.collections", "library.actions", "library.newPlaylist",
         "library.title", "library.count", "library.empty", "library.tracks",
-        "queue.title", "queue.count", "queue.table", "queue.empty",
+        "queue.toggle", "queue.actions", "library.changeArtwork", "queue.title", "queue.count", "queue.table", "queue.empty",
         "queue.remove", "queue.clear", "queue.moveUp", "queue.moveDown",
         "artwork.cover", "artwork.metadata", "nowPlaying.eyebrow", "nowPlaying.title",
         "nowPlaying.metadata", "transport.previous", "transport.playPause",
@@ -265,7 +265,7 @@ public:
         {
             const std::map<juce::String, juce::String> expectedIcons {
                 { "settings.open", "settings" }, { "library.add", "add" },
-                { "queue.remove", "remove" }, { "queue.moveUp", "moveUp" },
+                { "queue.toggle", "queue" }, { "queue.remove", "remove" }, { "queue.moveUp", "moveUp" },
                 { "queue.moveDown", "moveDown" },
                 { "transport.previous", "previous" }, { "transport.repeatCycle", "repeat" },
                 { "transport.playPause", "play" }, { "transport.next", "next" },

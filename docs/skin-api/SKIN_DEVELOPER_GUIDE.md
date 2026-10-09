@@ -961,6 +961,7 @@ Studio、Listening、Effects 和 Settings 是四个基础入口。应用 0.7.0 �
 | clip | boolean | false | 是否裁剪子节点 |
 | zIndex | integer | 0 | stack 层级 |
 | visible | boolean | true | 静态可见性 |
+| visibleWhen | string | 无 | 0.7.0 起：仅使用 `view.queueOpen` 的布尔表达式；为 false 时移除整个子树并回收其 flex 空间与间距 |
 
 length 支持：
 
@@ -1213,28 +1214,37 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 | player.open | textButton | Library、Collection 必需；0.7.0 起 | 返回播放器或工作区会话 |
 | library.back | textButton | Collection 必需；0.7.0 起 | 返回曲库总览 |
 | library.browsePlaylists / library.browseAlbums / library.browseArtists | textButton | 可选；0.7.0 起 | 切换总览中的歌单、专辑或艺术家集合 |
-| library.browseSongs / library.browseFavourites / library.browseQueue | textButton | 可选；0.7.0 起 | 打开全部歌曲、收藏或播放队列详情 |
+| library.browseSongs / library.browseFavourites / library.browseQueue | textButton | 可选；0.7.0 起 | 打开全部歌曲、收藏歌单；browseQueue 是展开当前布局共享队列的兼容入口，不改变浏览页面，须遵守下述队列目标与开关约束 |
 | library.gridSearch | textEditor | 可选；0.7.0 起 | 筛选当前总览中的集合卡片 |
 | library.grid | playlistGrid | Library 必需；0.7.0 起 | 具有封面、名称和摘要的集合卡片网格 |
 | library.detailCover | artwork | 可选；0.7.0 起 | 当前集合封面，支持与 artwork.cover 相同的 presentation 和 frame slots |
 | library.description | label | 可选；0.7.0 起 | 当前集合描述 |
 | library.play / library.shufflePlay | textButton | 可选；0.7.0 起 | 从当前集合启动顺序或随机播放 |
 | library.search | textEditor | 可选 | 按作品名、艺术家、专辑、格式或声道数筛选当前浏览集合；仅使用队列表格的旧皮肤继续筛选队列；应用 0.2.0 新增 |
-| library.collections | comboBox | 可选；0.7.0 起 | 分组选择全部歌曲、专辑、艺术家、收藏、命名歌单和播放队列；命名歌单可通过可编辑文字重命名 |
+| library.collections | comboBox | 可选；0.7.0 起 | 分组选择全部歌曲、专辑、艺术家、收藏和命名歌单；命名歌单可通过可编辑文字重命名 |
 | library.newPlaylist | textButton | 可选；0.7.0 起 | 新建命名歌单 |
 | library.actions | textButton | 可选；0.7.0 起 | 当前集合及选区的操作菜单，包含播放、下一首播放、追加队列、收藏、歌单编辑、撤销及本地 M3U/M3U8 交换；可用操作由应用决定 |
 | library.title | label | 可选；0.7.0 起 | 当前浏览集合名称 |
 | library.count | label | 可选；0.7.0 起 | 当前集合的曲目数量，右对齐 |
 | library.empty | label | 可选；0.7.0 起 | 当前集合或搜索结果的空态提示 |
-| library.tracks | table | Collection 必需；Studio、Listening 可替代 queue.table；0.7.0 起 | 当前浏览集合的有序条目；选择播放队列集合时展示队列 |
+| library.tracks | table | Collection 必需；Studio、Listening 可替代 queue.table；0.7.0 起 | 当前浏览集合的有序条目 |
 | queue.title | label | 可选 | 播放队列标题 |
 | queue.count | label | 可选 | 播放队列曲目数量 |
-| queue.table | table | Studio、Listening 与 library.tracks 至少提供一个 | 始终展示播放队列，保持既有队列语义 |
+| library.changeArtwork | textButton | 可选；0.7.0 起 | 选择命名歌单封面；其他集合禁用；支持 PNG/JPEG，应用缓存并保存 |
+| queue.toggle | textButton | 可选；0.7.0 起 | 展开／收起共享队列；`state.selected` 表示展开；具有 `icon.queue` surface slot |
+| queue.actions | textButton | 可选；0.7.0 起 | 当前队列的另存歌单、导出和清空菜单；右键条目还提供可用的上下移动 |
+| queue.table | table | Studio、Listening 与 library.tracks 至少提供一个 | 当前播放条目及已发布的后续播放顺序，包含随机播放计划 |
 | queue.empty | label | 可选 | 空队列提示；不能替代 library.add |
 | queue.remove | textButton | 可选 | 删除队列选区 |
 | queue.clear | textButton | 可选 | 清空播放队列 |
 | queue.moveUp | textButton | 可选 | 上移队列选区 |
 | queue.moveDown | textButton | 可选 | 下移队列选区 |
+
+收藏以 `favourites` 集合身份常驻歌单网格首位，空收藏也保留。命名歌单的自定义封面优先于自动拼贴；歌单卡片、详情封面和详情标题的右键菜单提供更换／恢复自动封面、重命名、复制和删除；Actions 保留可聚焦的操作入口。内置皮肤与完整示例不单独摆放更换封面按钮，第三方皮肤仍可按需要使用可选的 `library.changeArtwork` 组件。曲目、收藏关系、封面文件缓存与播放行为由应用维护，皮肤通过组件和 slot 决定布局、字体、封面形状及各状态的绘制。
+
+`queue.toggle` 不导航到新页面。应用公开只读布局状态 `view.queueOpen`，皮肤可以将 `visibleWhen: "view.queueOpen"` 声明在队列容器上，也可通过 `not view.queueOpen` 切换其他装饰区域。条件在测量前求值；flex 的空隙、margin 和尺寸一并回收，grid 的显式轨道保持声明尺寸。仅支持这一实际使用的布尔状态；未知上下文、token 和非布尔结果均被拒绝。编译器验证开／关两个状态，数值运算错误报告 `LAYOUT018`。`queue.toggle` 必须在两个状态中可达。声明 `queue.toggle` 或兼容入口 `library.browseQueue` 的每个完整 root 都必须在展开状态提供可见的 `queue.table`；`library.tracks` 不能替代此目标。使用 `library.browseQueue` 打开可折叠队列时，还必须声明可达的 `queue.toggle` 以供收起；队列表格始终可见时可省略开关。这些可达性错误报告 `LAYOUT011`，交互节点继续使用唯一正数 `focusOrder`。布局引擎参数缺省为关闭。完整示例的 Library 与 Collection 入口演示内嵌队列，Library 同时保留兼容入口。
+
+应用默认在 Now Playing 展示队列；用户显式开关后，跨页面保留该选择。Library、Collection 与 Now Playing 复用同一个队列表格和播放计划；皮肤决定侧栏、上下布局以及收起后的空间分配。随机播放的后续顺序来自已成功发布给音频引擎的计划，手动 Next 与自然换曲均遵循它。循环队列只展示有限的剩余前缀与一轮循环；当前条目通过 `row.playing` 标记。移除操作以队列条目为单位，当前播放条目固定；移动仅在可保留实际待播顺序的相邻非当前条目间启用。
 
 `queue.table` 与 `library.tracks` 使用相同的 table renderer target、slots 和最小尺寸，可设置 `presentation: "table"` 或 `presentation: "list"`。table 展示标题、位置和时长列；list 使用无表头的较高行，展示标题和时长。省略 presentation 等同于 `table`，行高、表头高度和列几何继续使用解析出的 Skin rowLayout。布局切换和窗口缩放保留表格中的用户列调整；组件从皮肤布局卸载时恢复宿主原始列宽、顺序、可见性、行高和表头高度。`queue.table` 的 presentation 选项自应用 `0.3.0` 起提供；新增 `library.*` 组件要求 `minAppVersion` 为 `0.7.0` 或更高。
 
@@ -1552,7 +1562,7 @@ workspace.listening
 app.status
 ~~~
 
-每个 Studio 和 Listening 最终布局还必须包含 `queue.table` 或 `library.tracks`，也可以同时包含两者。至少一个表格须可见、具有非零尺寸且透明度大于 0；祖先容器的隐藏或透明同样参与检查。`queue.table` 的 descriptor 通过 `requiredAlternatives` 声明 `library.tracks`；替代关系只满足工作区内容要求，不改变两个组件的数据归属。仅提供原有 `queue.table` 的皮肤继续有效。
+每个 Studio 和 Listening 最终布局还必须包含 `queue.table` 或 `library.tracks`，也可以同时包含两者。至少一个表格须可见、具有非零尺寸且透明度大于 0；使用 `queue.toggle` 的布局允许队列表格在关闭状态按条件折叠，但按钮必须可见，展开状态必须显示表格；祖先容器的隐藏或透明同样参与检查。`queue.table` 的 descriptor 通过 `requiredAlternatives` 声明 `library.tracks`；替代关系只满足工作区内容要求，不改变两个组件的数据归属，也不能满足 `queue.toggle` 或 `library.browseQueue` 对队列目标的要求。仅提供原有 `queue.table` 的皮肤继续有效。
 
 可选的 Library 和 Collection 入口各自必须包含 `library.open`、`player.open`、`workspace.studio`、`workspace.listening`、`settings.open`、`app.status`，以及 `transport.previous`、`transport.playPause`、`transport.next`、`transport.seek`、`transport.time`、`transport.volume`。Library 还必须包含 `library.grid`；Collection 还必须包含 `library.tracks` 和 `library.back`。这些组件在基础 root 和每个完整 breakpoint root 中都必须可用。`library.add` 在这两个入口中可选。
 
@@ -2046,6 +2056,8 @@ Suggestion: add one visible component node with component "library.add".
     ./build/MoonwakeSkinTool snapshot MyFirstSkin/ --workspace listening --size 1240x800 --output preview.png [--theme studio|listening] [--state representative|normal|hover|pressed|selected|focused|disabled] [--force]
     ./build/MoonwakeSkinTool layout MyFirstSkin/ --workspace effects --size 1240x800 --theme studio
     ./build/MoonwakeSkinTool snapshot MyFirstSkin/ --workspace settings --size 1240x800 --theme listening --output settings-listening.png
+
+`layout` 与 `snapshot` 可传入 `--queue-open` 预览展开状态，省略时为关闭。其他命令或重复使用该参数报告 `TOOL001`。
 
 `layout` 与 `snapshot` 的 `--workspace` 接受 `studio|listening|effects|settings|library|collection`，`--theme studio|listening` 选择断点匹配的当前工作区。可选页面必须由皮肤声明。`--theme` 可省略，默认按入口推导；也可在两个主入口上显式覆盖，便于检查条件分支。未知值、重复参数或其他命令使用此参数均报 `TOOL001`，缺少参数值报 `TOOL002`。
 

@@ -1,4 +1,5 @@
 #include "SkinLayoutCompiler.h"
+#include "SkinExpression.h"
 
 #include <algorithm>
 #include <set>
@@ -87,8 +88,8 @@ bool isExplicitZero (const SkinLength& value)
 class Compiler
 {
 public:
-    Compiler (SkinLayoutEntry entryIn, SkinValidationReport& reportIn)
-        : entry (entryIn), report (reportIn)
+    Compiler (SkinLayoutEntry entryIn, SkinValidationReport& reportIn, bool queueOpenIn)
+        : entry (entryIn), report (reportIn), queueOpen (queueOpenIn)
     {
     }
 
@@ -218,7 +219,8 @@ private:
         if (parent.kind == ParentKind::stack && ! validateStackAnchors (node.common))
             return std::nullopt;
 
-        const auto visible = ancestorVisible && node.common.visible;
+        const auto visible = ancestorVisible && node.common.visible
+            && (! node.common.visibleWhen || (*node.common.visibleWhen)[queueOpen ? 1 : 0]);
         const auto opacity = ancestorOpacity * node.common.opacity;
         const auto zero = ancestorZero || isExplicitZero (node.common.width)
                        || isExplicitZero (node.common.height)
@@ -331,6 +333,21 @@ private:
         common.clip = static_cast<bool> (value.getProperty ("clip", false));
         common.zIndex = static_cast<int> (value.getProperty ("zIndex", 0));
         common.visible = static_cast<bool> (value.getProperty ("visible", true));
+        if (hasProperty (value, "visibleWhen"))
+        {
+            const auto expression = SkinExpression::compile (value.getProperty ("visibleWhen", {}).toString(),
+                { { "view.queueOpen", SkinExpressionType::boolean } }, SkinTokenStore {}, report,
+                "layout.json", common.id + "/visibleWhen");
+            if (! expression) return false;
+            const auto off = expression->evaluateWithBooleanContext ("view.queueOpen", false);
+            const auto on = expression->evaluateWithBooleanContext ("view.queueOpen", true);
+            if (expression->resultType() != SkinExpressionType::boolean || ! off || ! on)
+            {
+                fail ("LAYOUT018", common.id, "visibleWhen must evaluate to a boolean in every layout view state.");
+                return false;
+            }
+            common.visibleWhen = std::array<bool, 2> { std::get<bool> (*off), std::get<bool> (*on) };
+        }
         common.gridColumn = static_cast<int> (value.getProperty ("column", 0));
         common.gridRow = static_cast<int> (value.getProperty ("row", 0));
         common.columnSpan = static_cast<int> (value.getProperty ("columnSpan", 1));
@@ -449,6 +466,25 @@ private:
 
     bool validateRequired (const TreeState& state)
     {
+        if (state.components.contains ("queue.toggle") && ! state.visibleComponents.contains ("queue.toggle"))
+        {
+            fail ("LAYOUT011", "queue.toggle", "The queue toggle must remain reachable in both view states.");
+            return false;
+        }
+        if (queueOpen && (state.components.contains ("queue.toggle")
+                          || state.components.contains ("library.browseQueue"))
+            && ! state.visibleComponents.contains ("queue.table"))
+        {
+            fail ("LAYOUT011", "queue.table", "A queue opener requires a visible queue table when view.queueOpen is true.");
+            return false;
+        }
+        if (! queueOpen && state.components.contains ("library.browseQueue")
+            && ! state.visibleComponents.contains ("queue.table")
+            && ! state.visibleComponents.contains ("queue.toggle"))
+        {
+            fail ("LAYOUT011", "queue.toggle", "A collapsible queue opened by library.browseQueue requires a visible queue toggle.");
+            return false;
+        }
         for (const auto& descriptor : PlayerComponentCatalog::descriptors())
             if (descriptor.requiredIn.contains (entry))
             {
@@ -467,6 +503,8 @@ private:
                 }
                 if (! containsAny (state.visibleComponents))
                 {
+                    if (descriptor.id == "queue.table" && ! queueOpen
+                        && state.visibleComponents.contains ("queue.toggle")) continue;
                     fail ("LAYOUT011", descriptor.id,
                           "Required component is statically hidden, transparent or zero-sized.");
                     return false;
@@ -509,6 +547,7 @@ private:
     SkinValidationReport& report;
     std::set<juce::String> nodeIds;
     int nodeCount = 0;
+    bool queueOpen;
 };
 } // namespace
 
@@ -522,5 +561,6 @@ std::optional<SkinLayoutDefinition> SkinLayoutCompiler::compile (
                          "SkinLayoutCompiler requires a validated layout document.");
         return std::nullopt;
     }
-    return Compiler (entry, report).run (document.value());
+    if (! Compiler (entry, report, true).run (document.value())) return std::nullopt;
+    return Compiler (entry, report, false).run (document.value());
 }

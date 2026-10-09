@@ -15,6 +15,8 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <map>
+#include <tuple>
 #include <vector>
 #include <unordered_map>
 
@@ -23,6 +25,13 @@ struct SkinPersistenceState
     juce::String activeSkinId = "builtin.default";
     juce::String activeSkinVersion;
     juce::File developerDirectory;
+};
+
+struct PlaybackQueueEntry
+{
+    TrackItem track;
+    juce::String key;
+    bool current = false;
 };
 
 class PlayerController : private juce::AudioProcessorListener
@@ -38,6 +47,9 @@ public:
 
     juce::String addFiles (const juce::Array<juce::File>& files);
     juce::String addPreparedTracks (std::vector<TrackMetadataResult> tracks);
+    [[nodiscard]] std::vector<PlaybackQueueEntry> getPlaybackQueue() const;
+    [[nodiscard]] auto getPlaybackQueueVersion() const
+    { return std::make_tuple (playbackGeneration, playbackSequence, playbackFailureRevision, playbackCoordinator.getLoadedTrackId()); }
     [[nodiscard]] const MusicLibrary& getLibrary() const noexcept { return library; }
     [[nodiscard]] juce::File resolveArtworkFile (const juce::String& key) const { return artworkStore.resolve (key); }
     [[nodiscard]] juce::String getLoadedTrackId() const { return playbackCoordinator.getLoadedTrackId(); }
@@ -48,6 +60,9 @@ public:
                                       const juce::String& targetCollectionId);
     juce::String importPreparedPlaylist (juce::String name, std::vector<TrackMetadataResult>);
     juce::String createSavedPlaylist (juce::String name);
+    void choosePlaylistArtwork (const juce::String& id, juce::File image,
+                                std::function<void(bool, const juce::String&)> completion);
+    bool resetPlaylistArtwork (const juce::String& id);
     bool renameSavedPlaylist (const juce::String& id, juce::String name);
     juce::String duplicateSavedPlaylist (const juce::String& id);
     bool deleteSavedPlaylist (const juce::String& id);
@@ -74,6 +89,9 @@ public:
     bool handlePlaybackFinished();
     bool handlePlaybackReadError();
     bool synchronizePlayback (bool finishQueue = true, bool* preparationFailed = nullptr);
+    bool removeUpcomingQueueEntries (const std::vector<juce::String>& ids);
+    [[nodiscard]] bool canMoveUpcomingQueueEntry (const juce::String& id, int direction) const;
+    bool moveUpcomingQueueEntry (const juce::String& id, int direction);
     bool removeTrack (int index);
     bool moveTrack (int fromIndex, int toIndex);
     void clearPlaylist();
@@ -109,6 +127,8 @@ public:
     bool setEffectScopeAtIndex (int effectIndex, const EffectScope&);
     [[nodiscard]] bool captureStateSnapshot (PlayerAppState&,
                                              juce::String& errorMessage);
+    juce::StringArray retainArtworkForStateSave (const PlayerAppState&);
+    void acknowledgeSavedArtwork (juce::StringArray references);
     bool saveState (const juce::File& stateFile, const juce::File& pluginListFile);
     bool loadState (const juce::File& stateFile, const juce::File& pluginListFile);
     bool applyPreparedState (StateRestoreResult result);
@@ -168,6 +188,11 @@ private:
     PluginManager pluginManager;
     TrackMetadataReader metadataReader;
     ArtworkStore artworkStore;
+    std::unordered_set<std::string> savedArtworkReferences;
+    juce::StringArray deferredArtworkRemoval;
+    juce::ThreadPool playlistArtworkJobs { 1 };
+    std::map<juce::String, uint64_t> artworkRequests;
+    uint64_t nextArtworkRequest = 0;
     PlaybackCoordinator playbackCoordinator;
     PlaybackCheckpoint playbackCheckpoint;
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
@@ -188,6 +213,7 @@ private:
     std::unordered_map<uint64_t, uint64_t> failedPlaybackItems;
     uint64_t playbackGeneration = 0;
     uint64_t playbackSequence = 0;
+    uint64_t playbackFailureRevision = 0;
     bool upcomingPlaybackDirty = false;
     juce::StringArray restoreDiagnostics;
 
@@ -195,9 +221,16 @@ private:
     void rememberAudioDeviceSettings();
     juce::String restoreAudioDeviceSettings (const PlayerAppState&);
     bool loadTrackById (const juce::String& trackId, bool shouldPlay,
-                        std::optional<PlaylistNavigation> navigation = {});
+                        std::optional<PlaylistNavigation> navigation = {},
+                        const PlaylistPlaybackPlan* publishedTail = nullptr);
     bool navigatePlayback (PlaylistNavigation, bool shouldPlay);
-    bool refreshUpcomingPlayback();
+    struct PublishedQueue
+    {
+        PlaylistPlaybackPlan navigation;
+        std::vector<uint64_t> sequences;
+    };
+    [[nodiscard]] PublishedQueue publishedQueueFrom (uint64_t sequence) const;
+    bool refreshUpcomingPlayback (const PlaylistPlaybackPlan* publishedTail = nullptr);
     bool synchronizePlayback (const AudioPlaybackProgress&, bool finishQueue, bool* preparationFailed);
     [[nodiscard]] juce::String getSelectedTrackId() const;
     void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override;

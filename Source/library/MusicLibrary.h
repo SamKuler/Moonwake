@@ -24,6 +24,7 @@ struct SavedPlaylist
     // Unix epoch milliseconds; zero means the saved time is unknown.
     juce::int64 createdAtMs = 0;
     juce::int64 updatedAtMs = 0;
+    juce::String artworkCacheKey;
 };
 
 class MusicLibrary
@@ -40,6 +41,7 @@ public:
     juce::String createPlaylist (juce::String name);
     bool renamePlaylist (const juce::String& id, juce::String name);
     juce::String duplicatePlaylist (const juce::String& id, juce::String name);
+    bool setPlaylistArtwork (const juce::String& id, juce::String cacheKey);
     bool removePlaylist (const juce::String& id);
     bool movePlaylist (const juce::String& id, int toIndex);
     std::vector<PlaylistEntry> addToPlaylist (

@@ -150,6 +150,15 @@ juce::String MusicLibrary::duplicatePlaylist (const juce::String& id, juce::Stri
     return playlists.back().id;
 }
 
+bool MusicLibrary::setPlaylistArtwork (const juce::String& id, juce::String key)
+{
+    auto* playlist = editablePlaylist (id);
+    if (playlist == nullptr || playlist->artworkCacheKey == key) return false;
+    playlist->artworkCacheKey = std::move (key);
+    playlist->updatedAtMs = juce::Time::currentTimeMillis();
+    return true;
+}
+
 bool MusicLibrary::removePlaylist (const juce::String& id)
 {
     const auto oldSize = playlists.size();

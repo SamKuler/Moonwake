@@ -153,6 +153,7 @@ bool restoreLibrary (const juce::ValueTree& root, MusicLibrary& library)
         SavedPlaylist playlist;
         playlist.id = child.getProperty (idProperty).toString();
         playlist.name = child.getProperty ("name").toString();
+        playlist.artworkCacheKey = child.getProperty (artworkCacheKeyProperty).toString();
         playlist.createdAtMs = static_cast<juce::int64> (child.getProperty ("createdAtMs", 0));
         playlist.updatedAtMs = static_cast<juce::int64> (child.getProperty ("updatedAtMs", 0));
         for (const auto entry : child)
@@ -313,6 +314,7 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
         juce::ValueTree saved ("SavedPlaylist");
         saved.setProperty (idProperty, playlist.id, nullptr);
         saved.setProperty ("name", playlist.name, nullptr);
+        saved.setProperty (artworkCacheKeyProperty, playlist.artworkCacheKey, nullptr);
         saved.setProperty ("createdAtMs", playlist.createdAtMs, nullptr);
         saved.setProperty ("updatedAtMs", playlist.updatedAtMs, nullptr);
         for (const auto& entry : playlist.entries)

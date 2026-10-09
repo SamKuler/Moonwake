@@ -396,14 +396,15 @@ bool PlaylistModel::selectTrack (int index)
     if (! isValidIndex (index))
         return false;
 
-    if (navigation.selectedIndex != index)
+    const auto changed = navigation.selectedIndex != index;
+    if (changed)
     {
         navigation.playNextTracks.clear();
         navigation.history.resize (static_cast<size_t> (navigation.historyIndex + 1));
     }
     navigation.selectedIndex = index;
     recordSelection();
-    if (shuffleEnabled)
+    if (shuffleEnabled && changed)
         rebuildShuffleCycle (navigation);
     return true;
 }

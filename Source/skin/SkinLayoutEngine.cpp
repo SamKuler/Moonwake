@@ -82,8 +82,8 @@ juce::String componentTarget (const SkinLayoutNode& node)
 class Resolver
 {
 public:
-    Resolver (float scaleFactorIn, SkinValidationReport& reportIn, const CompiledSkin* skinIn)
-        : scaleFactor (scaleFactorIn), report (reportIn), skin (skinIn)
+    Resolver (float scaleFactorIn, SkinValidationReport& reportIn, const CompiledSkin* skinIn, SkinLayoutState stateIn)
+        : scaleFactor (scaleFactorIn), report (reportIn), skin (skinIn), state (stateIn)
     {
     }
 
@@ -137,12 +137,34 @@ public:
             return std::nullopt;
         }
 
-        auto root = resolveNode (*selected, bounds, bounds);
+        auto activeRoot = *selected;
+        if (! pruneHidden (activeRoot))
+        {
+            SkinResolvedNode hidden;
+            hidden.visible = false;
+            return SkinResolvedLayout { hidden, std::move (ancillaryStyles), scrollBarWidth };
+        }
+        auto root = resolveNode (activeRoot, bounds, bounds);
         if (! root || failed) return std::nullopt;
         return SkinResolvedLayout { std::move (*root), std::move (ancillaryStyles), scrollBarWidth };
     }
 
 private:
+    bool pruneHidden (SkinLayoutNode& node)
+    {
+        if (node.common.visibleWhen
+            && ! (*node.common.visibleWhen)[state.queueOpen ? 1 : 0])
+            return false;
+        const auto prune = [this] (auto& children)
+        { std::erase_if (children, [this] (auto& child) { return ! pruneHidden (child); }); };
+        if (auto* flex = std::get_if<SkinFlexLayout> (&node.payload)) prune (flex->children);
+        else if (auto* grid = std::get_if<SkinGridLayout> (&node.payload)) prune (grid->children);
+        else if (auto* stack = std::get_if<SkinStackLayout> (&node.payload)) prune (stack->children);
+        else if (auto* scroll = std::get_if<SkinScrollLayout> (&node.payload))
+            if (scroll->child && ! pruneHidden (*scroll->child)) return false;
+        return true;
+    }
+
     Measured measure (const SkinLayoutNode& node)
     {
         Measured result;
@@ -762,6 +784,7 @@ private:
     float scaleFactor;
     SkinValidationReport& report;
     const CompiledSkin* skin;
+    SkinLayoutState state;
     float scrollBarWidth = static_cast<float> (SkinLayoutEngine::scrollBarThickness);
     bool failed = false;
 };
@@ -783,8 +806,8 @@ const SkinResolvedNode* SkinResolvedLayout::component (const juce::String& id) c
 std::optional<SkinResolvedLayout> SkinLayoutEngine::resolve (
     const SkinLayoutDefinition& definition, juce::Rectangle<float> bounds,
     float scaleFactor, SkinValidationReport& report,
-    std::optional<WorkspaceMode> workspace, const CompiledSkin* skin)
+    std::optional<WorkspaceMode> workspace, const CompiledSkin* skin, SkinLayoutState state)
 {
-    return Resolver (scaleFactor, report, skin).run (
+    return Resolver (scaleFactor, report, skin, state).run (
         definition, bounds, workspace.value_or (definition.defaultWorkspace));
 }

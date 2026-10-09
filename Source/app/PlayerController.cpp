@@ -60,6 +60,7 @@ PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend
 PlayerController::~PlayerController()
 {
     lifetimeFlag->store (false);
+    playlistArtworkJobs.removeAllJobs (true, -1);
     audioEngine.shutdown();
     static_cast<void> (audioEngine.clearEffectPlugins());
     static_cast<void> (pluginManager.cancelAndWaitForScan());
@@ -189,6 +190,18 @@ bool PlayerController::handlePlaybackReadError()
 
 bool PlayerController::navigatePlayback (PlaylistNavigation kind, bool shouldPlay)
 {
+    if (kind == PlaylistNavigation::manualNext && playlist.getRepeatMode() != RepeatMode::one
+        && playbackCoordinator.getLoadedTrackId().isNotEmpty() && ! playbackPlan.items.empty())
+    {
+        const auto upcoming = publishedQueueFrom (playbackSequence + 1);
+        for (size_t i = 0; i < upcoming.navigation.trackIds.size(); ++i)
+        {
+            const auto tail = publishedQueueFrom (upcoming.sequences[i]);
+            if (loadTrackById (upcoming.navigation.trackIds[i], shouldPlay, {}, &tail.navigation)) return true;
+        }
+        lastStatusMessage = "No next playable track.";
+        return false;
+    }
     const auto candidates = playlist.navigationCandidates (kind);
     int skipped = 0;
     for (const auto& id : candidates)
@@ -207,7 +220,56 @@ bool PlayerController::navigatePlayback (PlaylistNavigation kind, bool shouldPla
     return false;
 }
 
-bool PlayerController::refreshUpcomingPlayback()
+PlayerController::PublishedQueue PlayerController::publishedQueueFrom (uint64_t sequence) const
+{
+    PublishedQueue result;
+    const auto size = static_cast<uint64_t> (playbackPlan.items.size());
+    if (size == 0) return result;
+    const auto repeats = playbackPlan.repeatFrom >= 0;
+    const auto loopStart = repeats ? static_cast<uint64_t> (playbackPlan.repeatFrom) : size;
+    const auto end = repeats && sequence >= loopStart ? sequence + size - loopStart : size;
+    std::unordered_set<std::string> queuedIds;
+    for (const auto& track : playlist.getTracks()) queuedIds.insert (track.id.toStdString());
+    for (auto cursor = sequence; cursor < end; ++cursor)
+    {
+        const auto index = cursor < size ? cursor : loopStart + (cursor - size) % (size - loopStart);
+        const auto token = playbackPlan.items[static_cast<size_t> (index)].token;
+        if (const auto failed = failedPlaybackItems.find (token);
+            failed != failedPlaybackItems.end() && cursor >= failed->second) continue;
+        const auto found = playbackTrackIds.find (token);
+        if (found == playbackTrackIds.end() || ! queuedIds.contains (found->second.toStdString())) continue;
+        if (repeats && cursor >= loopStart && result.navigation.repeatFrom < 0)
+            result.navigation.repeatFrom = static_cast<int> (result.navigation.trackIds.size());
+        result.navigation.trackIds.push_back (found->second);
+        result.sequences.push_back (cursor);
+    }
+    return result;
+}
+
+std::vector<PlaybackQueueEntry> PlayerController::getPlaybackQueue() const
+{
+    std::vector<PlaybackQueueEntry> result;
+    if (playbackCoordinator.getLoadedTrackId().isEmpty() || playbackPlan.items.empty())
+    {
+        const auto planned = playlist.continuousPlaybackPlan();
+        std::unordered_map<std::string, const TrackItem*> tracks;
+        for (const auto& track : playlist.getTracks()) tracks.emplace (track.id.toStdString(), &track);
+        for (size_t i = 0; i < planned.trackIds.size(); ++i)
+            if (const auto found = tracks.find (planned.trackIds[i].toStdString()); found != tracks.end())
+                result.push_back ({ *found->second, "pending:" + juce::String (i) + ":" + found->second->id, false });
+        return result;
+    }
+    const auto published = publishedQueueFrom (playbackSequence);
+    std::unordered_map<std::string, const TrackItem*> tracks;
+    for (const auto& track : playlist.getTracks()) tracks.emplace (track.id.toStdString(), &track);
+    for (size_t i = 0; i < published.navigation.trackIds.size(); ++i)
+        if (const auto track = tracks.find (published.navigation.trackIds[i].toStdString()); track != tracks.end())
+            result.push_back ({ *track->second, juce::String (playbackGeneration) + ":" + juce::String (published.sequences[i]),
+                                published.sequences[i] == playbackSequence });
+    return result;
+}
+
+bool PlayerController::refreshUpcomingPlayback (const PlaylistPlaybackPlan* publishedTail)
 {
     upcomingPlaybackDirty = false;
     const auto expected = audioEngine.getPlaybackProgress();
@@ -221,7 +283,7 @@ bool PlayerController::refreshUpcomingPlayback()
     std::unordered_map<uint64_t, juce::String> ids;
     nextPlan.items.push_back ({ current->file, currentToken });
     ids.emplace (currentToken, currentId);
-    const auto navigation = playlist.continuousPlaybackPlan();
+    const auto navigation = publishedTail != nullptr ? *publishedTail : playlist.continuousPlaybackPlan();
     if (navigation.trackIds.size() > 1)
     {
         std::unordered_map<std::string, const TrackItem*> tracks;
@@ -297,7 +359,11 @@ bool PlayerController::synchronizePlayback (const AudioPlaybackProgress& progres
         if (preparationFailed != nullptr) *preparationFailed = true;
         const auto firstUnplayed = failure.sequence + (failure.hadBufferedAudio ? 1u : 0u);
         const auto [position, inserted] = failedPlaybackItems.emplace (failure.token, firstUnplayed);
-        if (! inserted) position->second = std::min (position->second, firstUnplayed);
+        if (inserted || firstUnplayed < position->second)
+        {
+            position->second = firstUnplayed;
+            ++playbackFailureRevision;
+        }
         if (const auto found = playbackTrackIds.find (failure.token); found != playbackTrackIds.end())
         {
             setLibraryTrackAvailable (found->second, false);
@@ -862,9 +928,11 @@ bool PlayerController::saveState (const juce::File& stateFile, const juce::File&
     juce::String stateError;
     PlayerAppState snapshot;
     const auto stateCaptured = captureStateSnapshot (snapshot, stateError);
+    const auto artworkReferences = stateCaptured ? retainArtworkForStateSave (snapshot) : juce::StringArray {};
     const auto stateSaved = stateCaptured
                          && AppStateStore::writeAtomically (
                                 snapshot, stateFile, stateError);
+    if (stateSaved) acknowledgeSavedArtwork (artworkReferences);
     juce::String pluginError;
     const auto pluginCacheSaved = pluginManager.writeKnownPluginCacheAtomically (pluginListFile, pluginError);
 
@@ -1120,7 +1188,8 @@ bool PlayerController::execute (const PlaybackAction& action)
 }
 
 bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPlay,
-                                      std::optional<PlaylistNavigation> navigation)
+                                      std::optional<PlaylistNavigation> navigation,
+                                      const PlaylistPlaybackPlan* publishedTail)
 {
     const auto index = playlist.indexOfId (trackId);
     const auto* track = playlist.getTrack (index);
@@ -1138,10 +1207,11 @@ bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPl
         return false;
     }
     setLibraryTrackAvailable (trackId, true);
-    if (navigation.has_value()) playlist.commitPlayback (trackId, *navigation);
+    if (publishedTail != nullptr) playlist.recordPlayback (trackId);
+    else if (navigation.has_value()) playlist.commitPlayback (trackId, *navigation);
     else playlist.selectTrack (index);
     playbackCoordinator.trackStarted (trackId, shouldPlay ? TransportIntent::playing : TransportIntent::paused);
-    if (! refreshUpcomingPlayback())
+    if (! refreshUpcomingPlayback (publishedTail))
     {
         audioEngine.unload();
         playbackCoordinator.loadFailed();
@@ -1295,6 +1365,7 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     playbackCoordinator.loadFailed();
     playbackCheckpoint.reset ({}, 0.0);
     audioEngine.setAllEffectsBypassed (false);
+    retainArtworkForStateSave (state);
     playlist = std::move (state.playlist);
     library = std::move (state.library);
     auto restoredTracks = playlist.getTracks();

@@ -39,5 +39,6 @@ public:
         juce::Rectangle<float> bounds,
         float scaleFactor,
         SkinValidationReport&,
-        std::optional<WorkspaceMode> workspace = {}, const CompiledSkin* skin = nullptr);
+        std::optional<WorkspaceMode> workspace = {}, const CompiledSkin* skin = nullptr,
+        SkinLayoutState state = {});
 };

@@ -466,10 +466,10 @@ MainComponent::MainComponent()
     playlistTable.setOutlineThickness (0);
     playlistTable.setRowHeight (32);
     playlistTable.setHeaderHeight (24);
-    playlistTable.getHeader().addColumn ("Track", 1, 240, 80, -1);
-    playlistTable.getHeader().addColumn ("Artist / album", 2, 360, 100, -1);
-    playlistTable.getHeader().addColumn ("Time", 3, 90, 40, 120);
-    playlistTable.getHeader().addColumn ("Album", 4, 240, 80, -1);
+    playlistTable.getHeader().addColumn ("Track", 1, 240, 80, -1, juce::TableHeaderComponent::defaultFlags & ~juce::TableHeaderComponent::sortable);
+    playlistTable.getHeader().addColumn ("Artist / album", 2, 360, 100, -1, juce::TableHeaderComponent::defaultFlags & ~juce::TableHeaderComponent::sortable);
+    playlistTable.getHeader().addColumn ("Time", 3, 90, 40, 120, juce::TableHeaderComponent::defaultFlags & ~juce::TableHeaderComponent::sortable);
+    playlistTable.getHeader().addColumn ("Album", 4, 240, 80, -1, juce::TableHeaderComponent::defaultFlags & ~juce::TableHeaderComponent::sortable);
     skinAdapter.configureListBox (playlistTable);
 
     librarySearchEditor.setName ("Search works");
@@ -649,6 +649,7 @@ MainComponent::MainComponent()
     musicLibraryPanel.onChanged = [this] { refreshPlaylist(); updateTransportState(); };
     musicLibraryPanel.onPageChanged = [this]
     {
+        if (! queueVisibilityChosen) queueOpen = musicLibraryPanel.page() == MusicLibraryPanel::Page::player;
         closeDrawers();
         applyWorkspaceVisuals();
         resized();
@@ -658,6 +659,12 @@ MainComponent::MainComponent()
     musicLibraryPanel.onImportPlaylist = [this] { choosePlaylistImport(); };
     musicLibraryPanel.onExportPlaylist = [this] (const auto& tracks) { choosePlaylistExport (tracks); };
     musicLibraryPanel.onRelocateTrack = [this] (const auto& id) { chooseTrackRelocation (id); };
+    musicLibraryPanel.onChoosePlaylistArtwork = [this] (const auto& id) { choosePlaylistArtwork (id); };
+    musicLibraryPanel.onShowQueue = [this] { setQueueOpen (true); };
+    addAndMakeVisible (queueToggleButton);
+    addAndMakeVisible (queueActionsButton);
+    queueActionsButton.onClick = [this] { musicLibraryPanel.showQueueActions (queueActionsButton); };
+    queueToggleButton.onClick = [this] { setQueueOpen (! queueOpen); };
 
     const auto reportStatus = [this] (const juce::String& message, bool isError)
     {
@@ -732,9 +739,10 @@ MainComponent::MainComponent()
     };
     removeTrackButton.onClick = [this]
     {
-        const auto index = libraryFilter.playlistIndexForRow (
-            playlistTable.getSelectedRow());
-        if (! controller.removeTrack (index))
+        const auto* selected = queueEntryAtRow (playlistTable.getSelectedRow());
+        if (selected == nullptr) return;
+        const auto id = selected->track.id;
+        if (! controller.removeUpcomingQueueEntries ({ id }))
             showStatus ("Select a track to remove.", true);
 
         refreshPlaylist();
@@ -748,17 +756,17 @@ MainComponent::MainComponent()
     };
     moveTrackUpButton.onClick = [this]
     {
-        const auto index = libraryFilter.playlistIndexForRow (
-            playlistTable.getSelectedRow());
-        if (controller.moveTrack (index, index - 1))
-            refreshPlaylist();
+        if (! canMoveQueueSelection (-1)) return;
+        if (const auto* entry = queueEntryAtRow (playlistTable.getSelectedRow()))
+            controller.moveUpcomingQueueEntry (entry->track.id, -1);
+        refreshPlaylist();
     };
     moveTrackDownButton.onClick = [this]
     {
-        const auto index = libraryFilter.playlistIndexForRow (
-            playlistTable.getSelectedRow());
-        if (controller.moveTrack (index, index + 1))
-            refreshPlaylist();
+        if (! canMoveQueueSelection (1)) return;
+        if (const auto* entry = queueEntryAtRow (playlistTable.getSelectedRow()))
+            controller.moveUpcomingQueueEntry (entry->track.id, 1);
+        refreshPlaylist();
     };
     addEffectButton.onClick = [this]
     {
@@ -809,6 +817,7 @@ MainComponent::MainComponent()
     shuffleButton.onClick = [this]
     {
         controller.setShuffleEnabled (shuffleButton.getToggleState());
+        refreshPlaylist();
         updateTransportState();
     };
     repeatButton.onClick = [this]
@@ -816,6 +825,7 @@ MainComponent::MainComponent()
         const auto mode = controller.getViewState().repeatMode;
         controller.setRepeatMode (mode == RepeatMode::off ? RepeatMode::all
                                   : mode == RepeatMode::all ? RepeatMode::one : RepeatMode::off);
+        refreshPlaylist();
         updateTransportState();
     };
     repeatModeBox.onChange = [this]
@@ -826,6 +836,7 @@ MainComponent::MainComponent()
             case 3: controller.setRepeatMode (RepeatMode::one); break;
             default: controller.setRepeatMode (RepeatMode::off); break;
         }
+        refreshPlaylist();
         updateTransportState();
     };
     outputLayoutBox.onChange = [this]
@@ -1044,6 +1055,8 @@ void MainComponent::bindSkinComponents()
         { "settings.open", &settingsButton },
         { "library.add", &addFilesButton },
         { "library.search", &librarySearchEditor },
+        { "queue.toggle", &queueToggleButton },
+        { "queue.actions", &queueActionsButton },
         { "queue.title", &queueTitleLabel },
         { "queue.count", &queueCountLabel },
         { "queue.table", &playlistTable },
@@ -1147,7 +1160,7 @@ void MainComponent::resized()
         librarySearchEditor.setText (libraryFilter.query(), false);
     SkinValidationReport report;
     if (skinLayoutHost.apply (requestedEntry, getLocalBounds(),
-                              1.0f, report, workspaceMode))
+                              1.0f, report, workspaceMode, { queueOpen }))
     {
         activeSkinLayoutEntry = requestedEntry;
         const auto sessionChanged = appliedSkinSession != skinManager.activeSession();
@@ -1381,14 +1394,17 @@ void MainComponent::timerCallback (int timerID)
         else
         {
             const juce::Component::SafePointer<MainComponent> safeThis (this);
+            const auto artworkReferences = controller.retainArtworkForStateSave (snapshot);
             if (! stateSaveService.start (
                     std::move (snapshot), getStateFile(),
-                    [safeThis, revision] (bool saved,
+                    [safeThis, revision, artworkReferences] (bool saved,
                                           juce::String errorMessage)
                     {
                         if (safeThis != nullptr)
-                            safeThis->handleAutoSaveCompletion (
-                                revision, saved, errorMessage);
+                        {
+                            if (saved) safeThis->controller.acknowledgeSavedArtwork (artworkReferences);
+                            safeThis->handleAutoSaveCompletion (revision, saved, errorMessage);
+                        }
                     }))
             {
                 handleAutoSaveCompletion (
@@ -1435,8 +1451,8 @@ void MainComponent::paintRowBackground (juce::Graphics& graphics,
                                         int height,
                                         bool rowIsSelected)
 {
-    const auto playlistIndex = libraryFilter.playlistIndexForRow (rowNumber);
-    const auto* track = controller.getPlaylist().getTrack (playlistIndex);
+    const auto* entry = queueEntryAtRow (rowNumber);
+    const auto* track = entry != nullptr ? &entry->track : nullptr;
     if (track == nullptr)
         return;
 
@@ -1455,7 +1471,7 @@ void MainComponent::paintRowBackground (juce::Graphics& graphics,
         track->file.getFullPathName(),
         duration, playlistTable.rowGeometry (height),
         false, false, track->available, track->artist, track->album,
-        track->id == controller.getLoadedTrackId(), controller.getLibrary().isFavourite (track->libraryId));
+        queueEntryAtRow (rowNumber)->current, controller.getLibrary().isFavourite (track->libraryId));
 }
 
 void MainComponent::paintCell (juce::Graphics&, int, int, int, int, bool)
@@ -1466,8 +1482,8 @@ void MainComponent::paintCell (juce::Graphics&, int, int, int, int, bool)
 
 juce::String MainComponent::getCellTooltip (int rowNumber, int)
 {
-    const auto* track = controller.getPlaylist().getTrack (
-        libraryFilter.playlistIndexForRow (rowNumber));
+    const auto* entry = queueEntryAtRow (rowNumber);
+    const auto* track = entry != nullptr ? &entry->track : nullptr;
     if (track == nullptr)
         return {};
     juce::StringArray lines { track->title, track->artist, track->album };
@@ -1480,17 +1496,16 @@ void MainComponent::selectedRowsChanged (int lastRowSelected)
 {
     if (refreshingPlaylist)
         return;
-    const auto playlistIndex = libraryFilter.playlistIndexForRow (lastRowSelected);
-    if (const auto* track = controller.getPlaylist().getTrack (playlistIndex))
-        legacySelectedQueueId = track->id;
-    else legacySelectedQueueId.clear();
+    if (const auto* entry = queueEntryAtRow (lastRowSelected))
+        selectedQueueKey = entry->key;
+    else selectedQueueKey.clear();
     updateTransportState();
 }
 
 void MainComponent::cellClicked (int row, int, const juce::MouseEvent& event)
 {
     if (! event.mods.isPopupMenu()) return;
-    if (const auto* track = controller.getPlaylist().getTrack (libraryFilter.playlistIndexForRow (row)))
+    if (const auto* track = controller.getPlaylist().getTrack (queueSourceIndex (row)))
     {
         playlistTable.selectRow (row);
         musicLibraryPanel.showQueueTrackActions (*track, playlistTable);
@@ -1504,9 +1519,31 @@ void MainComponent::cellDoubleClicked (int row, int, const juce::MouseEvent& eve
 
 void MainComponent::returnKeyPressed (int row) { playQueueRow (row); }
 
-void MainComponent::playQueueRow (int row)
+const PlaybackQueueEntry* MainComponent::queueEntryAtRow (int row) const
 {
     const auto index = libraryFilter.playlistIndexForRow (row);
+    return juce::isPositiveAndBelow (index, visibleQueue.size()) ? &visibleQueue[static_cast<size_t> (index)] : nullptr;
+}
+
+int MainComponent::queueSourceIndex (int row) const
+{
+    const auto* entry = queueEntryAtRow (row);
+    return entry != nullptr ? controller.getPlaylist().indexOfId (entry->track.id) : -1;
+}
+
+bool MainComponent::canMoveQueueSelection (int direction) const
+{
+    const auto row = playlistTable.getSelectedRow();
+    const auto* from = queueEntryAtRow (row);
+    const auto* to = queueEntryAtRow (row + direction);
+    return from != nullptr && to != nullptr && ! from->current && ! to->current
+        && ! controller.getPlaylist().isShuffleEnabled()
+        && controller.getPlaylist().getRepeatMode() == RepeatMode::off && libraryFilter.query().isEmpty();
+}
+
+void MainComponent::playQueueRow (int row)
+{
+    const auto index = queueSourceIndex (row);
     if (! controller.selectTrack (index) || ! controller.setPlaying (true))
         showStatus (controller.getLastStatusMessage(), true);
     refreshPlaylist();
@@ -1687,6 +1724,31 @@ void MainComponent::choosePlaylistExport (std::vector<TrackItem> exportTracks)
         });
 }
 
+void MainComponent::setQueueOpen (bool open)
+{
+    queueVisibilityChosen = true;
+    queueOpen = open;
+    queueToggleButton.setToggleState (open, juce::dontSendNotification);
+    queueToggleButton.setTooltip (open ? "Hide play queue" : "Show play queue");
+    resized();
+}
+
+void MainComponent::choosePlaylistArtwork (juce::String playlistId)
+{
+    fileChooser = std::make_unique<juce::FileChooser> ("Choose playlist cover", juce::File {}, "*.png;*.jpg;*.jpeg");
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe = juce::Component::SafePointer<MainComponent> (this), playlistId] (const auto& chooser)
+        {
+            if (safe == nullptr || chooser.getResult() == juce::File {}) return;
+            safe->controller.choosePlaylistArtwork (playlistId, chooser.getResult(), [safe] (bool ok, const auto& message)
+            {
+                if (safe == nullptr) return;
+                safe->refreshPlaylist();
+                safe->showStatus (message, ! ok);
+            });
+        });
+}
+
 void MainComponent::chooseTrackRelocation (juce::String trackId)
 {
     const auto* track = controller.getLibrary().getTrack (trackId);
@@ -1791,20 +1853,52 @@ void MainComponent::refreshPlaylist()
         && session->compiledSkin()->layouts.contains (SkinLayoutEntry::library)
         && session->compiledSkin()->layouts.contains (SkinLayoutEntry::collection))
         libraryFilter.setQuery ({});
-    libraryFilter.rebuild (controller.getPlaylist());
+    const auto nextVersion = controller.getPlaybackQueueVersion();
+    juce::String editedSelection;
+    if ((std::get<0> (queueViewVersion) != std::get<0> (nextVersion)
+         || std::get<3> (nextVersion).isEmpty())
+        && std::get<3> (queueViewVersion) == std::get<3> (nextVersion))
+    {
+        for (const auto& entry : visibleQueue)
+            if (entry.key == selectedQueueKey) editedSelection = entry.track.id;
+        if (std::count_if (visibleQueue.begin(), visibleQueue.end(),
+                [&] (const auto& entry) { return entry.track.id == editedSelection; }) != 1)
+            editedSelection.clear();
+    }
+    queueViewVersion = nextVersion;
+    visibleQueue = controller.getPlaybackQueue();
+    std::vector<TrackItem> rows;
+    rows.reserve (visibleQueue.size());
+    for (const auto& item : visibleQueue) rows.push_back (item.track);
+    libraryFilter.rebuild (rows);
     const juce::ScopedValueSetter<bool> guard (refreshingPlaylist, true);
     playlistTable.updateContent();
-    const auto visibleSelected = libraryFilter.rowForPlaylistIndex (
-        controller.getPlaylist().indexOfId (legacySelectedQueueId));
+    auto selectedIndex = -1;
+    for (size_t i = 0; i < visibleQueue.size(); ++i)
+        if (visibleQueue[i].key == selectedQueueKey) selectedIndex = static_cast<int> (i);
+    if (selectedIndex < 0 && editedSelection.isNotEmpty())
+    {
+        const auto matches = std::count_if (visibleQueue.begin(), visibleQueue.end(),
+            [&] (const auto& entry) { return entry.track.id == editedSelection; });
+        if (matches == 1)
+            for (size_t i = 0; i < visibleQueue.size(); ++i)
+                if (visibleQueue[i].track.id == editedSelection)
+                {
+                    selectedIndex = static_cast<int> (i);
+                    selectedQueueKey = visibleQueue[i].key;
+                    break;
+                }
+    }
+    const auto visibleSelected = libraryFilter.rowForPlaylistIndex (selectedIndex);
     if (visibleSelected >= 0)
         playlistTable.selectRow (visibleSelected);
     else
         playlistTable.deselectAllRows();
     queueCountLabel.setText (
         libraryFilter.query().isEmpty()
-            ? workCountText (controller.getPlaylist().size())
+            ? workCountText (static_cast<int> (visibleQueue.size()))
             : juce::String (libraryFilter.visibleCount()) + " / "
-                + juce::String (controller.getPlaylist().size()),
+                + juce::String (visibleQueue.size()),
         juce::dontSendNotification);
     updateEmptyQueueState();
     musicLibraryPanel.refresh();
@@ -1959,6 +2053,7 @@ void MainComponent::updateOutputView()
 
 void MainComponent::updateTransportState()
 {
+    if (queueViewVersion != controller.getPlaybackQueueVersion()) refreshPlaylist();
     const auto state = controller.getViewState();
     nowPlayingCoordinator.update (
         state, juce::Time::getMillisecondCounterHiRes() / 1000.0,
@@ -2051,10 +2146,6 @@ void MainComponent::updateTransportState()
         albumArtwork.setTrack ({}, {});
     }
 
-    if (libraryFilter.query().isEmpty())
-        queueCountLabel.setText (workCountText (state.playlistSize),
-                                 juce::dontSendNotification);
-
     const auto gain = static_cast<float> (state.volume);
     const auto decibels = gain > 0.00001f ? juce::Decibels::gainToDecibels (gain) : -100.0f;
     volumeValueLabel.setText (gain > 0.00001f ? juce::String (decibels, 1) + " dB" : "-inf dB",
@@ -2088,14 +2179,15 @@ void MainComponent::updateTransportState()
     outputMixer.setState (state.outputLayout, controller.getOutputChannelMix(), meterReadings.samplePeak);
 
     const auto hasSelection = playlistTable.getSelectedRow() >= 0;
-    const auto selectedQueueIndex = libraryFilter.playlistIndexForRow (playlistTable.getSelectedRow());
-    removeTrackButton.setEnabled (hasSelection);
+    const auto* selectedQueueEntry = queueEntryAtRow (playlistTable.getSelectedRow());
+    removeTrackButton.setEnabled (hasSelection && selectedQueueEntry != nullptr
+        && selectedQueueEntry->track.id != controller.getLoadedTrackId());
     clearPlaylistButton.setEnabled (state.playlistSize > 0);
-    moveTrackUpButton.setEnabled (hasSelection && libraryFilter.query().isEmpty()
-                                  && selectedQueueIndex > 0);
-    moveTrackDownButton.setEnabled (hasSelection && libraryFilter.query().isEmpty()
-                                    && selectedQueueIndex < state.playlistSize - 1);
+    moveTrackUpButton.setEnabled (canMoveQueueSelection (-1));
+    moveTrackDownButton.setEnabled (canMoveQueueSelection (1));
     musicLibraryPanel.updatePlayback();
+    queueToggleButton.setToggleState (queueOpen, juce::dontSendNotification);
+    queueToggleButton.setTooltip (queueOpen ? "Hide play queue" : "Show play queue");
     const auto transportReady = restoreStatus != RestoreStatus::loading;
     playPauseButton.setEnabled (transportReady && (state.canPlay
         || (musicLibraryPanel.isActive() && musicLibraryPanel.canStartPlayback())));
@@ -2125,7 +2217,7 @@ bool MainComponent::performPlayCommand (bool toggle)
     {
         if (musicLibraryPanel.isActive() && musicLibraryPanel.canStartPlayback())
             return musicLibraryPanel.startPlayback();
-        const auto selected = controller.getPlaylist().indexOfId (legacySelectedQueueId);
+        const auto selected = queueSourceIndex (playlistTable.getSelectedRow());
         if (! musicLibraryPanel.isActive() && selected >= 0)
             return controller.selectTrack (selected) && controller.setPlaying (true);
     }

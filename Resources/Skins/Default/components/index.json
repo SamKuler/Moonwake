@@ -36,7 +36,8 @@
     "listeningCollectionSummary": "components/listening-collection-summary.json",
     "listeningCollectionDate": "components/listening-collection-date.json",
     "listeningCollectionHeading": "components/listening-collection-heading.json",
-    "listeningCollectionDescription": "components/listening-collection-description.json"
+    "listeningCollectionDescription": "components/listening-collection-description.json",
+    "studioQueueTitle": "components/studio-queue-title.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -62,7 +63,8 @@
         "icon.reload": "surface.studioIcon",
         "icon.preview": "surface.studioIcon",
         "icon.repeat": "surface.studioIcon",
-        "icon.repeatOne": "surface.studioIcon"
+        "icon.repeatOne": "surface.studioIcon",
+        "icon.queue": "surface.studioIcon"
       }
     },
     "studioIconPrimary": {
@@ -85,7 +87,8 @@
         "icon.reload": "surface.studioOnPrimaryIcon",
         "icon.preview": "surface.studioOnPrimaryIcon",
         "icon.repeat": "surface.studioOnPrimaryIcon",
-        "icon.repeatOne": "surface.studioOnPrimaryIcon"
+        "icon.repeatOne": "surface.studioOnPrimaryIcon",
+        "icon.queue": "surface.studioOnPrimaryIcon"
       }
     },
     "listening": "components/listening-button.json",
@@ -111,7 +114,8 @@
         "icon.reload": "surface.listeningIcon",
         "icon.preview": "surface.listeningIcon",
         "icon.repeat": "surface.listeningIcon",
-        "icon.repeatOne": "surface.listeningIcon"
+        "icon.repeatOne": "surface.listeningIcon",
+        "icon.queue": "surface.listeningIcon"
       }
     },
     "listeningIconPrimary": {
@@ -134,7 +138,8 @@
         "icon.reload": "surface.listeningOnPrimaryIcon",
         "icon.preview": "surface.listeningOnPrimaryIcon",
         "icon.repeat": "surface.listeningOnPrimaryIcon",
-        "icon.repeatOne": "surface.listeningOnPrimaryIcon"
+        "icon.repeatOne": "surface.listeningOnPrimaryIcon",
+        "icon.queue": "surface.listeningOnPrimaryIcon"
       }
     },
     "listeningLeadingNeutral": {
@@ -157,7 +162,8 @@
         "icon.reload": "surface.listeningIcon",
         "icon.preview": "surface.listeningIcon",
         "icon.repeat": "surface.listeningIcon",
-        "icon.repeatOne": "surface.listeningIcon"
+        "icon.repeatOne": "surface.listeningIcon",
+        "icon.queue": "surface.listeningIcon"
       }
     },
     "listeningLeadingPrimary": {
@@ -180,7 +186,8 @@
         "icon.reload": "surface.listeningOnPrimaryIcon",
         "icon.preview": "surface.listeningOnPrimaryIcon",
         "icon.repeat": "surface.listeningOnPrimaryIcon",
-        "icon.repeatOne": "surface.listeningOnPrimaryIcon"
+        "icon.repeatOne": "surface.listeningOnPrimaryIcon",
+        "icon.queue": "surface.listeningOnPrimaryIcon"
       }
     },
     "studioMode": "components/studio-mode-button.json",
@@ -205,7 +212,8 @@
         "icon.reload": "surface.studioIcon",
         "icon.preview": "surface.studioIcon",
         "icon.repeat": "surface.studioIcon",
-        "icon.repeatOne": "surface.studioIcon"
+        "icon.repeatOne": "surface.studioIcon",
+        "icon.queue": "surface.studioIcon"
       }
     },
     "studioLeadingPrimary": {
@@ -228,7 +236,8 @@
         "icon.reload": "surface.studioOnPrimaryIcon",
         "icon.preview": "surface.studioOnPrimaryIcon",
         "icon.repeat": "surface.studioOnPrimaryIcon",
-        "icon.repeatOne": "surface.studioOnPrimaryIcon"
+        "icon.repeatOne": "surface.studioOnPrimaryIcon",
+        "icon.queue": "surface.studioOnPrimaryIcon"
       }
     },
     "studioCompact": "components/studio-compact-button.json",
@@ -341,6 +350,17 @@
         "cell.duration": "label.listeningTable",
         "cell.artist": "label.listeningTable",
         "cell.album": "label.listeningTable"
+      }
+    },
+    "studioQueue": {
+      "renderer": "components/studio-queue-table.json",
+      "slots": {
+        "header.surface": "surface.studioListRow",
+        "header.text": "label.studioTable",
+        "row.surface": "surface.studioTrackRow",
+        "cell.title": "label.studioQueueTitle",
+        "cell.location": "label.studioTableMetadata",
+        "cell.duration": "label.studioTable"
       }
     }
   },

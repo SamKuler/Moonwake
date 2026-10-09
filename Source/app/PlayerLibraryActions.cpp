@@ -76,9 +76,37 @@ void PlayerController::discardUnreferencedArtwork (const juce::StringArray& cand
     std::unordered_set<std::string> retained;
     for (const auto& track : library.getTracks()) retained.insert (track.artworkCacheKey.toStdString());
     for (const auto& track : playlist.getTracks()) retained.insert (track.artworkCacheKey.toStdString());
+    for (const auto& saved : library.getPlaylists()) retained.insert (saved.artworkCacheKey.toStdString());
     for (const auto& key : candidates)
         if (key.isNotEmpty() && ! retained.contains (key.toStdString()))
-            static_cast<void> (artworkStore.remove (key));
+        {
+            if (savedArtworkReferences.contains (key.toStdString())) deferredArtworkRemoval.addIfNotAlreadyThere (key);
+            else static_cast<void> (artworkStore.remove (key));
+        }
+}
+
+juce::StringArray PlayerController::retainArtworkForStateSave (const PlayerAppState& state)
+{
+    juce::StringArray references;
+    std::unordered_set<std::string> unique;
+    const auto retain = [&] (const juce::String& key)
+    {
+        if (key.isNotEmpty() && unique.insert (key.toStdString()).second) references.add (key);
+    };
+    for (const auto& track : state.library.getTracks()) retain (track.artworkCacheKey);
+    for (const auto& track : state.playlist.getTracks()) retain (track.artworkCacheKey);
+    for (const auto& saved : state.library.getPlaylists()) retain (saved.artworkCacheKey);
+    savedArtworkReferences.insert (unique.begin(), unique.end());
+    return references;
+}
+
+void PlayerController::acknowledgeSavedArtwork (juce::StringArray references)
+{
+    // State writes are serialized; only a successful replacement releases the preceding snapshot's assets.
+    savedArtworkReferences.clear();
+    for (const auto& key : references) savedArtworkReferences.insert (key.toStdString());
+    auto retired = std::exchange (deferredArtworkRemoval, {});
+    discardUnreferencedArtwork (retired);
 }
 
 void PlayerController::refreshQueueMetadata()
@@ -252,6 +280,63 @@ juce::String PlayerController::createSavedPlaylist (juce::String name)
     return id;
 }
 
+void PlayerController::choosePlaylistArtwork (const juce::String& id, juce::File imageFile,
+                                               std::function<void(bool, const juce::String&)> callback)
+{
+    if (library.getPlaylist (id) == nullptr)
+    {
+        if (callback) callback (false, "Playlist no longer exists.");
+        return;
+    }
+    const auto request = ++nextArtworkRequest;
+    artworkRequests[id] = request;
+    playlistArtworkJobs.addJob ([this, alive = lifetimeFlag, store = artworkStore, id, request,
+                                image = std::move (imageFile), completion = std::move (callback)]
+    {
+        juce::String error, key;
+        juce::MemoryBlock bytes;
+        constexpr auto maxBytes = 20 * 1024 * 1024;
+        if (auto stream = image.createInputStream())
+        {
+            stream->readIntoMemoryBlock (bytes, maxBytes + 1);
+            key = store.store (juce::Uuid().toString(), bytes, error);
+        }
+        else error = "Could not read the cover image.";
+        juce::MessageManager::callAsync ([this, alive, store, id, request, key, error, completion]
+        {
+            if (! alive->load()) { if (key.isNotEmpty()) static_cast<void> (store.remove (key)); return; }
+            const auto found = artworkRequests.find (id);
+            if (found == artworkRequests.end() || found->second != request)
+            {
+                if (key.isNotEmpty()) discardUnreferencedArtwork ({ key });
+                return;
+            }
+            artworkRequests.erase (found);
+            const auto* saved = library.getPlaylist (id);
+            const auto previous = saved != nullptr ? saved->artworkCacheKey : juce::String {};
+            const auto changed = key.isNotEmpty() && library.setPlaylistArtwork (id, key);
+            discardUnreferencedArtwork ({ previous, key });
+            if (changed) ++stateRevision;
+            lastStatusMessage = changed ? "Playlist cover updated." : saved == nullptr ? "Playlist no longer exists."
+                : error.isNotEmpty() ? error : "Choose a nonempty PNG or JPEG image.";
+            if (completion) completion (changed, lastStatusMessage);
+        });
+    });
+}
+
+bool PlayerController::resetPlaylistArtwork (const juce::String& id)
+{
+    artworkRequests.erase (id);
+    const auto* saved = library.getPlaylist (id);
+    if (saved == nullptr) return false;
+    const auto previous = saved->artworkCacheKey;
+    const auto changed = library.setPlaylistArtwork (id, {});
+    discardUnreferencedArtwork ({ previous });
+    if (changed) ++stateRevision;
+    lastStatusMessage = "Playlist cover reset.";
+    return changed;
+}
+
 bool PlayerController::renameSavedPlaylist (const juce::String& id, juce::String name)
 {
     if (! library.renamePlaylist (id, std::move (name)))
@@ -276,7 +361,11 @@ juce::String PlayerController::duplicateSavedPlaylist (const juce::String& id)
 
 bool PlayerController::deleteSavedPlaylist (const juce::String& id)
 {
+    const auto* saved = library.getPlaylist (id);
+    const auto previousArtwork = saved != nullptr ? saved->artworkCacheKey : juce::String {};
     if (! library.removePlaylist (id)) { lastStatusMessage = "Playlist no longer exists."; return false; }
+    artworkRequests.erase (id);
+    discardUnreferencedArtwork ({ previousArtwork });
     invalidateCollectionUndo ("playlist:" + id);
     if (libraryCollectionId == "playlist:" + id) libraryCollectionId = "all";
     ++stateRevision;
@@ -351,7 +440,8 @@ bool PlayerController::playLibraryTracks (const std::vector<juce::String>& ids, 
     playlist.selectTrack (startIndex);
     invalidateCollectionUndo ("queue");
     ++stateRevision;
-    return loadTrackById (id, true);
+    if (loadTrackById (id, true)) return true;
+    return navigatePlayback (PlaylistNavigation::manualNext, true);
 }
 
 bool PlayerController::enqueueLibraryTracks (const std::vector<juce::String>& ids, bool playNext)
@@ -426,6 +516,43 @@ bool PlayerController::finishQueueEdit()
         upcomingPlaybackDirty = false;
     }
     return refreshUpcomingPlayback();
+}
+
+bool PlayerController::removeUpcomingQueueEntries (const std::vector<juce::String>& ids)
+{
+    const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
+    synchronizePlayback();
+    auto removable = ids;
+    std::erase (removable, playbackCoordinator.getLoadedTrackId());
+    if (removable.empty()) { lastStatusMessage = "The current track stays in the play queue."; return false; }
+    return removeCollectionEntries ("queue", removable);
+}
+
+bool PlayerController::canMoveUpcomingQueueEntry (const juce::String& id, int direction) const
+{
+    if ((direction != -1 && direction != 1) || playlist.isShuffleEnabled()
+        || playlist.getRepeatMode() != RepeatMode::off) return false;
+    const auto visible = getPlaybackQueue();
+    const auto found = std::find_if (visible.begin(), visible.end(), [&] (const auto& item) { return item.track.id == id; });
+    if (found == visible.end() || found->current) return false;
+    const auto target = static_cast<int> (found - visible.begin()) + direction;
+    return juce::isPositiveAndBelow (target, visible.size()) && ! visible[static_cast<size_t> (target)].current;
+}
+
+bool PlayerController::moveUpcomingQueueEntry (const juce::String& id, int direction)
+{
+    const AudioEngine::ScopedPlaybackEdit edit (audioEngine);
+    synchronizePlayback();
+    if ((direction != -1 && direction != 1) || playlist.isShuffleEnabled()
+        || playlist.getRepeatMode() != RepeatMode::off) return false;
+    const auto visible = getPlaybackQueue();
+    const auto found = std::find_if (visible.begin(), visible.end(), [&] (const auto& item) { return item.track.id == id; });
+    if (found == visible.end() || found->current) return false;
+    const auto target = static_cast<int> (found - visible.begin()) + direction;
+    if (! juce::isPositiveAndBelow (target, visible.size()) || visible[static_cast<size_t> (target)].current) return false;
+    const auto source = playlist.indexOfId (id);
+    const auto destination = playlist.indexOfId (visible[static_cast<size_t> (target)].track.id);
+    return moveTrack (source, destination);
 }
 
 bool PlayerController::removeCollectionEntries (const juce::String& collection,

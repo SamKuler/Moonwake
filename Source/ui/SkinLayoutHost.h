@@ -16,7 +16,7 @@ public:
     ~SkinLayoutHost();
 
     bool apply (SkinLayoutEntry, juce::Rectangle<int> bounds, float scaleFactor,
-                SkinValidationReport&, std::optional<WorkspaceMode> workspace = {});
+                SkinValidationReport&, std::optional<WorkspaceMode> workspace = {}, SkinLayoutState state = {});
     void clear();
     [[nodiscard]] std::unique_ptr<juce::ComponentTraverser> createKeyboardFocusTraverser() const;
     [[nodiscard]] bool isAnimationDriveActive() const noexcept;

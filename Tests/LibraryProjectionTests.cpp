@@ -12,6 +12,22 @@ public:
 
     void runTest() override
     {
+        beginTest ("favourites is a permanent playlist and custom covers override mosaics");
+        {
+            MusicLibrary library;
+            PlaylistModel queue;
+            const auto empty = libraryCollectionSummaries (library, "playlists");
+            expectEquals (static_cast<int> (empty.size()), 1);
+            expectEquals (empty.front().id, juce::String ("favourites"));
+            const auto id = library.createPlaylist ("Custom cover");
+            expect (library.setPlaylistArtwork (id, "custom-key"));
+            const auto gallery = libraryCollectionSummaries (library, "playlists");
+            expect (gallery.back().artworkKeys == juce::StringArray { "custom-key" });
+            expect (libraryCollectionSummary (library, queue, "playlist:" + id).artworkKeys == gallery.back().artworkKeys);
+            const auto collections = libraryCollections (library);
+            expect (std::none_of (collections.begin(), collections.end(), [] (const auto& item) { return item.id == "queue"; }));
+        }
+
         beginTest ("playlist and queue projections retain independent occurrence identities");
         {
             MusicLibrary library;
@@ -134,22 +150,23 @@ public:
             saved[1].createdAtMs = saved[1].updatedAtMs = 0;
             expect (library.restore (library.getTracks(), saved, { ids[0], ids[1] }));
             const auto summaries = libraryCollectionSummaries (library, "playlists");
-            expectEquals (static_cast<int> (summaries.size()), 2);
-            if (summaries.size() == 2)
+            expectEquals (static_cast<int> (summaries.size()), 3);
+            expectEquals (summaries.front().id, juce::String ("favourites"));
+            if (summaries.size() == 3)
             {
-                expectEquals (summaries[0].id, "playlist:" + firstId);
-                expectEquals (summaries[1].id, "playlist:" + secondId);
-                expectEquals (summaries[0].name, juce::String ("Shared name"));
-                expectEquals (summaries[1].name, summaries[0].name);
-                expectEquals (summaries[0].trackCount, 8);
-                expectWithinAbsoluteError (summaries[0].durationSeconds, 74.25, 0.000001);
-                expectEquals (summaries[0].createdAtMs, saved[0].createdAtMs);
-                expect (summaries[0].artworkKeys == juce::StringArray { "cover-a", "cover-b", "cover-c", "cover-d" });
-                expectEquals (summaries[1].trackCount, 0);
-                expectWithinAbsoluteError (summaries[1].durationSeconds, 0.0, 0.000001);
-                expectEquals (summaries[1].createdAtMs, juce::int64 { 0 });
-                expect (summaries[1].artworkKeys.isEmpty());
-                expect (libraryCollectionSummary (library, queue, "playlist:" + firstId) == summaries[0]);
+                expectEquals (summaries[1].id, "playlist:" + firstId);
+                expectEquals (summaries[2].id, "playlist:" + secondId);
+                expectEquals (summaries[1].name, juce::String ("Shared name"));
+                expectEquals (summaries[2].name, summaries[1].name);
+                expectEquals (summaries[1].trackCount, 8);
+                expectWithinAbsoluteError (summaries[1].durationSeconds, 74.25, 0.000001);
+                expectEquals (summaries[1].createdAtMs, saved[0].createdAtMs);
+                expect (summaries[1].artworkKeys == juce::StringArray { "cover-a", "cover-b", "cover-c", "cover-d" });
+                expectEquals (summaries[2].trackCount, 0);
+                expectWithinAbsoluteError (summaries[2].durationSeconds, 0.0, 0.000001);
+                expectEquals (summaries[2].createdAtMs, juce::int64 { 0 });
+                expect (summaries[2].artworkKeys.isEmpty());
+                expect (libraryCollectionSummary (library, queue, "playlist:" + firstId) == summaries[1]);
             }
             const auto all = libraryCollectionSummary (library, queue, "all");
             expectEquals (all.name, juce::String ("All songs"));

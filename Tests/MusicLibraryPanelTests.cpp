@@ -121,6 +121,35 @@ struct LibraryPanelFixture
         activeMenu = juce::Component::getCurrentlyModalComponent();
         return activeMenu;
     }
+    juce::Component::SafePointer<juce::Component> openDetailMenu (const juce::String& componentId)
+    {
+        bindings.find ("library.detailCover")->setBounds (0, 40, 48, 32);
+        bindings.find ("library.title")->setBounds (60, 40, 340, 32);
+        panel.updateVisibility();
+        auto* component = bindings.find (componentId);
+        const auto point = host.getLocalPoint (component, component->getLocalBounds().getCentre()).toFloat();
+        if (! waitUntil ([&] { return host.getComponentAt (point) == component; })) return {};
+        auto* peer = host.getPeer();
+        const auto time = juce::Time::currentTimeMillis();
+        peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0, 0, time);
+        peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point,
+                               juce::ModifierKeys::rightButtonModifier, 0, 0, time + 1);
+        peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0, 0, time + 2);
+        waitUntil ([] { return juce::Component::getCurrentlyModalComponent() != nullptr; });
+        activeMenu = juce::Component::getCurrentlyModalComponent();
+        return activeMenu;
+    }
+    static juce::StringArray menuTitles (juce::Component& menu)
+    {
+        juce::StringArray result;
+        const auto collect = [&] (auto&& self, juce::Component& component) -> void
+        {
+            if (auto* accessibility = component.getAccessibilityHandler()) result.add (accessibility->getTitle());
+            for (auto* child : component.getChildren()) self (self, *child);
+        };
+        collect (collect, menu);
+        return result;
+    }
     bool chooseAction (juce::Component::SafePointer<juce::Component> menu, int action)
     {
         if (menu == nullptr) return false;
@@ -340,17 +369,20 @@ public:
             }
         }
 
-        beginTest ("queue and favourites navigation show their own active state");
+        beginTest ("favourites belongs to Library and queue requests preserve the browsing page");
         {
             LibraryPanelFixture fixture (skin, root, prepared);
-            for (const auto* id : { "queue", "favourites" })
-            {
-                fixture.panel.selectCollection (id);
-                fixture.panel.updateNavigation (true);
-                expect (! dynamic_cast<juce::Button*> (fixture.bindings.find ("library.open"))->getToggleState());
-                expect (dynamic_cast<juce::Button*> (fixture.bindings.find (
-                    juce::String (id) == "queue" ? "library.browseQueue" : "library.browseFavourites"))->getToggleState());
-            }
+            bool queueRequested = false;
+            fixture.panel.onShowQueue = [&] { queueRequested = true; };
+            fixture.panel.selectCollection ("favourites");
+            fixture.panel.updateNavigation (true);
+            expect (dynamic_cast<juce::Button*> (fixture.bindings.find ("library.open"))->getToggleState());
+            const auto before = fixture.panel.currentTracks();
+            fixture.panel.selectCollection ("queue");
+            expect (queueRequested);
+            expect (fixture.panel.page() == MusicLibraryPanel::Page::collection);
+            expectEquals (static_cast<int> (fixture.panel.currentTracks().size()), static_cast<int> (before.size()));
+            expectEquals (fixture.controller.getLibraryCollectionId(), juce::String ("favourites"));
         }
 
         beginTest ("context removal uses visible selection and its captured collection");
@@ -528,6 +560,79 @@ public:
             if (exported.size() == expected.size())
                 for (size_t index = 0; index < expected.size(); ++index)
                     expectEquals (exported[index].id, expected[index].id);
+        }
+
+        beginTest ("queue row menu exposes upcoming moves and whole-queue actions");
+        {
+            LibraryPanelFixture fixture (skin, root, prepared);
+            expect (fixture.controller.enqueueLibraryTracks (fixture.ids, false));
+            fixture.panel.showQueueTrackActions (*fixture.controller.getPlaylist().getTrack (1), fixture.table());
+            fixture.activeMenu = juce::Component::getCurrentlyModalComponent();
+            expect (fixture.activeMenu != nullptr);
+            if (fixture.activeMenu != nullptr)
+            {
+                const auto titles = LibraryPanelFixture::menuTitles (*fixture.activeMenu);
+                for (const auto* item : { "Move up", "Move down", "Save queue as playlist", "Export queue...", "Clear queue" })
+                    expect (titles.contains (item), item);
+            }
+            expect (fixture.chooseAction (fixture.activeMenu, 10));
+            expect (fixture.controller.getPlaylist().isEmpty());
+            fixture.panel.showQueueActions (fixture.table());
+            fixture.activeMenu = juce::Component::getCurrentlyModalComponent();
+            expect (fixture.activeMenu != nullptr);
+            if (fixture.activeMenu != nullptr)
+                expect (LibraryPanelFixture::menuTitles (*fixture.activeMenu).contains ("Undo list edit"));
+            expect (fixture.chooseAction (fixture.activeMenu, 7));
+            expectEquals (fixture.controller.getPlaylist().size(), static_cast<int> (fixture.ids.size()));
+        }
+
+        beginTest ("detail cover and title share playlist actions and retain the menu-opening target");
+        {
+            LibraryPanelFixture fixture (skin, root, prepared);
+            const auto other = fixture.controller.createSavedPlaylist ("Second playlist");
+            juce::String coverTarget;
+            fixture.panel.onChoosePlaylistArtwork = [&] (const auto& id) { coverTarget = id; };
+            auto menu = fixture.openDetailMenu ("library.detailCover");
+            expect (menu != nullptr);
+            if (menu != nullptr)
+            {
+                const auto titles = LibraryPanelFixture::menuTitles (*menu);
+                expect (! titles.contains ("Open"));
+                for (const auto* text : { "Rename", "Duplicate", "Change cover...", "Use automatic cover", "Delete playlist" })
+                    expect (titles.contains (text), text);
+            }
+            fixture.panel.selectCollection ("playlist:" + other);
+            expect (fixture.chooseAction (menu, 27));
+            expectEquals (coverTarget, fixture.playlistId);
+            fixture.panel.selectCollection ("playlist:" + fixture.playlistId);
+            menu = fixture.openDetailMenu ("library.title");
+            expect (fixture.chooseAction (menu, 21));
+            auto* editor = fixture.renameEditor();
+            expect (editor != nullptr);
+            if (editor != nullptr)
+            {
+                editor->setText ("Renamed from context", false);
+                fixture.panel.finishEditing();
+                expectEquals (fixture.controller.getLibrary().getPlaylist (fixture.playlistId)->name,
+                              juce::String ("Renamed from context"));
+            }
+            menu = fixture.openDetailMenu ("library.detailCover");
+            fixture.panel.selectCollection ("playlist:" + other);
+            expect (fixture.chooseAction (menu, 23));
+            expect (fixture.controller.getLibrary().getPlaylist (fixture.playlistId) == nullptr);
+            expect (fixture.controller.getLibrary().getPlaylist (other) != nullptr);
+            expectEquals (static_cast<int> (fixture.controller.getLibrary().getTracks().size()), 3);
+            for (const auto& track : fixture.controller.getLibrary().getTracks()) expect (track.file.existsAsFile());
+            fixture.panel.selectCollection ("favourites");
+            menu = fixture.openDetailMenu ("library.title");
+            expect (menu != nullptr);
+            if (menu != nullptr)
+            {
+                const auto titles = LibraryPanelFixture::menuTitles (*menu);
+                expect (! titles.contains ("Open"));
+                expect (! titles.contains ("Rename") && ! titles.contains ("Delete playlist") && ! titles.contains ("Change cover..."));
+            }
+            expect (fixture.chooseAction (menu, 0));
         }
 
         beginTest ("rename keeps the menu-opening playlist target");

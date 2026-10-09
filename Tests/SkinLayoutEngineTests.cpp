@@ -68,6 +68,28 @@ public:
 
     void runTest() override
     {
+        beginTest ("conditional subtrees reclaim width and gap without modifying the definition");
+        {
+            auto content = visual ("content");
+            content.common.grow = 1;
+            auto queue = component ("queue", "queue.table", pixels (300));
+            queue.common.visibleWhen = std::array<bool, 2> { false, true };
+            auto root = flex (SkinLayoutNodeType::row, "root", { content, queue });
+            std::get<SkinFlexLayout> (root.payload).gap = 16;
+            const auto layout = definitionWith (root);
+            SkinValidationReport report;
+            const auto open = SkinLayoutEngine::resolve (layout, { 0, 0, 1000, 400 }, 1, report, {}, nullptr, { true });
+            const auto closed = SkinLayoutEngine::resolve (layout, { 0, 0, 1000, 400 }, 1, report, {}, nullptr, { false });
+            expect (open && closed, report.toText());
+            if (open && closed)
+            {
+                expectWithinAbsoluteError (open->root.children.front().bounds.getWidth(), 684.0f, 0.01f);
+                expectWithinAbsoluteError (closed->root.children.front().bounds.getWidth(), 1000.0f, 0.01f);
+                expect (closed->component ("queue.table") == nullptr);
+                expectEquals (static_cast<int> (std::get<SkinFlexLayout> (layout.base.payload).children.size()), 2);
+            }
+        }
+
         beginTest ("row applies padding, margin, gap, percent, grow and stretch exactly");
         {
             auto fixed = visual ("fixed", pixels (50));

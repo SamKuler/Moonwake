@@ -121,6 +121,58 @@ public:
 
     void runTest() override
     {
+        beginTest ("conditional layouts reject unreachable controls and invalid expression results");
+        for (const auto& expression : { juce::String ("not view.queueOpen"), juce::String ("(1e308 * 2) > 0") })
+        {
+            auto root = workspaceRoot ("conditional-");
+            auto toggle = componentNode ("toggle", "queue.toggle", 1000);
+            toggle.getDynamicObject()->setProperty ("visibleWhen", expression);
+            root.getProperty ("children", {}).getArray()->add (toggle);
+            auto document = object();
+            document.getDynamicObject()->setProperty ("apiVersion", 1);
+            document.getDynamicObject()->setProperty ("root", root);
+            SkinValidationReport report;
+            expect (! compileLayout (document, SkinLayoutEntry::listening, report));
+            expect (report.hasCode (expression.startsWith ("not") ? "LAYOUT011" : "LAYOUT018"), report.toText());
+        }
+
+        beginTest ("queue open aliases require a queue target and a way to close conditional queues in every root");
+        for (const auto breakpoint : { false, true })
+            for (const auto target : { "missing", "library", "conditional", "alwaysVisible", "conditionalWithToggle" })
+            {
+                auto root = entryRoot (SkinLayoutEntry::library, "alias-");
+                auto* children = root.getProperty ("children", {}).getArray();
+                children->add (componentNode ("open-queue", "library.browseQueue", 1000));
+                if (juce::String (target) != "missing")
+                {
+                    auto table = componentNode ("queue-target", juce::String (target) == "library"
+                        ? "library.tracks" : "queue.table", 1010);
+                    if (juce::String (target).startsWith ("conditional"))
+                        table.getDynamicObject()->setProperty ("visibleWhen", "view.queueOpen");
+                    children->add (table);
+                }
+                if (juce::String (target) == "conditionalWithToggle")
+                    children->add (componentNode ("toggle-queue", "queue.toggle", 1020));
+
+                auto document = layoutDocument (breakpoint ? entryRoot (SkinLayoutEntry::library, "base-") : root);
+                if (breakpoint)
+                {
+                    auto studio = object();
+                    auto when = object();
+                    when.getDynamicObject()->setProperty ("workspace", "studio");
+                    studio.getDynamicObject()->setProperty ("when", when);
+                    studio.getDynamicObject()->setProperty ("root", root);
+                    document.getDynamicObject()->setProperty ("breakpoints", array ({ studio }));
+                }
+                SkinValidationReport report;
+                const auto layout = compileLayout (document, SkinLayoutEntry::library, report);
+                const auto valid = juce::String (target) == "alwaysVisible"
+                    || juce::String (target) == "conditionalWithToggle";
+                const auto context = juce::String (breakpoint ? "Studio breakpoint / " : "Base root / ") + target;
+                expect (layout.has_value() == valid, context + "\n" + report.toText());
+                if (! valid) expect (report.hasCode ("LAYOUT011"), context + "\n" + report.toText());
+            }
+
         beginTest ("library routes keep required navigation in every workspace breakpoint");
         for (const auto entry : { SkinLayoutEntry::library, SkinLayoutEntry::collection })
         {

@@ -925,7 +925,8 @@ public:
                     {
                         SkinValidationReport report;
                         const auto resolved = SkinLayoutEngine::resolve (
-                            defaultSkin->layouts.at (entry), bounds, 1.0f, report, workspace);
+                            defaultSkin->layouts.at (entry), bounds, 1.0f, report, workspace, defaultSkin.get(),
+                            { entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening });
                         expect (resolved.has_value(), report.toText());
                         if (! resolved) continue;
                         expect (resolved->root.bounds == bounds, "routes must retain the window's outer bounds");
@@ -982,7 +983,7 @@ public:
                                         && ! component->bounds.isEmpty(), descriptor.id);
                                 if (descriptor.interactive) expect (component->focusOrder > 0, descriptor.id);
                             }
-                        for (const auto* id : { "library.open", "library.browseFavourites", "library.browseQueue",
+                        for (const auto* id : { "library.open",
                                                 "player.open", "workspace.studio", "workspace.listening" })
                         {
                             const auto* navigation = resolved->component (id);
@@ -993,6 +994,8 @@ public:
                                 expectWithinAbsoluteError (navigation->bounds.getHeight(), 36.0f, 0.01f);
                             }
                         }
+                        expect (resolved->component ("library.browseFavourites") == nullptr);
+                        expect (resolved->component ("library.browseQueue") == nullptr);
                         const auto player = entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening;
                         if (player || entry == SkinLayoutEntry::collection)
                         {
@@ -1137,11 +1140,12 @@ public:
                 for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
                     for (const auto entry : { workspace == WorkspaceMode::studio
                                                  ? SkinLayoutEntry::studio : SkinLayoutEntry::listening,
-                                             SkinLayoutEntry::effects, SkinLayoutEntry::settings })
+                                             SkinLayoutEntry::effects, SkinLayoutEntry::settings,
+                                             SkinLayoutEntry::library, SkinLayoutEntry::collection })
                     {
                         SkinValidationReport report;
                         const auto layout = SkinLayoutEngine::resolve (
-                            defaultSkin->layouts.at (entry), bounds, 1.0f, report, workspace);
+                            defaultSkin->layouts.at (entry), bounds, 1.0f, report, workspace, defaultSkin.get(), { true });
                         expect (layout.has_value(), report.toText());
                         if (! layout) continue;
                         const auto checkAnchors = [&] (auto& previous, const auto& ids)
@@ -1158,12 +1162,14 @@ public:
                         };
                         checkAnchors (navigation, std::array { "app.brand.title", "workspace.studio", "workspace.listening",
                                                                "settings.open" });
-                        if (entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening)
+                        if (entry == SkinLayoutEntry::studio || entry == SkinLayoutEntry::listening
+                            || entry == SkinLayoutEntry::library || entry == SkinLayoutEntry::collection)
                         {
                             checkAnchors (transport, std::array { "transport.previous", "transport.playPause", "transport.next",
                                                                  "transport.seek", "transport.time", "transport.volume",
                                                                  "transport.volumeLabel", "transport.volumeValue",
                                                                  "transport.shuffle", "transport.repeatCycle" });
+                            if (entry == SkinLayoutEntry::library || entry == SkinLayoutEntry::collection) continue;
                             const auto& cards = layout->root.children.at (0).children.at (1).children;
                             expectEquals (static_cast<int> (cards.size()), 2);
                             if (cards.size() == 2)
@@ -1255,9 +1261,9 @@ public:
                     expect (parents.contains ("library.add"));
                     if (parents.contains ("library.add"))
                     {
-                        expect (parents.contains ("queue.title")
-                                && parents.at ("library.add") == parents.at ("queue.title"),
-                                "The player Add Music action must share its queue heading");
+                        const auto anchor = skin == defaultSkin.get() ? "settings.open" : "queue.title";
+                        expect (parents.contains (anchor) && parents.at ("library.add") == parents.at (anchor),
+                                "Add Music stays accessible when the Default queue is collapsed.");
                     }
                     expect (parents.contains ("settings.open"));
                     expect (! parents.contains ("effects.open"));
@@ -1274,14 +1280,18 @@ public:
                 {
                     const auto overview = componentParents (skin->layouts.at (SkinLayoutEntry::library));
                     const auto detail = componentParents (skin->layouts.at (SkinLayoutEntry::collection));
-                    for (const auto* id : { "library.title", "library.newPlaylist", "library.actions" })
-                        expect (overview.contains ("library.add") && overview.contains (id)
-                                && overview.at ("library.add") == overview.at (id),
-                                juce::String (id) + " must share the overview heading with Add Music");
-                    for (const auto* id : { "library.play", "library.shufflePlay", "library.actions" })
-                        expect (detail.contains ("library.add") && detail.contains (id)
-                                && detail.at ("library.add") == detail.at (id),
-                                juce::String (id) + " must share the collection action row with Add Music");
+                    for (const auto* id : { "library.newPlaylist", "library.actions" })
+                        expect (overview.contains ("library.title") && overview.contains (id)
+                                && overview.at ("library.title") == overview.at (id),
+                                juce::String (id) + " must share the overview heading");
+                    for (const auto* id : { "library.shufflePlay", "library.actions" })
+                        expect (detail.contains ("library.play") && detail.contains (id)
+                                && detail.at ("library.play") == detail.at (id),
+                                juce::String (id) + " must share the collection action row");
+                    for (const auto* route : { &overview, &detail })
+                        expect (route->contains ("library.add") && route->contains ("settings.open")
+                                && route->at ("library.add") == route->at ("settings.open"),
+                                "Add Music must remain in the shared navigation row.");
                     expect (detail.contains ("library.title") && detail.contains ("library.collections")
                             && detail.at ("library.title") == detail.at ("library.collections"),
                             "The collection name editor must occupy its title heading");
@@ -1301,7 +1311,7 @@ public:
                          "settings.skins.preview", "settings.skins.apply",
                          "settings.skins.cancelPreview", "settings.skins.reload" })
                     expect (settings.contains (id), id);
-                expect (! settings.contains ("library.add"));
+                expect (settings.contains ("library.add") == (skin == defaultSkin.get()));
                 expect (! settings.contains ("settings.close"));
                 if (skin == defaultSkin.get())
                 {
@@ -1316,7 +1326,7 @@ public:
                                 && (id == "app.brand.title" || id == "app.status"
                                     || id == "workspace.studio" || id == "workspace.listening"
                                     || id == "library.open" || id == "player.open"
-                                    || id == "library.browseQueue" || id == "library.browseFavourites"
+                                    || id == "library.add"
                                     || id == "effects.open" || id == "settings.open"))
                             || id.startsWith ("settings.audio.")
                             || id.startsWith ("settings.plugins.")

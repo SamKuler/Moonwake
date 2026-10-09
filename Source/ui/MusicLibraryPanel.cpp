@@ -84,7 +84,9 @@ MusicLibraryPanel::MusicLibraryPanel (PlayerController& owner, JuceSkinAdapter& 
     browseArtists.onClick = [this] { setCategory ("artists"); };
     browseSongs.onClick = [this] { selectCollection ("all"); };
     browseFavourites.onClick = [this] { selectCollection ("favourites"); };
-    browseQueue.onClick = [this] { selectCollection ("queue"); };
+    browseQueue.onClick = [this] { if (onShowQueue) onShowQueue(); };
+    changeArtwork.onClick = [this]
+    { if (onChoosePlaylistArtwork && collectionId.startsWith ("playlist:")) onChoosePlaylistArtwork (collectionId.substring (9)); };
     play.onClick = [this] { playCollection (false); };
     shufflePlay.onClick = [this] { playCollection (true); };
     gridSearch.setTitle ("Search playlists, albums and artists");
@@ -92,6 +94,8 @@ MusicLibraryPanel::MusicLibraryPanel (PlayerController& owner, JuceSkinAdapter& 
     gridSearch.onTextChange = [this] { grid.setQuery (gridSearch.getText()); updateVisibility(); };
     grid.onOpenCollection = [this] (const auto& id) { selectCollection (id); };
     grid.onContextMenu = [this] (const auto& id) { showCollectionActions (id); };
+    detailCover.addMouseListener (this, false);
+    title.addMouseListener (this, false);
     empty.setJustificationType (juce::Justification::centred);
     empty.setInterceptsMouseClicks (false, false);
     refresh();
@@ -99,6 +103,8 @@ MusicLibraryPanel::MusicLibraryPanel (PlayerController& owner, JuceSkinAdapter& 
 
 MusicLibraryPanel::~MusicLibraryPanel()
 {
+    detailCover.removeMouseListener (this);
+    title.removeMouseListener (this);
     artworkJobs.removeAllJobs (true, -1);
     table->setModel (nullptr);
 }
@@ -109,7 +115,7 @@ void MusicLibraryPanel::addTo (juce::Component& parent)
              table.get(), &collections, &actions, &create, &title, &count, &empty,
              &grid, &detailCover, &libraryOpen, &playerOpen, &back, &description,
              &browsePlaylists, &browseAlbums, &browseArtists, &browseSongs,
-             &browseFavourites, &browseQueue, &play, &shufflePlay, &gridSearch })
+             &browseFavourites, &browseQueue, &play, &shufflePlay, &gridSearch, &changeArtwork })
         parent.addAndMakeVisible (component);
 }
 
@@ -130,7 +136,7 @@ void MusicLibraryPanel::bind (SkinComponentBindings& bindings, SkinValidationRep
              { "library.browseArtists", &browseArtists }, { "library.browseSongs", &browseSongs },
              { "library.browseFavourites", &browseFavourites }, { "library.browseQueue", &browseQueue },
              { "library.play", &play }, { "library.shufflePlay", &shufflePlay },
-             { "library.gridSearch", &gridSearch } })
+             { "library.gridSearch", &gridSearch }, { "library.changeArtwork", &changeArtwork } })
         bindings.bind (id, *component, report);
 }
 
@@ -139,7 +145,7 @@ void MusicLibraryPanel::setEnabled (bool enabled)
     for (auto* component : std::initializer_list<juce::Component*> {
              table.get(), &collections, &actions, &create, &grid, &libraryOpen, &playerOpen,
              &back, &browsePlaylists, &browseAlbums, &browseArtists, &browseSongs,
-             &browseFavourites, &browseQueue, &play, &shufflePlay, &gridSearch }) component->setEnabled (enabled);
+             &browseFavourites, &browseQueue, &play, &shufflePlay, &gridSearch, &changeArtwork }) component->setEnabled (enabled);
 }
 
 bool MusicLibraryPanel::isActive() const
@@ -247,6 +253,7 @@ void MusicLibraryPanel::setQuery (const juce::String& query)
 
 void MusicLibraryPanel::selectCollection (const juce::String& id)
 {
+    if (id == "queue") { if (onShowQueue) onShowQueue(); return; }
     if (currentPage == Page::collection && table->isVisible())
         scrollByCollection[collectionId] = table->getViewport()->getViewPositionY();
     finishRename (false);
@@ -394,6 +401,11 @@ void MusicLibraryPanel::cellClicked (int row, int, const juce::MouseEvent& event
     for (int i = 0; i < rows.size(); ++i)
         if (const auto* track = trackAtRow (rows[i])) selected.push_back (*track);
     showActionsForTracks (std::move (selected), collectionId, *table, false);
+}
+
+void MusicLibraryPanel::showQueueActions (juce::Component& anchor)
+{
+    showActionsForTracks ({}, "queue", anchor, false);
 }
 
 void MusicLibraryPanel::showQueueTrackActions (const TrackItem& track, juce::Component& anchor)
@@ -584,37 +596,46 @@ void MusicLibraryPanel::showActionsForTracks (std::vector<TrackItem> selected, j
     const auto saved = origin.startsWith ("playlist:");
     juce::PopupMenu menu;
     menu.setLookAndFeel (&adapter);
-    menu.addItem (1, "Play selected", selection);
-    if (origin != "queue")
-    {
-        menu.addItem (2, "Play next", selection);
-        menu.addItem (3, "Add to end of queue", selection);
-    }
-    menu.addSeparator();
-    bool allFavourite = selection;
-    for (const auto& id : libraryIds) allFavourite = allFavourite && controller.getLibrary().isFavourite (id);
-    menu.addItem (allFavourite ? 5 : 4, allFavourite ? "Remove from favourites" : "Add to favourites", selection);
-    juce::PopupMenu playlists;
     std::vector<juce::String> playlistIds;
-    for (const auto& playlist : controller.getLibrary().getPlaylists())
+    if (selection || origin != "queue")
     {
-        playlistIds.push_back (playlist.id);
-        playlists.addItem (1000 + static_cast<int> (playlistIds.size()) - 1, playlist.name);
+        menu.addItem (1, "Play selected", selection);
+        if (origin != "queue")
+        {
+            menu.addItem (2, "Play next", selection);
+            menu.addItem (3, "Add to end of queue", selection);
+        }
+        menu.addSeparator();
+        bool allFavourite = selection;
+        for (const auto& id : libraryIds) allFavourite = allFavourite && controller.getLibrary().isFavourite (id);
+        menu.addItem (allFavourite ? 5 : 4, allFavourite ? "Remove from favourites" : "Add to favourites", selection);
+        juce::PopupMenu playlists;
+        for (const auto& playlist : controller.getLibrary().getPlaylists())
+        {
+            playlistIds.push_back (playlist.id);
+            playlists.addItem (1000 + static_cast<int> (playlistIds.size()) - 1, playlist.name);
+        }
+        if (! playlistIds.empty()) playlists.addSeparator();
+        playlists.addItem (9, juce::String::fromUTF8 ("New playlist…"));
+        menu.addSubMenu ("Add to playlist", playlists, selection);
+        const auto removableQueue = origin == "queue" && std::none_of (entryIds.begin(), entryIds.end(),
+            [this] (const auto& id) { return id == controller.getLoadedTrackId(); });
+        menu.addItem (6, origin == "queue" ? "Remove from play queue" : "Remove selected entries",
+                      selection && (saved || removableQueue || origin == "favourites"));
+        if (origin != "queue") menu.addItem (7, "Undo list edit", controller.canUndoCollectionEdit (origin));
+        menu.addItem (8, juce::String::fromUTF8 ("Locate missing file…"), selection && libraryIds.size() == 1
+                      && controller.getLibrary().getTrack (libraryIds.front()) != nullptr
+                      && ! controller.getLibrary().getTrack (libraryIds.front())->available);
     }
-    if (! playlistIds.empty()) playlists.addSeparator();
-    playlists.addItem (9, juce::String::fromUTF8 ("New playlist…"));
-    menu.addSubMenu ("Add to playlist", playlists, selection);
-    menu.addItem (6, "Remove selected entries", selection && (saved || origin == "queue" || origin == "favourites"));
-    menu.addItem (7, "Undo list edit", controller.canUndoCollectionEdit (origin));
-    menu.addItem (8, juce::String::fromUTF8 ("Locate missing file…"), selection && libraryIds.size() == 1
-                  && controller.getLibrary().getTrack (libraryIds.front()) != nullptr
-                  && ! controller.getLibrary().getTrack (libraryIds.front())->available);
     if (includeCollectionActions)
     {
         menu.addSeparator();
         menu.addItem (20, "New playlist");
         menu.addItem (21, "Rename playlist", saved);
         menu.addItem (22, "Duplicate playlist", saved);
+        menu.addItem (27, "Change cover...", saved);
+        const auto* savedPlaylist = controller.getLibrary().getPlaylist (origin.substring (9));
+        menu.addItem (28, "Use automatic cover", savedPlaylist != nullptr && savedPlaylist->artworkCacheKey.isNotEmpty());
         juce::PopupMenu deletion;
         if (const auto* playlist = controller.getLibrary().getPlaylist (origin.substring (9)))
             deletion.addItem (23, "Delete \"" + playlist->name + "\"");
@@ -629,18 +650,30 @@ void MusicLibraryPanel::showActionsForTracks (std::vector<TrackItem> selected, j
         menu.addSeparator();
         menu.addItem (40, juce::String::fromUTF8 ("Import M3U / M3U8…"));
         menu.addItem (41, juce::String::fromUTF8 ("Export M3U8…"), ! tracks.empty());
-        if (origin == "queue")
+    }
+    if (origin == "queue")
+    {
+        if (selection)
         {
-            juce::PopupMenu clear;
-            clear.addItem (10, "Clear play queue", ! controller.getPlaylist().isEmpty());
-            menu.addSubMenu ("Clear queue", clear, ! controller.getPlaylist().isEmpty());
+            menu.addSeparator();
+            menu.addItem (52, "Move up", entryIds.size() == 1 && controller.canMoveUpcomingQueueEntry (entryIds.front(), -1));
+            menu.addItem (53, "Move down", entryIds.size() == 1 && controller.canMoveUpcomingQueueEntry (entryIds.front(), 1));
         }
+        menu.addSeparator();
+        const auto nonempty = ! controller.getPlaylist().isEmpty();
+        menu.addItem (7, "Undo list edit", controller.canUndoCollectionEdit ("queue"));
+        menu.addItem (24, "Save queue as playlist", nonempty);
+        menu.addItem (41, "Export queue...", nonempty);
+        juce::PopupMenu clear;
+        clear.addItem (10, "Clear play queue", nonempty);
+        menu.addSubMenu ("Clear queue", clear, nonempty);
     }
     const auto options = juce::PopupMenu::Options().withTargetComponent (&anchor);
-    menu.showMenuAsync (includeCollectionActions ? options : options.withMousePosition(),
+    menu.showMenuAsync (includeCollectionActions || ! selection ? options : options.withMousePosition(),
         [safe = juce::Component::SafePointer<juce::ComboBox> (&collections), this,
          libraryIds, entryIds, origin, playlistIds,
-         exportTracks = includeCollectionActions ? tracks : std::vector<TrackItem>{}] (int result)
+         exportTracks = origin == "queue" ? controller.getPlaylist().getTracks()
+             : includeCollectionActions ? tracks : std::vector<TrackItem>{}] (int result)
         {
             if (safe == nullptr || result == 0) return;
             if (result == 41)
@@ -682,7 +715,8 @@ void MusicLibraryPanel::performAction (int action, std::vector<juce::String> ids
     if (action == 4 || action == 5) { changed (controller.setTrackFavourites (ids, action == 4)); return; }
     if (action == 6 || action == 7)
     {
-        const auto edited = action == 6 ? controller.removeCollectionEntries (origin, entries)
+        const auto edited = action == 6 ? (origin == "queue" ? controller.removeUpcomingQueueEntries (entries)
+                                                                          : controller.removeCollectionEntries (origin, entries))
                                         : controller.undoCollectionEdit (origin);
         if (origin == "queue") prunePlaybackOrigins();
         changed (edited);
@@ -707,7 +741,14 @@ void MusicLibraryPanel::performAction (int action, std::vector<juce::String> ids
         changed (controller.removeCollectionEntries ("queue", queueIds));
         return;
     }
+    if (action == 52 || action == 53)
+    {
+        if (entries.size() == 1) changed (controller.moveUpcomingQueueEntry (entries.front(), action == 52 ? -1 : 1));
+        return;
+    }
     if (action == 20) { newPlaylist(); return; }
+    if (action == 27) { if (onChoosePlaylistArtwork) onChoosePlaylistArtwork (origin.substring (9)); return; }
+    if (action == 28) { changed (controller.resetPlaylistArtwork (origin.substring (9))); return; }
     if (action == 21) { selectCollection (origin); beginRename(); return; }
     if (action == 22)
     {
@@ -766,10 +807,9 @@ void MusicLibraryPanel::setCategory (juce::String next)
 
 void MusicLibraryPanel::updateNavigation (bool supported)
 {
-    const auto queueOpen = supported && currentPage == Page::collection && collectionId == "queue";
     const auto favouritesOpen = supported && currentPage == Page::collection && collectionId == "favourites";
-    libraryOpen.setToggleState (supported && currentPage != Page::player && ! queueOpen && ! favouritesOpen, juce::dontSendNotification);
-    browseQueue.setToggleState (queueOpen, juce::dontSendNotification);
+    libraryOpen.setToggleState (supported && currentPage != Page::player, juce::dontSendNotification);
+    browseQueue.setToggleState (false, juce::dontSendNotification);
     browseFavourites.setToggleState (favouritesOpen, juce::dontSendNotification);
     playerOpen.setToggleState (! supported || currentPage == Page::player, juce::dontSendNotification);
     browsePlaylists.setToggleState (category == "playlists", juce::dontSendNotification);
@@ -797,6 +837,7 @@ void MusicLibraryPanel::refreshOverview()
 
 void MusicLibraryPanel::refreshDescription()
 {
+    changeArtwork.setEnabled (collectionId.startsWith ("playlist:") && controller.getLibrary().getPlaylist (collectionId.substring (9)) != nullptr);
     const auto summary = libraryCollectionSummary (controller.getLibrary(), controller.getPlaylist(), collectionId);
     if (currentPage == Page::collection)
     {
@@ -858,18 +899,27 @@ bool MusicLibraryPanel::focusOverviewSearch()
     return true;
 }
 
+void MusicLibraryPanel::mouseDown (const juce::MouseEvent& event)
+{
+    if (event.mods.isPopupMenu() && currentPage == Page::collection)
+        showCollectionActions (collectionId);
+}
+
 void MusicLibraryPanel::showCollectionActions (const juce::String& id)
 {
     const auto summary = libraryCollectionSummary (controller.getLibrary(), controller.getPlaylist(), id);
     juce::PopupMenu menu;
     menu.setLookAndFeel (&adapter);
-    menu.addItem (1, "Open");
+    if (currentPage != Page::collection || collectionId != id) menu.addItem (1, "Open");
     menu.addItem (2, "Play", summary.trackCount > 0);
     if (id.startsWith ("playlist:"))
     {
         menu.addSeparator();
         menu.addItem (21, "Rename");
         menu.addItem (22, "Duplicate");
+        menu.addItem (27, "Change cover...");
+        const auto* saved = controller.getLibrary().getPlaylist (id.substring (9));
+        menu.addItem (28, "Use automatic cover", saved != nullptr && saved->artworkCacheKey.isNotEmpty());
         juce::PopupMenu deletion;
         deletion.addItem (23, "Delete \"" + summary.name + "\"");
         menu.addSubMenu ("Delete playlist", deletion);

@@ -13,7 +13,7 @@
 #include <string>
 #include <unordered_set>
 
-class MusicLibraryPanel final : private juce::TableListBoxModel
+class MusicLibraryPanel final : private juce::TableListBoxModel, private juce::MouseListener
 {
 public:
     enum class Page { overview, collection, player };
@@ -32,6 +32,7 @@ public:
     void selectCollection (const juce::String&);
     void showLibrary();
     void showPlayer();
+    void showQueueActions (juce::Component& anchor);
     void showQueueTrackActions (const TrackItem&, juce::Component& anchor);
     [[nodiscard]] Page page() const { return currentPage; }
     void updateNavigation (bool libraryPageSupported);
@@ -40,7 +41,8 @@ public:
     [[nodiscard]] juce::Component& tableControl();
     [[nodiscard]] juce::ComboBox& collectionsControl() { return collections; }
     [[nodiscard]] std::vector<TrackItem> currentTracks() const { return tracks; }
-    std::function<void()> onChanged, onImportPlaylist, onPageChanged;
+    std::function<void()> onChanged, onImportPlaylist, onPageChanged, onShowQueue;
+    std::function<void(const juce::String&)> onChoosePlaylistArtwork;
     std::function<void(const std::vector<TrackItem>&)> onExportPlaylist;
     std::function<void(const juce::String&)> onRelocateTrack;
     std::function<void(const juce::String&, bool)> onStatus;
@@ -51,6 +53,7 @@ private:
     void paintRowBackground (juce::Graphics&, int, int, int, bool) override;
     void paintCell (juce::Graphics&, int, int, int, int, bool) override {}
     void selectedRowsChanged (int) override;
+    void mouseDown (const juce::MouseEvent&) override;
     void cellDoubleClicked (int, int, const juce::MouseEvent&) override;
     void cellClicked (int, int, const juce::MouseEvent&) override;
     juce::String getCellTooltip (int, int) override;
@@ -95,6 +98,7 @@ private:
     juce::TextButton libraryOpen { "Library" }, playerOpen { "Now playing" }, back { "Back to library" };
     juce::TextButton browsePlaylists { "Playlists" }, browseAlbums { "Albums" }, browseArtists { "Artists" };
     juce::TextButton browseSongs { "Songs" }, browseFavourites { "Favourites" }, browseQueue { "Play queue" };
+    juce::TextButton changeArtwork { "Change cover" };
     juce::TextButton play { "Play" }, shufflePlay { "Shuffle" };
     juce::TextEditor gridSearch;
     juce::Label description;

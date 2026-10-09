@@ -905,7 +905,7 @@ bool SkinLayoutHost::apply (SkinLayoutEntry entry,
                             juce::Rectangle<int> bounds,
                             float scaleFactor,
                             SkinValidationReport& report,
-                            std::optional<WorkspaceMode> workspace)
+                            std::optional<WorkspaceMode> workspace, SkinLayoutState state)
 {
     const auto session = manager.activeSession();
     const auto skin = session != nullptr ? session->compiledSkin() : nullptr;
@@ -917,7 +917,7 @@ bool SkinLayoutHost::apply (SkinLayoutEntry entry,
     }
 
     auto resolved = SkinLayoutEngine::resolve (
-        skin->layouts.at (entry), bounds.toFloat(), scaleFactor, report, workspace, skin.get());
+        skin->layouts.at (entry), bounds.toFloat(), scaleFactor, report, workspace, skin.get(), state);
     if (! resolved) return false;
     captureOriginalStates();
 

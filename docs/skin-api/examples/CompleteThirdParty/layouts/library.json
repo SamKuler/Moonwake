@@ -162,13 +162,47 @@
         ]
       },
       {
-        "id": "library-library-grid",
-        "type": "component",
-        "component": "library.grid",
-        "focusOrder": 160,
-        "style": "playlistGrid.default",
+        "id": "library-content",
+        "type": "row",
+        "gap": 12,
         "grow": 1,
-        "minHeight": 160
+        "minHeight": 160,
+        "children": [
+          {
+            "id": "library-library-grid",
+            "type": "component",
+            "component": "library.grid",
+            "focusOrder": 160,
+            "style": "playlistGrid.default",
+            "grow": 1,
+            "minHeight": 160
+          },
+          {
+            "id": "library-inline-queue",
+            "type": "column",
+            "width": 280,
+            "shrink": 0,
+            "padding": 8,
+            "gap": 8,
+            "style": "surface.card",
+            "visibleWhen": "view.queueOpen",
+            "children": [
+              {
+                "id": "library-queue-title",
+                "type": "component",
+                "component": "queue.title",
+                "height": 28
+              },
+              {
+                "id": "library-queue-table",
+                "type": "component",
+                "component": "queue.table",
+                "grow": 1,
+                "focusOrder": 920
+              }
+            ]
+          }
+        ]
       },
       {
         "id": "library-transport",
@@ -223,6 +257,14 @@
             "focusOrder": 210,
             "width": 150,
             "presentation": "linearHorizontal"
+          },
+          {
+            "id": "library-queue-toggle",
+            "type": "component",
+            "component": "queue.toggle",
+            "width": 36,
+            "height": 36,
+            "focusOrder": 910
           }
         ]
       },
@@ -401,13 +443,47 @@
             ]
           },
           {
-            "id": "studio-library-library-grid",
-            "type": "component",
-            "component": "library.grid",
-            "focusOrder": 160,
-            "style": "playlistGrid.default",
+            "id": "studio-library-content",
+            "type": "row",
+            "gap": 12,
             "grow": 1,
-            "minHeight": 160
+            "minHeight": 160,
+            "children": [
+              {
+                "id": "studio-library-library-grid",
+                "type": "component",
+                "component": "library.grid",
+                "focusOrder": 160,
+                "style": "playlistGrid.default",
+                "grow": 1,
+                "minHeight": 160
+              },
+              {
+                "id": "studio-library-inline-queue",
+                "type": "column",
+                "width": 280,
+                "shrink": 0,
+                "padding": 8,
+                "gap": 8,
+                "style": "surface.card",
+                "visibleWhen": "view.queueOpen",
+                "children": [
+                  {
+                    "id": "studio-library-queue-title",
+                    "type": "component",
+                    "component": "queue.title",
+                    "height": 28
+                  },
+                  {
+                    "id": "studio-library-queue-table",
+                    "type": "component",
+                    "component": "queue.table",
+                    "grow": 1,
+                    "focusOrder": 920
+                  }
+                ]
+              }
+            ]
           },
           {
             "id": "studio-library-transport",
@@ -462,6 +538,14 @@
                 "focusOrder": 210,
                 "width": 150,
                 "presentation": "linearHorizontal"
+              },
+              {
+                "id": "studio-library-queue-toggle",
+                "type": "component",
+                "component": "queue.toggle",
+                "width": 36,
+                "height": 36,
+                "focusOrder": 910
               }
             ]
           },

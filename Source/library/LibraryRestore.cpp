@@ -119,8 +119,16 @@ bool prepareLibraryRestore (MusicLibrary& library, PlaylistModel& playlist,
 {
     auto tracks = library.getTracks();
     if (! prepareTracks (tracks, artworkCacheRoot, cancelled, warnings)) return false;
+    auto savedPlaylists = library.getPlaylists();
+    const ArtworkStore artwork (artworkCacheRoot);
+    for (auto& saved : savedPlaylists)
+        if (saved.artworkCacheKey.isNotEmpty() && ! artwork.isValid (saved.artworkCacheKey))
+        {
+            warnings.add ("Playlist cover unavailable: " + saved.name + ". Using automatic artwork.");
+            saved.artworkCacheKey.clear();
+        }
     MusicLibrary prepared;
-    if (! prepared.restore (std::move (tracks), library.getPlaylists(), library.getFavouriteTrackIds()))
+    if (! prepared.restore (std::move (tracks), std::move (savedPlaylists), library.getFavouriteTrackIds()))
         return false;
     auto queue = playlist.getTracks();
     for (auto& occurrence : queue)

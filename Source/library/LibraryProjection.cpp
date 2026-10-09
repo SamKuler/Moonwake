@@ -35,8 +35,7 @@ juce::String libraryAlbumId (const TrackItem& track)
 std::vector<LibraryCollection> libraryCollections (const MusicLibrary& library)
 {
     std::vector<LibraryCollection> result {
-        { "all", "All songs", {} }, { "favourites", "Favourites", {} },
-        { "queue", "Play queue", {} }
+        { "all", "All songs", {} }, { "favourites", "Favourites", "Playlists" }
     };
     for (const auto& playlist : library.getPlaylists())
         result.push_back ({ "playlist:" + playlist.id, playlist.name, "Playlists" });
@@ -114,6 +113,13 @@ std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
     std::vector<LibraryCollectionSummary> result;
     if (category == "playlists")
     {
+        LibraryCollectionSummary favourites;
+        favourites.id = "favourites";
+        favourites.name = "Favourites";
+        favourites.subtitle = "Favourite songs";
+        for (const auto& track : library.getTracks())
+            if (library.isFavourite (track.id)) appendSummaryTrack (favourites, track);
+        result.push_back (std::move (favourites));
         for (const auto& playlist : library.getPlaylists())
         {
             LibraryCollectionSummary summary;
@@ -122,6 +128,7 @@ std::vector<LibraryCollectionSummary> libraryCollectionSummaries (
             summary.createdAtMs = playlist.createdAtMs;
             for (const auto& entry : playlist.entries)
                 if (const auto* track = library.getTrack (entry.trackId)) appendSummaryTrack (summary, *track);
+            if (playlist.artworkCacheKey.isNotEmpty()) summary.artworkKeys = { playlist.artworkCacheKey };
             result.push_back (std::move (summary));
         }
         return result;
@@ -178,5 +185,9 @@ LibraryCollectionSummary libraryCollectionSummary (
         else if (collectionId.startsWith ("artist:")) result.name = tracks.front().artist;
     }
     for (const auto& track : tracks) appendSummaryTrack (result, track);
+    if (collectionId.startsWith ("playlist:"))
+        if (const auto* playlist = library.getPlaylist (collectionId.substring (9));
+            playlist != nullptr && playlist->artworkCacheKey.isNotEmpty())
+            result.artworkKeys = { playlist->artworkCacheKey };
     return result;
 }

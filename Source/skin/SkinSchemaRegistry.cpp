@@ -387,6 +387,7 @@ juce::var layoutSchema()
     common.getDynamicObject()->setProperty ("clip", typedSchema ("boolean"));
     common.getDynamicObject()->setProperty ("zIndex", boundedNumber ("integer", -1000, 1000));
     common.getDynamicObject()->setProperty ("visible", typedSchema ("boolean"));
+    common.getDynamicObject()->setProperty ("visibleWhen", stringSchema (1, 512));
     common.getDynamicObject()->setProperty (
         "style", stringSchema (1, 128,
             R"(^[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_.-]*$)"));

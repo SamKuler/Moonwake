@@ -45,27 +45,7 @@
                 "style": "textButton.listeningMode",
                 "width": 100,
                 "height": 36,
-                "focusOrder": 2,
-                "shrink": 0
-              },
-              {
-                "id": "effects-effects-root-library-open-favourites",
-                "type": "component",
-                "component": "library.browseFavourites",
-                "style": "textButton.listeningMode",
-                "width": 100,
-                "height": 36,
-                "focusOrder": 3,
-                "shrink": 0
-              },
-              {
-                "id": "effects-effects-root-player-open-queue",
-                "type": "component",
-                "component": "library.browseQueue",
-                "style": "textButton.listeningMode",
-                "width": 100,
-                "height": 36,
-                "focusOrder": 4,
+                "focusOrder": 1,
                 "shrink": 0
               },
               {
@@ -75,7 +55,7 @@
                 "style": "textButton.listeningMode",
                 "width": 100,
                 "height": 36,
-                "focusOrder": 5,
+                "focusOrder": 2,
                 "shrink": 0
               },
               {
@@ -96,7 +76,7 @@
                     "style": "textButton.listeningMode",
                     "width": 100,
                     "height": 36,
-                    "focusOrder": 10
+                    "focusOrder": 3
                   },
                   {
                     "id": "effects-workspace-listening",
@@ -105,9 +85,19 @@
                     "style": "textButton.listeningMode",
                     "width": 100,
                     "height": 36,
-                    "focusOrder": 20
+                    "focusOrder": 4
                   }
                 ]
+              },
+              {
+                "id": "effects-0-global-add-music",
+                "type": "component",
+                "component": "library.add",
+                "style": "textButton.listeningIconNeutral",
+                "width": 32,
+                "height": 32,
+                "shrink": 0,
+                "focusOrder": 5
               },
               {
                 "id": "effects-settings-open",
@@ -116,7 +106,7 @@
                 "style": "textButton.listeningIconNeutral",
                 "width": 44,
                 "height": 44,
-                "focusOrder": 40
+                "focusOrder": 6
               }
             ]
           },
@@ -150,7 +140,7 @@
                     "width": 104,
                     "height": 28,
                     "shrink": 0,
-                    "focusOrder": 90
+                    "focusOrder": 7
                   },
                   {
                     "id": "effects-effects-page-heading-bypassAll",
@@ -160,7 +150,7 @@
                     "width": 104,
                     "height": 28,
                     "shrink": 0,
-                    "focusOrder": 95
+                    "focusOrder": 8
                   }
                 ],
                 "shrink": 0
@@ -185,7 +175,7 @@
                     "type": "component",
                     "component": "effects.filter",
                     "style": "textEditor.listening",
-                    "focusOrder": 100,
+                    "focusOrder": 9,
                     "grow": 1
                   },
                   {
@@ -195,7 +185,7 @@
                     "style": "comboBox.listening",
                     "width": 116,
                     "shrink": 0,
-                    "focusOrder": 102
+                    "focusOrder": 10
                   },
                   {
                     "id": "effects-effects-filter-manufacturerFilter",
@@ -204,7 +194,7 @@
                     "style": "comboBox.listening",
                     "width": 180,
                     "shrink": 0,
-                    "focusOrder": 104
+                    "focusOrder": 11
                   },
                   {
                     "id": "effects-effects-filter-formatFilter",
@@ -213,7 +203,7 @@
                     "style": "comboBox.listening",
                     "width": 132,
                     "shrink": 0,
-                    "focusOrder": 106
+                    "focusOrder": 12
                   }
                 ]
               },
@@ -229,7 +219,7 @@
                     "component": "effects.catalog",
                     "style": "comboBox.listening",
                     "grow": 1,
-                    "focusOrder": 110
+                    "focusOrder": 13
                   },
                   {
                     "id": "effects-effects-add",
@@ -237,7 +227,7 @@
                     "component": "effects.add",
                     "style": "textButton.listeningIconPrimary",
                     "width": 36,
-                    "focusOrder": 120,
+                    "focusOrder": 14,
                     "height": 36,
                     "shrink": 0
                   }
@@ -264,7 +254,7 @@
                     "component": "effects.scope",
                     "style": "comboBox.listening",
                     "width": 220,
-                    "focusOrder": 115
+                    "focusOrder": 15
                   },
                   {
                     "id": "effects-effects-root-layout",
@@ -272,7 +262,7 @@
                     "component": "effects.outputLayout",
                     "style": "comboBox.listening",
                     "width": 220,
-                    "focusOrder": 117
+                    "focusOrder": 16
                   }
                 ]
               },
@@ -286,7 +276,7 @@
                     "type": "component",
                     "component": "effects.chain",
                     "style": "effectChain.listening",
-                    "focusOrder": 130,
+                    "focusOrder": 17,
                     "anchors": {
                       "top": 0,
                       "right": 0,
@@ -377,27 +367,7 @@
                     "style": "textButton.studioMode",
                     "width": 100,
                     "height": 36,
-                    "focusOrder": 2,
-                    "shrink": 0
-                  },
-                  {
-                    "id": "themed-effects-themed-effects-root-library-open-favourites",
-                    "type": "component",
-                    "component": "library.browseFavourites",
-                    "style": "textButton.studioMode",
-                    "width": 100,
-                    "height": 36,
-                    "focusOrder": 3,
-                    "shrink": 0
-                  },
-                  {
-                    "id": "themed-effects-themed-effects-root-player-open-queue",
-                    "type": "component",
-                    "component": "library.browseQueue",
-                    "style": "textButton.studioMode",
-                    "width": 100,
-                    "height": 36,
-                    "focusOrder": 4,
+                    "focusOrder": 1,
                     "shrink": 0
                   },
                   {
@@ -407,7 +377,7 @@
                     "style": "textButton.studioMode",
                     "width": 100,
                     "height": 36,
-                    "focusOrder": 5,
+                    "focusOrder": 2,
                     "shrink": 0
                   },
                   {
@@ -428,7 +398,7 @@
                         "style": "textButton.studioMode",
                         "width": 100,
                         "height": 36,
-                        "focusOrder": 10
+                        "focusOrder": 3
                       },
                       {
                         "id": "themed-effects-workspace-listening",
@@ -437,9 +407,19 @@
                         "style": "textButton.studioMode",
                         "width": 100,
                         "height": 36,
-                        "focusOrder": 20
+                        "focusOrder": 4
                       }
                     ]
+                  },
+                  {
+                    "id": "effects-1-global-add-music",
+                    "type": "component",
+                    "component": "library.add",
+                    "style": "textButton.studioIconNeutral",
+                    "width": 32,
+                    "height": 32,
+                    "shrink": 0,
+                    "focusOrder": 5
                   },
                   {
                     "id": "themed-effects-settings-open",
@@ -448,7 +428,7 @@
                     "style": "textButton.studioIconNeutral",
                     "width": 44,
                     "height": 44,
-                    "focusOrder": 40
+                    "focusOrder": 6
                   }
                 ]
               },
@@ -482,7 +462,7 @@
                         "width": 104,
                         "height": 28,
                         "shrink": 0,
-                        "focusOrder": 90
+                        "focusOrder": 7
                       },
                       {
                         "id": "themed-effects-themed-effects-page-heading-bypassAll",
@@ -492,7 +472,7 @@
                         "width": 104,
                         "height": 28,
                         "shrink": 0,
-                        "focusOrder": 95
+                        "focusOrder": 8
                       }
                     ],
                     "shrink": 0
@@ -517,7 +497,7 @@
                         "type": "component",
                         "component": "effects.filter",
                         "style": "textEditor.studio",
-                        "focusOrder": 100,
+                        "focusOrder": 9,
                         "grow": 1
                       },
                       {
@@ -527,7 +507,7 @@
                         "style": "comboBox.studio",
                         "width": 116,
                         "shrink": 0,
-                        "focusOrder": 102
+                        "focusOrder": 10
                       },
                       {
                         "id": "themed-effects-themed-effects-filter-manufacturerFilter",
@@ -536,7 +516,7 @@
                         "style": "comboBox.studio",
                         "width": 180,
                         "shrink": 0,
-                        "focusOrder": 104
+                        "focusOrder": 11
                       },
                       {
                         "id": "themed-effects-themed-effects-filter-formatFilter",
@@ -545,7 +525,7 @@
                         "style": "comboBox.studio",
                         "width": 132,
                         "shrink": 0,
-                        "focusOrder": 106
+                        "focusOrder": 12
                       }
                     ]
                   },
@@ -561,7 +541,7 @@
                         "component": "effects.catalog",
                         "style": "comboBox.studio",
                         "grow": 1,
-                        "focusOrder": 110
+                        "focusOrder": 13
                       },
                       {
                         "id": "themed-effects-themed-effects-add",
@@ -569,7 +549,7 @@
                         "component": "effects.add",
                         "style": "textButton.studioIconPrimary",
                         "width": 36,
-                        "focusOrder": 120,
+                        "focusOrder": 14,
                         "height": 36,
                         "shrink": 0
                       }
@@ -596,7 +576,7 @@
                         "component": "effects.scope",
                         "style": "comboBox.studio",
                         "width": 220,
-                        "focusOrder": 115
+                        "focusOrder": 15
                       },
                       {
                         "id": "themed-effects-themed-effects-root-layout",
@@ -604,7 +584,7 @@
                         "component": "effects.outputLayout",
                         "style": "comboBox.studio",
                         "width": 220,
-                        "focusOrder": 117
+                        "focusOrder": 16
                       }
                     ]
                   },
@@ -618,7 +598,7 @@
                         "type": "component",
                         "component": "effects.chain",
                         "style": "effectChain.studio",
-                        "focusOrder": 130,
+                        "focusOrder": 17,
                         "anchors": {
                           "top": 0,
                           "right": 0,
