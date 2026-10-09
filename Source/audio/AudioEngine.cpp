@@ -1017,12 +1017,8 @@ void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSo
     midiBuffer.clear();
     effectWetMix.setTargetValue (areAllBypassed() ? 0.0f : 1.0f);
     const auto blendDry = effectWetMix.isSmoothing() || effectWetMix.getTargetValue() == 0.0f;
-    if (blendDry)
-        for (int channel = 0; channel < channelCount; ++channel)
-            dryBuffer.copyFrom (channel, 0, processBuffer, channel, 0, bufferToFill.numSamples);
-
     // Keep processing during monitoring bypass so delay/reverb state does not freeze.
-    effectGraph.processBlock (processBuffer, midiBuffer);
+    effectGraph.processBlock (processBuffer, midiBuffer, blendDry ? &dryBuffer : nullptr);
     if (effectWetMix.isSmoothing())
         for (int sample = 0; sample < bufferToFill.numSamples; ++sample)
         {

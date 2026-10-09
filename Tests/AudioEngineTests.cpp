@@ -5,6 +5,7 @@
 #include "app/PlayerController.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <thread>
 
@@ -114,10 +115,14 @@ private:
 class DelayProbePlugin final : public juce::AudioPluginInstance
 {
 public:
-    DelayProbePlugin()
+    explicit DelayProbePlugin (int latencySamples = 256, bool reportsLatency = false)
         : AudioPluginInstance (BusesProperties()
               .withInput ("Input", juce::AudioChannelSet::stereo(), true)
-              .withOutput ("Output", juce::AudioChannelSet::stereo(), true)) {}
+              .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+          delaySamples (latencySamples)
+    {
+        if (reportsLatency) setLatencySamples (latencySamples);
+    }
     int prepares = 0, releases = 0;
     const juce::String getName() const override { return "Delay probe"; }
     void fillInPluginDescription (juce::PluginDescription& description) const override
@@ -127,11 +132,19 @@ public:
     void prepareToPlay (double, int) override
     {
         ++prepares;
-        delay.setSize (getTotalNumOutputChannels(), 256);
+        delay.setSize (getTotalNumOutputChannels(), delaySamples);
         delay.clear();
         position = 0;
     }
     void releaseResources() override { ++releases; delay.clear(); }
+    void reset() override { delay.clear(); position = 0; }
+    void changeLatency (int samples)
+    {
+        delaySamples = samples;
+        delay.setSize (getTotalNumOutputChannels(), delaySamples);
+        reset();
+        setLatencySamples (samples);
+    }
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
     {
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
@@ -163,6 +176,7 @@ public:
     void setStateInformation (const void*, int) override {}
 private:
     juce::AudioBuffer<float> delay;
+    int delaySamples = 256;
     int position = 0;
 };
 
@@ -727,6 +741,99 @@ public:
             expect (playback.clearEffectTails (error), error);
             device->render (block);
             expectEquals (block.getMagnitude (0, 1024), 0.0f);
+            playback.unload();
+            expect (source.deleteFile());
+        }
+
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo,
+                                   OutputLayout::nineOneSix })
+        {
+            beginTest ("monitoring bypass aligns dry audio with scoped graph latency in " + toString (layout));
+            const auto channels = getChannelCount (layout);
+            const auto source = directory.getNonexistentChildFile ("latency-bypass-" + toString (layout), ".wav");
+            const auto sampleAt = [] (int channel, int sample)
+            {
+                return 0.02f * static_cast<float> (channel + 1)
+                    * static_cast<float> (std::sin (juce::MathConstants<double>::twoPi * sample / 128.0));
+            };
+            {
+                auto stream = std::unique_ptr<juce::OutputStream> (source.createOutputStream());
+                auto signalWriter = format.createWriterFor (stream, juce::AudioFormatWriterOptions{}
+                    .withSampleRate (48000.0).withChannelLayout (juce::AudioChannelSet::discreteChannels (16))
+                    .withBitsPerSample (32)
+                    .withSampleFormat (juce::AudioFormatWriterOptions::SampleFormat::floatingPoint));
+                expect (signalWriter != nullptr, "Could not create the discrete multichannel latency fixture.");
+                if (signalWriter)
+                {
+                    juce::AudioBuffer<float> signal (16, 48000);
+                    for (int channel = 0; channel < signal.getNumChannels(); ++channel)
+                        for (int sample = 0; sample < signal.getNumSamples(); ++sample)
+                            signal.setSample (channel, sample, sampleAt (channel, sample));
+                    expect (signalWriter->writeFromAudioSampleBuffer (signal, 0, signal.getNumSamples()));
+                }
+            }
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            expect (playback.initialise().isEmpty());
+            expect (playback.setOutputLayout (layout).isEmpty());
+            playback.setGain (1.0);
+            expect (playback.loadFile (source), "Could not load the discrete multichannel latency fixture.");
+            auto plugin = std::make_unique<DelayProbePlugin> (64, true);
+            auto* probe = plugin.get();
+            juce::String error;
+            expect (playback.addEffectPlugin (1, std::move (plugin), error,
+                                              { juce::AudioChannelSet::left }), error);
+            playback.play();
+            juce::AudioBuffer<float> block (channels, 256);
+            int renderedSamples = 0;
+            const auto render = [&]
+            {
+                juce::UnitTestAllocationChecker allocations (*this);
+                device->render (block);
+                renderedSamples += block.getNumSamples();
+            };
+            const auto expectAligned = [&] (int blocks, int latency, int clearedPrefix = 0)
+            {
+                auto maximumError = 0.0f;
+                for (int index = 0; index < blocks; ++index)
+                {
+                    const auto start = renderedSamples;
+                    render();
+                    for (int channel = 0; channel < channels; ++channel)
+                        for (int sample = 0; sample < block.getNumSamples(); ++sample)
+                        {
+                            const auto expected = index * block.getNumSamples() + sample < clearedPrefix
+                                ? 0.0f : sampleAt (channel, start + sample - latency);
+                            maximumError = std::max (maximumError, std::abs (block.getSample (channel, sample) - expected));
+                        }
+                }
+                expectWithinAbsoluteError (maximumError, 0.0f, 0.00001f);
+            };
+            for (int index = 0; index < 8; ++index) render();
+            expectAligned (1, 64);
+            for (const auto bypassed : { true, false })
+            {
+                playback.setAllEffectsBypassed (bypassed);
+                expectAligned (5, 64);
+                if (bypassed)
+                {
+                    expect (playback.setEffectPluginOrder ({ 1 }));
+                    expectAligned (1, 64);
+                }
+            }
+
+            probe->changeLatency (160);
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (80);
+            for (int index = 0; index < 4; ++index) render();
+            expectAligned (1, 160);
+            playback.setAllEffectsBypassed (true);
+            expectAligned (5, 160);
+            expect (playback.clearEffectTails (error), error);
+            expectAligned (1, 160, 160);
+            playback.setAllEffectsBypassed (false);
+            expectAligned (5, 160);
             playback.unload();
             expect (source.deleteFile());
         }

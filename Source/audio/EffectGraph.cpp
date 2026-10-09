@@ -39,8 +39,8 @@ void EffectGraph::audioProcessorChanged (
 void EffectGraph::timerCallback()
 {
     // Plug-ins may notify from their audio callback. Rebuild only on the message thread.
-    if (latencyChanged.exchange (false, std::memory_order_acquire))
-        graph.rebuild();
+    if (latencyChanged.exchange (false, std::memory_order_acquire) && ! rebuildGraph())
+        latencyChanged.store (true, std::memory_order_release);
 }
 
 void EffectGraph::prepareToPlay (double sampleRate,
@@ -68,6 +68,7 @@ void EffectGraph::prepareToPlay (double sampleRate,
 
     static_cast<void> (rebuildConnections());
     graph.prepareToPlay (currentSampleRate, currentBlockSize);
+    resetDryDelay();
     prepared = true;
 }
 
@@ -77,17 +78,30 @@ void EffectGraph::releaseResources()
         graph.releaseResources();
 
     prepared = false;
+    dryDelay.clear();
+    dryDelayPosition = 0;
 }
 
-void EffectGraph::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+void EffectGraph::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi,
+                                juce::AudioBuffer<float>* alignedDry)
 {
+    const auto copyDryInput = [&]
+    {
+        if (alignedDry != nullptr)
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                alignedDry->copyFrom (channel, 0, buffer, channel, 0, buffer.getNumSamples());
+    };
     if (stateCaptureRequested.load (std::memory_order_acquire))
+    {
+        copyDryInput();
         return;
+    }
 
     activeProcessCallbacks.fetch_add (1, std::memory_order_acq_rel);
     if (stateCaptureRequested.load (std::memory_order_acquire))
     {
         activeProcessCallbacks.fetch_sub (1, std::memory_order_release);
+        copyDryInput();
         return;
     }
 
@@ -99,6 +113,23 @@ void EffectGraph::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuff
             count.fetch_sub (1, std::memory_order_release);
         }
     } active { activeProcessCallbacks };
+    const auto latency = dryDelay.getNumSamples();
+    if (latency == 0)
+        copyDryInput();
+    else
+    {
+        // The reference runs continuously so entering bypass has complete history.
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+            {
+                if (alignedDry != nullptr)
+                    alignedDry->setSample (channel, sample, dryDelay.getSample (channel, dryDelayPosition));
+                dryDelay.setSample (channel, dryDelayPosition, buffer.getSample (channel, sample));
+            }
+            if (++dryDelayPosition == latency) dryDelayPosition = 0;
+        }
+    }
     graph.processBlock (buffer, midi);
 }
 
@@ -151,6 +182,7 @@ bool EffectGraph::clearTails (juce::String& errorMessage)
             // A fresh render sequence clears them without changing slot settings.
             graph.releaseResources();
             graph.prepareToPlay (currentSampleRate, currentBlockSize);
+            resetDryDelay();
         }
         return true;
     }
@@ -219,7 +251,7 @@ bool EffectGraph::removeProcessor (int slotId)
     removedSlot.node->getProcessor()->removeListener (this);
     graph.removeNode (removedSlot.node->nodeID,
                       juce::AudioProcessorGraph::UpdateKind::none);
-    graph.rebuild();
+    static_cast<void> (rebuildGraph());
     return true;
 }
 
@@ -243,7 +275,7 @@ bool EffectGraph::clearProcessors()
         graph.removeNode (removed.node->nodeID,
                           juce::AudioProcessorGraph::UpdateKind::none);
     }
-    graph.rebuild();
+    static_cast<void> (rebuildGraph());
     return true;
 }
 
@@ -361,7 +393,10 @@ bool EffectGraph::setChannelLayout (const juce::AudioChannelSet& channelLayout,
         errorMessage = slots[i].node->getProcessor()->getName()
             + " rejected the requested output layout.";
         if (prepared)
+        {
             graph.prepareToPlay (currentSampleRate, currentBlockSize);
+            resetDryDelay();
+        }
         return false;
     }
 
@@ -390,12 +425,18 @@ bool EffectGraph::setChannelLayout (const juce::AudioChannelSet& channelLayout,
         static_cast<void> (rebuildConnections());
         errorMessage = "Could not connect all channels in the requested effect graph.";
         if (prepared)
+        {
             graph.prepareToPlay (currentSampleRate, currentBlockSize);
+            resetDryDelay();
+        }
         return false;
     }
 
     if (prepared)
+    {
         graph.prepareToPlay (currentSampleRate, currentBlockSize);
+        resetDryDelay();
+    }
     return true;
 }
 
@@ -513,8 +554,33 @@ bool EffectGraph::rebuildConnections()
                                    juce::AudioProcessorGraph::UpdateKind::none))
             return false;
 
+    return rebuildGraph();
+}
+
+bool EffectGraph::rebuildGraph()
+{
+    // Graph edits are serialized by the control thread; scope and state edits
+    // may already own the capture gate when they rebuild connections.
+    const auto ownsCapture = ! stateCaptureRequested.load (std::memory_order_acquire);
+    if (ownsCapture && ! beginStateCapture()) return false;
+    struct CaptureScope
+    {
+        EffectGraph& owner;
+        bool acquired;
+        ~CaptureScope() { if (acquired) owner.endStateCapture(); }
+    } capture { *this, ownsCapture };
     graph.rebuild();
+    if (prepared && (dryDelay.getNumChannels() != currentChannelLayout.size()
+                     || dryDelay.getNumSamples() != juce::jmax (0, graph.getLatencySamples())))
+        resetDryDelay();
     return true;
+}
+
+void EffectGraph::resetDryDelay()
+{
+    dryDelay.setSize (currentChannelLayout.size(), juce::jmax (0, graph.getLatencySamples()));
+    dryDelay.clear();
+    dryDelayPosition = 0;
 }
 
 bool EffectGraph::configureProcessor (juce::AudioProcessor& processor, const EffectScope& scope,

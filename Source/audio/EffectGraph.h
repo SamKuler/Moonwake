@@ -18,7 +18,8 @@ public:
                         int blockSize,
                         const juce::AudioChannelSet& channelLayout);
     void releaseResources();
-    void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi);
+    void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi,
+                       juce::AudioBuffer<float>* alignedDry = nullptr);
     bool clearTails (juce::String& errorMessage);
     bool beginStateCapture (int timeoutMilliseconds = 1000);
     void endStateCapture() noexcept;
@@ -49,6 +50,8 @@ private:
     };
 
     bool rebuildConnections();
+    bool rebuildGraph();
+    void resetDryDelay();
     bool configureProcessor (juce::AudioProcessor& processor, const EffectScope&,
                              juce::String& errorMessage) const;
     bool createProcessorLayout (const juce::AudioProcessor& processor,
@@ -70,6 +73,8 @@ private:
     int currentBlockSize = 512;
     juce::AudioChannelSet currentChannelLayout = juce::AudioChannelSet::stereo();
     bool prepared = false;
+    juce::AudioBuffer<float> dryDelay;
+    int dryDelayPosition = 0;
     std::atomic_bool stateCaptureRequested { false };
     std::atomic<int> activeProcessCallbacks { 0 };
     std::atomic_bool latencyChanged { false };
