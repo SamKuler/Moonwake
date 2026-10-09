@@ -29,14 +29,27 @@ int runPluginScannerWorker (const juce::StringArray& arguments)
         return 3;
 
     juce::OwnedArray<juce::PluginDescription> descriptions;
-    try
+    const auto scan = [&]
     {
-        format->findAllTypesForFile (descriptions, arguments[2]);
-    }
-    catch (...)
-    {
-        return 4;
-    }
+        try
+        {
+            format->findAllTypesForFile (descriptions, arguments[2]);
+            return 0;
+        }
+        catch (...)
+        {
+            return 4;
+        }
+    };
+
+    juce::PluginDescription candidate;
+    candidate.fileOrIdentifier = arguments[2];
+    // Synchronous discovery may initialise native UI inside the plug-in module.
+    // Async-only formats need the message loop to remain available while scanning.
+    const auto scanResult = format->requiresUnblockedMessageThreadDuringCreation (candidate)
+        ? scan() : juce::MessageManager::callSync (scan).value_or (8);
+    if (scanResult != 0)
+        return scanResult;
 
     juce::KnownPluginList known;
     for (const auto* description : descriptions)

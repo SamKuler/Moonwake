@@ -1,5 +1,10 @@
 #include "MoonwakeHostingFixtureProcessor.h"
 
+#if JUCE_MAC
+ #include <pthread.h>
+ #include <stdexcept>
+#endif
+
 namespace
 {
 template <typename Sample>
@@ -81,5 +86,9 @@ void MoonwakeHostingFixtureProcessor::setStateInformation (const void* data, int
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
+   #if JUCE_MAC
+    if (pthread_main_np() == 0)
+        throw std::runtime_error ("The hosting fixture must be created on the macOS main thread.");
+   #endif
     return new MoonwakeHostingFixtureProcessor();
 }

@@ -433,6 +433,37 @@ public:
             }
         }
 
+       #if JUCE_MAC
+        beginTest ("isolated VST3 discovery without module metadata creates the plug-in on the main thread");
+        {
+            ScopedTemporaryDirectory temporary {
+                juce::File::getSpecialLocation (juce::File::tempDirectory)
+                    .getNonexistentChildFile ("moonwake-vst3-slow-scan", {})
+            };
+            const juce::File source (MOONWAKE_TEST_VST3_PATH);
+            const auto fixture = temporary.directory.getChildFile (source.getFileName());
+            const auto copied = source.copyDirectoryTo (fixture);
+            expect (copied, "Could not copy the VST3 fixture for module discovery.");
+            if (copied)
+            {
+                const auto removedMetadata = fixture.getChildFile ("Contents/Resources/moduleinfo.json").deleteFile()
+                    && fixture.getChildFile ("Contents/moduleinfo.json").deleteFile();
+                expect (removedMetadata, "Could not remove cached VST3 module descriptions.");
+                const auto signing = PluginScanProcess::run (
+                    { "/usr/bin/codesign", "--force", "--sign", "-", "--timestamp=none", fixture.getFullPathName() },
+                    30000, [] { return false; });
+                expect (signing.outcome == PluginScanProcessOutcome::completed,
+                        "Could not sign the modified VST3 fixture: " + signing.diagnostic);
+                if (removedMetadata && signing.outcome == PluginScanProcessOutcome::completed)
+                {
+                    juce::String error;
+                    const auto descriptions = scanWithHelper ("VST3", fixture.getFullPathName(), error);
+                    expectEquals (descriptions.size(), 1, error);
+                }
+            }
+        }
+       #endif
+
         beginTest ("isolated scanner discovers and hosts a real VST3 bundle");
         {
             juce::String error;
