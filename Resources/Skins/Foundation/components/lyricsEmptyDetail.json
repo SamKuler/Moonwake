@@ -1,0 +1,35 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "x": {
+          "$context": "bounds.x"
+        },
+        "y": {
+          "$expr": "bounds.y + bounds.height * 0.36 + 42"
+        },
+        "width": {
+          "$context": "bounds.width"
+        },
+        "height": 100
+      },
+      "text": {
+        "$context": "text.secondary"
+      },
+      "font": {
+        "$ref": "fonts.body"
+      },
+      "fontSize": 17,
+      "color": {
+        "$ref": "colors.textMuted"
+      },
+      "align": "left",
+      "maxLines": 4,
+      "overflow": "ellipsis"
+    }
+  ]
+}

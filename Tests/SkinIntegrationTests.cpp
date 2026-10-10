@@ -674,7 +674,7 @@ public:
         if (foundation)
         {
             expectEquals (foundation->manifest.id, juce::String ("builtin.foundation"));
-            expectEquals (static_cast<int> (foundation->layouts.size()), 4);
+            expectEquals (static_cast<int> (foundation->layouts.size()), 6);
             expect (! foundation->layouts.contains (SkinLayoutEntry::library));
             expect (! foundation->layouts.contains (SkinLayoutEntry::collection));
             expect (foundation->resolveStyle (SkinRenderTarget::playlistGrid, {}) == nullptr);
@@ -691,6 +691,61 @@ public:
                                               "popupMenu.default") != nullptr);
             expect (foundation->resolveStyle (SkinRenderTarget::tooltip,
                                               "tooltip.default") != nullptr);
+        }
+
+        beginTest ("self-contained pre-lyrics packages compile without optional lyrics renderers or window layouts");
+        {
+            SkinValidationReport legacyReport;
+            std::vector<SkinPackage::EmbeddedFile> files;
+            for (const auto& path : foundationPackage.listFiles())
+            {
+                if (path == "manifest.json")
+                {
+                    auto manifest = juce::JSON::parse (foundationPackage.readText (path, legacyReport));
+                    manifest.getDynamicObject()->setProperty ("id", "com.example.legacy-player");
+                    manifest.getDynamicObject()->setProperty ("minAppVersion", "0.9.0");
+                    auto layouts = manifest.getProperty ("entrypoints", {}).getProperty ("layouts", {});
+                    layouts.getDynamicObject()->removeProperty ("immersive");
+                    layouts.getDynamicObject()->removeProperty ("mini");
+                    files.push_back ({ path, bytes (juce::JSON::toString (manifest)) });
+                }
+                else if (path == "components/index.json")
+                {
+                    auto index = juce::JSON::parse (foundationPackage.readText (path, legacyReport));
+                    index.getDynamicObject()->removeProperty ("lyrics");
+                    files.push_back ({ path, bytes (juce::JSON::toString (index)) });
+                }
+                else if (path == "layouts/listening.json")
+                {
+                    auto layout = juce::JSON::parse (foundationPackage.readText (path, legacyReport));
+                    const auto prune = [&] (auto&& self, juce::var node) -> void
+                    {
+                        if (auto* children = node.getProperty ("children", {}).getArray())
+                            for (int i = children->size(); --i >= 0;)
+                            {
+                                const auto child = children->getReference (i);
+                                const auto component = child.getProperty ("component", {}).toString();
+                                if (child.getProperty ("id", {}).toString() == "lyrics-column"
+                                    || component.startsWith ("lyrics.") || component == "player.fullscreen"
+                                    || component == "player.mini") children->remove (i);
+                                else self (self, child);
+                            }
+                    };
+                    prune (prune, layout.getProperty ("root", {}));
+                    files.push_back ({ path, bytes (juce::JSON::toString (layout)) });
+                }
+                else files.push_back ({ path, foundationPackage.readBinary (path, legacyReport) });
+            }
+            const auto legacy = embedded ("legacy-player", std::move (files), legacyReport);
+            const auto compiled = legacy ? SkinCompiler::compile (*legacy, {}, legacyReport) : nullptr;
+            expect (compiled != nullptr, legacyReport.toText());
+            if (compiled)
+            {
+                expect (compiled->resolveStyle (SkinRenderTarget::lyrics, {}) == nullptr);
+                expect (! compiled->layouts.contains (SkinLayoutEntry::mini));
+                expect (! compiled->layouts.contains (SkinLayoutEntry::immersive));
+                expectEquals (static_cast<int> (compiled->layouts.size()), 4);
+            }
         }
 
         SkinValidationReport defaultReport;
@@ -900,10 +955,10 @@ public:
             expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 16,
                     "Studio meters must use the actual channel list through 9.1.6");
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
-            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.9.0"));
+            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.10.0"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.9.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.10.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
@@ -1711,7 +1766,7 @@ public:
                     expect (localAsset.assets->findSvg (
                         "assets/foundation-mark.svg") != nullptr);
                 }
-                expectEquals (static_cast<int> (fixture->layouts.size()), 4);
+                expectEquals (static_cast<int> (fixture->layouts.size()), 6);
             }
         }
 

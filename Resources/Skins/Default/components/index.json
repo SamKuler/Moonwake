@@ -39,7 +39,17 @@
     "listeningCollectionDescription": "components/listening-collection-description.json",
     "studioQueueTitle": "components/studio-queue-title.json",
     "studioCalibrationStatus": "components/studio-calibration-status.json",
-    "listeningCalibrationStatus": "components/listening-calibration-status.json"
+    "listeningCalibrationStatus": "components/listening-calibration-status.json",
+    "lyricsDocumentLine": "components/lyrics-document-line.json",
+    "lyricsImmersiveLine": "components/lyrics-immersive-line.json",
+    "lyricsLineLine": "components/lyrics-line-line.json",
+    "lyricsEmptyTitle": "components/lyricsEmptyTitle.json",
+    "lyricsEmptyDetail": "components/lyricsEmptyDetail.json",
+    "lyricsMiniStatus": "components/lyricsMiniStatus.json",
+    "miniTitle": "components/miniTitle.json",
+    "miniArtist": "components/miniArtist.json",
+    "playerNotice": "components/playerNotice.json",
+    "miniNotice": "components/miniNotice.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -66,7 +76,13 @@
         "icon.preview": "surface.studioIcon",
         "icon.repeat": "surface.studioIcon",
         "icon.repeatOne": "surface.studioIcon",
-        "icon.queue": "surface.studioIcon"
+        "icon.queue": "surface.studioIcon",
+        "icon.lyrics": "surface.studioIcon",
+        "icon.fullscreen": "surface.studioIcon",
+        "icon.mini": "surface.studioIcon",
+        "icon.restore": "surface.studioIcon",
+        "icon.pin": "surface.studioIcon",
+        "icon.more": "surface.studioIcon"
       }
     },
     "studioIconPrimary": {
@@ -90,7 +106,13 @@
         "icon.preview": "surface.studioOnPrimaryIcon",
         "icon.repeat": "surface.studioOnPrimaryIcon",
         "icon.repeatOne": "surface.studioOnPrimaryIcon",
-        "icon.queue": "surface.studioOnPrimaryIcon"
+        "icon.queue": "surface.studioOnPrimaryIcon",
+        "icon.lyrics": "surface.studioOnPrimaryIcon",
+        "icon.fullscreen": "surface.studioOnPrimaryIcon",
+        "icon.mini": "surface.studioOnPrimaryIcon",
+        "icon.restore": "surface.studioOnPrimaryIcon",
+        "icon.pin": "surface.studioOnPrimaryIcon",
+        "icon.more": "surface.studioOnPrimaryIcon"
       }
     },
     "listening": "components/listening-button.json",
@@ -117,7 +139,13 @@
         "icon.preview": "surface.listeningIcon",
         "icon.repeat": "surface.listeningIcon",
         "icon.repeatOne": "surface.listeningIcon",
-        "icon.queue": "surface.listeningIcon"
+        "icon.queue": "surface.listeningIcon",
+        "icon.lyrics": "surface.listeningIcon",
+        "icon.fullscreen": "surface.listeningIcon",
+        "icon.mini": "surface.listeningIcon",
+        "icon.restore": "surface.listeningIcon",
+        "icon.pin": "surface.listeningIcon",
+        "icon.more": "surface.listeningIcon"
       }
     },
     "listeningIconPrimary": {
@@ -141,7 +169,13 @@
         "icon.preview": "surface.listeningOnPrimaryIcon",
         "icon.repeat": "surface.listeningOnPrimaryIcon",
         "icon.repeatOne": "surface.listeningOnPrimaryIcon",
-        "icon.queue": "surface.listeningOnPrimaryIcon"
+        "icon.queue": "surface.listeningOnPrimaryIcon",
+        "icon.lyrics": "surface.listeningOnPrimaryIcon",
+        "icon.fullscreen": "surface.listeningOnPrimaryIcon",
+        "icon.mini": "surface.listeningOnPrimaryIcon",
+        "icon.restore": "surface.listeningOnPrimaryIcon",
+        "icon.pin": "surface.listeningOnPrimaryIcon",
+        "icon.more": "surface.listeningOnPrimaryIcon"
       }
     },
     "listeningLeadingNeutral": {
@@ -165,7 +199,13 @@
         "icon.preview": "surface.listeningIcon",
         "icon.repeat": "surface.listeningIcon",
         "icon.repeatOne": "surface.listeningIcon",
-        "icon.queue": "surface.listeningIcon"
+        "icon.queue": "surface.listeningIcon",
+        "icon.lyrics": "surface.listeningIcon",
+        "icon.fullscreen": "surface.listeningIcon",
+        "icon.mini": "surface.listeningIcon",
+        "icon.restore": "surface.listeningIcon",
+        "icon.pin": "surface.listeningIcon",
+        "icon.more": "surface.listeningIcon"
       }
     },
     "listeningLeadingPrimary": {
@@ -189,7 +229,13 @@
         "icon.preview": "surface.listeningOnPrimaryIcon",
         "icon.repeat": "surface.listeningOnPrimaryIcon",
         "icon.repeatOne": "surface.listeningOnPrimaryIcon",
-        "icon.queue": "surface.listeningOnPrimaryIcon"
+        "icon.queue": "surface.listeningOnPrimaryIcon",
+        "icon.lyrics": "surface.listeningOnPrimaryIcon",
+        "icon.fullscreen": "surface.listeningOnPrimaryIcon",
+        "icon.mini": "surface.listeningOnPrimaryIcon",
+        "icon.restore": "surface.listeningOnPrimaryIcon",
+        "icon.pin": "surface.listeningOnPrimaryIcon",
+        "icon.more": "surface.listeningOnPrimaryIcon"
       }
     },
     "studioMode": "components/studio-mode-button.json",
@@ -215,7 +261,13 @@
         "icon.preview": "surface.studioIcon",
         "icon.repeat": "surface.studioIcon",
         "icon.repeatOne": "surface.studioIcon",
-        "icon.queue": "surface.studioIcon"
+        "icon.queue": "surface.studioIcon",
+        "icon.lyrics": "surface.studioIcon",
+        "icon.fullscreen": "surface.studioIcon",
+        "icon.mini": "surface.studioIcon",
+        "icon.restore": "surface.studioIcon",
+        "icon.pin": "surface.studioIcon",
+        "icon.more": "surface.studioIcon"
       }
     },
     "studioLeadingPrimary": {
@@ -239,7 +291,13 @@
         "icon.preview": "surface.studioOnPrimaryIcon",
         "icon.repeat": "surface.studioOnPrimaryIcon",
         "icon.repeatOne": "surface.studioOnPrimaryIcon",
-        "icon.queue": "surface.studioOnPrimaryIcon"
+        "icon.queue": "surface.studioOnPrimaryIcon",
+        "icon.lyrics": "surface.studioOnPrimaryIcon",
+        "icon.fullscreen": "surface.studioOnPrimaryIcon",
+        "icon.mini": "surface.studioOnPrimaryIcon",
+        "icon.restore": "surface.studioOnPrimaryIcon",
+        "icon.pin": "surface.studioOnPrimaryIcon",
+        "icon.more": "surface.studioOnPrimaryIcon"
       }
     },
     "studioCompact": "components/studio-compact-button.json",
@@ -414,6 +472,13 @@
     },
     "listeningCollection": {
       "renderer": "components/listening-collection-cover.json",
+      "slots": {
+        "frame.background": "surface.artworkOverlay",
+        "frame.overlay": "surface.artworkOverlay"
+      }
+    },
+    "mini": {
+      "renderer": "components/lyrics-mini-artwork.json",
       "slots": {
         "frame.background": "surface.artworkOverlay",
         "frame.overlay": "surface.artworkOverlay"
@@ -756,6 +821,32 @@
         "calibration.frequency": "textEditor.listening",
         "calibration.startStop": "textButton.listeningPrimary",
         "calibration.status": "label.listeningCalibrationStatus"
+      }
+    }
+  },
+  "lyrics": {
+    "document": {
+      "renderer": "components/lyrics-document.json",
+      "slots": {
+        "line.text": "label.lyricsDocumentLine",
+        "empty.title": "label.lyricsEmptyTitle",
+        "empty.detail": "label.lyricsEmptyDetail"
+      }
+    },
+    "immersive": {
+      "renderer": "components/lyrics-immersive.json",
+      "slots": {
+        "line.text": "label.lyricsImmersiveLine",
+        "empty.title": "label.lyricsEmptyTitle",
+        "empty.detail": "label.lyricsEmptyDetail"
+      }
+    },
+    "line": {
+      "renderer": "components/lyrics-line.json",
+      "slots": {
+        "line.text": "label.lyricsLineLine",
+        "empty.title": "label.lyricsMiniStatus",
+        "empty.detail": "label.lyricsEmptyDetail"
       }
     }
   }

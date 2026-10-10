@@ -704,6 +704,7 @@ MainComponent::MainComponent()
     statusLabel.setVisible (false);
     skinFallbackDiagnostic.setVisible (! skinReady);
 
+    initialiseListeningControls();
     listeningPresetControls.addTo (*this);
     effectPresetControls.addTo (*this);
     pluginFilters.addTo (*this);
@@ -1031,6 +1032,8 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    lyricsFileChooser.reset();
+    lyricsService.reset();
     controller.stopCalibrationTestSignal();
     stopTimer (1);
     stopTimer (2);
@@ -1186,6 +1189,15 @@ void MainComponent::bindSkinComponents()
         { "output.stage", &outputStage },
         { "output.mixer", &outputMixer },
         { "output.calibration", &outputCalibration },
+        { "lyrics.view", &lyricsView },
+        { "lyrics.toggle", &lyricsToggleButton },
+        { "lyrics.actions", &lyricsActionsButton },
+        { "lyrics.follow", &lyricsFollowButton },
+        { "player.fullscreen", &fullscreenButton },
+        { "player.mini", &miniButton },
+        { "player.restore", &restorePlayerButton },
+        { "player.pin", &pinPlayerButton },
+        { "nowPlaying.artist", &nowPlayingArtistLabel },
         { "output.mode", &meterModeBox },
         { "output.reset", &resetMeterButton },
         { "settings.title", &settingsTitleLabel },
@@ -1209,6 +1221,11 @@ void MainComponent::bindSkinComponents()
 
 void MainComponent::skinChanged()
 {
+    if (! supportsPresentation (playerPresentation))
+    {
+        playerPresentation = PlayerPresentation::normal;
+        if (onPresentationRequested) onPresentationRequested (PlayerPresentation::normal);
+    }
     skinLibraryPanel.refresh();
     resized();
     if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) smartPlaylistEditor->resized();
@@ -1243,7 +1260,7 @@ void MainComponent::resized()
     const auto& layouts = skinManager.activeSession()->compiledSkin()->layouts;
     const auto libraryPages = layouts.contains (SkinLayoutEntry::library)
                            && layouts.contains (SkinLayoutEntry::collection);
-    if (! settingsDrawerOpen && ! effectsDrawerOpen && libraryPages)
+    if (playerPresentation == PlayerPresentation::normal && ! settingsDrawerOpen && ! effectsDrawerOpen && libraryPages)
     {
         if (musicLibraryPanel.page() == MusicLibraryPanel::Page::overview) requestedEntry = SkinLayoutEntry::library;
         if (musicLibraryPanel.page() == MusicLibraryPanel::Page::collection) requestedEntry = SkinLayoutEntry::collection;
@@ -1252,6 +1269,11 @@ void MainComponent::resized()
         librarySearchEditor.setText (controller.getLibrarySearchQuery(), false);
     else if (! libraryPages)
         librarySearchEditor.setText (libraryFilter.query(), false);
+    if (! settingsDrawerOpen && ! effectsDrawerOpen)
+    {
+        if (playerPresentation == PlayerPresentation::immersive) requestedEntry = SkinLayoutEntry::immersive;
+        if (playerPresentation == PlayerPresentation::mini) requestedEntry = SkinLayoutEntry::mini;
+    }
     if (requestedEntry != activeSkinLayoutEntry)
     {
         controller.stopCalibrationTestSignal();
@@ -1262,7 +1284,7 @@ void MainComponent::resized()
     const auto effectEdit = effectPresetControls.captureEditingState();
     SkinValidationReport report;
     if (skinLayoutHost.apply (requestedEntry, getLocalBounds(),
-                              1.0f, report, workspaceMode, { queueOpen }))
+                              1.0f, report, workspaceMode, { queueOpen, lyricsOpen }))
     {
         activeSkinLayoutEntry = requestedEntry;
         const auto sessionChanged = appliedSkinSession != skinManager.activeSession();
@@ -1315,6 +1337,7 @@ void MainComponent::resized()
     musicLibraryPanel.updateVisibility();
     musicLibraryPanel.updateNavigation (libraryPages);
     layoutEffects();
+    updateLyricsControls();
     if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) smartPlaylistEditor->toFront (false);
     repaint();
 }
@@ -1326,6 +1349,31 @@ std::unique_ptr<juce::ComponentTraverser> MainComponent::createKeyboardFocusTrav
 
 bool MainComponent::keyPressed (const juce::KeyPress& key)
 {
+   #if JUCE_MAC
+    const auto fullscreenShortcut = key.getModifiers().isCommandDown() && key.getModifiers().isCtrlDown()
+        && (key.getKeyCode() == 'f' || key.getKeyCode() == 'F');
+   #else
+    const auto fullscreenShortcut = key.getKeyCode() == juce::KeyPress::F11Key;
+   #endif
+    if (fullscreenShortcut)
+    {
+        requestPresentation (playerPresentation == PlayerPresentation::immersive
+            ? PlayerPresentation::normal : PlayerPresentation::immersive);
+        return true;
+    }
+    if (key.getModifiers().isCommandDown() && key.getModifiers().isShiftDown()
+        && (key.getKeyCode() == 'm' || key.getKeyCode() == 'M'))
+    {
+        requestPresentation (playerPresentation == PlayerPresentation::mini
+            ? PlayerPresentation::normal : PlayerPresentation::mini);
+        return true;
+    }
+    if (key == juce::KeyPress::escapeKey && playerPresentation != PlayerPresentation::normal
+        && ! settingsDrawerOpen && ! effectsDrawerOpen && ! queueOpen)
+    {
+        requestPresentation (PlayerPresentation::normal);
+        return true;
+    }
     if (key == juce::KeyPress::escapeKey
         && controller.getCalibrationTestSignal().kind != CalibrationTestSignal::Kind::off)
     {
@@ -1467,6 +1515,8 @@ void MainComponent::timerCallback (int timerID)
 {
     if (timerID == 2)
     {
+        if (lyricsView.isShowing())
+            lyricsView.setPlaybackPosition (controller.getCurrentPositionSeconds() + lyricsOffsetSeconds);
         if (outputStage.isShowing() || outputMixer.isShowing())
         {
             const auto readings = controller.getOutputMeterReadings();
@@ -2546,6 +2596,7 @@ void MainComponent::updateTransportState()
     outputMixer.setState (state.outputLayout, controller.getOutputChannelMix(), meterReadings.samplePeak);
     if (! outputCalibration.isShowing()) controller.stopCalibrationTestSignal();
     outputCalibration.setState (state.outputLayout, controller.getOutputCalibration(), controller.getCalibrationTestSignal());
+    refreshLyricsTrack();
     refreshPresetControls();
 
     const auto hasSelection = playlistTable.getSelectedRow() >= 0;

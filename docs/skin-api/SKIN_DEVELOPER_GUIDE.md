@@ -10,7 +10,7 @@
 
 Skin API 允许皮肤包重新定义：
 
-- Studio、Listening、Effects 和 Settings 四个基础响应式布局，以及可选的 Library、Collection 页面。
+- Studio、Listening、Effects 和 Settings 四个基础响应式布局，以及可选的 Library、Collection、Immersive 和 Mini 页面。
 - 应用背景、面板、按钮、开关、下拉框、滑杆、旋钮、列表、仪表和装饰图层。
 - normal、selected、hover、pressed、focused、disabled 和 dragging 状态。
 - 字体、SVG、图片、渐变、阴影、圆角和状态动画。
@@ -200,7 +200,7 @@ SVG 解析器禁用 DTD 与 entity。允许元素仅为 svg、g、path、rect、
 | capabilities | string[] | 是 | 去重、按字典序不是必需 |
 | entrypoints.tokens | path | 否 | 省略时继承基础 tokens |
 | entrypoints.components | path | 否 | 省略时继承基础 renderers |
-| entrypoints.layouts | object | 否 | 四个基础入口可继承 Foundation；library、collection 为可选入口 |
+| entrypoints.layouts | object | 否 | 四个基础入口可继承 Foundation；library、collection、immersive、mini 为可选入口 |
 
 ID 必须匹配：
 
@@ -637,6 +637,7 @@ renderer 可声明 `controlStyle`，为宿主的原生命中区域和附属窗�
 | scrollBar | thickness、minThumbLength |
 | textEditor | selectionColour、selectedTextColour、caretColour |
 | playlistGrid | minItemWidth（至少 120）、itemGap（至少 0） |
+| lyrics | padding、lineGap（至少 0）、followAnchor（0–1）、followDurationMs（0–2000） |
 
 数值和颜色可以引用 token，几何字段可使用受限表达式。Slider 的 layers 以完整控件 bounds 绘制，trackBounds 描述原生输入映射使用的同一轨道；自定义滑块必须让两者一致。复合组件中原生子控件使用其 slot 映射出的 style。图标使用公开语义路径，尺寸和位置由 iconBounds 控制。Tooltip 会在父窗口边界内避让，滚动条 thickness 同时参与布局留白和原生滚动条宽度。TextEditor 的选区、选中文字和光标使用对应皮肤颜色。
 
@@ -966,7 +967,7 @@ Studio、Listening、Effects 和 Settings 是四个基础入口。应用 0.7.0 �
 | clip | boolean | false | 是否裁剪子节点 |
 | zIndex | integer | 0 | stack 层级 |
 | visible | boolean | true | 静态可见性 |
-| visibleWhen | string | 无 | 0.7.0 起：仅使用 `view.queueOpen` 的布尔表达式；为 false 时移除整个子树并回收其 flex 空间与间距 |
+| visibleWhen | string | 无 | 0.7.0 起支持 `view.queueOpen`，0.10.0 起增加 `view.lyricsOpen`；布尔表达式为 false 时移除整个子树并回收其 flex 空间与间距 |
 
 应用 0.8.0 起，`row`、`column`、`grid` 和 `stack` 容器支持可选 `pointerEvents: "none" | "block"`，默认 `none`。`block` 让容器矩形内的空白区域阻挡指向下层内容的鼠标与滚轮输入，子控件仍正常接收输入；它不增加点击动作、键盘焦点或模态行为。阻挡区域受祖先裁剪约束，隐藏或完全透明的容器不阻挡输入，`clip` 的子节点裁剪语义保持不变。`visual` 仍只允许 `none`，`component` 和 `scroll` 保持各自原生输入行为。
 
@@ -1141,6 +1142,7 @@ Component Catalog 的 Skin API 1 默认尺寸：
 | progressBar | 40 × 4 | 140 × 6 |
 | table | 180 × 100 | 360 × 220 |
 | playlistGrid | 120 × 160 | 600 × 400 |
+| lyrics | 80 × 28 | 360 × 300 |
 | artwork | 120 × 120 | 300 × 300 |
 | effectChain | 220 × 120 | 360 × 300 |
 | outputStage | 180 × 140 | 300 × 420 |
@@ -1206,7 +1208,7 @@ Component ID 是 Skin API 的公共 ABI：
 | app.brand.eyebrow | label | 可选 | 应用副标题 |
 | app.brand.title | label | 可选 | 应用名称 |
 | app.deviceStatus | label | 可选 | 当前输出布局与设备摘要 |
-| app.status | label | Studio、Listening、Library、Collection 必需 | 最近一次操作或错误 |
+| app.status | label | Studio、Listening、Library、Collection、Immersive、Mini 必需 | 最近一次操作或错误 |
 | workspace.studio | textButton | Studio、Listening、Library、Collection 必需 | 切换到 Studio，保留当前页面 |
 | workspace.listening | textButton | Studio、Listening、Library、Collection 必需 | 切换到 Listening，保留当前页面 |
 | settings.open | textButton | Studio、Listening、Library、Collection 必需 | 打开 Settings |
@@ -1250,7 +1252,7 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 
 收藏以 `favourites` 集合身份常驻歌单网格首位，空收藏也保留。命名歌单的自定义封面优先于自动拼贴；歌单卡片、详情封面和详情标题的右键菜单提供更换／恢复自动封面、重命名、复制和删除；Actions 保留可聚焦的操作入口。内置皮肤与完整示例不单独摆放更换封面按钮，第三方皮肤仍可按需要使用可选的 `library.changeArtwork` 组件。曲目、收藏关系、封面文件缓存与播放行为由应用维护，皮肤通过组件和 slot 决定布局、字体、封面形状及各状态的绘制。
 
-`queue.toggle` 不导航到新页面。应用公开只读布局状态 `view.queueOpen`，皮肤可以将 `visibleWhen: "view.queueOpen"` 声明在队列容器上，也可通过 `not view.queueOpen` 切换其他装饰区域。条件在测量前求值；flex 的空隙、margin 和尺寸一并回收，grid 的显式轨道保持声明尺寸。仅支持这一实际使用的布尔状态；未知上下文、token 和非布尔结果均被拒绝。编译器验证开／关两个状态，数值运算错误报告 `LAYOUT018`。`queue.toggle` 必须在两个状态中可达。声明 `queue.toggle` 或兼容入口 `library.browseQueue` 的每个完整 root 都必须在展开状态提供可见的 `queue.table`；`library.tracks` 不能替代此目标。使用 `library.browseQueue` 打开可折叠队列时，还必须声明可达的 `queue.toggle` 以供收起；队列表格始终可见时可省略开关。这些可达性错误报告 `LAYOUT011`，交互节点继续使用唯一正数 `focusOrder`。布局引擎参数缺省为关闭。完整示例的 Library 与 Collection 入口演示内嵌队列，Library 同时保留兼容入口。
+`queue.toggle` 不导航到新页面。应用公开只读布局状态 `view.queueOpen`，皮肤可以将 `visibleWhen: "view.queueOpen"` 声明在队列容器上，也可通过 `not view.queueOpen` 切换其他装饰区域。条件在测量前求值；flex 的空隙、margin 和尺寸一并回收，grid 的显式轨道保持声明尺寸。0.10.0 起还支持独立的 `view.lyricsOpen` 状态；未知上下文、token 和非布尔结果均被拒绝。编译器验证队列与歌词开关的全部四种组合状态，数值运算错误报告 `LAYOUT018`。`queue.toggle` 必须在两个状态中可达。声明 `queue.toggle` 或兼容入口 `library.browseQueue` 的每个完整 root 都必须在展开状态提供可见的 `queue.table`；`library.tracks` 不能替代此目标。使用 `library.browseQueue` 打开可折叠队列时，还必须声明可达的 `queue.toggle` 以供收起；队列表格始终可见时可省略开关。这些可达性错误报告 `LAYOUT011`，交互节点继续使用唯一正数 `focusOrder`。布局引擎参数缺省为关闭。完整示例的 Library 与 Collection 入口演示内嵌队列，Library 同时保留兼容入口。
 
 应用默认在 Now Playing 展示队列；用户显式开关后，跨页面保留该选择。Library、Collection 与 Now Playing 复用同一个队列表格和播放计划；皮肤决定浮层、侧栏或上下布局。Default 皮肤将队列放在根 stack 中，通过锚点和 zIndex 覆盖正文，展开与收起不改变其他组件的尺寸和位置；容器声明 pointerEvents: "block" 防止空白区域点穿。点击队列按钮打开后，键盘焦点进入队列；再次点击按钮或由队列处理 Escape 时收起，队列中取得的键盘焦点回到开关按钮。当前编辑控件、状态提示及上层界面优先处理 Escape。内嵌队列继续遵循所在 flex 或 grid 的空间分配。随机播放的后续顺序来自已成功发布给音频引擎的计划，手动 Next 与自然换曲均遵循它。循环队列只展示有限的剩余前缀与一轮循环；当前条目通过 `row.playing` 标记。移除操作以队列条目为单位，当前播放条目固定；移动仅在可保留实际待播顺序的相邻非当前条目间启用。
 
@@ -1308,6 +1310,7 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 | nowPlaying.eyebrow | label | 可选 | NOW PLAYING 等提示 |
 | nowPlaying.title | label | 可选 | 当前曲目标题 |
 | nowPlaying.metadata | label | 可选 | 当前曲目来源或状态 |
+| nowPlaying.artist | label | 可选；0.10.0 起 | 当前曲目艺术家 |
 
 artwork renderer 可装饰 frame、background 和 overlay，但实际封面内容由组件提供，皮肤不能替换当前曲目的业务数据。`presentation: "contain"` 保留完整图片，`presentation: "cover"` 填满目标矩形并允许裁切。绘制顺序固定为 frame.background、可选封面氛围、artwork renderer、实际图片、frame.overlay；overlay 只负责图片之上的描边或装饰，不会反向裁切已经绘制的图片。
 
@@ -1345,6 +1348,43 @@ artwork renderer 还可声明一个顶层 `roundedRect` layer，ID 为 `image-am
 ```
 
 `frame` 指定氛围图片的目标矩形，图片按 cover 填充并始终按 `radius` 裁切；`opacity` 与 `visible` 控制强度和显示。它们支持既有 token、bounds/artwork 上下文表达式及状态 variants。应用仅在封面改变时生成模糊缓存；标题等文本更新不触发重新生成。皮肤不提供封面路径，不读取用户文件。缺少此层或没有有效封面时不绘制氛围图，既有第三方皮肤与 Foundation 保持原行为。该层的 shadow 仍由标准 renderer 绘制，不改变 `image-clip` 的实际图片裁切契约。完整配置见 `examples/CompleteThirdParty/components/artwork.json`。
+
+### 10.4.1 歌词与播放器呈现
+
+应用 0.10.0 新增以下组件与可选入口；使用它们的皮肤声明 `minAppVersion: "0.10.0"`。未使用这些能力的 Skin API 1 包保持有效。
+
+| ID | kind / target | 行为与状态 |
+|---|---|---|
+| lyrics.view | lyrics | 歌词正文；presentation 为 `document`（默认）或 `line` |
+| lyrics.toggle | textButton | 展开／收起普通窗口的歌词；selected 表示展开；icon.lyrics |
+| lyrics.actions | textButton | 应用提供的来源、导入、在线匹配、重试和时间偏移菜单；icon.more |
+| lyrics.follow | textButton | 恢复播放位置跟随；selected 表示正在跟随 |
+| player.fullscreen | textButton | 进入全屏呈现；icon.fullscreen |
+| player.mini | textButton | 进入迷你窗口；icon.mini |
+| player.restore | textButton | 恢复进入替代呈现前的窗口；Immersive、Mini 必需；icon.restore |
+| player.pin | textButton | 迷你窗口置顶；selected 表示置顶；icon.pin |
+
+全部按钮沿用 textButton 的最小尺寸 28 × 28、键盘焦点和状态上下文。普通 Listening 的焦点顺序宜为歌词开关、全屏、迷你、歌词操作、正文、播放控制；Mini 宜为置顶、恢复、正文、上一首、播放／暂停、下一首、音量。皮肤为每个交互 Component Node 提供唯一正数 `focusOrder`。`lyrics.view` 最小为 80 × 28；正文建议至少 300 × 260。业务文字、可访问性名称、歌词来源和时间戳由应用拥有。
+
+`lyrics` renderer 必须提供 `controlStyle`：`padding` 为正文左右内边距，`lineGap` 为歌词段落之间的逻辑像素间距，`followAnchor` 为当前歌词顶边在视口高度中的比例，`followDurationMs` 为跟随滚动时间；0 表示立即定位。应用的减少动态效果设置会关闭跟随动画。超出单次 renderer 的 maxLines 时，应用分段绘制完整正文并保留原时间戳。当前行变化不重新压缩字体，换行按对应 label slot 的字体、字号与宽度计算；行高预留普通和 selected 样式中的较大值，避免逐行跳动。
+
+| slot | target | 内容 |
+|---|---|---|
+| line.text | label | `text.primary` 为单段歌词；同时间的多语文本可以包含换行 |
+| empty.title | label | `text.primary` 为加载、无歌词、纯音乐或错误状态标题 |
+| empty.detail | label | `text.secondary` 为状态说明与可用恢复动作提示 |
+
+`line.text` 的字体测量使用其根层 ID 为 `label` 的 Text layer（缺失时报告 `RENDER004`）；该 layer 的 frame 定义文本宽度，字号不会因长文本而缩小。正文样式宜使用 `maxLines: 32`、`overflow: "clip"`，单行呈现宜使用 `maxLines: 1`、`overflow: "ellipsis"`。正文组件使用应用计算的行 bounds 绘制每个 slot，皮肤决定字体、颜色、对齐与状态；空态 slot 接收整个内容区域，可自行安排标题和说明的 frame。
+
+主体和 slots 均可访问 `lyrics.synced`、`lyrics.following`、`lyrics.hasText`（boolean），以及 `lyrics.presentation`（`document` / `line`）。行 slot 另提供 `line.index`、`line.timeSeconds`（number）、`line.active`、`line.past`（boolean）；主体与空态中的 line.index 为 -1、timeSeconds 为 0、active/past 为 false。行的 `state.selected` 表示当前播放行，hover 表示可跳转的鼠标指向行，focused 表示键盘浏览行；尚未浏览时对应当前播放行或首行。键盘焦点由 `line.text` 的文字颜色变化表现，空态由 `empty.title` 表现；这两个 slot 必须通过可见焦点验证。主体不绘制焦点框或整块背景高亮，文字字形度量在获得焦点时保持稳定。
+
+同步正文跟随当前时间；滚轮、上下方向键与 Page Up / Page Down 暂停跟随，Home 或 lyrics.follow 恢复跟随。点击同步行或在键盘浏览后按 Enter 跳到原始时间戳，应用统一处理用户保存的时间偏移。纯文本可滚动阅读，不提供时间跳转。`line` 呈现只显示当前同步行；纯文本显示首段，尚未到第一条时间戳时不伪造活动行。
+
+布局状态 `view.lyricsOpen` 默认关闭，与 `view.queueOpen` 独立。可将 `visibleWhen: "view.lyricsOpen"` 放在歌词列容器上以回收隐藏后的空间。每个声明 lyrics.toggle 的完整 root 都必须让该按钮在所有状态可达，并在歌词展开时提供可见的 lyrics.view；违反时报 `LAYOUT011`。
+
+`entrypoints.layouts.immersive` 用于全屏，`entrypoints.layouts.mini` 用于紧凑窗口。两个入口都必须包含 `app.status`、`player.restore`、`transport.previous`、`transport.playPause`、`transport.next`；音量、封面、标题、歌词、操作菜单可按布局需要组合。它们复用当前播放、队列、音量和效果链，切换窗口呈现不重开音频设备。Foundation 为两个入口提供完整回退。 `app.status` 承载来源导入、搜索和保存失败等应用通知，必须有正面积且保持在可见区域内；可放入 stack 中作为浮层，不改变播放与歌词布局的尺寸。Mini 宜使用紧凑通知区域，避免遮住整个窗口。
+
+布局文件可声明顶层 `preferredSize: { "width": 480, "height": 200 }`，表示窗口内容区的建议逻辑像素尺寸。数值必须大于 0，且不得小于 root 的 minWidth/minHeight；冲突报告 `LAYOUT019`。Mini 的窗口约束来自 root 的 minWidth、minHeight、maxWidth、maxHeight，建议尺寸来自 preferredSize；应用保存并恢复进入前的普通窗口边界。全屏使用实际屏幕内容区尺寸。完整示例的 Mini 最小为 380 × 170，建议为 480 × 200。
 
 ### 10.5 播放控制
 
@@ -2102,7 +2142,7 @@ Suggestion: add one visible component node with component "library.add".
     ./build/MoonwakeSkinTool layout MyFirstSkin/ --workspace effects --size 1240x800 --theme studio
     ./build/MoonwakeSkinTool snapshot MyFirstSkin/ --workspace settings --size 1240x800 --theme listening --output settings-listening.png
 
-`layout` 与 `snapshot` 可传入 `--queue-open` 预览展开状态，省略时为关闭。其他命令或重复使用该参数报告 `TOOL001`。
+`layout` 与 `snapshot` 可传入 `--queue-open` 和 `--lyrics-open` 预览队列与歌词展开状态，两者独立，省略时为关闭。`--workspace` 同时支持 `immersive` 和 `mini`。其他命令或重复使用上述开关报告 `TOOL001`。
 
 `layout` 与 `snapshot` 的 `--workspace` 接受 `studio|listening|effects|settings|library|collection`，`--theme studio|listening` 选择断点匹配的当前工作区。可选页面必须由皮肤声明。`--theme` 可省略，默认按入口推导；也可在两个主入口上显式覆盖，便于检查条件分支。未知值、重复参数或其他命令使用此参数均报 `TOOL001`，缺少参数值报 `TOOL002`。
 

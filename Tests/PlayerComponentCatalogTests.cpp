@@ -23,7 +23,8 @@ juce::StringArray exactIds()
         "queue.toggle", "queue.actions", "library.changeArtwork", "queue.title", "queue.count", "queue.table", "queue.empty",
         "queue.remove", "queue.clear", "queue.moveUp", "queue.moveDown",
         "artwork.cover", "artwork.metadata", "nowPlaying.eyebrow", "nowPlaying.title",
-        "nowPlaying.metadata", "transport.previous", "transport.playPause",
+        "nowPlaying.metadata", "nowPlaying.artist", "lyrics.view", "lyrics.toggle", "lyrics.actions", "lyrics.follow",
+        "player.fullscreen", "player.mini", "player.restore", "player.pin", "transport.previous", "transport.playPause",
         "transport.next", "transport.seek", "transport.time", "transport.shuffle",
         "transport.repeat", "transport.repeatCycle", "transport.volumeLabel", "transport.volumeValue",
         "transport.volume", "effects.open", "effects.close", "effects.summary",
@@ -89,6 +90,7 @@ std::unique_ptr<juce::Component> componentFor (SkinComponentKind kind, double& p
         case SkinComponentKind::slider: return std::make_unique<juce::Slider>();
         case SkinComponentKind::progressBar: return std::make_unique<juce::ProgressBar> (progress);
         case SkinComponentKind::table: return std::make_unique<juce::TableListBox>();
+        case SkinComponentKind::lyrics:
         case SkinComponentKind::artwork:
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:
@@ -173,6 +175,12 @@ public:
                             { "rotary", "rotarySlider" }
                         }));
             }
+            const auto* lyrics = PlayerComponentCatalog::find ("lyrics.view");
+            expect (lyrics != nullptr && lyrics->presentations == juce::StringArray ({ "document", "line" }));
+            if (lyrics)
+                expect (lyrics->rendererTargetByPresentation == std::map<juce::String, juce::String> ({
+                    { "document", "lyrics" }, { "line", "lyrics" }
+                }));
             const auto* queue = PlayerComponentCatalog::find ("queue.table");
             expect (queue != nullptr && queue->defaultRendererTarget == "table");
             const auto* outputMap = PlayerComponentCatalog::find (
@@ -228,6 +236,9 @@ public:
             detail.insert ("library.tracks");
             detail.insert ("library.back");
             expect (requiredFor (SkinLayoutEntry::collection) == detail);
+            for (const auto entry : { SkinLayoutEntry::immersive, SkinLayoutEntry::mini })
+                expect (requiredFor (entry) == setOf ({ "app.status", "player.restore", "transport.previous",
+                                                       "transport.playPause", "transport.next" }));
             expect (requiredSkinLayoutEntries() == std::set<SkinLayoutEntry> {
                 SkinLayoutEntry::studio, SkinLayoutEntry::listening, SkinLayoutEntry::effects, SkinLayoutEntry::settings
             });
@@ -274,6 +285,9 @@ public:
         {
             const std::map<juce::String, juce::String> expectedIcons {
                 { "settings.open", "settings" }, { "library.add", "add" },
+                { "lyrics.toggle", "lyrics" }, { "lyrics.actions", "more" },
+                { "player.fullscreen", "fullscreen" }, { "player.mini", "mini" },
+                { "player.restore", "restore" }, { "player.pin", "pin" },
                 { "queue.toggle", "queue" }, { "queue.remove", "remove" }, { "queue.moveUp", "moveUp" },
                 { "queue.moveDown", "moveDown" },
                 { "transport.previous", "previous" }, { "transport.repeatCycle", "repeat" },
@@ -320,6 +334,9 @@ public:
             { "row.surface", "surface" }, { "cell.title", "label" },
             { "cell.location", "label" }, { "cell.duration", "label" },
             { "cell.artist", "label" }, { "cell.album", "label" }
+        }));
+        expect (slotsOf ("lyrics.view") == std::map<juce::String, juce::String> ({
+            { "line.text", "label" }, { "empty.title", "label" }, { "empty.detail", "label" }
         }));
         expect (slotsOf ("artwork.cover") == std::map<juce::String, juce::String> ({
             { "frame.background", "surface" }, { "frame.overlay", "surface" }

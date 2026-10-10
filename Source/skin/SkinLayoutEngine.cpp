@@ -153,7 +153,7 @@ private:
     bool pruneHidden (SkinLayoutNode& node)
     {
         if (node.common.visibleWhen
-            && ! (*node.common.visibleWhen)[state.queueOpen ? 1 : 0])
+            && ! (*node.common.visibleWhen)[state.index()])
             return false;
         const auto prune = [this] (auto& children)
         { std::erase_if (children, [this] (auto& child) { return ! pruneHidden (child); }); };

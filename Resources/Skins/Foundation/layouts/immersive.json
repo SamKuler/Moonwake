@@ -1,0 +1,266 @@
+{
+  "apiVersion": 1,
+  "root": {
+    "id": "immersive-root",
+    "type": "stack",
+    "style": "surface.canvas",
+    "minWidth": 1040,
+    "minHeight": 700,
+    "children": [
+      {
+        "id": "immersive-shell",
+        "type": "column",
+        "padding": {
+          "top": 16,
+          "right": 48,
+          "bottom": 28,
+          "left": 48
+        },
+        "gap": 20,
+        "children": [
+          {
+            "id": "immersive-header",
+            "type": "row",
+            "height": 40,
+            "gap": 8,
+            "shrink": 0,
+            "children": [
+              {
+                "id": "immersive-header-space",
+                "type": "column",
+                "grow": 1,
+                "children": []
+              },
+              {
+                "id": "player-mini",
+                "type": "component",
+                "component": "player.mini",
+                "style": "textButton.iconNeutral",
+                "width": 36,
+                "height": 36,
+                "shrink": 0,
+                "focusOrder": 1
+              },
+              {
+                "id": "player-restore",
+                "type": "component",
+                "component": "player.restore",
+                "style": "textButton.iconNeutral",
+                "width": 36,
+                "height": 36,
+                "shrink": 0,
+                "focusOrder": 2
+              }
+            ]
+          },
+          {
+            "id": "immersive-body",
+            "type": "row",
+            "grow": 1,
+            "gap": 56,
+            "minHeight": 240,
+            "children": [
+              {
+                "id": "immersive-cover-column",
+                "type": "column",
+                "width": "44%",
+                "shrink": 0,
+                "gap": 8,
+                "children": [
+                  {
+                    "id": "artwork-cover",
+                    "type": "component",
+                    "component": "artwork.cover",
+                    "style": "artwork.default",
+                    "grow": 1
+                  },
+                  {
+                    "id": "nowPlaying-title",
+                    "type": "component",
+                    "component": "nowPlaying.title",
+                    "style": "label.title",
+                    "height": 38,
+                    "shrink": 0
+                  },
+                  {
+                    "id": "nowPlaying-artist",
+                    "type": "component",
+                    "component": "nowPlaying.artist",
+                    "style": "label.data",
+                    "height": 28,
+                    "shrink": 0
+                  }
+                ]
+              },
+              {
+                "id": "lyrics-column",
+                "type": "column",
+                "grow": 1,
+                "gap": 12,
+                "children": [
+                  {
+                    "id": "lyrics-tools",
+                    "type": "row",
+                    "height": 36,
+                    "align": "center",
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "lyrics-follow",
+                        "type": "component",
+                        "component": "lyrics.follow",
+                        "style": "textButton.default",
+                        "width": 150,
+                        "height": 32,
+                        "focusOrder": 3
+                      },
+                      {
+                        "id": "lyrics-tools-space",
+                        "type": "column",
+                        "grow": 1,
+                        "children": []
+                      },
+                      {
+                        "id": "lyrics-actions",
+                        "type": "component",
+                        "component": "lyrics.actions",
+                        "style": "textButton.iconNeutral",
+                        "width": 32,
+                        "height": 32,
+                        "shrink": 0,
+                        "focusOrder": 4
+                      }
+                    ]
+                  },
+                  {
+                    "id": "lyrics-view",
+                    "type": "component",
+                    "component": "lyrics.view",
+                    "style": "lyrics.immersive",
+                    "presentation": "document",
+                    "grow": 1,
+                    "minHeight": 100,
+                    "focusOrder": 5
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "immersive-seek-row",
+            "type": "row",
+            "height": 28,
+            "gap": 16,
+            "children": [
+              {
+                "id": "transport-seek",
+                "type": "component",
+                "component": "transport.seek",
+                "style": "linearSlider.default",
+                "grow": 1,
+                "height": 28,
+                "presentation": "linearHorizontal",
+                "focusOrder": 6
+              },
+              {
+                "id": "transport-time",
+                "type": "component",
+                "component": "transport.time",
+                "style": "label.data",
+                "width": 124,
+                "height": 28
+              }
+            ]
+          },
+          {
+            "id": "immersive-controls",
+            "type": "row",
+            "height": 56,
+            "gap": 16,
+            "align": "center",
+            "shrink": 0,
+            "children": [
+              {
+                "id": "immersive-control-spacer",
+                "type": "column",
+                "grow": 1,
+                "children": []
+              },
+              {
+                "id": "transport-previous",
+                "type": "component",
+                "component": "transport.previous",
+                "style": "textButton.iconNeutral",
+                "width": 44,
+                "height": 44,
+                "shrink": 0,
+                "focusOrder": 7
+              },
+              {
+                "id": "transport-playPause",
+                "type": "component",
+                "component": "transport.playPause",
+                "style": "textButton.iconPrimary",
+                "width": 52,
+                "height": 52,
+                "shrink": 0,
+                "focusOrder": 8
+              },
+              {
+                "id": "transport-next",
+                "type": "component",
+                "component": "transport.next",
+                "style": "textButton.iconNeutral",
+                "width": 44,
+                "height": 44,
+                "shrink": 0,
+                "focusOrder": 9
+              },
+              {
+                "id": "immersive-control-spacer-two",
+                "type": "column",
+                "grow": 1,
+                "children": []
+              },
+              {
+                "id": "transport-volume",
+                "type": "component",
+                "component": "transport.volume",
+                "style": "linearSlider.default",
+                "width": 148,
+                "height": 28,
+                "presentation": "linearHorizontal",
+                "focusOrder": 10
+              }
+            ]
+          }
+        ],
+        "anchors": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        }
+      },
+      {
+        "id": "immersive-status",
+        "type": "component",
+        "component": "app.status",
+        "style": "label.playerNotice",
+        "height": 64,
+        "zIndex": 100,
+        "width": 360,
+        "anchors": {
+          "right": 48,
+          "top": 64
+        }
+      }
+    ]
+  },
+  "ancillaryStyles": {
+    "popupMenu": "popupMenu.default",
+    "tooltip": "tooltip.default",
+    "scrollBar": "scrollBar.default",
+    "smartPlaylistEditor": "smartPlaylistEditor.default"
+  }
+}

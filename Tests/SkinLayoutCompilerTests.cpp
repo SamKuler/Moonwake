@@ -121,6 +121,58 @@ public:
 
     void runTest() override
     {
+        beginTest ("lyrics visibility validates both independent view states and preserves queue semantics");
+        for (const auto conditional : { false, true })
+        {
+            auto root = workspaceRoot ("lyrics-");
+            auto* children = root.getProperty ("children", {}).getArray();
+            children->add (componentNode ("lyrics-toggle", "lyrics.toggle", 1000));
+            auto lyrics = componentNode ("lyrics-view", "lyrics.view", 1010);
+            lyrics.getDynamicObject()->setProperty ("visibleWhen", conditional
+                ? "view.lyricsOpen and not view.queueOpen" : "view.lyricsOpen");
+            children->add (lyrics);
+            SkinValidationReport report;
+            const auto layout = compileLayout (layoutDocument (root), SkinLayoutEntry::listening, report);
+            expect (layout.has_value() == ! conditional, report.toText());
+            if (conditional) expect (report.hasCode ("LAYOUT011"), report.toText());
+            if (layout)
+            {
+                const auto& nodes = std::get<SkinFlexLayout> (layout->base.payload).children;
+                expect (nodes.back().common.visibleWhen == std::optional<std::array<bool, 4>> (std::array<bool, 4> { false, false, true, true }));
+            }
+        }
+
+        beginTest ("alternate player layouts keep errors visible through a required status component");
+        for (const auto entry : { SkinLayoutEntry::immersive, SkinLayoutEntry::mini })
+        {
+            auto root = entryRoot (entry, "status-");
+            auto* children = root.getProperty ("children", {}).getArray();
+            for (int i = children->size(); --i >= 0;)
+                if (children->getReference (i).getProperty ("component", {}).toString() == "app.status")
+                    children->remove (i);
+            SkinValidationReport report;
+            expect (! compileLayout (layoutDocument (root), entry, report));
+            expect (report.hasCode ("COMPONENT004"), report.toText());
+        }
+
+        beginTest ("mini preferred size must satisfy the skin root minimum and requires a restore control");
+        for (const auto width : { 360, 480 })
+        {
+            auto root = entryRoot (SkinLayoutEntry::mini, "mini-");
+            root.getDynamicObject()->setProperty ("minWidth", 380);
+            root.getDynamicObject()->setProperty ("minHeight", 170);
+            auto raw = layoutDocument (root);
+            auto preferred = object();
+            preferred.getDynamicObject()->setProperty ("width", width);
+            preferred.getDynamicObject()->setProperty ("height", 200);
+            raw.getDynamicObject()->setProperty ("preferredSize", preferred);
+            SkinValidationReport report;
+            const auto layout = compileLayout (raw, SkinLayoutEntry::mini, report);
+            expect (layout.has_value() == (width == 480), report.toText());
+            if (layout) expect (layout->preferredSize == juce::Point<float> (480, 200));
+            else expect (report.hasCode ("LAYOUT019"), report.toText());
+        }
+
         beginTest ("conditional layouts reject unreachable controls and invalid expression results");
         for (const auto& expression : { juce::String ("not view.queueOpen"), juce::String ("(1e308 * 2) > 0") })
         {

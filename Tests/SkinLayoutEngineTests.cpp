@@ -73,7 +73,7 @@ public:
             auto content = visual ("content");
             content.common.grow = 1;
             auto queue = component ("queue", "queue.table", pixels (300));
-            queue.common.visibleWhen = std::array<bool, 2> { false, true };
+            queue.common.visibleWhen = std::array<bool, 4> { false, true, false, true };
             auto root = flex (SkinLayoutNodeType::row, "root", { content, queue });
             std::get<SkinFlexLayout> (root.payload).gap = 16;
             const auto layout = definitionWith (root);

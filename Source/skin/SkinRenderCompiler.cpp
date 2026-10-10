@@ -178,6 +178,11 @@ public:
             fail ("RENDER004", {}, "Playlist grid renderers require controlStyle and rowLayout.");
             return std::nullopt;
         }
+        if (target == SkinRenderTarget::lyrics && ! result.controlStyle)
+        {
+            fail ("RENDER004", "/controlStyle", "Lyrics renderers require lineGap, padding, followAnchor and followDurationMs metrics.");
+            return std::nullopt;
+        }
         if (pathCommands > SkinRenderLimits::maximumPackagePathCommands)
         {
             fail ("RENDER013", "/layers", "Path command budget exceeds 250000.");

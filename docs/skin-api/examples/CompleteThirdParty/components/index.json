@@ -15,7 +15,20 @@
     "default": "components/volume-knob.json"
   },
   "artwork": {
-    "default": "components/artwork.json"
+    "default": {
+      "renderer": "components/artwork.json",
+      "slots": {
+        "frame.background": "surface.artworkOverlay",
+        "frame.overlay": "surface.artworkOverlay"
+      }
+    },
+    "mini": {
+      "renderer": "components/lyrics-mini-artwork.json",
+      "slots": {
+        "frame.background": "surface.artworkOverlay",
+        "frame.overlay": "surface.artworkOverlay"
+      }
+    }
   },
   "popupMenu": {
     "studio": "components/popup-menu-studio.json"
@@ -136,6 +149,44 @@
         "calibration.frequency": "textEditor.default",
         "calibration.startStop": "textButton.primary",
         "calibration.status": "label.calibrationStatus"
+      }
+    }
+  },
+  "label": {
+    "lyricsDocumentLine": "components/lyrics-document-line.json",
+    "lyricsImmersiveLine": "components/lyrics-immersive-line.json",
+    "lyricsLineLine": "components/lyrics-line-line.json",
+    "lyricsEmptyTitle": "components/lyricsEmptyTitle.json",
+    "lyricsEmptyDetail": "components/lyricsEmptyDetail.json",
+    "lyricsMiniStatus": "components/lyricsMiniStatus.json",
+    "miniTitle": "components/miniTitle.json",
+    "miniArtist": "components/miniArtist.json",
+    "playerNotice": "components/playerNotice.json",
+    "miniNotice": "components/miniNotice.json"
+  },
+  "lyrics": {
+    "document": {
+      "renderer": "components/lyrics-document.json",
+      "slots": {
+        "line.text": "label.lyricsDocumentLine",
+        "empty.title": "label.lyricsEmptyTitle",
+        "empty.detail": "label.lyricsEmptyDetail"
+      }
+    },
+    "immersive": {
+      "renderer": "components/lyrics-immersive.json",
+      "slots": {
+        "line.text": "label.lyricsImmersiveLine",
+        "empty.title": "label.lyricsEmptyTitle",
+        "empty.detail": "label.lyricsEmptyDetail"
+      }
+    },
+    "line": {
+      "renderer": "components/lyrics-line.json",
+      "slots": {
+        "line.text": "label.lyricsLineLine",
+        "empty.title": "label.lyricsMiniStatus",
+        "empty.detail": "label.lyricsEmptyDetail"
       }
     }
   }

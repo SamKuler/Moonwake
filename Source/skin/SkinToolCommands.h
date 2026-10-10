@@ -47,6 +47,7 @@ struct Options
     bool warningsAsErrors = false;
     bool force = false;
     bool queueOpen = false;
+    bool lyricsOpen = false;
 };
 
 struct ParseResult

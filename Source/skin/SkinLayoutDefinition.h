@@ -3,7 +3,7 @@
 #include "app/WorkspaceMode.h"
 #include <array>
 
-#include <juce_core/juce_core.h>
+#include <juce_graphics/juce_graphics.h>
 
 #include <limits>
 #include <map>
@@ -37,6 +37,9 @@ struct SkinAnchors
 struct SkinLayoutState
 {
     bool queueOpen = false;
+    bool lyricsOpen = false;
+    [[nodiscard]] size_t index() const noexcept
+    { return static_cast<size_t> ((queueOpen ? 1 : 0) | (lyricsOpen ? 2 : 0)); }
 };
 
 struct SkinLayoutCommon
@@ -52,7 +55,7 @@ struct SkinLayoutCommon
     int zIndex = 0, gridColumn = 0, gridRow = 0, columnSpan = 1, rowSpan = 1;
     bool visible = true, clip = false;
     bool blocksPointer = false;
-    std::optional<std::array<bool, 2>> visibleWhen;
+    std::optional<std::array<bool, 4>> visibleWhen;
     SkinAnchors anchors;
     SkinAlign alignSelf = SkinAlign::automatic;
 };
@@ -128,6 +131,7 @@ struct SkinLayoutDefinition
         std::map<juce::String, juce::String> ancillaryStyles;
     };
 
+    std::optional<juce::Point<float>> preferredSize;
     SkinLayoutNode base;
     std::vector<Breakpoint> breakpoints;
     WorkspaceMode defaultWorkspace = WorkspaceMode::listening;

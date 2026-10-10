@@ -196,6 +196,11 @@ public:
                                  "--queue-open", "--queue-open" }).exitCode, 2);
             const auto openedQueue = SkinTool::parse ({ "layout", "skin", "--workspace", "listening", "--size", "1040x700", "--queue-open" });
             expect (openedQueue.options && openedQueue.options->queueOpen);
+            const auto lyrics = SkinTool::parse ({ "layout", "skin", "--workspace", "immersive", "--size", "1240x800", "--lyrics-open" });
+            expect (lyrics.options && lyrics.options->lyricsOpen && lyrics.options->workspace == SkinLayoutEntry::immersive);
+            const auto mini = SkinTool::parse ({ "layout", "skin", "--workspace", "mini", "--size", "380x170" });
+            expect (mini.options && mini.options->workspace == SkinLayoutEntry::mini);
+            expectEquals (run ({ "validate", "skin", "--lyrics-open" }).exitCode, 2);
 
             expectEquals (run ({ "snapshot", "skin", "--workspace", "listening",
                                  "--size", "1240x800" }).exitCode, 2);

@@ -27,6 +27,7 @@ bool matchesJuceType (SkinComponentKind kind, juce::Component& component)
             return dynamic_cast<juce::ProgressBar*> (&component) != nullptr;
         case SkinComponentKind::table:
             return dynamic_cast<juce::TableListBox*> (&component) != nullptr;
+        case SkinComponentKind::lyrics:
         case SkinComponentKind::artwork:
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:

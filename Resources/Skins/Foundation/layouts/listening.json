@@ -89,9 +89,59 @@
                 "id": "listening-cover-panel",
                 "type": "column",
                 "width": "62%",
-                "padding": 16,
-                "style": "surface.default",
+                "padding": {
+                  "top": 0,
+                  "right": 16,
+                  "bottom": 16,
+                  "left": 16
+                },
                 "children": [
+                  {
+                    "id": "listening-player-tools",
+                    "type": "row",
+                    "height": 36,
+                    "shrink": 0,
+                    "align": "center",
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "lyrics-toggle",
+                        "type": "component",
+                        "component": "lyrics.toggle",
+                        "style": "textButton.iconNeutral",
+                        "width": 36,
+                        "height": 36,
+                        "shrink": 0,
+                        "focusOrder": 241
+                      },
+                      {
+                        "id": "player-fullscreen",
+                        "type": "component",
+                        "component": "player.fullscreen",
+                        "style": "textButton.iconNeutral",
+                        "width": 36,
+                        "height": 36,
+                        "shrink": 0,
+                        "focusOrder": 242
+                      },
+                      {
+                        "id": "player-mini",
+                        "type": "component",
+                        "component": "player.mini",
+                        "style": "textButton.iconNeutral",
+                        "width": 36,
+                        "height": 36,
+                        "shrink": 0,
+                        "focusOrder": 243
+                      },
+                      {
+                        "id": "listening-player-tools-space",
+                        "type": "column",
+                        "grow": 1,
+                        "children": []
+                      }
+                    ]
+                  },
                   {
                     "id": "listening-artwork-cover",
                     "type": "component",
@@ -100,7 +150,9 @@
                     "grow": 1
                   }
                 ],
-                "shrink": 0
+                "shrink": 1,
+                "minWidth": 172,
+                "gap": 12
               },
               {
                 "id": "listening-listening-queue-panel",
@@ -188,6 +240,61 @@
                   }
                 ],
                 "grow": 1
+              },
+              {
+                "id": "lyrics-column",
+                "type": "column",
+                "grow": 1,
+                "gap": 12,
+                "children": [
+                  {
+                    "id": "lyrics-tools",
+                    "type": "row",
+                    "height": 36,
+                    "align": "center",
+                    "gap": 8,
+                    "children": [
+                      {
+                        "id": "lyrics-follow",
+                        "type": "component",
+                        "component": "lyrics.follow",
+                        "style": "textButton.default",
+                        "width": 150,
+                        "height": 32,
+                        "focusOrder": 244
+                      },
+                      {
+                        "id": "lyrics-tools-space",
+                        "type": "column",
+                        "grow": 1,
+                        "children": []
+                      },
+                      {
+                        "id": "lyrics-actions",
+                        "type": "component",
+                        "component": "lyrics.actions",
+                        "style": "textButton.iconNeutral",
+                        "width": 32,
+                        "height": 32,
+                        "shrink": 0,
+                        "focusOrder": 245
+                      }
+                    ]
+                  },
+                  {
+                    "id": "lyrics-view",
+                    "type": "component",
+                    "component": "lyrics.view",
+                    "style": "lyrics.document",
+                    "presentation": "document",
+                    "grow": 1,
+                    "minHeight": 100,
+                    "focusOrder": 246
+                  }
+                ],
+                "visibleWhen": "view.lyricsOpen",
+                "width": "50%",
+                "shrink": 0
               }
             ]
           },

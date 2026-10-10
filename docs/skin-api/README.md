@@ -5,7 +5,7 @@
 - [开发者指南](SKIN_DEVELOPER_GUIDE.md)：完整接口、组件目录、布局、renderer、token、打包和兼容性约定。
 - [错误码参考](ERROR_CODES.md)：验证、编译、资源、布局和安装阶段的稳定诊断码。
 - [JSON Schema](schema/)：由生产代码中的 `SkinSchemaRegistry` 生成的机器可读契约。
-- [CompleteThirdParty](examples/CompleteThirdParty/)：包含四个基础入口、曲库总览和集合详情，可直接验证的第三方皮肤示例。
+- [CompleteThirdParty](examples/CompleteThirdParty/)：包含四个基础入口、曲库总览、集合详情、全屏歌词和迷你播放器，可直接验证的第三方皮肤示例。
 
 ## 验证 SDK
 

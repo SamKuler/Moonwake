@@ -10,6 +10,7 @@ juce::String targetFor (SkinComponentKind kind)
 {
     switch (kind)
     {
+        case SkinComponentKind::lyrics: return "lyrics";
         case SkinComponentKind::label: return "label";
         case SkinComponentKind::textButton: return "textButton";
         case SkinComponentKind::toggleButton: return "toggleButton";
@@ -60,6 +61,7 @@ bool isInteractive (SkinComponentKind kind)
         case SkinComponentKind::playlistGrid:
         case SkinComponentKind::directoryList:
         case SkinComponentKind::smartPlaylistEditor:
+        case SkinComponentKind::lyrics:
         case SkinComponentKind::smartPlaylistRuleList:
             return true;
     }
@@ -126,6 +128,14 @@ std::set<SkinLayoutEntry> playbackPages()
              SkinLayoutEntry::library, SkinLayoutEntry::collection };
 }
 
+std::set<SkinLayoutEntry> transportPresentations()
+{
+    auto result = playbackPages();
+    result.insert (SkinLayoutEntry::immersive);
+    result.insert (SkinLayoutEntry::mini);
+    return result;
+}
+
 std::set<SkinLayoutEntry> libraryPages()
 {
     return { SkinLayoutEntry::library, SkinLayoutEntry::collection };
@@ -156,6 +166,12 @@ SkinComponentDescriptor makeTrackTable (juce::String id, std::set<SkinLayoutEntr
 const std::map<juce::String, juce::String>& iconPathData()
 {
     static const std::map<juce::String, juce::String> paths {
+        { "lyrics", "M4 5 L20 5 M4 10 L15 10 M4 15 L20 15 M4 20 L13 20" },
+        { "fullscreen", "M9 4 L4 4 L4 9 M15 4 L20 4 L20 9 M4 15 L4 20 L9 20 M20 15 L20 20 L15 20" },
+        { "mini", "M3 5 L21 5 L21 19 L3 19 Z M12 12 L18 12 L18 16 L12 16 Z" },
+        { "restore", "M9 4 L4 4 L4 9 M4 4 L11 11 M15 20 L20 20 L20 15 M20 20 L13 13" },
+        { "pin", "M8 4 L16 4 M9 4 L9 10 L6 14 L18 14 L15 10 L15 4 M12 14 L12 21" },
+        { "more", "M5 11 L5 13 M12 11 L12 13 M19 11 L19 13" },
         { "add", "M12 4 L12 20 M4 12 L20 12" },
         { "settings", "M4 7 L9 7 M15 7 L20 7 M12 4 L12 10 M4 17 L13 17 M17 17 L20 17 M15 14 L15 20" },
         { "effects", "M4 9 L4 15 M8 5 L8 19 M12 8 L12 16 M16 4 L16 20 M20 9 L20 15" },
@@ -188,7 +204,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeLabelDescriptor ("app.brand.eyebrow"),
         makeLabelDescriptor ("app.brand.title"),
         makeLabelDescriptor ("app.deviceStatus", "right"),
-        makeLabelDescriptor ("app.status", "left", playbackPages()),
+        makeLabelDescriptor ("app.status", "left", transportPresentations()),
         makeDescriptor ("workspace.studio", Kind::textButton, playbackPages()),
         makeDescriptor ("workspace.listening", Kind::textButton, playbackPages()),
         makeIconDescriptor ("settings.open", "settings", playbackPages()),
@@ -244,10 +260,23 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeLabelDescriptor ("nowPlaying.eyebrow"),
         makeLabelDescriptor ("nowPlaying.title"),
         makeLabelDescriptor ("nowPlaying.metadata"),
+        makeLabelDescriptor ("nowPlaying.artist"),
+        makeDescriptor ("lyrics.view", Kind::lyrics, {}, { "document", "line" },
+                        { { "document", "lyrics" }, { "line", "lyrics" } }, {
+            Slot { "line.text", "label" }, Slot { "empty.title", "label" },
+            Slot { "empty.detail", "label" }
+        }),
+        makeIconDescriptor ("lyrics.toggle", "lyrics"),
+        makeIconDescriptor ("lyrics.actions", "more"),
+        makeDescriptor ("lyrics.follow", Kind::textButton),
+        makeIconDescriptor ("player.fullscreen", "fullscreen"),
+        makeIconDescriptor ("player.mini", "mini"),
+        makeIconDescriptor ("player.restore", "restore", { Entry::immersive, Entry::mini }),
+        makeIconDescriptor ("player.pin", "pin"),
 
-        makeIconDescriptor ("transport.previous", "previous", playbackPages()),
-        makeIconDescriptor ("transport.playPause", "play", playbackPages()),
-        makeIconDescriptor ("transport.next", "next", playbackPages()),
+        makeIconDescriptor ("transport.previous", "previous", transportPresentations()),
+        makeIconDescriptor ("transport.playPause", "play", transportPresentations()),
+        makeIconDescriptor ("transport.next", "next", transportPresentations()),
         makeDescriptor ("transport.seek", Kind::linearSlider, playbackPages(),
                         { "linearHorizontal" }, { { "linearHorizontal", "linearSlider" } }),
         makeLabelDescriptor ("transport.time", "center", playbackPages()),
@@ -392,7 +421,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
 
 const std::vector<juce::String>& skinLayoutEntryNames()
 {
-    static const std::vector<juce::String> names { "studio", "listening", "effects", "settings", "library", "collection" };
+    static const std::vector<juce::String> names { "studio", "listening", "effects", "settings", "library", "collection", "immersive", "mini" };
     return names;
 }
 
@@ -468,6 +497,7 @@ std::shared_ptr<const juce::Path> PlayerComponentCatalog::fallbackIconPath (
 SkinComponentDimensions PlayerComponentCatalog::dimensionsForTarget (juce::StringRef targetRef)
 {
     const juce::String target (targetRef);
+    if (target == "lyrics") return { 80, 28, 360, 300 };
     if (target == "label") return { 0, 16, 80, 20 };
     if (target == "textButton") return { 28, 28, 84, 34 };
     if (target == "toggleButton") return { 28, 28, 104, 30 };

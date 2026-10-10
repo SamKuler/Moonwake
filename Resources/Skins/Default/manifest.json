@@ -8,7 +8,7 @@
   },
   "description": "A focused studio workspace and an artwork-led listening room.",
   "license": "AGPL-3.0-only",
-  "minAppVersion": "0.9.0",
+  "minAppVersion": "0.10.0",
   "extends": "builtin.foundation",
   "capabilities": [
     "tokens",
@@ -25,7 +25,9 @@
       "effects": "layouts/effects.json",
       "settings": "layouts/settings.json",
       "library": "layouts/library.json",
-      "collection": "layouts/collection.json"
+      "collection": "layouts/collection.json",
+      "immersive": "layouts/immersive.json",
+      "mini": "layouts/mini.json"
     }
   }
 }

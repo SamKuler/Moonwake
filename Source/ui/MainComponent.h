@@ -14,6 +14,9 @@
 #include "OutputMixerComponent.h"
 #include "OutputCalibrationComponent.h"
 #include "PresetControls.h"
+#include "LyricsComponent.h"
+#include "PlayerPresentation.h"
+#include "lyrics/LyricsService.h"
 #include "SkinFallbackDiagnostic.h"
 #include "SkinLayoutHost.h"
 #include "SkinEffectChainViewport.h"
@@ -47,11 +50,30 @@ public:
     std::unique_ptr<juce::ComponentTraverser> createKeyboardFocusTraverser() override;
     void mouseUp (const juce::MouseEvent&) override;
     void importFilesAndFolders (const juce::Array<juce::File>&);
+    [[nodiscard]] bool supportsPresentation (PlayerPresentation) const;
+    [[nodiscard]] PlayerWindowSizing windowSizing (PlayerPresentation) const;
+    void setPlayerPresentation (PlayerPresentation);
+    [[nodiscard]] PlayerPresentation getPlayerPresentation() const noexcept { return playerPresentation; }
+    void setMiniPinned (bool);
+    std::function<void (PlayerPresentation)> onPresentationRequested;
+    std::function<void (bool)> onPinRequested;
 private:
     class EffectSlotRow;
     class PluginEditorWindow;
 
     void timerCallback (int timerID) override;
+    void initialiseListeningControls();
+    void refreshLyricsTrack();
+    void updateLyricsControls();
+    void requestPresentation (PlayerPresentation);
+    void setLyricsOpen (bool);
+    void reloadLyrics (bool refreshOnline = false);
+    void applyLyricsResult (const juce::String& key, LyricsLoadResult, uint64_t offsetRevision);
+    LyricsService::LoadCallback lyricsActionCallback (const TrackItem&);
+    void showLyricsActions();
+    void chooseLyricsFile (TrackItem);
+    void searchLyrics (TrackItem);
+    void changeLyricsOffset (TrackItem, double seconds);
     void showStatus (const juce::String&, bool isError = false);
     void skinChanged() override;
     int getNumRows() override;
@@ -228,6 +250,19 @@ private:
     OutputStageComponent outputStage;
     OutputMixerComponent outputMixer;
     OutputCalibrationComponent outputCalibration;
+    LyricsComponent lyricsView;
+    juce::TextButton lyricsToggleButton, lyricsActionsButton, lyricsFollowButton;
+    juce::TextButton fullscreenButton, miniButton, restorePlayerButton, pinPlayerButton;
+    juce::Label nowPlayingArtistLabel;
+    std::unique_ptr<LyricsService> lyricsService;
+    std::unique_ptr<juce::FileChooser> lyricsFileChooser;
+    std::optional<TrackItem> lyricsTrack;
+    std::shared_ptr<const LyricsDocument> lyricsDocument;
+    juce::String lyricsTrackSignature;
+    double lyricsOffsetSeconds = 0.0;
+    uint64_t lyricsOffsetRevision = 0;
+    bool lyricsLoading = false, lyricsOpen = false;
+    PlayerPresentation playerPresentation = PlayerPresentation::normal;
     PresetControls listeningPresetControls { "Listening setup" };
     PresetControls effectPresetControls { "Effect preset" };
     SkinFallbackDiagnostic skinFallbackDiagnostic;

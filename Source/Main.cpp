@@ -1,7 +1,7 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 
 #include "app/ProductIdentity.h"
-#include "ui/MainComponent.h"
+#include "ui/PlayerWindow.h"
 
 class MoonwakeApplication final : public juce::JUCEApplication
 {
@@ -12,7 +12,7 @@ public:
 
     void initialise (const juce::String& commandLine) override
     {
-        mainWindow = std::make_unique<MainWindow> (getApplicationName());
+        mainWindow = std::make_unique<PlayerWindow> (getApplicationName());
         mainWindow->importCommandLine (commandLine);
     }
 
@@ -36,49 +36,7 @@ public:
     }
 
 private:
-    class MainWindow final : public juce::DocumentWindow
-    {
-    public:
-        explicit MainWindow (juce::String name)
-            : DocumentWindow (std::move (name),
-                              juce::Desktop::getInstance().getDefaultLookAndFeel()
-                                  .findColour (juce::ResizableWindow::backgroundColourId),
-                              DocumentWindow::allButtons)
-        {
-            setUsingNativeTitleBar (true);
-            content = new MainComponent();
-            setContentOwned (content, true);
-            setResizable (true, true);
-            setResizeLimits (1040, 700, 1800, 1200);
-            centreWithSize (1240, 800);
-            setVisible (true);
-        }
-
-        void closeButtonPressed() override
-        {
-            juce::JUCEApplication::getInstance()->systemRequestedQuit();
-        }
-
-        void importCommandLine (juce::String commandLine)
-        {
-            if (content == nullptr || commandLine.isEmpty())
-                return;
-            juce::Array<juce::File> files;
-            for (auto token : juce::StringArray::fromTokens (commandLine, true))
-            {
-                const juce::File file (token.trim().unquoted());
-                if (file.exists())
-                    files.addIfNotAlreadyThere (file);
-            }
-            if (! files.isEmpty())
-                content->importFilesAndFolders (files);
-        }
-
-    private:
-        MainComponent* content = nullptr;
-    };
-
-    std::unique_ptr<MainWindow> mainWindow;
+    std::unique_ptr<PlayerWindow> mainWindow;
 };
 
 START_JUCE_APPLICATION (MoonwakeApplication)

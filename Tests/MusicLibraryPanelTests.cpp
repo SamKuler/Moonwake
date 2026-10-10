@@ -123,6 +123,7 @@ struct LibraryPanelFixture
     }
     juce::Component::SafePointer<juce::Component> openDetailMenu (const juce::String& componentId)
     {
+        if (! activateMenuHost()) return {};
         bindings.find ("library.detailCover")->setBounds (0, 40, 48, 32);
         bindings.find ("library.title")->setBounds (60, 40, 340, 32);
         panel.updateVisibility();
@@ -176,6 +177,7 @@ struct LibraryPanelFixture
     }
     bool clickNewPlaylist()
     {
+        if (! activateMenuHost()) return false;
         auto* button = bindings.find ("library.newPlaylist");
         const auto point = host.getLocalPoint (button, button->getLocalBounds().getCentre()).toFloat();
         auto* peer = host.getPeer();
@@ -187,6 +189,17 @@ struct LibraryPanelFixture
         peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0.0f, 0.0f, time + 2);
         activeMenu = juce::Component::getCurrentlyModalComponent();
         return chooseAction (activeMenu, 20);
+    }
+
+    static bool activateMenuHost()
+    {
+       #if JUCE_MAC
+        // Desktop focus can change between tests; PopupMenu observes it on mouse-up.
+        juce::Process::makeForegroundProcess();
+        return waitUntil ([] { return juce::Process::isForegroundProcess(); });
+       #else
+        return true;
+       #endif
     }
 
     static bool waitUntil (const std::function<bool()>& complete)

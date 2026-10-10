@@ -108,7 +108,8 @@
 | LAYOUT015 | error | 任一交互 Component Node 的点击区域小于 28 × 28 |
 | LAYOUT016 | error | min constraint 无法放入最低窗口 |
 | LAYOUT017 | runtime error | resolved bounds 非有限、负数或越界 |
-| LAYOUT018 | compile error | visibleWhen 在某个布局状态无法求值或结果不是 boolean |
+| LAYOUT018 | compile error | visibleWhen 在队列与歌词开关的某个组合状态无法求值或结果不是 boolean |
+| LAYOUT019 | compile error | preferredSize 小于根节点的 minWidth 或 minHeight |
 
 ## Rendering
 

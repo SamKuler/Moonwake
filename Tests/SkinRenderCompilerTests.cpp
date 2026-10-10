@@ -173,6 +173,29 @@ public:
             expect (report.hasErrors(), "Missing Remove geometry must be rejected.");
         }
 
+        beginTest ("lyrics controls require bounded follow geometry and expose typed line context");
+        {
+            auto raw = renderDocument ("lyrics", { rectLayer ("body") });
+            SkinValidationReport missing;
+            expect (! compile (raw, tokens, missing));
+            expect (missing.hasCode ("RENDER004"), missing.toText());
+            raw.getDynamicObject()->setProperty ("controlStyle", juce::JSON::parse (
+                R"({"padding":12,"lineGap":24,"followAnchor":0.36,"followDurationMs":260})"));
+            SkinValidationReport valid;
+            expect (compile (raw, tokens, valid).has_value(), valid.toText());
+            for (const auto& [field, value] : std::map<juce::String, double> {
+                     { "padding", -1 }, { "lineGap", -1 }, { "followAnchor", 1.1 }, { "followDurationMs", 2001 } })
+            {
+                auto invalid = raw.clone();
+                invalid.getProperty ("controlStyle", {}).getDynamicObject()->setProperty (field, value);
+                SkinValidationReport error;
+                expect (! compile (invalid, tokens, error), field);
+            }
+            const auto context = skinRenderContextForCompositeSlot (SkinRenderTarget::lyrics, "line.text", SkinRenderTarget::label);
+            expect (context.at ("lyrics.synced") == SkinExpressionType::boolean);
+            expect (context.at ("line.timeSeconds") == SkinExpressionType::number);
+        }
+
         beginTest ("playlist grid metrics resolve against individual card widths");
         {
             auto raw = juce::JSON::parse (R"json({
@@ -556,7 +579,7 @@ public:
                           juce::String ("urn:uuid:f37db386-b854-462a-a26f-b281c16b38fb"));
             expectEquals (renderSchema.getProperty ("x-generatedBy", {}).toString(),
                           juce::String ("Moonwake SkinSchemaRegistry"));
-            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 25);
+            expectEquals (static_cast<int> (skinRenderTargetNames().size()), 26);
             expectEquals (static_cast<int> (skinPrimitiveNames().size()), 11);
             expectEquals (static_cast<int> (skinRepeatSourceDescriptors().size()), 3);
 

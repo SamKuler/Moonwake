@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.9.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.10.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
     set(MOONWAKE_MAC_SOURCES Source/audio/MacEmbeddedArtworkReader.mm)
-    set(MOONWAKE_MAC_APP_SOURCES Source/app/MacNowPlayingBridge.mm)
-    set_source_files_properties(Source/app/MacNowPlayingBridge.mm
+    set(MOONWAKE_MAC_APP_SOURCES Source/app/MacNowPlayingBridge.mm Source/ui/PlayerWindowMac.mm)
+    set_source_files_properties(Source/app/MacNowPlayingBridge.mm Source/ui/PlayerWindowMac.mm
         PROPERTIES COMPILE_FLAGS "-fobjc-arc"
     )
 endif()
@@ -162,6 +162,8 @@ set(MOONWAKE_SOURCES
     Source/audio/EffectGraph.cpp
     Source/audio/OutputLayout.cpp
     Source/audio/TrackArtistTags.cpp
+    Source/lyrics/LyricsDocument.cpp
+    Source/lyrics/LyricsService.cpp
     Source/audio/TrackMetadataReader.cpp
     Source/library/ArtworkExtractor.cpp
     Source/library/ArtworkStore.cpp
@@ -228,9 +230,12 @@ set(MOONWAKE_SOURCES
     Source/ui/settings/SkinLibraryPanel.cpp
     Source/ui/AlbumArtworkComponent.cpp
     Source/ui/MainComponent.cpp
+    Source/ui/MainListening.cpp
+    Source/ui/PlayerWindow.cpp
     Source/ui/OutputMixerComponent.cpp
     Source/ui/OutputCalibrationComponent.cpp
     Source/ui/PresetControls.cpp
+    Source/ui/LyricsComponent.cpp
     Source/ui/OutputStageComponent.cpp
     Source/ui/SkinFallbackDiagnostic.cpp
 )
@@ -368,6 +373,8 @@ add_executable(MoonwakeTests
         Source/audio/OutputCalibrationProcessor.cpp
         Source/audio/GaplessAudioSource.cpp
         Source/audio/TrackArtistTags.cpp
+        Source/lyrics/LyricsDocument.cpp
+        Source/lyrics/LyricsService.cpp
         Source/audio/TrackMetadataReader.cpp
         Source/library/ArtworkExtractor.cpp
         Source/library/ArtworkStore.cpp
@@ -443,9 +450,14 @@ add_executable(MoonwakeTests
         Source/ui/OutputMixerComponent.cpp
         Source/ui/OutputCalibrationComponent.cpp
         Source/ui/PresetControls.cpp
+        Source/ui/LyricsComponent.cpp
         Source/ui/OutputStageComponent.cpp
         Source/ui/SkinFallbackDiagnostic.cpp
         Tests/TestMain.cpp
+        Tests/LyricsDocumentTests.cpp
+        Tests/LyricsEmbeddedTests.cpp
+        Tests/LyricsServiceTests.cpp
+        Tests/LyricsComponentTests.cpp
         Tests/ListeningPresetsTests.cpp
         Tests/PlayerPresetControllerTests.cpp
         Tests/PresetControlsTests.cpp
@@ -562,6 +574,13 @@ target_link_libraries(MoonwakeTests
 )
 
 if (APPLE)
+    # Native popup menus require an application bundle and an active GUI host.
+    set_target_properties(MoonwakeTests PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.samkuler.moonwake.tests"
+        MACOSX_BUNDLE_BUNDLE_NAME "Moonwake Tests"
+    )
+    set_source_files_properties(Tests/TestMain.cpp PROPERTIES LANGUAGE OBJCXX)
     target_link_libraries(MoonwakeTests PRIVATE
         "-framework AudioToolbox"
         "-framework AVFoundation"

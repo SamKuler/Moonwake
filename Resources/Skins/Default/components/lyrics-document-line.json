@@ -1,0 +1,51 @@
+{
+  "apiVersion": 1,
+  "target": "label",
+  "layers": [
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds"
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceMedium"
+      },
+      "fontSize": {
+        "$ref": "metrics.lyricsText"
+      },
+      "color": {
+        "$ref": "colors.listening.muted"
+      },
+      "align": "left",
+      "maxLines": 32,
+      "overflow": "clip"
+    }
+  ],
+  "variants": {
+    "selected": {
+      "label.font": {
+        "$ref": "fonts.workspaceTitle"
+      },
+      "label.fontSize": {
+        "$ref": "metrics.lyricsCurrentText"
+      },
+      "label.color": {
+        "$ref": "colors.listening.text"
+      }
+    },
+    "hover": {
+      "label.color": {
+        "$ref": "colors.listening.focus"
+      }
+    },
+    "focused": {
+      "label.color": {
+        "$ref": "colors.listening.focus"
+      }
+    }
+  }
+}

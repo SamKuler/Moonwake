@@ -8,7 +8,7 @@
   },
   "description": "Accessible, complete and immutable fallback skin.",
   "license": "AGPL-3.0-only",
-  "minAppVersion": "0.9.0",
+  "minAppVersion": "0.10.0",
   "capabilities": [
     "tokens",
     "renderers",
@@ -23,7 +23,9 @@
       "studio": "layouts/studio.json",
       "listening": "layouts/listening.json",
       "effects": "layouts/effects.json",
-      "settings": "layouts/settings.json"
+      "settings": "layouts/settings.json",
+      "immersive": "layouts/immersive.json",
+      "mini": "layouts/mini.json"
     }
   }
 }

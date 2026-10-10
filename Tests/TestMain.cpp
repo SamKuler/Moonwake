@@ -7,7 +7,12 @@
 #include <juce_events/juce_events.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <cstdio>
 #include <cstdlib>
+
+#if JUCE_MAC
+ #import <AppKit/AppKit.h>
+#endif
 
 namespace
 {
@@ -157,6 +162,29 @@ int main (int argc, char* argv[])
 
     if (argc >= 2 && juce::String (argv[1]) == "--plugin-scan-fixture")
         return runPluginScannerFixture (argc, argv);
+
+   #if JUCE_MAC
+    // PopupMenu checks the native application's focus even for synthetic peers.
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+    [NSApp finishLaunching];
+    juce::Component nativeHost;
+    nativeHost.setName ("Moonwake UI Tests");
+    nativeHost.setBounds (80, 80, 240, 80);
+    nativeHost.addToDesktop (juce::ComponentPeer::windowHasTitleBar
+                            | juce::ComponentPeer::windowAppearsOnTaskbar);
+    nativeHost.setVisible (true);
+    nativeHost.toFront (true);
+    juce::Process::makeForegroundProcess();
+    const auto activationDeadline = juce::Time::getMillisecondCounterHiRes() + 1500.0;
+    while (! juce::Process::isForegroundProcess()
+           && juce::Time::getMillisecondCounterHiRes() < activationDeadline)
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
+    if (! juce::Process::isForegroundProcess())
+    {
+        std::fputs ("Moonwake UI tests require an unlocked, active macOS desktop.\n", stderr);
+        return 4;
+    }
+   #endif
 
     juce::UnitTestRunner runner;
 

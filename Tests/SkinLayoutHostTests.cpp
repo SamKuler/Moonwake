@@ -147,6 +147,7 @@ std::unique_ptr<juce::Component> componentFor (juce::StringRef id)
             static double progress = 0.0;
             return std::make_unique<juce::ProgressBar> (progress);
         }
+        case SkinComponentKind::lyrics:
         case SkinComponentKind::artwork:
         case SkinComponentKind::effectChain:
         case SkinComponentKind::outputStage:

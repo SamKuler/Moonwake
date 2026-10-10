@@ -2,7 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// Deliver JUCE pointer events without depending on foreground macOS windows.
+// Deliver JUCE pointer events without creating a native window for each fixture.
 class TestComponentPeer final : public juce::ComponentPeer
 {
 public:

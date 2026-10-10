@@ -268,7 +268,7 @@ const std::vector<juce::String>& skinRenderTargetNames()
         "linearSlider", "rotarySlider", "progressBar", "scrollBar", "popupMenu",
         "tooltip", "table", "surface", "artwork", "effectChain", "outputStage",
         "channelMap", "pluginList", "skinList", "channelMixer", "playlistGrid",
-        "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList", "outputCalibration"
+        "directoryList", "smartPlaylistEditor", "smartPlaylistRuleList", "outputCalibration", "lyrics"
     };
     return names;
 }
@@ -441,6 +441,15 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
         case SkinRenderTarget::smartPlaylistRuleList:
         case SkinRenderTarget::outputCalibration:
             break;
+        case SkinRenderTarget::lyrics:
+            addContext (result, {
+                { "lyrics.synced", Type::boolean }, { "lyrics.following", Type::boolean },
+                { "lyrics.hasText", Type::boolean }, { "lyrics.presentation", Type::string },
+                { "line.index", Type::number }, { "line.active", Type::boolean },
+                { "line.past", Type::boolean }, { "line.timeSeconds", Type::number }
+            });
+            break;
+
         case SkinRenderTarget::surface:
             break;
     }
@@ -546,6 +555,15 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
         case SkinRenderTarget::smartPlaylistRuleList:
         case SkinRenderTarget::outputCalibration:
             break;
+        case SkinRenderTarget::lyrics:
+            addContext (result, {
+                { "lyrics.synced", Type::boolean }, { "lyrics.following", Type::boolean },
+                { "lyrics.hasText", Type::boolean }, { "lyrics.presentation", Type::string },
+                { "line.index", Type::number }, { "line.active", Type::boolean },
+                { "line.past", Type::boolean }, { "line.timeSeconds", Type::number }
+            });
+            break;
+
         case SkinRenderTarget::skinList:
             addContext (result, {
                 { "skin.index", Type::number },

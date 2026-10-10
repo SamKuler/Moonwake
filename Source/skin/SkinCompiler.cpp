@@ -371,6 +371,7 @@ bool isInteractiveRendererTarget (SkinRenderTarget target)
 {
     switch (target)
     {
+        case SkinRenderTarget::lyrics:
         case SkinRenderTarget::textButton:
         case SkinRenderTarget::toggleButton:
         case SkinRenderTarget::comboBox:
@@ -406,7 +407,8 @@ bool slotOwnsKeyboardFocus (SkinRenderTarget owner, const juce::String& name,
                            SkinRenderTarget target)
 {
     return isInteractiveRendererTarget (target)
-        || (owner == SkinRenderTarget::playlistGrid && name == "card.surface");
+        || (owner == SkinRenderTarget::playlistGrid && name == "card.surface")
+        || (owner == SkinRenderTarget::lyrics && (name == "line.text" || name == "empty.title"));
 }
 
 template <typename Callback>
@@ -597,6 +599,14 @@ bool validateSlotStyles (const CompiledSkin& skin, SkinValidationReport& report)
             }
             if (resolved != nullptr)
             {
+                if (style.renderer.target == SkinRenderTarget::lyrics && slotName == "line.text"
+                    && std::none_of (resolved->renderer.baseLayers.begin(), resolved->renderer.baseLayers.end(),
+                        [] (const auto& layer) { return layer.id == "label" && layer.primitive == SkinPrimitive::text; }))
+                {
+                    report.addError ("RENDER004", "components/index.json", styleName + "/" + slotName,
+                                     "Lyrics line.text requires a root Text layer named label for font and wrapping measurement.");
+                    ok = false;
+                }
                 const auto allowed = skinRenderContextForCompositeSlot (
                     style.renderer.target, slotName, expected);
                 if (const auto path = unavailableCompositeContext (
@@ -748,7 +758,7 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
     for (const auto& targetName : skinRenderTargetNames())
     {
         const auto target = skinRenderTargetFromName (targetName);
-        if (target == SkinRenderTarget::playlistGrid) continue;
+        if (target == SkinRenderTarget::playlistGrid || target == SkinRenderTarget::lyrics) continue;
         if (! target || compiled->resolveStyle (*target, {}) == nullptr)
             report.addError ("RENDER004", "components/index.json", targetName,
                              "Skin does not provide or inherit target.default.");
@@ -757,13 +767,24 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
 
     for (const auto& [entry, layout] : compiled->layouts)
     {
-        juce::ignoreUnused (entry);
-        for (const auto bounds : { juce::Rectangle<float> (0, 0, 1040, 700),
-                                   juce::Rectangle<float> (0, 0, 1240, 800) })
+        auto validationBounds = std::vector<juce::Rectangle<float>> {
+            { 0, 0, 1040, 700 }, { 0, 0, 1240, 800 } };
+        if (entry == SkinLayoutEntry::mini)
+        {
+            validationBounds.clear();
+            const auto preferred = layout.preferredSize.value_or (juce::Point<float> (
+                std::clamp (480.0f, layout.base.common.minWidth, layout.base.common.maxWidth),
+                std::clamp (200.0f, layout.base.common.minHeight, layout.base.common.maxHeight)));
+            validationBounds.emplace_back (0, 0, preferred.x, preferred.y);
+            if (layout.base.common.minWidth > 0 && layout.base.common.minHeight > 0)
+                validationBounds.emplace_back (0, 0, layout.base.common.minWidth, layout.base.common.minHeight);
+        }
+        for (const auto bounds : validationBounds)
             for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })
             for (const auto queueOpen : { false, true })
+            for (const auto lyricsOpen : { false, true })
             {
-                const auto resolved = SkinLayoutEngine::resolve (layout, bounds, 1.0f, report, workspace, compiled.get(), { queueOpen });
+                const auto resolved = SkinLayoutEngine::resolve (layout, bounds, 1.0f, report, workspace, compiled.get(), { queueOpen, lyricsOpen });
                 if (! resolved) return {};
                 const auto validateRows = [&] (auto&& self, const SkinResolvedNode& node) -> bool
                 {

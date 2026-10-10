@@ -1,0 +1,42 @@
+{
+  "apiVersion": 1,
+  "target": "artwork",
+  "layers": [
+    {
+      "id": "image-clip",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds"
+      },
+      "radius": 8,
+      "fill": {
+        "$ref": "colors.listening.control"
+      },
+      "clip": true
+    },
+    {
+      "id": "empty",
+      "type": "ellipse",
+      "frame": {
+        "x": {
+          "$expr": "bounds.x + bounds.width * 0.3"
+        },
+        "y": {
+          "$expr": "bounds.y + bounds.height * 0.3"
+        },
+        "width": {
+          "$expr": "bounds.width * 0.4"
+        },
+        "height": {
+          "$expr": "bounds.height * 0.4"
+        }
+      },
+      "fill": {
+        "$ref": "colors.listening.surface"
+      },
+      "visible": {
+        "$expr": "not artwork.hasImage"
+      }
+    }
+  ]
+}

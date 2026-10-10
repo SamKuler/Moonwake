@@ -517,6 +517,10 @@ juce::var layoutSchema()
     apiVersion.getDynamicObject()->setProperty ("const", 1);
     properties.getDynamicObject()->setProperty ("ancillaryStyles", ancillaryStyles);
     properties.getDynamicObject()->setProperty ("apiVersion", apiVersion);
+    auto preferredSize = object();
+    preferredSize.getDynamicObject()->setProperty ("width", boundedNumber ("number", 1, 100000));
+    preferredSize.getDynamicObject()->setProperty ("height", boundedNumber ("number", 1, 100000));
+    properties.getDynamicObject()->setProperty ("preferredSize", closedObject (preferredSize, { "width", "height" }));
     properties.getDynamicObject()->setProperty ("root", reference ("#/$defs/node"));
     properties.getDynamicObject()->setProperty (
         "breakpoints", arraySchema (reference ("#/$defs/breakpoint"), -1, 16));

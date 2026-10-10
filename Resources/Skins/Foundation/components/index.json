@@ -7,7 +7,17 @@
     "data": "components/data-label.json",
     "skinStatus": "components/skin-status.json",
     "routingDestination": "components/routing-destination.json",
-    "calibrationStatus": "components/calibration-status.json"
+    "calibrationStatus": "components/calibration-status.json",
+    "lyricsDocumentLine": "components/lyrics-document-line.json",
+    "lyricsImmersiveLine": "components/lyrics-immersive-line.json",
+    "lyricsLineLine": "components/lyrics-line-line.json",
+    "lyricsEmptyTitle": "components/lyricsEmptyTitle.json",
+    "lyricsEmptyDetail": "components/lyricsEmptyDetail.json",
+    "lyricsMiniStatus": "components/lyricsMiniStatus.json",
+    "miniTitle": "components/miniTitle.json",
+    "miniArtist": "components/miniArtist.json",
+    "playerNotice": "components/playerNotice.json",
+    "miniNotice": "components/miniNotice.json"
   },
   "textButton": {
     "defaultCompact": "components/default-compact-button.json",
@@ -33,7 +43,13 @@
         "icon.reload": "surface.icon",
         "icon.preview": "surface.icon",
         "icon.repeat": "surface.icon",
-        "icon.repeatOne": "surface.icon"
+        "icon.repeatOne": "surface.icon",
+        "icon.lyrics": "surface.icon",
+        "icon.fullscreen": "surface.icon",
+        "icon.mini": "surface.icon",
+        "icon.restore": "surface.icon",
+        "icon.pin": "surface.icon",
+        "icon.more": "surface.icon"
       }
     },
     "iconPrimary": {
@@ -56,7 +72,13 @@
         "icon.reload": "surface.onPrimaryIcon",
         "icon.preview": "surface.onPrimaryIcon",
         "icon.repeat": "surface.onPrimaryIcon",
-        "icon.repeatOne": "surface.onPrimaryIcon"
+        "icon.repeatOne": "surface.onPrimaryIcon",
+        "icon.lyrics": "surface.onPrimaryIcon",
+        "icon.fullscreen": "surface.onPrimaryIcon",
+        "icon.mini": "surface.onPrimaryIcon",
+        "icon.restore": "surface.onPrimaryIcon",
+        "icon.pin": "surface.onPrimaryIcon",
+        "icon.more": "surface.onPrimaryIcon"
       }
     },
     "leadingNeutral": {
@@ -79,7 +101,13 @@
         "icon.reload": "surface.icon",
         "icon.preview": "surface.icon",
         "icon.repeat": "surface.icon",
-        "icon.repeatOne": "surface.icon"
+        "icon.repeatOne": "surface.icon",
+        "icon.lyrics": "surface.icon",
+        "icon.fullscreen": "surface.icon",
+        "icon.mini": "surface.icon",
+        "icon.restore": "surface.icon",
+        "icon.pin": "surface.icon",
+        "icon.more": "surface.icon"
       }
     },
     "leadingPrimary": {
@@ -102,7 +130,13 @@
         "icon.reload": "surface.onPrimaryIcon",
         "icon.preview": "surface.onPrimaryIcon",
         "icon.repeat": "surface.onPrimaryIcon",
-        "icon.repeatOne": "surface.onPrimaryIcon"
+        "icon.repeatOne": "surface.onPrimaryIcon",
+        "icon.lyrics": "surface.onPrimaryIcon",
+        "icon.fullscreen": "surface.onPrimaryIcon",
+        "icon.mini": "surface.onPrimaryIcon",
+        "icon.restore": "surface.onPrimaryIcon",
+        "icon.pin": "surface.onPrimaryIcon",
+        "icon.more": "surface.onPrimaryIcon"
       }
     },
     "mode": "components/mode-button.json"
@@ -177,7 +211,14 @@
         "frame.overlay": "surface.artworkOverlay"
       }
     },
-    "assetProbe": "components/artwork-asset-probe.json"
+    "assetProbe": "components/artwork-asset-probe.json",
+    "mini": {
+      "renderer": "components/lyrics-mini-artwork.json",
+      "slots": {
+        "frame.background": "surface.artworkOverlay",
+        "frame.overlay": "surface.artworkOverlay"
+      }
+    }
   },
   "effectChain": {
     "default": {
@@ -319,6 +360,40 @@
         "calibration.frequency": "textEditor.default",
         "calibration.startStop": "textButton.primary",
         "calibration.status": "label.calibrationStatus"
+      }
+    }
+  },
+  "lyrics": {
+    "document": {
+      "renderer": "components/lyrics-document.json",
+      "slots": {
+        "line.text": "label.lyricsDocumentLine",
+        "empty.title": "label.lyricsEmptyTitle",
+        "empty.detail": "label.lyricsEmptyDetail"
+      }
+    },
+    "immersive": {
+      "renderer": "components/lyrics-immersive.json",
+      "slots": {
+        "line.text": "label.lyricsImmersiveLine",
+        "empty.title": "label.lyricsEmptyTitle",
+        "empty.detail": "label.lyricsEmptyDetail"
+      }
+    },
+    "line": {
+      "renderer": "components/lyrics-line.json",
+      "slots": {
+        "line.text": "label.lyricsLineLine",
+        "empty.title": "label.lyricsMiniStatus",
+        "empty.detail": "label.lyricsEmptyDetail"
+      }
+    },
+    "default": {
+      "renderer": "components/lyrics-document.json",
+      "slots": {
+        "line.text": "label.lyricsDocumentLine",
+        "empty.title": "label.lyricsEmptyTitle",
+        "empty.detail": "label.lyricsEmptyDetail"
       }
     }
   }

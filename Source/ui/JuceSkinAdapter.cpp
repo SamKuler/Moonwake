@@ -586,10 +586,11 @@ void JuceSkinAdapter::fillTextEditorBackground (
 }
 
 std::optional<JuceSkinAdapter::TextStyle> JuceSkinAdapter::textStyleFor (
-    const juce::Component& component, SkinRenderTarget target, SkinRenderContext context) const
+    const juce::Component& component, SkinRenderTarget target, SkinRenderContext context,
+    const juce::String& forcedStyle) const
 {
     RuntimeBinding binding;
-    try { binding = bindingFor (component, target); }
+    try { binding = bindingFor (component, target, forcedStyle); }
     catch (...) { return std::nullopt; }
     if (binding.styleEntry == nullptr) return std::nullopt;
     const auto* found = findLayer (binding.styleEntry->renderer.baseLayers, "label");
@@ -615,6 +616,23 @@ std::optional<JuceSkinAdapter::TextStyle> JuceSkinAdapter::textStyleFor (
     return TextStyle { font, colour->withMultipliedAlpha (static_cast<float> (opacity)), bounds,
         justificationForAlignment (resolvedProperty<juce::String> (layer, "align", expressionContext, bounds).value_or ("left")),
         juce::jlimit (1, 32, juce::roundToInt (resolvedProperty<double> (layer, "maxLines", expressionContext, bounds).value_or (1.0))) };
+}
+
+bool JuceSkinAdapter::reduceMotionFor (const juce::Component& component, SkinRenderTarget target) const
+{
+    const auto binding = bindingFor (component, target);
+    return binding.animations != nullptr && binding.animations->isReduceMotionEnabled();
+}
+
+std::optional<JuceSkinAdapter::TextStyle> JuceSkinAdapter::slotTextStyleFor (
+    const juce::Component& component, SkinRenderTarget ownerTarget,
+    juce::StringRef slot, SkinRenderContext context) const
+{
+    const auto owner = bindingFor (component, ownerTarget);
+    if (owner.styleEntry == nullptr) return std::nullopt;
+    const auto found = owner.styleEntry->slotStyles.find (juce::String (slot));
+    return textStyleFor (component, SkinRenderTarget::label, std::move (context),
+        found != owner.styleEntry->slotStyles.end() ? found->second : juce::String ("default"));
 }
 
 void JuceSkinAdapter::configureTextEditor (juce::TextEditor& editor) const

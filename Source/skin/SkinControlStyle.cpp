@@ -37,6 +37,12 @@ skinControlStylePropertyDescriptors (SkinRenderTarget target)
         number (SkinRenderTarget::scrollBar, "minThumbLength", 1.0);
         number (SkinRenderTarget::playlistGrid, "minItemWidth", 120.0);
         number (SkinRenderTarget::playlistGrid, "itemGap", 0.0);
+        number (SkinRenderTarget::lyrics, "lineGap", 0.0);
+        number (SkinRenderTarget::lyrics, "padding", 0.0);
+        number (SkinRenderTarget::lyrics, "followAnchor", 0.0);
+        result[SkinRenderTarget::lyrics].back().maximum = 1.0;
+        number (SkinRenderTarget::lyrics, "followDurationMs", 0.0);
+        result[SkinRenderTarget::lyrics].back().maximum = 2000.0;
         for (const auto* field : { "selectionColour", "selectedTextColour", "caretColour" })
         {
             SkinRenderPropertyDescriptor descriptor;
@@ -127,7 +133,10 @@ std::optional<SkinResolvedControlStyle> resolveSkinControlStyle (
              std::pair { "thumbRadius", &result.thumbRadius }, std::pair { "maxWidth", &result.maxWidth },
              std::pair { "offsetX", &result.offsetX }, std::pair { "offsetY", &result.offsetY },
              std::pair { "thickness", &result.thickness }, std::pair { "minThumbLength", &result.minThumbLength },
-             std::pair { "minItemWidth", &result.minItemWidth }, std::pair { "itemGap", &result.itemGap } })
+             std::pair { "minItemWidth", &result.minItemWidth }, std::pair { "itemGap", &result.itemGap },
+             std::pair { "lineGap", &result.lineGap }, std::pair { "padding", &result.padding },
+             std::pair { "followAnchor", &result.followAnchor },
+             std::pair { "followDurationMs", &result.followDurationMs } })
         if (const auto found = values.find (name); found != values.end())
             *destination = static_cast<float> (std::get<double> (found->second));
     for (const auto& [name, destination] : {

@@ -15,10 +15,10 @@ enum class SkinComponentKind
     label, textButton, toggleButton, comboBox, textEditor, linearSlider,
     slider, progressBar, table, artwork, effectChain, outputStage,
     channelMap, pluginList, skinList, channelMixer, playlistGrid,
-    directoryList, smartPlaylistEditor, smartPlaylistRuleList, outputCalibration
+    directoryList, smartPlaylistEditor, smartPlaylistRuleList, outputCalibration, lyrics
 };
 
-enum class SkinLayoutEntry { studio, listening, effects, settings, library, collection };
+enum class SkinLayoutEntry { studio, listening, effects, settings, library, collection, immersive, mini };
 
 [[nodiscard]] const std::vector<juce::String>& skinLayoutEntryNames();
 [[nodiscard]] std::optional<SkinLayoutEntry> skinLayoutEntryFromName (juce::StringRef);

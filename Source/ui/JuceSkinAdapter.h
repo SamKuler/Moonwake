@@ -159,10 +159,8 @@ public:
                          SkinRenderTarget slotTarget, SkinRenderContext,
                          const juce::String& instanceKey = {});
 
-private:
-    friend class SkinListContentPainter;
-    void clipListContent (juce::Graphics&, const juce::ListBox&,
-                          const juce::Component& child, SkinRenderTarget) const;
+    [[nodiscard]] bool reduceMotionFor (const juce::Component&, SkinRenderTarget) const;
+
     struct TextStyle
     {
         juce::Font font { juce::FontOptions {} };
@@ -172,7 +170,15 @@ private:
         int maxLines = 1;
     };
     [[nodiscard]] std::optional<TextStyle> textStyleFor (
-        const juce::Component&, SkinRenderTarget, SkinRenderContext) const;
+        const juce::Component&, SkinRenderTarget, SkinRenderContext, const juce::String& forcedStyle = {}) const;
+    [[nodiscard]] std::optional<TextStyle> slotTextStyleFor (
+        const juce::Component&, SkinRenderTarget owner, juce::StringRef slot,
+        SkinRenderContext) const;
+
+private:
+    friend class SkinListContentPainter;
+    void clipListContent (juce::Graphics&, const juce::ListBox&,
+                          const juce::Component& child, SkinRenderTarget) const;
     [[nodiscard]] std::optional<ArtworkImageStyle> artworkLayerStyleFor (
         const juce::Component&, SkinRenderContext, juce::StringRef layerId) const;
     [[nodiscard]] RuntimeBinding bindingFor (const juce::Component&, SkinRenderTarget,
