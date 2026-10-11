@@ -401,12 +401,12 @@ public:
         {
             auto definition = definitionWith (visual ("base"));
             SkinLayoutDefinition::Breakpoint first;
-            first.widths.minimum = 1000; first.widths.maximum = 1200;
-            first.heights.minimum = 700; first.heights.maximum = 900;
-            first.scaleFactors.minimum = 1; first.scaleFactors.maximum = 2;
+            first.widths.minimum = 1000.0f; first.widths.maximum = 1200.0f;
+            first.heights.minimum = 700.0f; first.heights.maximum = 900.0f;
+            first.scaleFactors.minimum = 1.0f; first.scaleFactors.maximum = 2.0f;
             first.root = visual ("first");
             SkinLayoutDefinition::Breakpoint second;
-            second.widths.minimum = 1000; second.widths.maximum = 1200;
+            second.widths.minimum = 1000.0f; second.widths.maximum = 1200.0f;
             second.root = visual ("second");
             definition.breakpoints.push_back (std::move (first));
             definition.breakpoints.push_back (std::move (second));
@@ -431,9 +431,9 @@ public:
             {
                 SkinLayoutDefinition::Breakpoint breakpoint;
                 breakpoint.workspace = workspace;
-                breakpoint.widths.maximum = 1240;
-                breakpoint.heights.minimum = 700;
-                breakpoint.scaleFactors.maximum = 2;
+                breakpoint.widths.maximum = 1240.0f;
+                breakpoint.heights.minimum = 700.0f;
+                breakpoint.scaleFactors.maximum = 2.0f;
                 breakpoint.root = visual (toString (workspace));
                 if (workspace == WorkspaceMode::studio)
                     breakpoint.ancillaryStyles = { { "popupMenu", "popupMenu.studio" },

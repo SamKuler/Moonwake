@@ -147,7 +147,8 @@ public:
             auto buffer = signal (layout.size());
             graph.processBlock (buffer, midi);
             for (int channel = 0; channel < layout.size(); ++channel)
-                expectWithinAbsoluteError (buffer.getSample (channel, 0), 2.0f * (channel + 1), 0.0001f);
+                expectWithinAbsoluteError (buffer.getSample (channel, 0),
+                                           2.0f * static_cast<float> (channel + 1), 0.0001f);
             expect (graph.addProcessor (2, std::make_unique<TestEffect> (0.5f, true), error), error);
             expect (graph.moveProcessor (0, 1));
             expect (graph.setProcessorOrder ({ 1, 2 }));

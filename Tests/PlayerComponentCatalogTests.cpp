@@ -242,11 +242,11 @@ public:
             expect (requiredSkinLayoutEntries() == std::set<SkinLayoutEntry> {
                 SkinLayoutEntry::studio, SkinLayoutEntry::listening, SkinLayoutEntry::effects, SkinLayoutEntry::settings
             });
-            for (const auto& name : skinLayoutEntryNames())
+            for (const auto& entryName : skinLayoutEntryNames())
             {
-                const auto entry = skinLayoutEntryFromName (name);
+                const auto entry = skinLayoutEntryFromName (entryName);
                 expect (entry.has_value());
-                if (entry) expectEquals (skinLayoutEntryName (*entry), name);
+                if (entry) expectEquals (skinLayoutEntryName (*entry), entryName);
             }
             expect (! skinLayoutEntryFromName ("unknown"));
             expect (slotsOf ("library.grid") == std::map<juce::String, juce::String> {

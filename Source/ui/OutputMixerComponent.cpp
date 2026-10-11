@@ -204,7 +204,8 @@ void OutputMixerComponent::resized()
     for (int pass = 0; pass < 2; ++pass)
     {
         columns = controls && controls->minItemWidth
-            ? juce::jmax (1, static_cast<int> (std::floor ((width + gap) / (*controls->minItemWidth + gap)))) : 1;
+            ? juce::jmax (1, static_cast<int> (std::floor (static_cast<float> (width + gap)
+                / (*controls->minItemWidth + static_cast<float> (gap))))) : 1;
         cellWidth = (width - gap * (columns - 1)) / columns;
         context.bounds.setWidth (static_cast<float> (cellWidth));
         const auto layout = adapter->rowLayoutFor (*this, SkinRenderTarget::channelMixer, context);
