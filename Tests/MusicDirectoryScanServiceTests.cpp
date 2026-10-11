@@ -2,7 +2,7 @@
 #include <juce_events/juce_events.h>
 
 #include "library/MusicDirectoryScanService.h"
-#include "ArtistMetadataFixtures.h"
+#include "fixtures/TrackMetadataFixtures.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -80,7 +80,7 @@ public:
         {
             ScanFixture fixture;
             const auto file = fixture.root.getChildFile ("collaboration.mp3");
-            expect (artistMetadataFixtures::writeMp3 (file, 3, 1, { "First/Second" }));
+            expect (trackMetadataFixtures::writeMp3 (file, 3, 1, { "First/Second" }));
             TrackMetadataReader reader;
             auto known = reader.read (file, false).track;
             known.id = "saved-recording";

@@ -1,11 +1,11 @@
-#include "audio/TrackArtistTags.h"
-#include "ArtistMetadataFixtures.h"
+#include "library/TrackTagReader.h"
+#include "fixtures/TrackMetadataFixtures.h"
 
 namespace
 {
 juce::MemoryBlock lyricId3 (int version, int encoding, const juce::String& value)
 {
-    const auto encoded = artistMetadataFixtures::id3 (version, encoding, { value });
+    const auto encoded = trackMetadataFixtures::id3 (version, encoding, { value });
     const auto* bytes = static_cast<const unsigned char*> (encoded.getData());
     juce::MemoryOutputStream payload;
     payload.writeByte (static_cast<char> (encoding));
@@ -74,11 +74,11 @@ public:
                 }
                 else
                 {
-                    const auto first = artistMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
+                    const auto first = trackMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
                     output.write (first.getData(), first.getSize());
                     juce::MemoryBlock packet ("\3vorbis", 7);
                     packet.append (comments.getData(), comments.getDataSize());
-                    const auto second = artistMetadataFixtures::oggPage (packet, 1);
+                    const auto second = trackMetadataFixtures::oggPage (packet, 1);
                     output.write (second.getData(), second.getSize());
                 }
                 expect (file.replaceWithData (output.getData(), output.getDataSize()));

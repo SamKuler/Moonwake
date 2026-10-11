@@ -1,5 +1,5 @@
 #include "LyricsService.h"
-#include "audio/TrackArtistTags.h"
+#include "library/TrackTagReader.h"
 
 #include <juce_cryptography/juce_cryptography.h>
 #include <juce_events/juce_events.h>

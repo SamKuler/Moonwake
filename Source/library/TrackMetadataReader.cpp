@@ -1,5 +1,5 @@
 #include "TrackMetadataReader.h"
-#include "TrackArtistTags.h"
+#include "TrackTagReader.h"
 
 #include "library/ArtworkExtractor.h"
 #include "playlist/TrackFileIdentity.h"

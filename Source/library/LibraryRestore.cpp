@@ -1,6 +1,6 @@
 #include "LibraryRestore.h"
 
-#include "audio/TrackMetadataReader.h"
+#include "library/TrackMetadataReader.h"
 #include "library/ArtworkStore.h"
 #include "playlist/TrackFileIdentity.h"
 

@@ -148,8 +148,16 @@ Windows 使用 `%APPDATA%\Moonwake\`，其文件和子目录结构相同。
 
 ```text
 Resources/Skins/   内置皮肤与布局
-Source/            应用、音频、插件、皮肤和 UI 源码
+Source/app/        应用协调、产品身份与系统媒体控制
+Source/audio/      实时音频、设备、声道路由与效果处理
+Source/library/    曲库、文件标签读取、元数据导入与封面提取/缓存
+Source/lyrics/     歌词解析、获取与缓存
+Source/plugins/    插件发现、独立进程扫描与效果链状态
+Source/state/      状态存储、保存与恢复任务
+Source/skin/       皮肤解析、验证、编译与渲染
+Source/ui/         JUCE 组件、窗口与设置面板
 Tests/             单元、集成与视觉隔离测试
+Tests/fixtures/    可复用的音频、文件系统、窗口、插件与皮肤测试夹具
 Tools/             MoonwakeSkinTool 入口
 docs/skin-api/     第三方 Skin API 公开文档、Schema 与示例
 ThirdParty/JUCE/   固定版本的 JUCE submodule（源码本体不进入 Moonwake 历史）

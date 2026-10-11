@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-namespace artistMetadataFixtures
+namespace trackMetadataFixtures
 {
 inline juce::MemoryBlock mp3()
 {

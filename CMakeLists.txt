@@ -4,7 +4,7 @@ project(Moonwake VERSION 0.10.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
-    set(MOONWAKE_MAC_SOURCES Source/audio/MacEmbeddedArtworkReader.mm)
+    set(MOONWAKE_MAC_SOURCES Source/library/MacEmbeddedArtworkReader.mm)
     set(MOONWAKE_NOW_PLAYING_SOURCE Source/app/MacNowPlayingBridge.mm)
     set(MOONWAKE_MAC_APP_SOURCES Source/ui/PlayerWindowMac.mm)
     set_source_files_properties(Source/app/MacNowPlayingBridge.mm Source/ui/PlayerWindowMac.mm
@@ -170,10 +170,10 @@ set(MOONWAKE_SOURCES
     Source/audio/ChannelMappedAudioSource.cpp
     Source/audio/EffectGraph.cpp
     Source/audio/OutputLayout.cpp
-    Source/audio/TrackArtistTags.cpp
     Source/lyrics/LyricsDocument.cpp
     Source/lyrics/LyricsService.cpp
-    Source/audio/TrackMetadataReader.cpp
+    Source/library/TrackTagReader.cpp
+    Source/library/TrackMetadataReader.cpp
     Source/library/ArtworkExtractor.cpp
     Source/library/ArtworkStore.cpp
     Source/library/LibraryProjection.cpp
@@ -382,10 +382,10 @@ add_executable(MoonwakeTests
         Source/audio/OutputMeter.cpp
         Source/audio/OutputCalibrationProcessor.cpp
         Source/audio/GaplessAudioSource.cpp
-        Source/audio/TrackArtistTags.cpp
         Source/lyrics/LyricsDocument.cpp
         Source/lyrics/LyricsService.cpp
-        Source/audio/TrackMetadataReader.cpp
+        Source/library/TrackTagReader.cpp
+        Source/library/TrackMetadataReader.cpp
         Source/library/ArtworkExtractor.cpp
         Source/library/ArtworkStore.cpp
         Source/library/LibraryProjection.cpp

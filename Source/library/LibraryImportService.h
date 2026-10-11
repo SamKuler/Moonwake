@@ -1,6 +1,6 @@
 #pragma once
 
-#include "audio/TrackMetadataReader.h"
+#include "library/TrackMetadataReader.h"
 #include "library/ArtworkStore.h"
 
 #include <atomic>

@@ -4,7 +4,7 @@
 #include "library/ArtworkStore.h"
 #include "library/LibraryRestore.h"
 #include "library/MusicDirectoryScanService.h"
-#include "ArtistMetadataFixtures.h"
+#include "fixtures/TrackMetadataFixtures.h"
 
 namespace
 {
@@ -48,7 +48,7 @@ juce::MemoryBlock restoreArtwork()
 
 bool rewriteRestoreMp3 (const juce::File& file, const juce::MemoryBlock& artwork)
 {
-    const auto source = artistMetadataFixtures::mp3();
+    const auto source = trackMetadataFixtures::mp3();
     const auto* bytes = static_cast<const unsigned char*> (source.getData());
     size_t audioOffset = 10;
     for (int index = 6; index < 10; ++index)
@@ -90,7 +90,7 @@ public:
         {
             RestoreDirectory directory;
             const auto audio = directory.root.getChildFile ("edited.mp3");
-            const auto initial = artistMetadataFixtures::mp3();
+            const auto initial = trackMetadataFixtures::mp3();
             expect (audio.replaceWithData (initial.getData(), initial.getSize()));
             TrackMetadataReader reader;
             auto original = reader.read (audio);

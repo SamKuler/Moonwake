@@ -1,12 +1,12 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_core/juce_core.h>
 
-#include "audio/TrackMetadataReader.h"
-#include "audio/TrackArtistTags.h"
+#include "library/TrackMetadataReader.h"
+#include "library/TrackTagReader.h"
 #include "library/LibraryProjection.h"
 #include "library/LibraryRestore.h"
 #include "state/AppStateStore.h"
-#include "ArtistMetadataFixtures.h"
+#include "fixtures/TrackMetadataFixtures.h"
 
 namespace
 {
@@ -23,7 +23,7 @@ class TrackMetadataReaderTests final : public juce::UnitTest
 {
 public:
     TrackMetadataReaderTests()
-        : UnitTest ("TrackMetadataReader", "audio")
+        : UnitTest ("TrackMetadataReader", "library")
     {
     }
 
@@ -32,7 +32,7 @@ public:
         beginTest ("ID3v2.3 collaboration is indexed for each artist and legacy restore updates every occurrence");
         {
             const auto file = getMetadataTestDirectory().getNonexistentChildFile ("collaboration", ".mp3");
-            expect (artistMetadataFixtures::writeMp3 (file, 3, 1,
+            expect (trackMetadataFixtures::writeMp3 (file, 3, 1,
                 { juce::String::fromUTF8 ("3LAU/Said The Sky/NÉONHÈART") }));
             TrackMetadataReader reader;
             const auto metadata = reader.read (file, false);
@@ -82,7 +82,7 @@ public:
             {
                 const auto file = getMetadataTestDirectory().getNonexistentChildFile ("multiple-id3-v4", ".mp3");
                 const juce::StringArray expected { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
-                expect (artistMetadataFixtures::writeMp3 (file, 4, encoding, expected));
+                expect (trackMetadataFixtures::writeMp3 (file, 4, encoding, expected));
                 TrackMetadataReader reader;
                 const auto result = reader.read (file, false);
                 expect (result.ok, result.error);
@@ -104,7 +104,7 @@ public:
             const juce::StringArray expected { "First", juce::String::fromUTF8 ("NÉONHÈART") };
             for (const auto version : { 3, 4 })
             {
-                auto tag = artistMetadataFixtures::id3 (version, 1,
+                auto tag = trackMetadataFixtures::id3 (version, 1,
                     version == 3 ? juce::StringArray { expected.joinIntoString ("/") } : expected);
                 const auto* source = static_cast<const unsigned char*> (tag.getData());
                 juce::MemoryOutputStream payload;
@@ -130,7 +130,7 @@ public:
                 expect (file.replaceWithData (withExtended.getData(), withExtended.getSize()));
                 expect (readTrackArtistTags (file) == expected);
             }
-            auto tag = artistMetadataFixtures::id3 (3, 1, { "First/Second" });
+            auto tag = trackMetadataFixtures::id3 (3, 1, { "First/Second" });
             const auto* source = static_cast<const unsigned char*> (tag.getData());
             juce::MemoryOutputStream unsynchronised;
             unsynchronised.write (source, 10);
@@ -157,7 +157,7 @@ public:
             const unsigned char emptyTag[] { 'I', 'D', '3', 4, 0, 0, 0, 0, 0, 0 };
             expect (file.replaceWithData (emptyTag, sizeof (emptyTag)));
             expect (readTrackArtistTags (file).isEmpty());
-            auto invalid = artistMetadataFixtures::id3 (4, 1, { "X" });
+            auto invalid = trackMetadataFixtures::id3 (4, 1, { "X" });
             auto* invalidBytes = static_cast<unsigned char*> (invalid.getData());
             invalidBytes[23] = 0;
             invalidBytes[24] = 0xd8;
@@ -170,7 +170,7 @@ public:
         {
             const juce::StringArray members { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART"), "AC/DC" };
             const juce::StringArray expected { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
-            const auto comments = artistMetadataFixtures::vorbisComments (members);
+            const auto comments = trackMetadataFixtures::vorbisComments (members);
             const auto file = getMetadataTestDirectory().getNonexistentChildFile ("vorbis-artists", ".tag");
             juce::MemoryOutputStream flac;
             flac.write ("fLaC", 4);
@@ -181,21 +181,21 @@ public:
             expect (file.replaceWithData (flac.getData(), flac.getDataSize()));
             expect (readTrackArtistTags (file) == expected);
 
-            auto ogg = artistMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
+            auto ogg = trackMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
             juce::MemoryBlock packet ("\3vorbis", 7);
             packet.append (comments.getData(), comments.getSize());
-            const auto page = artistMetadataFixtures::oggPage (packet, 1);
+            const auto page = trackMetadataFixtures::oggPage (packet, 1);
             ogg.append (page.getData(), page.getSize());
             expect (file.replaceWithData (ogg.getData(), ogg.getSize()));
             expect (readTrackArtistTags (file) == expected);
 
             const auto longName = juce::String::repeatedString ("A", 260);
-            const auto longer = artistMetadataFixtures::vorbisComments ({ longName, "Second" });
+            const auto longer = trackMetadataFixtures::vorbisComments ({ longName, "Second" });
             packet = juce::MemoryBlock ("\3vorbis", 7);
             packet.append (longer.getData(), longer.getSize());
-            ogg = artistMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
-            const auto first = artistMetadataFixtures::oggPage (juce::MemoryBlock (packet.getData(), 255), 1, false, false);
-            const auto second = artistMetadataFixtures::oggPage (juce::MemoryBlock (
+            ogg = trackMetadataFixtures::oggPage (juce::MemoryBlock ("\1vorbis", 7), 0);
+            const auto first = trackMetadataFixtures::oggPage (juce::MemoryBlock (packet.getData(), 255), 1, false, false);
+            const auto second = trackMetadataFixtures::oggPage (juce::MemoryBlock (
                 static_cast<const char*> (packet.getData()) + 255, packet.getSize() - 255), 2, true);
             ogg.append (first.getData(), first.getSize());
             ogg.append (second.getData(), second.getSize());
@@ -224,7 +224,7 @@ public:
                     expect (writer->writeFromAudioSampleBuffer (samples, 0, samples.getNumSamples()));
                     writer.reset();
                     const juce::StringArray artists { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
-                    expect (artistMetadataFixtures::replaceVorbisArtists (file, flac, artists));
+                    expect (trackMetadataFixtures::replaceVorbisArtists (file, flac, artists));
                     TrackMetadataReader reader;
                     const auto read = reader.read (file, false);
                     expect (read.ok, read.error);
@@ -412,7 +412,7 @@ public:
         {
             const auto mp3File = getMetadataTestDirectory()
                                      .getNonexistentChildFile ("tagged-with-artwork", ".mp3");
-            const auto fixture = artistMetadataFixtures::mp3();
+            const auto fixture = trackMetadataFixtures::mp3();
             expect (mp3File.replaceWithData (fixture.getData(), fixture.getSize()));
 
             TrackMetadataReader metadataReader;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "audio/AudioEngine.h"
-#include "audio/TrackMetadataReader.h"
+#include "library/TrackMetadataReader.h"
 #include "app/PlaybackCheckpoint.h"
 #include "app/PlaybackCoordinator.h"
 #include "app/PlayerViewState.h"
