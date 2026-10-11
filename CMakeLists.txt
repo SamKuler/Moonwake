@@ -482,6 +482,8 @@ add_executable(MoonwakeTests
         Tests/SmartPlaylistEditorTests.cpp
         Tests/MusicDirectoriesPanelTests.cpp
         Tests/PlaylistGridTests.cpp
+        Tests/PlayerEffectControllerTests.cpp
+        Tests/SkinEffectChainViewportTests.cpp
         Tests/LibraryProjectionTests.cpp
         Tests/SkinEditableComboTests.cpp
         Tests/MusicLibraryTests.cpp

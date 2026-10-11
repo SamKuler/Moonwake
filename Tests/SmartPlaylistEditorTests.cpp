@@ -269,6 +269,39 @@ public:
         if (lastField == nullptr) { editor.close(); return; }
         expect (lastField->hasKeyboardFocus (true));
         expectRowVisible (*lastField);
+
+        beginTest ("Tab and Shift-Tab reveal each existing rule without rebuilding the draft");
+        fieldAt (1)->grabKeyboardFocus();
+        for (int ordinal = 2; ordinal <= 16; ++ordinal)
+        {
+            for (int control = 0; control < 4; ++control)
+                host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::tabKey));
+            auto* field = fieldAt (ordinal);
+            expect (field != nullptr && field->hasKeyboardFocus (true));
+            auto* row = field->getParentComponent();
+            for (auto* ancestor = row->getParentComponent(); ancestor != nullptr; ancestor = ancestor->getParentComponent())
+                if (auto* viewport = dynamic_cast<juce::Viewport*> (ancestor))
+                {
+                    expect (viewport->getViewArea().contains (row->getBounds()), "Tab must reveal the entire focused rule.");
+                    break;
+                }
+        }
+        expectRowVisible (*lastField);
+        for (int step = 0; step < 60; ++step)
+            host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::tabKey, juce::ModifierKeys::shiftModifier, 0));
+        expect (fieldAt (1)->hasKeyboardFocus (true));
+        for (auto* ancestor = fieldAt (1)->getParentComponent(); ancestor != nullptr; ancestor = ancestor->getParentComponent())
+            if (auto* viewport = dynamic_cast<juce::Viewport*> (ancestor))
+                expectEquals (viewport->getViewPositionY(), 0);
+        expect (previewRules == expectedRules);
+        lastField->grabKeyboardFocus();
+        expectRowVisible (*lastField);
+        for (auto* ancestor = lastField->getParentComponent(); ancestor != nullptr; ancestor = ancestor->getParentComponent())
+            if (auto* viewport = dynamic_cast<juce::Viewport*> (ancestor)) viewport->setViewPosition (0, 0);
+        host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::tabKey));
+        auto* comparisonFocus = juce::Component::getCurrentlyFocusedComponent();
+        expect (comparisonFocus != nullptr && comparisonFocus->getName() == "Rule comparison");
+        expectRowVisible (*lastField);
         auto* removeLast = dynamic_cast<juce::TextButton*> (findEditorControl (*lastField->getParentComponent(), "Remove"));
         expect (removeLast != nullptr);
         if (removeLast == nullptr) { editor.close(); return; }

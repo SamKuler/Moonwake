@@ -1,0 +1,123 @@
+{
+  "apiVersion": 1,
+  "target": "textButton",
+  "layers": [
+    {
+      "id": "body",
+      "type": "roundedRect",
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$ref": "colors.listening.control"
+      },
+      "stroke": {
+        "color": "#00000000",
+        "width": 0
+      },
+      "visible": {
+        "$expr": "state.hover or state.pressed"
+      }
+    },
+    {
+      "id": "focus",
+      "type": "roundedRect",
+      "visible": {
+        "$context": "state.focused"
+      },
+      "frame": {
+        "anchor": "bounds",
+        "inset": 0.5
+      },
+      "radius": {
+        "$ref": "metrics.radius"
+      },
+      "fill": {
+        "$expr": "alpha(token.colors.listening.focus, token.metrics.focusOverlayOpacity)"
+      }
+    },
+    {
+      "id": "label",
+      "type": "text",
+      "frame": {
+        "anchor": "contentBounds",
+        "inset": {
+          "left": 10,
+          "right": 10
+        }
+      },
+      "text": {
+        "$context": "text.primary"
+      },
+      "font": {
+        "$ref": "fonts.workspaceMedium"
+      },
+      "fontSize": {
+        "$ref": "metrics.textControl"
+      },
+      "color": {
+        "$ref": "colors.listening.muted"
+      },
+      "align": "center",
+      "maxLines": 1,
+      "overflow": "ellipsis"
+    },
+    {
+      "id": "active",
+      "type": "roundedRect",
+      "frame": {
+        "x": 12,
+        "y": {
+          "$expr": "bounds.height - 2"
+        },
+        "width": {
+          "$expr": "bounds.width - 24"
+        },
+        "height": 2
+      },
+      "radius": 1,
+      "fill": {
+        "$ref": "colors.listening.active"
+      },
+      "visible": {
+        "$context": "state.selected"
+      }
+    }
+  ],
+  "variants": {
+    "selected": {
+      "body.fill": {
+        "$ref": "colors.listening.control"
+      },
+      "label.color": {
+        "$ref": "colors.listening.text"
+      }
+    },
+    "hover": {
+      "body.opacity": 0.9
+    },
+    "pressed": {
+      "body.opacity": 0.76
+    },
+    "disabled": {
+      "body.opacity": 0.4,
+      "label.opacity": 0.55,
+      "active.opacity": 0.4
+    }
+  },
+  "transitions": {
+    "hover": {
+      "durationMs": {
+        "$ref": "durations.workspaceFast"
+      },
+      "easing": "easeOut",
+      "properties": [
+        "body.opacity"
+      ]
+    }
+  }
+}

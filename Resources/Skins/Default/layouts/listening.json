@@ -42,7 +42,7 @@
                 "id": "listening-listening-root-library-open",
                 "type": "component",
                 "component": "library.open",
-                "style": "textButton.listeningMode",
+                "style": "textButton.listeningPage",
                 "width": 100,
                 "height": 36,
                 "focusOrder": 1,
@@ -52,7 +52,7 @@
                 "id": "listening-listening-root-player-open",
                 "type": "component",
                 "component": "player.open",
-                "style": "textButton.listeningMode",
+                "style": "textButton.listeningPage",
                 "width": 100,
                 "height": 36,
                 "focusOrder": 2,
@@ -199,19 +199,19 @@
                     "gap": 8,
                     "children": [
                       {
-                        "id": "lyrics-follow",
-                        "type": "component",
-                        "component": "lyrics.follow",
-                        "style": "textButton.listeningNeutral",
-                        "width": 150,
-                        "height": 32,
-                        "focusOrder": 20
-                      },
-                      {
                         "id": "lyrics-tools-space",
                         "type": "column",
                         "grow": 1,
                         "children": []
+                      },
+                      {
+                        "id": "lyrics-follow",
+                        "type": "component",
+                        "component": "lyrics.follow",
+                        "style": "textButton.listeningFollow",
+                        "width": 176,
+                        "height": 32,
+                        "focusOrder": 20
                       },
                       {
                         "id": "lyrics-actions",

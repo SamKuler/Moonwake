@@ -544,6 +544,109 @@ public:
             expectEquals (fixture.controller.getLibraryCollectionId(), "playlist:" + fixture.playlistId);
         }
 
+        beginTest ("overview refresh invalidates visible and hidden metadata projections across categories");
+        {
+            auto tagged = prepared;
+            for (auto& item : tagged)
+            {
+                item.track.album = "First album";
+                item.track.artist = "First artist";
+                item.track.artists = { "First artist" };
+            }
+            LibraryPanelFixture fixture (skin, root, tagged);
+            auto* grid = dynamic_cast<PlaylistGridComponent*> (fixture.bindings.find ("library.grid"));
+            auto* search = dynamic_cast<juce::TextEditor*> (fixture.bindings.find ("library.gridSearch"));
+            expect (grid != nullptr && search != nullptr);
+            if (grid != nullptr && search != nullptr)
+            {
+                grid->setBounds (0, 80, 640, 400);
+                const auto browse = [&] (const juce::String& id)
+                {
+                    dynamic_cast<juce::Button*> (fixture.bindings.find (id))->onClick();
+                    fixture.panel.updateNavigation (true);
+                };
+                browse ("library.browseAlbums");
+                expectEquals (grid->visibleCollectionCount(), 1);
+                auto changed = tagged[0];
+                changed.track.album = "Second album";
+                changed.track.artist = "Second artist";
+                changed.track.artists = { "Second artist" };
+                changed.track.artworkCacheKey = "changed-artwork";
+                MusicDirectoryScanResult scan;
+                scan.updates.push_back (changed);
+                expect (fixture.controller.applyMusicDirectoryScan (std::move (scan)));
+                fixture.panel.refresh();
+                expectEquals (grid->visibleCollectionCount(), 2);
+                search->setText ("Second album");
+                expect (LibraryPanelFixture::waitUntil ([&] { return grid->visibleCollectionCount() == 1; }));
+                for (int width : { 620, 600, 640 })
+                {
+                    grid->setSize (width, 400);
+                    fixture.panel.updateNavigation (true);
+                    expectEquals (grid->visibleCollectionCount(), 1);
+                }
+                browse ("library.browseArtists");
+                expectEquals (grid->visibleCollectionCount(), 2);
+                grid->setVisible (false);
+                scan = {};
+                for (const auto& record : fixture.controller.getLibrary().getTracks())
+                {
+                    TrackMetadataResult cleared;
+                    cleared.ok = true;
+                    cleared.track = record;
+                    cleared.track.album.clear();
+                    cleared.track.artist.clear();
+                    cleared.track.artists.clear();
+                    scan.updates.push_back (std::move (cleared));
+                }
+                expect (fixture.controller.applyMusicDirectoryScan (std::move (scan)));
+                fixture.panel.refresh();
+                grid->setVisible (true);
+                fixture.panel.updateNavigation (true);
+                expectEquals (grid->visibleCollectionCount(), 0);
+                browse ("library.browseAlbums");
+                expectEquals (grid->visibleCollectionCount(), 0);
+                browse ("library.browsePlaylists");
+                expectEquals (grid->visibleCollectionCount(), 2);
+                expect (fixture.controller.renameSavedPlaylist (fixture.playlistId, "Renamed playlist"));
+                fixture.panel.refresh();
+                search->setText ("Renamed playlist");
+                expect (LibraryPanelFixture::waitUntil ([&] { return grid->visibleCollectionCount() == 1; }));
+            }
+        }
+
+        beginTest ("detail summary refresh follows favourites availability and playlist edits");
+        {
+            LibraryPanelFixture fixture (skin, root, prepared);
+            auto* description = dynamic_cast<juce::Label*> (fixture.bindings.find ("library.description"));
+            expect (description != nullptr);
+            if (description != nullptr)
+            {
+                fixture.panel.selectCollection ("favourites");
+                expect (description->getText().startsWith ("0 songs"));
+                expect (fixture.controller.setTrackFavourites ({ fixture.ids[0] }, true));
+                fixture.panel.refresh();
+                fixture.panel.updateNavigation (true);
+                expect (description->getText().startsWith ("1 song"));
+                SmartPlaylistRules rules;
+                rules.rules.push_back ({ SmartPlaylistField::available, SmartPlaylistOperator::equals, {}, 0, true });
+                const auto smart = fixture.controller.createSmartPlaylist ("Available songs", rules);
+                fixture.panel.selectCollection ("playlist:" + smart);
+                expect (description->getText().contains ("3 songs"));
+                MusicDirectoryScanResult scan;
+                scan.missingTrackIds.add (fixture.ids[0]);
+                expect (fixture.controller.applyMusicDirectoryScan (std::move (scan)));
+                fixture.panel.refresh();
+                expect (description->getText().contains ("2 songs"));
+                fixture.panel.selectCollection ("playlist:" + fixture.playlistId);
+                expect (description->getText().startsWith ("4 songs"));
+                expect (fixture.controller.addTracksToSavedPlaylist (fixture.playlistId, { fixture.ids[1] }));
+                fixture.panel.refresh();
+                fixture.panel.updateNavigation (true);
+                expect (description->getText().startsWith ("5 songs"));
+            }
+        }
+
         beginTest ("collection play controls follow the visible playable search results");
         {
             LibraryPanelFixture fixture (skin, root, prepared);

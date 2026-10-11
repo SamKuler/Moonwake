@@ -795,21 +795,26 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
                         if (target)
                         {
                             auto* style = compiled->resolveStyle (*target, node.style);
+                            auto* controlStyle = style;
+                            if (controlStyle == nullptr || ! controlStyle->renderer.controlStyle)
+                                controlStyle = compiled->resolveStyle (*target, "default");
                             if (style != nullptr && ! style->renderer.rowLayout)
                                 style = compiled->resolveStyle (*target, "default");
                             if (style != nullptr && style->renderer.rowLayout)
                             {
                                 SkinRenderContext context;
                                 context.bounds = context.contentBounds = node.bounds.withPosition (0, 0);
-                                if (*target == SkinRenderTarget::playlistGrid)
+                                if (*target == SkinRenderTarget::playlistGrid
+                                    || (*target == SkinRenderTarget::channelMixer
+                                        && controlStyle != nullptr && controlStyle->renderer.controlStyle))
                                 {
-                                    const auto controls = resolveSkinControlStyle (style->renderer, context, report);
+                                    const auto controls = resolveSkinControlStyle (controlStyle->renderer, context, report);
                                     if (! controls || ! controls->minItemWidth || ! controls->itemGap) return false;
-                                    const auto gap = *controls->itemGap;
+                                    const auto gap = static_cast<float> (juce::roundToInt (*controls->itemGap));
                                     const auto columns = juce::jmax (1, static_cast<int> (std::floor (
                                         (context.bounds.getWidth() + gap) / (*controls->minItemWidth + gap))));
                                     const auto columnCount = static_cast<float> (columns);
-                                    context.bounds.setWidth ((context.bounds.getWidth() - gap * (columnCount - 1.0f)) / columnCount);
+                                    context.bounds.setWidth (std::floor ((context.bounds.getWidth() - gap * (columnCount - 1.0f)) / columnCount));
                                     context.contentBounds = context.bounds;
                                 }
                                 context.tableRowCount = context.repeatItemCount = 3;

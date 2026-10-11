@@ -337,6 +337,7 @@ bool PlayerController::refreshUpcomingPlayback (const PlaylistPlaybackPlan* publ
 
 bool PlayerController::synchronizePlayback (bool finishQueue, bool* preparationFailed)
 {
+    synchronizeNativeEffectBypass();
     const auto changed = synchronizePlayback (audioEngine.getPlaybackProgress(), finishQueue, preparationFailed);
     if (upcomingPlaybackDirty) return refreshUpcomingPlayback() || changed;
     return changed;
@@ -850,21 +851,24 @@ void PlayerController::addPluginByIdentifierAsync (const juce::String& identifie
                 return;
             }
 
-            const auto slotId = effectChain.addSlot (description.name,
-                                                     description.createIdentifierString(),
-                                                     description.pluginFormatName, requestedScope);
+            auto updatedChain = effectChain;
+            const auto slotId = updatedChain.addSlot (description.name,
+                                                       description.createIdentifierString(),
+                                                       description.pluginFormatName, requestedScope);
             juce::String graphError;
             if (! audioEngine.addEffectPlugin (slotId, std::move (plugin), graphError, requestedScope))
             {
-                effectChain.removeSlot (slotId);
+                lastStatusMessage = graphError;
                 completion (false, graphError);
                 return;
             }
 
+            effectChain = std::move (updatedChain);
             if (auto* livePlugin = audioEngine.getEffectPlugin (slotId)) livePlugin->addListener (this);
             ++effectChainRevision;
             ++stateRevision;
             pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
+            synchronizeNativeEffectBypass();
             lastStatusMessage = "Inserted " + description.name + ".";
             completion (true, lastStatusMessage);
         });
@@ -893,7 +897,10 @@ bool PlayerController::removeEffectAtIndex (int effectIndex)
         } captureScope { audioEngine };
 
         if (! audioEngine.removeEffectPlugin (slotId))
+        {
+            lastStatusMessage = "Could not remove the effect from the audio graph.";
             return false;
+        }
     }
 
     if (! effectChain.removeSlot (slotId))
@@ -915,6 +922,7 @@ bool PlayerController::moveEffect (int fromIndex, int toIndex)
     if (! audioEngine.setEffectPluginOrder (getAvailableEffectSlotIds()))
     {
         static_cast<void> (effectChain.moveSlot (toIndex, fromIndex));
+        lastStatusMessage = "Could not reorder the effects in the audio graph.";
         return false;
     }
 
@@ -1042,12 +1050,20 @@ bool PlayerController::applyPreparedState (StateRestoreResult result)
         return ! failed;
     }
 
+    auto artworkCandidates = result.savedArtworkReferences;
+    for (const auto& track : library.getTracks()) artworkCandidates.add (track.artworkCacheKey);
+    for (const auto& track : playlist.getTracks()) artworkCandidates.add (track.artworkCacheKey);
+    for (const auto& saved : library.getPlaylists()) artworkCandidates.add (saved.artworkCacheKey);
     if (! restoreStateSnapshot (std::move (*result.state)))
     {
         if (! restoreDiagnostics.isEmpty())
             lastStatusMessage += " " + restoreDiagnostics.joinIntoString (" ");
         return false;
     }
+    if (result.preparedArtwork != nullptr) result.preparedArtwork->keys.clear();
+    for (const auto& key : result.savedArtworkReferences)
+        savedArtworkReferences.insert (key.toStdString());
+    discardUnreferencedArtwork (artworkCandidates);
     return true;
 }
 
@@ -1304,6 +1320,7 @@ bool PlayerController::captureEffectChainSnapshot (EffectChainState& snapshot,
         errorMessage = "Plug-in state must be captured on the message thread.";
         return false;
     }
+    synchronizeNativeEffectBypass();
     snapshot = effectChain;
     const auto pluginRevision = pluginStateRevision.load (
         std::memory_order_acquire);
@@ -1343,6 +1360,8 @@ bool PlayerController::captureEffectChainSnapshot (EffectChainState& snapshot,
                         plugin->getCallbackLock());
                     plugin->getStateInformation (
                         savedSlot->serializedState);
+                    if (auto* bypass = plugin->getBypassParameter())
+                        savedSlot->bypassed = ! juce::approximatelyEqual (bypass->getValue(), 0.0f);
                 }
             }
             for (const auto& savedSlot : snapshot.getSlots())
@@ -1586,36 +1605,86 @@ void PlayerController::restoreNextEffect (std::shared_ptr<std::vector<EffectSlot
                 return;
             }
             juce::String error = creationError;
-            if (plugin != nullptr)
+            bool installed = false;
+            try
             {
-                if (savedSlot.serializedState.getSize() > 0)
-                    plugin->setStateInformation (savedSlot.serializedState.getData(),
-                                                 static_cast<int> (savedSlot.serializedState.getSize()));
-
-                if (audioEngine.addEffectPlugin (savedSlot.id, std::move (plugin), error, savedSlot.scope))
+                if (plugin != nullptr)
                 {
-                    if (auto* livePlugin = audioEngine.getEffectPlugin (savedSlot.id)) livePlugin->addListener (this);
-                    static_cast<void> (audioEngine.setEffectBypassed (savedSlot.id, savedSlot.bypassed));
-                    effectChain.setAvailability (savedSlot.id, true);
-                    static_cast<void> (audioEngine.setEffectPluginOrder (getAvailableEffectSlotIds()));
+                    if (savedSlot.serializedState.getSize() > 0)
+                        plugin->setStateInformation (savedSlot.serializedState.getData(),
+                                                     static_cast<int> (savedSlot.serializedState.getSize()));
+                    installed = audioEngine.addEffectPlugin (savedSlot.id, std::move (plugin), error, savedSlot.scope);
+                    if (installed)
+                    {
+                        installed = audioEngine.setEffectBypassed (savedSlot.id, savedSlot.bypassed);
+                        if (installed)
+                        {
+                            effectChain.setAvailability (savedSlot.id, true);
+                            installed = audioEngine.setEffectPluginOrder (getAvailableEffectSlotIds());
+                        }
+                        if (! installed) error = "Could not restore the plug-in's bypass state or position.";
+                    }
                 }
             }
-
-            if (audioEngine.getEffectPlugin (savedSlot.id) == nullptr)
-                effectChain.setAvailability (savedSlot.id,
-                                             false,
-                                             error.isNotEmpty() ? error : "Plug-in could not be restored.");
+            catch (const std::exception& exception)
+            {
+                error = "The plug-in failed while restoring its state: " + juce::String (exception.what());
+                installed = false;
+            }
+            catch (...)
+            {
+                error = "The plug-in failed while restoring its state.";
+                installed = false;
+            }
+            if (installed)
+            {
+                if (auto* livePlugin = audioEngine.getEffectPlugin (savedSlot.id)) livePlugin->addListener (this);
+                pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
+            }
+            else
+            {
+                if (audioEngine.getEffectPlugin (savedSlot.id) != nullptr)
+                    static_cast<void> (audioEngine.removeEffectPlugin (savedSlot.id));
+                if (error.isEmpty()) error = "Plug-in could not be restored.";
+                effectChain.setAvailability (savedSlot.id, false, error);
+                restoreDiagnostics.add (savedSlot.pluginName + ": " + error);
+            }
 
             ++effectChainRevision;
             restoreNextEffect (std::move (restoreSlots), index + 1, generation);
         });
 }
 
+void PlayerController::synchronizeNativeEffectBypass()
+{
+    const auto revision = pluginStateRevision.load (std::memory_order_acquire);
+    if (revision == synchronizedPluginStateRevision) return;
+    synchronizedPluginStateRevision = revision;
+    bool changed = false;
+    for (const auto& slot : effectChain.getSlots())
+        if (slot.available)
+            if (auto* plugin = audioEngine.getEffectPlugin (slot.id))
+                if (auto* bypass = plugin->getBypassParameter())
+                {
+                    const auto bypassed = ! juce::approximatelyEqual (bypass->getValue(), 0.0f);
+                    if (bypassed != slot.bypassed)
+                    {
+                        effectChain.setBypassed (slot.id, bypassed);
+                        changed = true;
+                    }
+                }
+    if (changed)
+    {
+        ++effectChainRevision;
+        ++stateRevision;
+    }
+}
+
 void PlayerController::audioProcessorParameterChanged (
     juce::AudioProcessor*, int, float)
 {
     if (synchronousPluginStateCaptureOwner != this)
-        pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
+        pluginStateRevision.fetch_add (1, std::memory_order_release);
 }
 
 void PlayerController::audioProcessorChanged (
@@ -1623,7 +1692,7 @@ void PlayerController::audioProcessorChanged (
     const juce::AudioProcessorListener::ChangeDetails&)
 {
     if (synchronousPluginStateCaptureOwner != this)
-        pluginStateRevision.fetch_add (1, std::memory_order_relaxed);
+        pluginStateRevision.fetch_add (1, std::memory_order_release);
 }
 
 std::vector<int> PlayerController::getAvailableEffectSlotIds() const

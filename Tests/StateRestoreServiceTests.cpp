@@ -1,5 +1,6 @@
 #include "app/PlayerController.h"
 #include "state/StateRestoreService.h"
+#include "library/ArtworkStore.h"
 
 #include <juce_events/juce_events.h>
 
@@ -180,6 +181,128 @@ public:
             const auto incompatible = StateRestoreService::prepare (stateFile, plugins, {});
             expect (! incompatible.state);
             expect (incompatible.errorMessage.containsIgnoreCase ("newer"));
+            expect (root.deleteRecursively());
+        }
+
+        beginTest ("restored artwork belongs to preparation until apply and saved references survive until acknowledgement");
+        {
+            const auto root = juce::File::getCurrentWorkingDirectory().getChildFile ("build")
+                .getNonexistentChildFile ("moonwake-restore-artwork", {});
+            expect (root.createDirectory());
+            const auto audio = root.getChildFile ("song.wav");
+            {
+                std::unique_ptr<juce::OutputStream> output = audio.createOutputStream();
+                juce::WavAudioFormat wav;
+                auto writer = wav.createWriterFor (output, juce::AudioFormatWriterOptions()
+                    .withSampleRate (48000).withNumChannels (2).withBitsPerSample (16));
+                expect (writer != nullptr);
+                if (writer != nullptr)
+                {
+                    juce::AudioBuffer<float> samples (2, 480);
+                    samples.clear();
+                    expect (writer->writeFromAudioSampleBuffer (samples, 0, samples.getNumSamples()));
+                }
+            }
+            const auto cover = root.getChildFile ("cover.png");
+            const auto writeCover = [&] (juce::Colour colour)
+            {
+                juce::Image image (juce::Image::RGB, 8, 8, true);
+                image.clear (image.getBounds(), colour);
+                juce::MemoryOutputStream encoded;
+                expect (juce::PNGImageFormat().writeImageToStream (image, encoded));
+                expect (cover.replaceWithData (encoded.getData(), encoded.getDataSize()));
+            };
+            writeCover (juce::Colours::red);
+            TrackMetadataReader reader;
+            auto metadata = reader.read (audio);
+            expect (metadata.ok && ! metadata.artworkData.isEmpty());
+            const auto cache = root.getChildFile ("cache");
+            ArtworkStore artwork (cache);
+            juce::String error;
+            const auto originalKey = artwork.store ("original", metadata.artworkData, error);
+            expect (artwork.isValid (originalKey), error);
+            metadata.track.artworkCacheKey = originalKey;
+            PlayerAppState saved;
+            const auto id = saved.library.upsertTrack (metadata.track);
+            const auto stateFile = root.getChildFile ("state.xml");
+            expect (AppStateStore::writeAtomically (saved, stateFile, error), error);
+            writeCover (juce::Colours::blue);
+            expect (audio.setLastModificationTime (juce::Time (metadata.track.fileModifiedAtMs + 5000)));
+            const auto cacheFileCount = [&]
+            {
+                return cache.findChildFiles (juce::File::findFiles, false, "*.png").size();
+            };
+            {
+                auto dropped = StateRestoreService::prepare (stateFile, {}, cache);
+                expect (dropped.state.has_value());
+                expect (dropped.savedArtworkReferences.contains (originalKey));
+                expect (dropped.preparedArtwork != nullptr && dropped.preparedArtwork->keys.size() == 1);
+                expectEquals (cacheFileCount(), 2);
+            }
+            expectEquals (cacheFileCount(), 1);
+            expect (artwork.isValid (originalKey));
+            {
+                auto library = saved.library;
+                PlaylistModel invalidQueue;
+                TrackItem unresolved;
+                unresolved.libraryId = "absent-library-record";
+                invalidQueue.addTrack (unresolved);
+                juce::StringArray warnings;
+                expect (! prepareLibraryRestore (library, invalidQueue, cache, nullptr, warnings));
+                expectEquals (library.getTrack (id)->artworkCacheKey, originalKey);
+                expectEquals (cacheFileCount(), 1);
+            }
+            {
+                StateRestoreService service (cache);
+                bool completed = false;
+                expect (service.start (stateFile, {}, [&] (StateRestoreResult result)
+                {
+                    expect (result.cancelled && ! result.state);
+                    completed = true;
+                }));
+                expect (service.waitForPendingRestore (2000));
+                expectEquals (cacheFileCount(), 2);
+                service.cancel();
+                expect (dispatchRestoreUntil ([&] { return completed; }));
+                expectEquals (cacheFileCount(), 1);
+                expect (artwork.isValid (originalKey));
+            }
+            {
+                bool completed = false;
+                {
+                    StateRestoreService service (cache);
+                    expect (service.start (stateFile, {}, [&] (StateRestoreResult) { completed = true; }));
+                    expect (service.waitForPendingRestore (2000));
+                    expectEquals (cacheFileCount(), 2);
+                }
+                bool drained = false;
+                juce::MessageManager::callAsync ([&] { drained = true; });
+                expect (dispatchRestoreUntil ([&] { return drained; }));
+                expect (! completed);
+                expectEquals (cacheFileCount(), 1);
+            }
+            {
+                PlayerController controller (std::make_unique<RestoreOfflineBackend>(), PluginScannerConfiguration {}, cache);
+                auto prepared = StateRestoreService::prepare (stateFile, {}, cache);
+                expect (controller.applyPreparedState (std::move (prepared)), controller.getLastStatusMessage());
+                const auto firstRestoredKey = controller.getLibrary().getTrack (id)->artworkCacheKey;
+                expect (firstRestoredKey.isNotEmpty() && firstRestoredKey != originalKey);
+                expect (artwork.isValid (firstRestoredKey) && artwork.isValid (originalKey));
+                auto repeated = StateRestoreService::prepare (stateFile, {}, cache);
+                expect (controller.applyPreparedState (std::move (repeated)), controller.getLastStatusMessage());
+                const auto currentKey = controller.getLibrary().getTrack (id)->artworkCacheKey;
+                expect (currentKey.isNotEmpty() && currentKey != firstRestoredKey);
+                expect (artwork.isValid (firstRestoredKey));
+                PlayerAppState snapshot;
+                expect (controller.captureStateSnapshot (snapshot, error), error);
+                const auto references = controller.retainArtworkForStateSave (snapshot);
+                expect (AppStateStore::writeAtomically (snapshot, stateFile, error), error);
+                controller.acknowledgeSavedArtwork (references);
+                expect (! artwork.resolve (originalKey).existsAsFile());
+                expect (! artwork.resolve (firstRestoredKey).existsAsFile());
+                expect (artwork.isValid (currentKey));
+                expectEquals (cacheFileCount(), 1);
+            }
             expect (root.deleteRecursively());
         }
 

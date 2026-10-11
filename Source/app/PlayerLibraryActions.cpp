@@ -58,7 +58,6 @@ juce::String PlayerController::storePreparedLibraryTrack (
             return id;
         }
         track.id = existing->id;
-        if (track.artworkCacheKey.isEmpty()) track.artworkCacheKey = existing->artworkCacheKey;
     }
     if (prepared.artworkData.getSize() > 0)
     {
@@ -163,17 +162,15 @@ juce::String PlayerController::addPreparedTracks (std::vector<TrackMetadataResul
             skipped.add (file.getFileName() + " (" + (metadata.error.isNotEmpty() ? metadata.error : "unreadable") + ")");
             continue;
         }
-        if (playlist.containsFile (file))
+        const auto* existing = library.findTrackByFile (file);
+        if (playlist.containsFile (file)
+            || (existing != nullptr && insertedIds.contains (existing->id.toStdString())))
         {
             skipped.add (file.getFileName() + " (already in queue)");
             continue;
         }
         const auto id = storePreparedLibraryTrack (metadata, warnings, artworkCandidates);
-        if (! insertedIds.insert (id.toStdString()).second)
-        {
-            skipped.add (file.getFileName() + " (already in queue)");
-            continue;
-        }
+        insertedIds.insert (id.toStdString());
         auto occurrence = *library.getTrack (id);
         occurrence.id = juce::Uuid().toString();
         occurrence.libraryId = id;

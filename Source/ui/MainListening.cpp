@@ -89,26 +89,40 @@ PlayerWindowSizing MainComponent::windowSizing (PlayerPresentation mode) const
 
 void MainComponent::requestPresentation (PlayerPresentation mode)
 {
-    if (! supportsPresentation (mode)) return;
+    if (! canChangePresentation() || ! supportsPresentation (mode)) return;
     if (onPresentationRequested) onPresentationRequested (mode);
 }
 
-void MainComponent::setPlayerPresentation (PlayerPresentation mode)
+bool MainComponent::canChangePresentation() const
 {
-    if (mode == playerPresentation) return;
-    playerPresentation = mode;
-    closeDrawers();
-    if (mode != PlayerPresentation::normal)
+    return ! (smartPlaylistEditor && smartPlaylistEditor->isVisible())
+        && juce::Component::getCurrentlyModalComponent() == nullptr;
+}
+
+void MainComponent::setPlayerPresentation (PlayerPresentation mode, juce::Rectangle<int> contentBounds)
+{
+    if (mode == playerPresentation)
     {
-        controller.stopCalibrationTestSignal();
-        workspaceMode = WorkspaceMode::listening;
-        controller.setWorkspaceMode (workspaceMode);
-        musicLibraryPanel.showPlayer();
-        lyricsOpen = true;
-        queueOpen = false;
+        setBounds (contentBounds);
+        return;
     }
-    applyWorkspaceVisuals();
-    updateLyricsControls();
+    {
+        const juce::ScopedValueSetter<bool> guard (changingPresentation, true);
+        playerPresentation = mode;
+        setBounds (contentBounds);
+        closeDrawers();
+        if (mode != PlayerPresentation::normal)
+        {
+            controller.stopCalibrationTestSignal();
+            workspaceMode = WorkspaceMode::listening;
+            controller.setWorkspaceMode (workspaceMode);
+            musicLibraryPanel.showPlayer();
+            lyricsOpen = true;
+            queueOpen = false;
+        }
+        applyWorkspaceVisuals();
+        updateLyricsControls();
+    }
     resized();
 }
 

@@ -126,6 +126,39 @@ public:
         expect (gain != nullptr);
         if (gain) expectWithinAbsoluteError (gain->getValue(), static_cast<double> (juce::Decibels::gainToDecibels (left.gain)), 0.051);
 
+        beginTest ("skin-owned mixer columns preserve speaker order and native control geometry");
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne, OutputLayout::fiveOneTwo,
+                                   OutputLayout::sevenOneTwo, OutputLayout::nineOneSix })
+        {
+            mixer.setState (layout, settings, {});
+            mixer.setSize (420, 520);
+            const auto speakers = toAudioChannelSet (layout);
+            auto* viewport = dynamic_cast<juce::Viewport*> (mixer.getChildComponent (0));
+            expect (viewport != nullptr);
+            if (! viewport) continue;
+            auto* content = viewport->getViewedComponent();
+            expect (content != nullptr);
+            if (! content) continue;
+            expect (content->getHeight() <= viewport->getHeight(), "16 channels fit the default mixer height");
+            for (int index = 0; index < speakers.size(); ++index)
+            {
+                const auto name = juce::AudioChannelSet::getAbbreviatedChannelTypeName (speakers.getTypeOfChannel (index));
+                auto* fader = findControl<juce::Slider> (mixer, name + " gain");
+                expect (fader != nullptr);
+                if (! fader) continue;
+                auto* row = fader->getParentComponent();
+                expect ((row->getX() == 0) == (index % 2 == 0));
+                if (index % 2 != 0)
+                    expectEquals (row->getY(), content->getChildComponent (index - 1)->getY());
+                if (index >= 2)
+                    expect (row->getY() >= content->getChildComponent (index - 2)->getBottom());
+                for (auto* control : row->getChildren())
+                    expect (row->getLocalBounds().contains (control->getBounds()), control->getTitle());
+            }
+        }
+        mixer.setState (OutputLayout::stereo, settings, {});
+        gain = findControl<juce::Slider> (mixer, "L gain");
+
         beginTest ("same-size skin changes update the native fader range with an unchanged style name");
         if (gain)
         {
@@ -167,6 +200,11 @@ public:
             }
         }
         mixer.getProperties().set (JuceSkinAdapter::styleProperty, "channelMixer.default");
+        mixer.resized();
+        beginTest ("existing mixer renderers retain their single-column presentation");
+        if (auto* viewport = dynamic_cast<juce::Viewport*> (mixer.getChildComponent (0)))
+            if (auto* content = viewport->getViewedComponent())
+                for (auto* row : content->getChildren()) expectEquals (row->getX(), 0);
         expect (mixer.createComponentSnapshot (mixer.getLocalBounds()).isValid());
         expectEquals (faults.count, 0, "Foundation supplies every mixer control slot");
         mixer.setLookAndFeel (nullptr);

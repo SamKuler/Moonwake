@@ -2,6 +2,7 @@
 
 #include "state/AppStateStore.h"
 #include "state/ListeningPresets.h"
+#include "library/LibraryRestore.h"
 
 #include <atomic>
 #include <functional>
@@ -16,6 +17,8 @@ struct StateRestoreResult
     std::unique_ptr<juce::XmlElement> pluginCache;
     juce::String errorMessage;
     juce::StringArray warnings;
+    juce::StringArray savedArtworkReferences;
+    std::unique_ptr<PreparedRestoreArtwork> preparedArtwork;
     bool cancelled = false;
 };
 

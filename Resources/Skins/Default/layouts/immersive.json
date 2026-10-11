@@ -106,19 +106,19 @@
                     "gap": 8,
                     "children": [
                       {
-                        "id": "lyrics-follow",
-                        "type": "component",
-                        "component": "lyrics.follow",
-                        "style": "textButton.listeningNeutral",
-                        "width": 150,
-                        "height": 32,
-                        "focusOrder": 3
-                      },
-                      {
                         "id": "lyrics-tools-space",
                         "type": "column",
                         "grow": 1,
                         "children": []
+                      },
+                      {
+                        "id": "lyrics-follow",
+                        "type": "component",
+                        "component": "lyrics.follow",
+                        "style": "textButton.listeningFollow",
+                        "width": 176,
+                        "height": 32,
+                        "focusOrder": 3
                       },
                       {
                         "id": "lyrics-actions",

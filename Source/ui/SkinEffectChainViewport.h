@@ -6,6 +6,7 @@ class SkinEffectChainViewport final : public juce::Viewport
 {
 public:
     void setSlotCount (int);
+    void reveal (const juce::Component&);
     [[nodiscard]] int getSlotCount() const noexcept { return slotCount; }
     void paint (juce::Graphics&) override;
 

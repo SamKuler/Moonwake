@@ -4,6 +4,7 @@
 #include "state/ListeningPresetStore.h"
 
 #include <exception>
+#include <unordered_set>
 #include <utility>
 
 StateRestoreService::StateRestoreService (juce::File artworkCacheRoot)
@@ -115,10 +116,23 @@ StateRestoreResult StateRestoreService::prepare (
     if (! isCancelled() && stateFile.existsAsFile())
     {
         PlayerAppState state;
-        if (AppStateStore::readFromFile (stateFile, state, result.errorMessage)
-            && prepareLibraryRestore (state.library, state.playlist, artworkCacheRoot,
-                                      cancelled, result.warnings, state.musicDirectories))
-            result.state = std::move (state);
+        if (AppStateStore::readFromFile (stateFile, state, result.errorMessage))
+        {
+            std::unordered_set<std::string> references;
+            const auto retain = [&] (const juce::String& key)
+            {
+                if (key.isNotEmpty() && references.insert (key.toStdString()).second)
+                    result.savedArtworkReferences.add (key);
+            };
+            for (const auto& track : state.library.getTracks()) retain (track.artworkCacheKey);
+            for (const auto& track : state.playlist.getTracks()) retain (track.artworkCacheKey);
+            for (const auto& playlist : state.library.getPlaylists()) retain (playlist.artworkCacheKey);
+            result.preparedArtwork = std::make_unique<PreparedRestoreArtwork> (artworkCacheRoot);
+            if (prepareLibraryRestore (state.library, state.playlist, artworkCacheRoot,
+                                       cancelled, result.warnings, state.musicDirectories,
+                                       result.preparedArtwork.get()))
+                result.state = std::move (state);
+        }
     }
     if (isCancelled())
     {

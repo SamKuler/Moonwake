@@ -72,11 +72,14 @@ public:
     {
         if (rows.empty()) { owner.add.grabKeyboardFocus(); return; }
         auto& row = *rows[juce::jmin (requested, rows.size() - 1)];
+        row.focusField();
+    }
+    void reveal (const juce::Component& row)
+    {
         const auto visible = viewport.getViewArea();
         if (row.getY() < visible.getY()) viewport.setViewPosition (0, row.getY());
         else if (row.getBottom() > visible.getBottom())
             viewport.setViewPosition (0, row.getBottom() - viewport.getMaximumVisibleHeight());
-        row.focusField();
     }
     void paint (juce::Graphics& graphics) override
     {
@@ -110,6 +113,19 @@ public:
 private:
     class Row final : public juce::Component
     {
+        template <typename Control>
+        class FocusControl final : public Control
+        {
+        public:
+            FocusControl (Row& row, const juce::String& controlName = {}) : Control (controlName), owner (row) {}
+            void focusGained (FocusChangeType cause) override
+            {
+                Control::focusGained (cause);
+                owner.list.reveal (owner);
+            }
+        private:
+            Row& owner;
+        };
     public:
         Row (RuleList& ownerList, size_t ruleIndex) : list (ownerList), index (ruleIndex)
         {
@@ -196,9 +212,9 @@ private:
         }
         RuleList& list;
         size_t index;
-        juce::ComboBox field, comparison, boolean;
-        juce::TextEditor value;
-        juce::TextButton remove { "Remove" };
+        FocusControl<juce::ComboBox> field { *this }, comparison { *this }, boolean { *this };
+        FocusControl<juce::TextEditor> value { *this };
+        FocusControl<juce::TextButton> remove { *this, "Remove" };
     };
     SmartPlaylistEditor& owner;
     juce::Viewport viewport;

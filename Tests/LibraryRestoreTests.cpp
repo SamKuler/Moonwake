@@ -3,6 +3,8 @@
 
 #include "library/ArtworkStore.h"
 #include "library/LibraryRestore.h"
+#include "library/MusicDirectoryScanService.h"
+#include "ArtistMetadataFixtures.h"
 
 namespace
 {
@@ -44,6 +46,39 @@ juce::MemoryBlock restoreArtwork()
     return output.getMemoryBlock();
 }
 
+bool rewriteRestoreMp3 (const juce::File& file, const juce::MemoryBlock& artwork)
+{
+    const auto source = artistMetadataFixtures::mp3();
+    const auto* bytes = static_cast<const unsigned char*> (source.getData());
+    size_t audioOffset = 10;
+    for (int index = 6; index < 10; ++index)
+        audioOffset += static_cast<size_t> (bytes[index]) << ((9 - index) * 7);
+    juce::MemoryOutputStream frames;
+    if (! artwork.isEmpty())
+    {
+        juce::MemoryOutputStream picture;
+        picture.writeByte (0);
+        picture.write ("image/png", 10);
+        picture.writeByte (3);
+        picture.writeByte (0);
+        picture.write (artwork.getData(), artwork.getSize());
+        frames.write ("APIC", 4);
+        frames.writeIntBigEndian (static_cast<int> (picture.getDataSize()));
+        frames.writeShort (0);
+        frames.write (picture.getData(), picture.getDataSize());
+    }
+    juce::MemoryOutputStream edited;
+    edited.write (bytes, 6);
+    for (int shift = 21; shift >= 0; shift -= 7)
+        edited.writeByte (static_cast<char> ((frames.getDataSize() >> shift) & 0x7f));
+    edited.write (frames.getData(), frames.getDataSize());
+    edited.write (bytes + audioOffset, source.getSize() - audioOffset);
+    juce::FileOutputStream output (file);
+    return output.openedOk() && output.setPosition (0)
+        && output.write (edited.getData(), edited.getDataSize())
+        && output.truncate().wasOk();
+}
+
 class LibraryRestoreTests final : public juce::UnitTest
 {
 public:
@@ -51,6 +86,93 @@ public:
 
     void runTest() override
     {
+        beginTest ("changed sources replace removed tags and artwork before scans skip current file stamps");
+        {
+            RestoreDirectory directory;
+            const auto audio = directory.root.getChildFile ("edited.mp3");
+            const auto initial = artistMetadataFixtures::mp3();
+            expect (audio.replaceWithData (initial.getData(), initial.getSize()));
+            TrackMetadataReader reader;
+            auto original = reader.read (audio);
+            expect (original.ok);
+            const auto cache = directory.root.getChildFile ("cache");
+            ArtworkStore artwork (cache);
+            juce::String error;
+            original.track.artworkCacheKey = artwork.store ("original-cover", original.artworkData, error);
+            original.track.reservedEffectChainState = "saved-effect-state";
+            MusicLibrary library;
+            const auto id = library.upsertTrack (original.track);
+            const auto saved = *library.getTrack (id);
+            const auto list = library.createPlaylist ("Saved list");
+            const auto entries = library.addToPlaylist (list, { id, id });
+            expect (library.setFavourite (id, true));
+            PlaylistModel queue;
+            auto occurrence = saved;
+            occurrence.libraryId = id;
+            occurrence.id = "queue-occurrence";
+            queue.addTrack (occurrence);
+            const MusicDirectory managed { "managed", directory.root, true };
+            for (const auto& replacementArtwork : { restoreArtwork(), juce::MemoryBlock {} })
+            {
+                expect (rewriteRestoreMp3 (audio, replacementArtwork));
+                expect (audio.setLastModificationTime (juce::Time (library.getTrack (id)->fileModifiedAtMs + 5000)));
+                const auto current = reader.read (audio);
+                expect (current.ok);
+                expectEquals (current.track.fileIdentity, saved.fileIdentity);
+                juce::StringArray warnings;
+                expect (prepareLibraryRestore (library, queue, cache, nullptr, warnings, { managed }));
+                expect (warnings.isEmpty(), warnings.joinIntoString (" "));
+                const auto& restored = *library.getTrack (id);
+                expectEquals (restored.title, juce::String ("edited"));
+                expect (restored.artist.isEmpty() && restored.artists.isEmpty());
+                expect (restored.album.isEmpty() && restored.albumArtist.isEmpty() && restored.genre.isEmpty());
+                expectEquals (restored.year, 0);
+                expectEquals (restored.trackNumber, 0);
+                expectEquals (restored.discNumber, 0);
+                expectEquals (restored.addedAtMs, saved.addedAtMs);
+                expectEquals (restored.reservedEffectChainState, saved.reservedEffectChainState);
+                expectEquals (restored.fileModifiedAtMs, current.track.fileModifiedAtMs);
+                expectEquals (restored.fileSizeBytes, current.track.fileSizeBytes);
+                expect (library.isFavourite (id));
+                expect (library.getPlaylist (list)->entries == entries);
+                expectEquals (queue.getTrack (0)->id, occurrence.id);
+                expectEquals (queue.getTrack (0)->artworkCacheKey, restored.artworkCacheKey);
+                if (replacementArtwork.isEmpty()) expect (restored.artworkCacheKey.isEmpty());
+                else
+                {
+                    expect (restored.artworkCacheKey != saved.artworkCacheKey);
+                    expectEquals (juce::ImageFileFormat::loadFrom (artwork.resolve (restored.artworkCacheKey)).getWidth(), 8);
+                }
+
+                MusicDirectoryScanService scanner (cache);
+                MusicDirectoryScanResult scan;
+                bool complete = false;
+                expect (scanner.start ({ managed }, library.getTracks(), {}, [&] (auto result)
+                {
+                    scan = std::move (result);
+                    complete = true;
+                }));
+                const auto deadline = juce::Time::getMillisecondCounterHiRes() + 5000.0;
+                while (! complete && juce::Time::getMillisecondCounterHiRes() < deadline)
+                    juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+                expect (complete);
+                expectEquals (scan.unchangedFiles, 1);
+                expectEquals (scan.metadataReads, 0);
+                expect (scan.updates.empty());
+            }
+            expect (library.restore ({ saved }, library.getPlaylists(), { id }));
+            const auto beforeFailure = *library.getTrack (id);
+            expect (audio.replaceWithText ("unreadable audio"));
+            juce::StringArray warnings;
+            expect (prepareLibraryRestore (library, queue, cache, nullptr, warnings));
+            expect (! library.getTrack (id)->available);
+            expectEquals (library.getTrack (id)->title, beforeFailure.title);
+            expectEquals (library.getTrack (id)->genre, beforeFailure.genre);
+            expectEquals (library.getTrack (id)->artworkCacheKey, beforeFailure.artworkCacheKey);
+            expectEquals (library.getTrack (id)->fileModifiedAtMs, beforeFailure.fileModifiedAtMs);
+            expectEquals (library.getTrack (id)->fileSizeBytes, beforeFailure.fileSizeBytes);
+        }
+
         beginTest ("startup refresh preserves moved file identity when a different recording occupies its old path");
         {
             RestoreDirectory directory;
@@ -144,6 +266,8 @@ public:
             readable.id = "readable-id";
             readable.artist = "Saved artist";
             readable.album = "Saved album";
+            readable.fileSizeBytes = audio.getSize();
+            readable.fileModifiedAtMs = audio.getLastModificationTime().toMilliseconds();
             readable.addedAtMs = 1700000000123LL;
             TrackItem missing { directory.root.getChildFile ("missing.wav"),
                                 "Missing title", 123.0 };

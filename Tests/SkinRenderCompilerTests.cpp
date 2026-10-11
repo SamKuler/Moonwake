@@ -196,6 +196,40 @@ public:
             expect (context.at ("line.timeSeconds") == SkinExpressionType::number);
         }
 
+        beginTest ("mixer wrapping is optional and validates its complete control style");
+        {
+            auto raw = renderDocument ("channelMixer", { rectLayer ("body") });
+            SkinValidationReport legacy;
+            expect (compile (raw, tokens, legacy).has_value(), legacy.toText());
+            raw.getDynamicObject()->setProperty ("controlStyle", juce::JSON::parse (
+                R"({"minItemWidth":156,"itemGap":16})"));
+            SkinValidationReport valid;
+            const auto program = compile (raw, tokens, valid);
+            expect (program.has_value(), valid.toText());
+            if (program)
+            {
+                const auto controls = resolveSkinControlStyle (*program, {}, valid);
+                expect (controls && controls->minItemWidth == 156.0f && controls->itemGap == 16.0f);
+            }
+            for (const auto* field : { "minItemWidth", "itemGap" })
+            {
+                auto invalid = raw.clone();
+                invalid.getProperty ("controlStyle", {}).getDynamicObject()->removeProperty (field);
+                SkinValidationReport error;
+                expect (! compile (invalid, tokens, error));
+                expect (error.hasCode ("SCHEMA004"), error.toText());
+            }
+            for (const auto& [field, value] : std::map<juce::String, double> {
+                     { "minItemWidth", 119.0 }, { "itemGap", -1.0 } })
+            {
+                auto invalid = raw.clone();
+                invalid.getProperty ("controlStyle", {}).getDynamicObject()->setProperty (field, value);
+                SkinValidationReport error;
+                expect (! compile (invalid, tokens, error));
+                expect (error.hasCode ("RENDER004"), error.toText());
+            }
+        }
+
         beginTest ("playlist grid metrics resolve against individual card widths");
         {
             auto raw = juce::JSON::parse (R"json({

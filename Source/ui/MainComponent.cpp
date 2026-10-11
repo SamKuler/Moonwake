@@ -52,6 +52,13 @@ public:
             static_cast<void> (skinPainter (g, isMouseOverButton, isButtonDown));
     }
 
+    void focusGained (FocusChangeType cause) override
+    {
+        juce::Button::focusGained (cause);
+        if (onFocusGained) onFocusGained();
+    }
+    std::function<void()> onFocusGained;
+
 private:
     SkinPainter skinPainter;
 };
@@ -205,6 +212,8 @@ public:
         addAndMakeVisible (editorButton);
         addAndMakeVisible (removeButton);
         addAndMakeVisible (scopeButton);
+        for (auto* button : { &bypassButton, &editorButton, &removeButton, &scopeButton })
+            button->onFocusGained = [this] { owner.effectRackViewport.reveal (*this); };
     }
 
     [[nodiscard]] int getSlotId() const noexcept { return slotId; }
@@ -1234,6 +1243,7 @@ void MainComponent::skinChanged()
 
 void MainComponent::resized()
 {
+    if (changingPresentation) return;
     musicLibraryPanel.finishEditing();
     if (skinManager.activeSession() == nullptr)
     {
@@ -1338,7 +1348,11 @@ void MainComponent::resized()
     musicLibraryPanel.updateNavigation (libraryPages);
     layoutEffects();
     updateLyricsControls();
-    if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) smartPlaylistEditor->toFront (false);
+    if (smartPlaylistEditor && smartPlaylistEditor->isVisible())
+    {
+        smartPlaylistEditor->setBounds (getLocalBounds());
+        smartPlaylistEditor->toFront (false);
+    }
     repaint();
 }
 
@@ -1349,6 +1363,8 @@ std::unique_ptr<juce::ComponentTraverser> MainComponent::createKeyboardFocusTrav
 
 bool MainComponent::keyPressed (const juce::KeyPress& key)
 {
+    if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) return false;
+    const auto requestedPresentation = presentationIntent ? presentationIntent() : playerPresentation;
    #if JUCE_MAC
     const auto fullscreenShortcut = key.getModifiers().isCommandDown() && key.getModifiers().isCtrlDown()
         && (key.getKeyCode() == 'f' || key.getKeyCode() == 'F');
@@ -1357,18 +1373,18 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
    #endif
     if (fullscreenShortcut)
     {
-        requestPresentation (playerPresentation == PlayerPresentation::immersive
+        requestPresentation (requestedPresentation == PlayerPresentation::immersive
             ? PlayerPresentation::normal : PlayerPresentation::immersive);
         return true;
     }
     if (key.getModifiers().isCommandDown() && key.getModifiers().isShiftDown()
         && (key.getKeyCode() == 'm' || key.getKeyCode() == 'M'))
     {
-        requestPresentation (playerPresentation == PlayerPresentation::mini
+        requestPresentation (requestedPresentation == PlayerPresentation::mini
             ? PlayerPresentation::normal : PlayerPresentation::mini);
         return true;
     }
-    if (key == juce::KeyPress::escapeKey && playerPresentation != PlayerPresentation::normal
+    if (key == juce::KeyPress::escapeKey && requestedPresentation != PlayerPresentation::normal
         && ! settingsDrawerOpen && ! effectsDrawerOpen && ! queueOpen)
     {
         requestPresentation (PlayerPresentation::normal);
@@ -1381,7 +1397,6 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
         updateTransportState();
         return true;
     }
-    if (smartPlaylistEditor && smartPlaylistEditor->isVisible()) return false;
     if (key == juce::KeyPress::escapeKey && statusLabel.isVisible())
     {
         for (auto* focused = juce::Component::getCurrentlyFocusedComponent();

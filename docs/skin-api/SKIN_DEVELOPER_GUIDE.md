@@ -637,6 +637,7 @@ renderer 可声明 `controlStyle`，为宿主的原生命中区域和附属窗�
 | scrollBar | thickness、minThumbLength |
 | textEditor | selectionColour、selectedTextColour、caretColour |
 | playlistGrid | minItemWidth（至少 120）、itemGap（至少 0） |
+| channelMixer | minItemWidth（至少 120）、itemGap（至少 0）；可选，省略时继承 target.default；默认值也未声明时为单列 |
 | lyrics | padding、lineGap（至少 0）、followAnchor（0–1）、followDurationMs（0–2000） |
 
 数值和颜色可以引用 token，几何字段可使用受限表达式。Slider 的 layers 以完整控件 bounds 绘制，trackBounds 描述原生输入映射使用的同一轨道；自定义滑块必须让两者一致。复合组件中原生子控件使用其 slot 映射出的 style。图标使用公开语义路径，尺寸和位置由 iconBounds 控制。Tooltip 会在父窗口边界内避让，滚动条 thickness 同时参与布局留白和原生滚动条宽度。TextEditor 的选区、选中文字和光标使用对应皮肤颜色。
@@ -1486,6 +1487,8 @@ outputStage 提供：
 `meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。采样峰值来自效果链与输出增益之后的实际采样；RMS 使用 300 ms 窗口，LUFS 使用 K 加权及门限，Momentary / Short-term 分别为 400 ms / 3 s。LFE 不计入 LUFS，但保留独立峰值、RMS 与 True Peak。测量在后台工作线程进行，界面模式或 A/B 切换不重置测量。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
 
 `output.mixer` 使用 `channelMixer` target，要求应用 `0.5.0` 或更高；`channelMap` 用于设备声道映射，旧 channelMap 组件只读，routing 组件可编辑。Mixer 最小尺寸为 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
+
+应用 `0.10.0` 起，`channelMixer.controlStyle` 可声明 `minItemWidth` 和 `itemGap`，使声道按实际扬声器顺序从左至右、从上至下排列为网格。列数由可用宽度、最小单元宽度和列间距决定；垂直间距继续使用 `rowLayout.rowGap`。未声明时沿用 `target.default` 的 controlStyle；默认 renderer 也未声明时保持单列，兼容已有皮肤。`rowLayout` 的宽度和断点作用于单个声道单元，绘制与原生 gain、mute、solo 使用相同矩形；皮肤应确保最窄单元仍满足交互控件的目录尺寸。超出高度时纵向滚动，键盘焦点自动带入可见区。此排列只改变视觉呈现，不改变音频总线、路由和焦点中的扬声器顺序。错误沿用 `SCHEMA004`（controlStyle 必需字段缺失）、`RENDER004`（范围或几何无效）、`RENDER005` / `RENDER006`（context / token 类型错误）。完整第三方示例包含两列布局及窄单元断点。
 
 - `row.surface` → surface：行分割线与背景。
 - `row.source` → label：L、R、C、LFE 等扬声器简称。

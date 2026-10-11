@@ -315,7 +315,10 @@
         "icon.repeat": "surface.listeningRepeatIcon",
         "icon.repeatOne": "surface.listeningRepeatIcon"
       }
-    }
+    },
+    "studioPage": "components/studio-page-button.json",
+    "listeningPage": "components/listening-page-button.json",
+    "listeningFollow": "components/listening-follow-button.json"
   },
   "toggleButton": {
     "listening": "components/listening-toggle-button.json",

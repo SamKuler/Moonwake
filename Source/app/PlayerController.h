@@ -38,6 +38,7 @@ struct PlaybackQueueEntry
 
 class PlayerController : private juce::AudioProcessorListener
 {
+    friend class PlayerEffectControllerTests;
 public:
     using PluginInsertionCallback = std::function<void (bool, const juce::String&)>;
     enum class PresetKind { effectChain, listening };
@@ -259,6 +260,8 @@ private:
     uint64_t stateRevision = 0;
     std::atomic<uint64_t> pluginStateRevision { 0 };
     uint64_t capturedPluginStateRevision = 0;
+    uint64_t synchronizedPluginStateRevision = 0;
+    void synchronizeNativeEffectBypass();
     bool restoringEffects = false;
     uint64_t effectRestoreGeneration = 0;
     AudioPlaybackPlan playbackPlan;

@@ -27,7 +27,12 @@ class PlaylistGridComponent::GridViewport final : public juce::Viewport
 {
 public:
     explicit GridViewport (PlaylistGridComponent& grid) : owner (grid) {}
-    void visibleAreaChanged (const juce::Rectangle<int>&) override { owner.scheduleVisibleArtwork(); }
+    void visibleAreaChanged (const juce::Rectangle<int>&) override
+    {
+        if (owner.layingOut) return;
+        owner.updateVisibleCards();
+        owner.scheduleVisibleArtwork();
+    }
 private:
     PlaylistGridComponent& owner;
 };
@@ -36,20 +41,16 @@ class PlaylistGridComponent::Card final : public juce::Button
 {
 public:
     Card (PlaylistGridComponent& grid, LibraryCollectionSummary item, int index)
-        : juce::Button (item.name), collection (std::move (item)), owner (grid)
+        : juce::Button (item.name), owner (grid)
     {
-        setComponentID (collection.id);
-        setTitle (collection.name);
-        setTooltip (collection.name + "\n" + collection.subtitle + "\n" + summaryText (collection));
         setWantsKeyboardFocus (true);
         setMouseClickGrabsKeyboardFocus (true);
-        setExplicitFocusOrder (index + 1);
         cover.setInterceptsMouseClicks (false, false);
         cover.setAccessible (false);
         cover.getProperties().set (JuceSkinAdapter::presentationProperty, "cover");
-        cover.setImage (collection.id, collection.name, {});
         cover.extraContext = [this] (std::string_view path) { return contextValue (path); };
         addAndMakeVisible (cover);
+        setCollection (item, index);
         onClick = [this]
         {
             if (owner.onOpenCollection) owner.onOpenCollection (collection.id);
@@ -58,6 +59,21 @@ public:
     ~Card() override
     {
         if (artworkRequest) artworkRequest->store (true);
+    }
+
+    void setCollection (const LibraryCollectionSummary& item, int index)
+    {
+        matchIndex = index;
+        setExplicitFocusOrder (index + 1);
+        if (collection == item) return;
+        releaseCover();
+        collection = item;
+        setName (collection.name);
+        setComponentID (collection.id);
+        setTitle (collection.name);
+        setTooltip (collection.name + "\n" + collection.subtitle + "\n" + summaryText (collection));
+        cover.setImage (collection.id, collection.name, {});
+        repaint();
     }
 
     void resized() override
@@ -123,13 +139,26 @@ public:
         if (key == juce::KeyPress::rightKey) return owner.focusRelative (*this, 1);
         if (key == juce::KeyPress::upKey) return owner.focusRelative (*this, -owner.columns);
         if (key == juce::KeyPress::downKey) return owner.focusRelative (*this, owner.columns);
+        if (key == juce::KeyPress::homeKey) return owner.focusRelative (*this, -matchIndex);
+        if (key == juce::KeyPress::endKey) return owner.focusRelative (*this, owner.visibleCollectionCount() - 1 - matchIndex);
+        if (key.getKeyCode() == juce::KeyPress::tabKey)
+        {
+            const auto offset = key.getModifiers().isShiftDown() ? -1 : 1;
+            if (juce::isPositiveAndBelow (matchIndex + offset, owner.visibleCollectionCount()))
+                return owner.focusRelative (*this, offset);
+        }
         return juce::Button::keyPressed (key);
     }
     void focusGained (FocusChangeType cause) override
     {
         juce::Button::focusGained (cause);
-        owner.reveal (*this);
+        owner.reveal (matchIndex);
         repaint();
+    }
+    void focusLost (FocusChangeType cause) override
+    {
+        juce::Button::focusLost (cause);
+        owner.triggerAsyncUpdate();
     }
     void setCover (juce::Image image)
     {
@@ -149,6 +178,7 @@ public:
     }
 
     LibraryCollectionSummary collection;
+    int matchIndex = -1;
     bool requestedArtwork = false;
     std::shared_ptr<std::atomic_bool> artworkRequest;
 
@@ -198,7 +228,7 @@ void PlaylistGridComponent::setCollections (std::vector<LibraryCollectionSummary
     resolveArtwork = std::move (resolver);
     if (collections == items) return;
     collections = std::move (items);
-    rebuildCards();
+    rebuildMatches();
 }
 
 void PlaylistGridComponent::setQuery (juce::String value)
@@ -206,75 +236,108 @@ void PlaylistGridComponent::setQuery (juce::String value)
     value = value.trim();
     if (query == value) return;
     query = std::move (value);
-    rebuildCards();
+    rebuildMatches();
 }
 
-int PlaylistGridComponent::visibleCollectionCount() const noexcept { return static_cast<int> (cards.size()); }
+int PlaylistGridComponent::visibleCollectionCount() const noexcept { return static_cast<int> (matchingCollections.size()); }
 
-void PlaylistGridComponent::rebuildCards()
+void PlaylistGridComponent::rebuildMatches()
 {
-    const auto position = viewport->getViewPosition();
-    juce::String focusedId;
-    for (const auto& card : cards)
-        if (card->hasKeyboardFocus (true)) focusedId = card->collection.id;
-    ++*artworkGeneration;
-    cards.clear();
-    for (const auto& item : collections)
+    matchingCollections.clear();
+    for (auto& card : cards) card->matchIndex = -1;
+    for (size_t index = 0; index < collections.size(); ++index)
+    {
+        const auto& item = collections[index];
         if (query.isEmpty() || item.name.containsIgnoreCase (query) || item.subtitle.containsIgnoreCase (query))
         {
-            auto card = std::make_unique<Card> (*this, item, static_cast<int> (cards.size()));
-            content.addAndMakeVisible (*card);
-            cards.push_back (std::move (card));
+            const auto matchIndex = visibleCollectionCount();
+            matchingCollections.push_back (index);
+            for (auto& card : cards)
+                if (card->collection.id == item.id) card->setCollection (item, matchIndex);
         }
+    }
     resized();
-    viewport->setViewPosition (position);
     for (const auto& card : cards)
-        if (card->collection.id == focusedId) card->grabKeyboardFocus();
+        if (card->hasKeyboardFocus (true)) { reveal (card->matchIndex); break; }
     repaint();
 }
 
 void PlaylistGridComponent::resized()
 {
     if (layingOut) return;
-    const juce::ScopedValueSetter<bool> guard (layingOut, true);
-    viewport->setBounds (getLocalBounds());
-    auto* adapter = dynamic_cast<JuceSkinAdapter*> (&getLookAndFeel());
-    if (adapter == nullptr || getLocalBounds().isEmpty()) return;
-    viewport->setScrollBarThickness (adapter->getDefaultScrollbarWidth());
-    const auto controls = adapter->controlStyleFor (*this, SkinRenderTarget::playlistGrid);
-    if (! controls || ! controls->minItemWidth || ! controls->itemGap) return;
-    const auto minimumWidth = *controls->minItemWidth;
-    const auto gap = juce::jmax (0, juce::roundToInt (*controls->itemGap));
-    const auto layoutAtWidth = [&] (int width) -> int
     {
-        const auto gapWidth = static_cast<float> (gap);
-        columns = juce::jmax (1, static_cast<int> (std::floor ((static_cast<float> (width) + gapWidth) / (minimumWidth + gapWidth))));
-        const auto cardWidth = juce::jmax (1, (width - gap * (columns - 1)) / columns);
-        SkinRenderContext context;
-        context.bounds = context.contentBounds = { 0.0f, 0.0f, static_cast<float> (cardWidth), static_cast<float> (cardWidth) };
-        context.tableRowCount = visibleCollectionCount();
-        const auto layout = adapter->rowLayoutFor (*this, SkinRenderTarget::playlistGrid, context);
-        if (! layout) return 0;
-        cardLayout = *layout;
-        const auto cardHeight = juce::jmax (1, juce::roundToInt (cardLayout.rowHeight));
-        const auto rows = (visibleCollectionCount() + columns - 1) / columns;
-        for (size_t index = 0; index < cards.size(); ++index)
+        const juce::ScopedValueSetter<bool> guard (layingOut, true);
+        viewport->setBounds (getLocalBounds());
+        auto* adapter = dynamic_cast<JuceSkinAdapter*> (&getLookAndFeel());
+        if (adapter == nullptr || getLocalBounds().isEmpty()) return;
+        viewport->setScrollBarThickness (adapter->getDefaultScrollbarWidth());
+        const auto controls = adapter->controlStyleFor (*this, SkinRenderTarget::playlistGrid);
+        if (! controls || ! controls->minItemWidth || ! controls->itemGap) return;
+        const auto minimumWidth = *controls->minItemWidth;
+        cardGap = juce::jmax (0, juce::roundToInt (*controls->itemGap));
+        const auto layoutAtWidth = [&] (int width) -> int
         {
-            const auto i = static_cast<int> (index);
-            cards[index]->setBounds ((i % columns) * (cardWidth + gap), (i / columns) * (cardHeight + gap), cardWidth, cardHeight);
-            cards[index]->resized();
+            const auto gapWidth = static_cast<float> (cardGap);
+            columns = juce::jmax (1, static_cast<int> (std::floor ((static_cast<float> (width) + gapWidth) / (minimumWidth + gapWidth))));
+            cardWidth = juce::jmax (1, (width - cardGap * (columns - 1)) / columns);
+            SkinRenderContext context;
+            context.bounds = context.contentBounds = { 0.0f, 0.0f, static_cast<float> (cardWidth), static_cast<float> (cardWidth) };
+            context.tableRowCount = visibleCollectionCount();
+            const auto layout = adapter->rowLayoutFor (*this, SkinRenderTarget::playlistGrid, context);
+            if (! layout) return 0;
+            cardLayout = *layout;
+            cardHeight = juce::jmax (1, juce::roundToInt (cardLayout.rowHeight));
+            const auto rows = (visibleCollectionCount() + columns - 1) / columns;
+            return rows * (cardHeight + cardGap) - (rows == 0 ? 0 : cardGap);
+        };
+        auto width = getWidth();
+        auto height = layoutAtWidth (width);
+        if (height > getHeight())
+        {
+            width = juce::jmax (0, width - viewport->getScrollBarThickness());
+            height = layoutAtWidth (width);
         }
-        return rows * (cardHeight + gap) - (rows == 0 ? 0 : gap);
-    };
-    auto width = getWidth();
-    auto height = layoutAtWidth (width);
-    if (height > getHeight())
-    {
-        width = juce::jmax (0, width - viewport->getScrollBarThickness());
-        height = layoutAtWidth (width);
+        content.setSize (width, height);
     }
-    content.setSize (width, height);
+    updateVisibleCards();
     scheduleVisibleArtwork();
+}
+
+juce::Rectangle<int> PlaylistGridComponent::cardBounds (int index) const
+{
+    return { (index % columns) * (cardWidth + cardGap), (index / columns) * (cardHeight + cardGap),
+             cardWidth, cardHeight };
+}
+
+void PlaylistGridComponent::updateVisibleCards()
+{
+    if (layingOut || cardHeight == 0) return;
+    const juce::ScopedValueSetter<bool> guard (layingOut, true);
+    const auto view = viewport->getViewArea();
+    const auto stride = cardHeight + cardGap;
+    const auto first = juce::jmax (0, view.getY() / stride - 1) * columns;
+    const auto last = juce::jmin (visibleCollectionCount(), ((view.getBottom() + stride - 1) / stride + 1) * columns);
+    int focusedIndex = -1;
+    for (const auto& card : cards)
+        if (card->hasKeyboardFocus (true)) focusedIndex = card->matchIndex;
+
+    std::vector<std::unique_ptr<Card>> next;
+    const auto retain = [&] (int index)
+    {
+        const auto& item = collections[matchingCollections[static_cast<size_t> (index)]];
+        const auto existing = std::find_if (cards.begin(), cards.end(), [&] (const auto& card)
+            { return card != nullptr && card->collection.id == item.id; });
+        auto card = existing != cards.end() ? std::move (*existing) : std::make_unique<Card> (*this, item, index);
+        card->setCollection (item, index);
+        card->setBounds (cardBounds (index));
+        card->resized();
+        content.addAndMakeVisible (*card);
+        next.push_back (std::move (card));
+    };
+    if (focusedIndex >= 0 && focusedIndex < first) retain (focusedIndex);
+    for (int index = first; index < last; ++index) retain (index);
+    if (focusedIndex >= last && focusedIndex >= 0) retain (focusedIndex);
+    cards = std::move (next);
 }
 
 void PlaylistGridComponent::paint (juce::Graphics& graphics)
@@ -305,6 +368,7 @@ bool PlaylistGridComponent::artworkIsVisible (const Card& card) const
 
 void PlaylistGridComponent::handleAsyncUpdate()
 {
+    updateVisibleCards();
     for (auto* component = static_cast<juce::Component*> (this); component != nullptr; component = component->getParentComponent())
         if (! component->isVisible()) return;
     needsArtwork = false;
@@ -354,19 +418,26 @@ void PlaylistGridComponent::handleAsyncUpdate()
     }
 }
 
-void PlaylistGridComponent::reveal (const Card& card)
+void PlaylistGridComponent::reveal (int index)
 {
+    const auto bounds = cardBounds (index);
     const auto view = viewport->getViewArea();
-    if (card.getY() < view.getY()) viewport->setViewPosition (0, card.getY());
-    else if (card.getBottom() > view.getBottom()) viewport->setViewPosition (0, card.getBottom() - view.getHeight());
+    if (bounds.getY() < view.getY()) viewport->setViewPosition (0, bounds.getY());
+    else if (bounds.getBottom() > view.getBottom())
+        viewport->setViewPosition (0, bounds.getHeight() >= view.getHeight()
+            ? bounds.getY() : bounds.getBottom() - view.getHeight());
 }
 
 bool PlaylistGridComponent::focusRelative (const Card& current, int offset)
 {
-    const auto found = std::find_if (cards.begin(), cards.end(), [&] (const auto& card) { return card.get() == &current; });
-    if (found == cards.end()) return false;
-    const auto index = static_cast<int> (std::distance (cards.begin(), found)) + offset;
-    if (juce::isPositiveAndBelow (index, visibleCollectionCount())) cards[static_cast<size_t> (index)]->grabKeyboardFocus();
+    const auto index = current.matchIndex + offset;
+    if (juce::isPositiveAndBelow (index, visibleCollectionCount()))
+    {
+        reveal (index);
+        const auto found = std::find_if (cards.begin(), cards.end(), [index] (const auto& card)
+            { return card->matchIndex == index; });
+        if (found != cards.end()) (*found)->grabKeyboardFocus();
+    }
     return true;
 }
 

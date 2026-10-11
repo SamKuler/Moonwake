@@ -42,6 +42,8 @@ public:
     [[nodiscard]] const EffectScope* getProcessorScope (int slotId) const;
 
 private:
+    class ScopedEdit;
+
     struct SlotNode
     {
         int slotId = 0;
@@ -75,6 +77,7 @@ private:
     bool prepared = false;
     juce::AudioBuffer<float> dryDelay;
     int dryDelayPosition = 0;
+    std::atomic_bool processingReady { false };
     std::atomic_bool stateCaptureRequested { false };
     std::atomic<int> activeProcessCallbacks { 0 };
     std::atomic_bool latencyChanged { false };

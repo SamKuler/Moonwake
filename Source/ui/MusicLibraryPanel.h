@@ -10,6 +10,7 @@
 
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <unordered_set>
 
@@ -122,6 +123,8 @@ private:
     bool refreshing = false;
     Page currentPage = Page::overview;
     juce::String category { "playlists" }, detailArtworkKey, detailArtworkName;
+    bool overviewNeedsRefresh = true;
+    std::optional<LibraryCollectionSummary> detailSummary;
     uint64_t artworkGeneration = 0;
     int dropBeforeRow = -1;
 };

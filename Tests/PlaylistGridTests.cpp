@@ -2,6 +2,7 @@
 #include "ui/JuceSkinAdapter.h"
 #include "skin/SkinRenderCompiler.h"
 #include "skin/SkinSchemaValidator.h"
+#include "fixtures/TestComponentPeer.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -153,6 +154,87 @@ public:
             expectEquals (grid.visibleCollectionCount(), 0);
             grid.setQuery ({});
             expectEquals (grid.visibleCollectionCount(), 8);
+
+            beginTest ("large collections materialize a bounded window and keyboard navigation reaches unloaded cards");
+            TestUiRoot host;
+            host.setBounds (0, 0, 640, 400);
+            host.addToDesktop (0);
+            host.setVisible (true);
+            host.addAndMakeVisible (grid);
+            grid.setBounds (0, 0, 640, 240);
+            for (int i = 8; i < 5000; ++i)
+            {
+                LibraryCollectionSummary collection;
+                collection.id = "playlist:" + juce::String (i);
+                collection.name = "Collection " + juce::String (i);
+                collections.push_back (std::move (collection));
+            }
+            grid.setCollections (collections, {});
+            expectEquals (grid.visibleCollectionCount(), 5000);
+            if (viewport != nullptr)
+            {
+                auto* content = viewport->getViewedComponent();
+                expect (content->getNumChildComponents() < 20, "Only visible rows and a small overscan window need controls.");
+                auto* first = content->findChildWithID ("playlist:0");
+                expect (first != nullptr);
+                if (first != nullptr)
+                {
+                    first->grabKeyboardFocus();
+                    for (int index = 1; index <= 40; ++index)
+                    {
+                        expect (host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::rightKey)));
+                        auto* focused = juce::Component::getCurrentlyFocusedComponent();
+                        expect (focused != nullptr && focused->getComponentID() == "playlist:" + juce::String (index));
+                        if (focused != nullptr)
+                            expect (viewport->getViewArea().intersects (focused->getBounds()));
+                        expect (content->getNumChildComponents() < 20);
+                    }
+                    const juce::Component::SafePointer<juce::Component> focusedCard (juce::Component::getCurrentlyFocusedComponent());
+                    grid.setQuery ("Collection");
+                    expect (focusedCard != nullptr && focusedCard->hasKeyboardFocus (true));
+                    if (focusedCard != nullptr)
+                        expectEquals (focusedCard->getComponentID(), juce::String ("playlist:40"));
+                    collections[40].trackCount = 7;
+                    grid.setCollections (collections, {});
+                    expect (focusedCard != nullptr && focusedCard->hasKeyboardFocus (true));
+                    if (auto* focusedButton = dynamic_cast<juce::Button*> (focusedCard.getComponent()))
+                        expect (focusedButton->getTooltip().contains ("7 songs"));
+                    juce::String opened;
+                    grid.onOpenCollection = [&] (juce::String id) { opened = std::move (id); };
+                    expect (host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::returnKey)));
+                    expect (dispatchGridUntil ([&] { return opened.isNotEmpty(); }));
+                    expectEquals (opened, juce::String ("playlist:40"));
+                    viewport->setViewPosition (0, content->getHeight());
+                    expect (content->findChildWithID ("playlist:4999") != nullptr);
+                    expect (focusedCard != nullptr && focusedCard->hasKeyboardFocus (true), "Scrolling preserves the focused collection identity.");
+                    expect (content->getNumChildComponents() < 20);
+                    expect (host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::tabKey)));
+                    auto* next = juce::Component::getCurrentlyFocusedComponent();
+                    expect (next != nullptr && next->getComponentID() == "playlist:41");
+                    expect (next != nullptr && viewport->getViewArea().intersects (next->getBounds()));
+                    if (next != nullptr)
+                    {
+                        juce::String contextCollection;
+                        grid.onContextMenu = [&] (juce::String id) { contextCollection = std::move (id); };
+                        const auto point = host.getLocalPoint (next, juce::Point<int> (8, 8)).toFloat();
+                        const auto time = juce::Time::currentTimeMillis();
+                        host.getPeer()->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0, 0, time);
+                        host.getPeer()->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point,
+                            juce::ModifierKeys::rightButtonModifier, 0, 0, time + 1);
+                        host.getPeer()->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0, 0, time + 2);
+                        expectEquals (contextCollection, juce::String ("playlist:41"));
+                        grid.onContextMenu = {};
+                    }
+                    expect (host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::endKey)));
+                    expectEquals (juce::Component::getCurrentlyFocusedComponent()->getComponentID(), juce::String ("playlist:4999"));
+                    expect (host.getPeer()->handleKeyPress (juce::KeyPress (juce::KeyPress::homeKey)));
+                    expectEquals (juce::Component::getCurrentlyFocusedComponent()->getComponentID(), juce::String ("playlist:1"));
+                    viewport->setViewPosition (0, content->getHeight());
+                    grid.setQuery ("absent collection");
+                    expectEquals (content->getNumChildComponents(), 0);
+                }
+            }
+            host.removeChildComponent (&grid);
             grid.setLookAndFeel (nullptr);
 
             beginTest ("scroll cancellation skips queued covers and stale results cannot reset a replacement request");
@@ -191,7 +273,15 @@ public:
                 otherCollection.name = "Other";
                 otherCollection.artworkKeys.add ("other");
                 int firstResolutions = 0, otherResolutions = 0;
-                loadingGrid.setCollections ({ firstCollection, otherCollection }, [&] (const juce::String& key)
+                std::vector<LibraryCollectionSummary> loadingCollections { firstCollection, otherCollection };
+                for (int index = 0; index < 10; ++index)
+                {
+                    LibraryCollectionSummary item;
+                    item.id = "filler:" + juce::String (index);
+                    item.name = "Filler " + juce::String (index);
+                    loadingCollections.push_back (std::move (item));
+                }
+                loadingGrid.setCollections (loadingCollections, [&] (const juce::String& key)
                 {
                     if (key == "first") ++firstResolutions;
                     else ++otherResolutions;
@@ -204,9 +294,15 @@ public:
                 {
                     auto* firstCard = loadingViewport->getViewedComponent()->getChildComponent (0);
                     auto* otherCard = loadingViewport->getViewedComponent()->getChildComponent (1);
+                    const juce::Component::SafePointer<juce::Component> originalFirst (firstCard);
                     loadingViewport->setViewPosition (0, otherCard->getY());
                     expect (dispatchGridUntil ([&] { return otherResolutions == 1; }));
+                    loadingViewport->setViewPosition (0, loadingViewport->getViewedComponent()->getHeight());
+                    expect (originalFirst == nullptr, "Scrolling beyond overscan retires the card while its loader is running.");
                     loadingViewport->setViewPosition (0, 0);
+                    firstCard = loadingViewport->getViewedComponent()->findChildWithID ("first");
+                    otherCard = loadingViewport->getViewedComponent()->findChildWithID ("other");
+                    expect (firstCard != nullptr && otherCard != nullptr);
                     expect (dispatchGridUntil ([&] { return firstResolutions == 2; }));
                     releaseFirst.signal();
                     expect (dispatchGridUntil ([&] { return replacementStarted.load(); }));

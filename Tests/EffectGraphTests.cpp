@@ -4,6 +4,7 @@
 #include "audio/EffectGraph.h"
 
 #include <thread>
+#include <stdexcept>
 
 namespace
 {
@@ -26,6 +27,8 @@ public:
     const juce::String getName() const override { return "Test Effect"; }
     void prepareToPlay (double, int) override
     {
+        if (throwAllPreparations || throwPreparingChannels == getTotalNumInputChannels())
+            throw std::runtime_error ("fixture preparation failure");
         preparedChannels = getTotalNumInputChannels();
         delay.setSize (preparedChannels, juce::jmax (1, latency));
         delay.clear();
@@ -92,6 +95,8 @@ public:
             && isBusesLayoutSupported (layouts);
     }
     int rejectedChannelCount = 0;
+    int throwPreparingChannels = 0;
+    bool throwAllPreparations = false;
     bool processingLayoutMatched = true;
 
 private:
@@ -124,6 +129,104 @@ public:
 
     void runTest() override
     {
+        beginTest ("failed plug-in preparation rolls back insertion and preserves the live chain");
+        for (const auto& layout : { juce::AudioChannelSet::stereo(), juce::AudioChannelSet::create5point1(),
+                                  juce::AudioChannelSet::create5point1point2(), juce::AudioChannelSet::create7point1point2() })
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, layout);
+            juce::String error;
+            expect (graph.addProcessor (1, std::make_unique<TestEffect> (2.0f, true), error), error);
+            auto failing = std::make_unique<TestEffect> (0.5f, true);
+            failing->throwPreparingChannels = layout.size();
+            expect (! graph.addProcessor (2, std::move (failing), error));
+            expect (error.isNotEmpty());
+            expectEquals (graph.size(), 1);
+            expect (graph.getProcessor (2) == nullptr);
+            juce::MidiBuffer midi;
+            auto buffer = signal (layout.size());
+            graph.processBlock (buffer, midi);
+            for (int channel = 0; channel < layout.size(); ++channel)
+                expectWithinAbsoluteError (buffer.getSample (channel, 0), 2.0f * (channel + 1), 0.0001f);
+            expect (graph.addProcessor (2, std::make_unique<TestEffect> (0.5f, true), error), error);
+            expect (graph.moveProcessor (0, 1));
+            expect (graph.setProcessorOrder ({ 1, 2 }));
+            expect (graph.removeProcessor (2));
+            expect (graph.clearProcessors());
+        }
+
+        beginTest ("failed scope and output preparation restore processor layout and routing");
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, juce::AudioChannelSet::stereo());
+            auto effect = std::make_unique<TestEffect> (2.0f, true);
+            auto* live = effect.get();
+            juce::String error;
+            expect (graph.addProcessor (1, std::move (effect), error), error);
+            live->throwPreparingChannels = 1;
+            expect (! graph.setProcessorScope (1, { juce::AudioChannelSet::left }, error));
+            expect (error.isNotEmpty());
+            expect (graph.getProcessorScope (1)->empty());
+            expectEquals (live->getTotalNumInputChannels(), 2);
+            live->throwPreparingChannels = 6;
+            expect (! graph.setChannelLayout (juce::AudioChannelSet::create5point1(), error));
+            expect (error.isNotEmpty());
+            expectEquals (live->getTotalNumInputChannels(), 2);
+            auto buffer = signal (2);
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 2.0f, 0.0001f);
+            expectWithinAbsoluteError (buffer.getSample (1, 0), 4.0f, 0.0001f);
+            expect (live->processingLayoutMatched);
+        }
+
+        beginTest ("a failed scope rollback suspends processing until preparation recovers");
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, juce::AudioChannelSet::stereo());
+            auto effect = std::make_unique<TestEffect> (2.0f, true);
+            auto* live = effect.get();
+            juce::String error;
+            expect (graph.addProcessor (1, std::move (effect), error), error);
+            live->throwAllPreparations = true;
+            expect (! graph.setProcessorScope (1, { juce::AudioChannelSet::left }, error));
+            expect (error.contains ("suspended"));
+            expect (graph.getProcessorScope (1)->empty());
+            auto buffer = signal (2);
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 1.0f, 0.0001f);
+            live->throwAllPreparations = false;
+            expect (graph.clearTails (error), error);
+            buffer = signal (2);
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 2.0f, 0.0001f);
+        }
+
+        beginTest ("failed reprepare suspends processing until the device configuration recovers");
+        {
+            EffectGraph graph;
+            graph.prepareToPlay (48000.0, 64, juce::AudioChannelSet::stereo());
+            auto effect = std::make_unique<TestEffect> (2.0f, true);
+            auto* live = effect.get();
+            juce::String error;
+            expect (graph.addProcessor (1, std::move (effect), error), error);
+            live->throwPreparingChannels = 2;
+            bool threw = false;
+            try { graph.prepareToPlay (44100.0, 64, juce::AudioChannelSet::stereo()); }
+            catch (...) { threw = true; }
+            expect (threw);
+            auto buffer = signal (2);
+            juce::MidiBuffer midi;
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 1.0f, 0.0001f);
+            live->throwPreparingChannels = 0;
+            graph.prepareToPlay (44100.0, 64, juce::AudioChannelSet::stereo());
+            buffer = signal (2);
+            graph.processBlock (buffer, midi);
+            expectWithinAbsoluteError (buffer.getSample (0, 0), 2.0f, 0.0001f);
+        }
+
         beginTest ("processes, bypasses, moves, and removes stable slots");
         {
             EffectGraph graph;

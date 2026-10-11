@@ -76,7 +76,6 @@ bool PlayerController::applyMusicDirectoryScan (MusicDirectoryScanResult result)
             auto replacement = metadata.track;
             replacement.addedAtMs = track.addedAtMs;
             replacement.libraryId.clear();
-            if (replacement.artworkCacheKey.isEmpty()) replacement.artworkCacheKey = track.artworkCacheKey;
             track = std::move (replacement);
             ++updatedCount;
             changed = true;

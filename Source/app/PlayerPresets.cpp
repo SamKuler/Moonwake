@@ -67,6 +67,7 @@ juce::Result PlayerController::savePreset (PresetKind kind, const juce::String& 
 {
     if (restoringEffects) return juce::Result::fail (operationPending);
     if (name.trim().isEmpty()) return juce::Result::fail ("Enter a preset name.");
+    synchronizeNativeEffectBypass();
     const auto snapshotRevision = capturePresetRevision();
     EffectChainState snapshot;
     juce::String error;

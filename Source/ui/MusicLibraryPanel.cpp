@@ -168,6 +168,8 @@ juce::Component& MusicLibraryPanel::tableControl() { return *table; }
 void MusicLibraryPanel::refresh()
 {
     const juce::ScopedValueSetter<bool> guard (refreshing, true);
+    overviewNeedsRefresh = true;
+    detailSummary.reset();
     collectionId = controller.getLibraryCollectionId();
     const auto availableCollections = libraryCollections (controller.getLibrary());
     auto selected = std::find_if (availableCollections.begin(), availableCollections.end(), [this] (const auto& item)
@@ -844,6 +846,7 @@ void MusicLibraryPanel::showPlayer()
 
 void MusicLibraryPanel::setCategory (juce::String next)
 {
+    if (category != next) overviewNeedsRefresh = true;
     category = std::move (next);
     gridSearch.clear();
     showLibrary();
@@ -871,8 +874,12 @@ void MusicLibraryPanel::updateNavigation (bool supported)
 
 void MusicLibraryPanel::refreshOverview()
 {
-    grid.setCollections (libraryCollectionSummaries (controller.getLibrary(), category),
-        [this] (const auto& key) { return controller.resolveArtworkFile (key); });
+    if (overviewNeedsRefresh)
+    {
+        grid.setCollections (libraryCollectionSummaries (controller.getLibrary(), category),
+            [this] (const auto& key) { return controller.resolveArtworkFile (key); });
+        overviewNeedsRefresh = false;
+    }
     gridSearch.setTextToShowWhenEmpty ("Search " + category,
         adapter.findColour (juce::TextEditor::textColourId).withAlpha (0.58f));
     grid.setQuery (gridSearch.getText());
@@ -882,7 +889,9 @@ void MusicLibraryPanel::refreshOverview()
 void MusicLibraryPanel::refreshDescription()
 {
     changeArtwork.setEnabled (collectionId.startsWith ("playlist:") && controller.getLibrary().getPlaylist (collectionId.substring (9)) != nullptr);
-    const auto summary = libraryCollectionSummary (controller.getLibrary(), controller.getPlaylist(), collectionId);
+    if (! detailSummary.has_value())
+        detailSummary = libraryCollectionSummary (controller.getLibrary(), controller.getPlaylist(), collectionId);
+    const auto& summary = *detailSummary;
     if (currentPage == Page::collection)
     {
         title.setText (summary.name, juce::dontSendNotification);

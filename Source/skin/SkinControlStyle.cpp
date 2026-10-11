@@ -37,6 +37,8 @@ skinControlStylePropertyDescriptors (SkinRenderTarget target)
         number (SkinRenderTarget::scrollBar, "minThumbLength", 1.0);
         number (SkinRenderTarget::playlistGrid, "minItemWidth", 120.0);
         number (SkinRenderTarget::playlistGrid, "itemGap", 0.0);
+        number (SkinRenderTarget::channelMixer, "minItemWidth", 120.0);
+        number (SkinRenderTarget::channelMixer, "itemGap", 0.0);
         number (SkinRenderTarget::lyrics, "lineGap", 0.0);
         number (SkinRenderTarget::lyrics, "padding", 0.0);
         number (SkinRenderTarget::lyrics, "followAnchor", 0.0);

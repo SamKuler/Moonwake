@@ -41,22 +41,25 @@ private:
     std::unique_ptr<GridViewport> viewport;
     juce::Component content;
     std::vector<LibraryCollectionSummary> collections;
+    std::vector<size_t> matchingCollections;
     std::vector<std::unique_ptr<Card>> cards;
     ArtworkResolver resolveArtwork;
     CoverLoader loadCollectionCover;
     juce::String query;
     SkinResolvedRowLayout cardLayout;
-    int columns = 1;
+    int columns = 1, cardWidth = 0, cardHeight = 0, cardGap = 0;
     bool layingOut = false, needsArtwork = false;
     std::shared_ptr<std::atomic<uint64_t>> artworkGeneration {
         std::make_shared<std::atomic<uint64_t>> (0)
     };
     juce::ThreadPool coverPool { 1 };
 
-    void rebuildCards();
+    void rebuildMatches();
+    void updateVisibleCards();
+    [[nodiscard]] juce::Rectangle<int> cardBounds (int index) const;
     void scheduleVisibleArtwork();
     [[nodiscard]] bool artworkIsVisible (const Card&) const;
     void handleAsyncUpdate() override;
-    void reveal (const Card&);
+    void reveal (int index);
     bool focusRelative (const Card&, int offset);
 };

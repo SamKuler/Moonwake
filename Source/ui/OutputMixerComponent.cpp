@@ -1,5 +1,6 @@
 #include "OutputMixerComponent.h"
 #include "JuceSkinAdapter.h"
+#include <cmath>
 
 class OutputMixerComponent::Row final : public juce::Component
 {
@@ -197,20 +198,31 @@ void OutputMixerComponent::resized()
     SkinRenderContext context;
     context.bounds = getLocalBounds().toFloat();
     context.tableRowCount = static_cast<int> (rows.size());
-    const auto layout = adapter->rowLayoutFor (*this, SkinRenderTarget::channelMixer, context);
-    if (! layout) return;
-    const auto rowHeight = juce::jmax (1, juce::roundToInt (layout->rowHeight));
-    const auto rowGap = juce::jmax (0, juce::roundToInt (layout->rowGap));
-    const auto height = static_cast<int> (rows.size()) * (rowHeight + rowGap) - (rows.empty() ? 0 : rowGap);
-    const auto width = juce::jmax (0, getWidth() - (height > getHeight() ? viewport.getScrollBarThickness() : 0));
-    context.bounds.setWidth (static_cast<float> (width));
-    rowLayout = adapter->rowLayoutFor (*this, SkinRenderTarget::channelMixer, context).value_or (*layout);
-    const auto finalHeight = juce::jmax (1, juce::roundToInt (rowLayout.rowHeight));
-    const auto finalGap = juce::jmax (0, juce::roundToInt (rowLayout.rowGap));
-    content.setSize (width, static_cast<int> (rows.size()) * (finalHeight + finalGap) - (rows.empty() ? 0 : finalGap));
+    const auto controls = adapter->controlStyleFor (*this, SkinRenderTarget::channelMixer, context);
+    const auto gap = controls && controls->itemGap ? juce::roundToInt (*controls->itemGap) : 0;
+    int columns = 1, width = getWidth(), cellWidth = width, rowHeight = 0, rowGap = 0, height = 0;
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        columns = controls && controls->minItemWidth
+            ? juce::jmax (1, static_cast<int> (std::floor ((width + gap) / (*controls->minItemWidth + gap)))) : 1;
+        cellWidth = (width - gap * (columns - 1)) / columns;
+        context.bounds.setWidth (static_cast<float> (cellWidth));
+        const auto layout = adapter->rowLayoutFor (*this, SkinRenderTarget::channelMixer, context);
+        if (! layout) return;
+        rowLayout = *layout;
+        rowHeight = juce::jmax (1, juce::roundToInt (rowLayout.rowHeight));
+        rowGap = juce::jmax (0, juce::roundToInt (rowLayout.rowGap));
+        const auto rowCount = (static_cast<int> (rows.size()) + columns - 1) / columns;
+        height = rowCount * (rowHeight + rowGap) - (rowCount == 0 ? 0 : rowGap);
+        if (pass != 0 || height <= getHeight()) break;
+        width = juce::jmax (0, getWidth() - viewport.getScrollBarThickness());
+    }
+    content.setSize (width, height);
     for (size_t index = 0; index < rows.size(); ++index)
     {
-        rows[index]->setBounds (0, static_cast<int> (index) * (finalHeight + finalGap), width, finalHeight);
+        const auto position = static_cast<int> (index);
+        rows[index]->setBounds ((position % columns) * (cellWidth + gap),
+                                (position / columns) * (rowHeight + rowGap), cellWidth, rowHeight);
         rows[index]->resized();
     }
 }

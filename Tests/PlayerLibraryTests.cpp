@@ -1138,6 +1138,70 @@ public:
                 expectEquals (controller.getPlaylist().getTrack (static_cast<int> (index))->id, queueBefore[index].id);
         }
 
+        for (const auto useDirectoryScan : { false, true })
+        {
+            beginTest (juce::String (useDirectoryScan ? "directory scans" : "manual reimports")
+                       + " remove absent covers while retaining saved artwork until snapshot replacement");
+            const auto folder = root.getChildFile (useDirectoryScan ? "removed-scan-cover" : "removed-import-cover");
+            expect (folder.createDirectory());
+            const auto audio = folder.getChildFile ("song.wav");
+            const auto cover = folder.getChildFile ("cover.png");
+            expect (a.copyFileTo (audio));
+            {
+                juce::Image image (juce::Image::RGB, 8, 8, true);
+                image.clear (image.getBounds(), juce::Colours::red);
+                juce::FileOutputStream output (cover);
+                expect (output.openedOk() && juce::PNGImageFormat().writeImageToStream (image, output));
+            }
+            const auto artworkRoot = folder.getChildFile ("artwork");
+            ArtworkStore artwork (artworkRoot);
+            PlayerController controller (std::make_unique<LibraryAudioBackend>(), PluginScannerConfiguration {}, artworkRoot);
+            const auto original = reader.read (audio);
+            expect (original.ok && ! original.artworkData.isEmpty());
+            controller.importPreparedTracks ({ original }, "all");
+            const auto id = idFor (controller, audio);
+            const auto oldKey = controller.getLibrary().getTrack (id)->artworkCacheKey;
+            expect (artwork.isValid (oldKey));
+            expect (controller.enqueueLibraryTracks ({ id, id }, false));
+            const auto occurrences = controller.getPlaylist().getTracks();
+            const auto saved = controller.saveQueueAsPlaylist ("Removed cover");
+            const auto entries = controller.getLibrary().getPlaylist (saved)->entries;
+            expect (controller.setTrackFavourites ({ id }, true));
+            PlayerAppState snapshot;
+            juce::String error;
+            expect (controller.captureStateSnapshot (snapshot, error), error);
+            controller.acknowledgeSavedArtwork (controller.retainArtworkForStateSave (snapshot));
+            expect (cover.deleteFile());
+            expect (audio.setLastModificationTime (juce::Time (original.track.fileModifiedAtMs + 5000)));
+            if (useDirectoryScan)
+            {
+                auto scanned = scanDirectory (controller, folder);
+                expectEquals (scanned.metadataReads, 1);
+                expectEquals (static_cast<int> (scanned.updates.size()), 1);
+                if (! scanned.updates.empty()) expect (scanned.updates.front().track.artworkCacheKey.isEmpty());
+                expect (controller.applyMusicDirectoryScan (std::move (scanned)), controller.getLastStatusMessage());
+            }
+            else
+            {
+                const auto refreshed = reader.read (audio);
+                expect (refreshed.ok && refreshed.artworkData.isEmpty());
+                controller.importPreparedTracks ({ refreshed }, "all");
+            }
+            expect (controller.getLibrary().getTrack (id)->artworkCacheKey.isEmpty());
+            expect (controller.getLibrary().getPlaylist (saved)->entries == entries);
+            expect (controller.getLibrary().isFavourite (id));
+            expectEquals (controller.getPlaylist().size(), 2);
+            for (int index = 0; index < controller.getPlaylist().size(); ++index)
+            {
+                expectEquals (controller.getPlaylist().getTrack (index)->id, occurrences[static_cast<size_t> (index)].id);
+                expect (controller.getPlaylist().getTrack (index)->artworkCacheKey.isEmpty());
+            }
+            expect (artwork.resolve (oldKey).existsAsFile());
+            expect (controller.captureStateSnapshot (snapshot, error), error);
+            controller.acknowledgeSavedArtwork (controller.retainArtworkForStateSave (snapshot));
+            expect (! artwork.resolve (oldKey).existsAsFile());
+        }
+
         beginTest ("raw metadata and relocation artwork replacements receive fresh cache identities");
         {
             const auto artworkRoot = root.getChildFile ("replacement-artwork");
@@ -1194,6 +1258,8 @@ public:
             const auto artworkRoot = root.getChildFile ("artwork");
             PlayerController controller (std::make_unique<LibraryAudioBackend>(), PluginScannerConfiguration {}, artworkRoot);
             auto metadata = reader.read (a);
+            metadata.track.title = "Accepted import title";
+            metadata.track.artist = "Accepted import artist";
             juce::Image image (juce::Image::RGB, 2, 2, true);
             image.clear (image.getBounds(), juce::Colours::red);
             juce::MemoryOutputStream encoded;
@@ -1203,6 +1269,8 @@ public:
             controller.addPreparedTracks ({ metadata, reader.read (a) });
             expectEquals (controller.getPlaylist().size(), 1);
             const auto id = idFor (controller, a);
+            expectEquals (controller.getLibrary().getTrack (id)->title, metadata.track.title);
+            expectEquals (controller.getLibrary().getTrack (id)->artist, metadata.track.artist);
             const auto key = controller.getLibrary().getTrack (id)->artworkCacheKey;
             ArtworkStore artwork (artworkRoot);
             expect (key.isNotEmpty(), controller.getLastStatusMessage());

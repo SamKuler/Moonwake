@@ -18,6 +18,8 @@ private:
     void applyWindowedPresentation (PlayerPresentation);
     void timerCallback() override;
     void rememberNormalBounds();
+    void setContentResizeLimits (const PlayerWindowSizing&);
+    void updateContentPresentation();
    #if JUCE_MAC
     void installFullScreenObserver();
     std::function<void()> removeFullScreenObserver;

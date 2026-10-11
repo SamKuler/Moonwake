@@ -52,10 +52,12 @@ public:
     void importFilesAndFolders (const juce::Array<juce::File>&);
     [[nodiscard]] bool supportsPresentation (PlayerPresentation) const;
     [[nodiscard]] PlayerWindowSizing windowSizing (PlayerPresentation) const;
-    void setPlayerPresentation (PlayerPresentation);
+    [[nodiscard]] bool canChangePresentation() const;
+    void setPlayerPresentation (PlayerPresentation, juce::Rectangle<int> contentBounds);
     [[nodiscard]] PlayerPresentation getPlayerPresentation() const noexcept { return playerPresentation; }
     void setMiniPinned (bool);
     std::function<void (PlayerPresentation)> onPresentationRequested;
+    std::function<PlayerPresentation()> presentationIntent;
     std::function<void (bool)> onPinRequested;
 private:
     class EffectSlotRow;
@@ -263,6 +265,7 @@ private:
     uint64_t lyricsOffsetRevision = 0;
     bool lyricsLoading = false, lyricsOpen = false;
     PlayerPresentation playerPresentation = PlayerPresentation::normal;
+    bool changingPresentation = false;
     PresetControls listeningPresetControls { "Listening setup" };
     PresetControls effectPresetControls { "Effect preset" };
     SkinFallbackDiagnostic skinFallbackDiagnostic;

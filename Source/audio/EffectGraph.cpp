@@ -1,6 +1,22 @@
 #include "EffectGraph.h"
 
 #include <algorithm>
+#include <stdexcept>
+
+class EffectGraph::ScopedEdit
+{
+public:
+    explicit ScopedEdit (EffectGraph& graphToUse) : owner (graphToUse)
+    {
+        acquired = ! owner.stateCaptureRequested.load (std::memory_order_acquire);
+        ready = ! acquired || owner.beginStateCapture();
+    }
+    ~ScopedEdit() { if (acquired && ready) owner.endStateCapture(); }
+    explicit operator bool() const noexcept { return ready; }
+private:
+    EffectGraph& owner;
+    bool acquired = false, ready = false;
+};
 
 EffectGraph::EffectGraph()
 {
@@ -47,37 +63,37 @@ void EffectGraph::prepareToPlay (double sampleRate,
                                  int blockSize,
                                  const juce::AudioChannelSet& channelLayout)
 {
-    if (prepared)
-        graph.releaseResources();
+    const ScopedEdit edit (*this);
+    if (! edit) throw std::runtime_error ("Timed out while preparing the effect graph.");
+    processingReady.store (false, std::memory_order_release);
     prepared = false;
+    // JUCE records a node as prepared before calling the plug-in. Clear those
+    // records even when an earlier prepare attempt failed part-way through.
+    graph.releaseResources();
 
     currentSampleRate = sampleRate;
     currentBlockSize = blockSize;
-    juce::String ignoredError;
-    static_cast<void> (setChannelLayout (channelLayout, ignoredError));
-    graph.setPlayConfigDetails (currentChannelLayout.size(),
-                                currentChannelLayout.size(),
-                                currentSampleRate,
-                                currentBlockSize);
-
+    juce::String error;
+    if (! setChannelLayout (channelLayout, error))
+        throw std::runtime_error (error.toStdString());
+    graph.setPlayConfigDetails (currentChannelLayout.size(), currentChannelLayout.size(),
+                               currentSampleRate, currentBlockSize);
     for (auto& slot : slots)
-    {
-        juce::String processorError;
-        static_cast<void> (configureProcessor (*slot.node->getProcessor(), slot.scope, processorError));
-    }
-
-    static_cast<void> (rebuildConnections());
+        if (! configureProcessor (*slot.node->getProcessor(), slot.scope, error))
+            throw std::runtime_error (error.toStdString());
+    if (! rebuildConnections())
+        throw std::runtime_error ("Could not rebuild the effect graph.");
     graph.prepareToPlay (currentSampleRate, currentBlockSize);
     resetDryDelay();
     prepared = true;
+    processingReady.store (true, std::memory_order_release);
 }
 
 void EffectGraph::releaseResources()
 {
-    if (prepared)
+    processingReady.store (false, std::memory_order_release);
+    if (std::exchange (prepared, false))
         graph.releaseResources();
-
-    prepared = false;
     dryDelay.clear();
     dryDelayPosition = 0;
 }
@@ -91,14 +107,16 @@ void EffectGraph::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuff
             for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
                 alignedDry->copyFrom (channel, 0, buffer, channel, 0, buffer.getNumSamples());
     };
-    if (stateCaptureRequested.load (std::memory_order_acquire))
+    if (stateCaptureRequested.load (std::memory_order_acquire)
+        || ! processingReady.load (std::memory_order_acquire))
     {
         copyDryInput();
         return;
     }
 
     activeProcessCallbacks.fetch_add (1, std::memory_order_acq_rel);
-    if (stateCaptureRequested.load (std::memory_order_acquire))
+    if (stateCaptureRequested.load (std::memory_order_acquire)
+        || ! processingReady.load (std::memory_order_acquire))
     {
         activeProcessCallbacks.fetch_sub (1, std::memory_order_release);
         copyDryInput();
@@ -175,6 +193,7 @@ bool EffectGraph::clearTails (juce::String& errorMessage)
     } capture { *this };
     try
     {
+        processingReady.store (false, std::memory_order_release);
         graph.reset();
         if (prepared)
         {
@@ -184,6 +203,7 @@ bool EffectGraph::clearTails (juce::String& errorMessage)
             graph.prepareToPlay (currentSampleRate, currentBlockSize);
             resetDryDelay();
         }
+        processingReady.store (prepared, std::memory_order_release);
         return true;
     }
     catch (...)
@@ -205,8 +225,21 @@ bool EffectGraph::addProcessor (int slotId,
         return false;
     }
 
-    if (! configureProcessor (*processor, scope, errorMessage))
+    const ScopedEdit edit (*this);
+    if (! edit)
+    {
+        errorMessage = "Timed out while preparing the effect graph for insertion.";
         return false;
+    }
+    try
+    {
+        if (! configureProcessor (*processor, scope, errorMessage)) return false;
+    }
+    catch (...)
+    {
+        errorMessage = "The plug-in failed while configuring its audio channels.";
+        return false;
+    }
 
     auto node = graph.addNode (std::move (processor),
                                std::nullopt,
@@ -225,14 +258,18 @@ bool EffectGraph::addProcessor (int slotId,
     slots.pop_back();
     node->getProcessor()->removeListener (this);
     graph.removeNode (node->nodeID, juce::AudioProcessorGraph::UpdateKind::none);
-    static_cast<void> (rebuildConnections());
-    errorMessage = "The effect does not expose a compatible " + juce::String (currentChannelLayout.size())
+    const auto restored = rebuildConnections();
+    if (! restored) processingReady.store (false, std::memory_order_release);
+    errorMessage = "The plug-in failed while preparing its " + juce::String (currentChannelLayout.size())
         + "-channel audio path.";
+    if (! restored) errorMessage += " The previous effect chain could not be restored; effects are suspended.";
     return false;
 }
 
 bool EffectGraph::removeProcessor (int slotId)
 {
+    const ScopedEdit edit (*this);
+    if (! edit) return false;
     const auto position = findSlot (slotId);
     if (position == slots.end())
         return false;
@@ -244,7 +281,7 @@ bool EffectGraph::removeProcessor (int slotId)
     {
         slots.insert (slots.begin() + index,
                       std::move (removedSlot));
-        static_cast<void> (rebuildConnections());
+        if (! rebuildConnections()) processingReady.store (false, std::memory_order_release);
         return false;
     }
 
@@ -257,6 +294,8 @@ bool EffectGraph::removeProcessor (int slotId)
 
 bool EffectGraph::clearProcessors()
 {
+    const ScopedEdit edit (*this);
+    if (! edit) return false;
     if (slots.empty())
         return true;
 
@@ -265,7 +304,7 @@ bool EffectGraph::clearProcessors()
     if (! rebuildConnections())
     {
         slots = std::move (removedSlots);
-        static_cast<void> (rebuildConnections());
+        if (! rebuildConnections()) processingReady.store (false, std::memory_order_release);
         return false;
     }
 
@@ -281,6 +320,8 @@ bool EffectGraph::clearProcessors()
 
 bool EffectGraph::moveProcessor (int fromIndex, int toIndex)
 {
+    const ScopedEdit edit (*this);
+    if (! edit) return false;
     if (! juce::isPositiveAndBelow (fromIndex, size())
         || ! juce::isPositiveAndBelow (toIndex, size()))
         return false;
@@ -296,12 +337,14 @@ bool EffectGraph::moveProcessor (int fromIndex, int toIndex)
         return true;
 
     slots = std::move (previousSlots);
-    static_cast<void> (rebuildConnections());
+    if (! rebuildConnections()) processingReady.store (false, std::memory_order_release);
     return false;
 }
 
 bool EffectGraph::setProcessorOrder (const std::vector<int>& orderedSlotIds)
 {
+    const ScopedEdit edit (*this);
+    if (! edit) return false;
     if (orderedSlotIds.size() != slots.size())
         return false;
 
@@ -326,7 +369,7 @@ bool EffectGraph::setProcessorOrder (const std::vector<int>& orderedSlotIds)
         return true;
 
     slots = std::move (previousSlots);
-    static_cast<void> (rebuildConnections());
+    if (! rebuildConnections()) processingReady.store (false, std::memory_order_release);
     return false;
 }
 
@@ -350,94 +393,84 @@ bool EffectGraph::setChannelLayout (const juce::AudioChannelSet& channelLayout,
         return false;
     }
 
-    std::vector<juce::AudioProcessor::BusesLayout> requestedLayouts;
-    requestedLayouts.reserve (slots.size());
-    for (const auto& slot : slots)
+    if (channelLayout == currentChannelLayout) return true;
+    const ScopedEdit edit (*this);
+    if (! edit)
     {
-        if (! validateEffectScope (slot.scope, channelLayout, errorMessage))
-        {
-            errorMessage = slot.node->getProcessor()->getName() + ": " + errorMessage;
-            return false;
-        }
-        juce::AudioProcessor::BusesLayout requested;
-        if (! createProcessorLayout (*slot.node->getProcessor(), channelLayout, slot.scope, requested)
-            || ! slot.node->getProcessor()->checkBusesLayoutSupported (requested))
-        {
-            errorMessage = slot.node->getProcessor()->getName() + " does not support "
-                + channelLayout.getDescription() + " (" + juce::String (channelLayout.size())
-                + "-channel) processing.";
-            return false;
-        }
-
-        requestedLayouts.push_back (std::move (requested));
+        errorMessage = "Timed out while preparing the effect graph for a layout change.";
+        return false;
     }
-
-    const auto previousLayout = currentChannelLayout;
-    std::vector<juce::AudioProcessor::BusesLayout> previousProcessorLayouts;
-    previousProcessorLayouts.reserve (slots.size());
-    for (const auto& slot : slots)
-        previousProcessorLayouts.push_back (slot.node->getProcessor()->getBusesLayout());
-
-    if (prepared)
-        graph.releaseResources();
-
-    for (size_t i = 0; i < slots.size(); ++i)
+    std::vector<juce::AudioProcessor::BusesLayout> requestedLayouts, previousLayouts;
+    requestedLayouts.reserve (slots.size());
+    previousLayouts.reserve (slots.size());
+    try
     {
-        if (slots[i].node->getProcessor()->setBusesLayout (requestedLayouts[i]))
-            continue;
-
-        for (size_t rollback = 0; rollback <= i; ++rollback)
-            static_cast<void> (slots[rollback].node->getProcessor()->setBusesLayout (
-                previousProcessorLayouts[rollback]));
-
-        errorMessage = slots[i].node->getProcessor()->getName()
-            + " rejected the requested output layout.";
-        if (prepared)
+        for (const auto& slot : slots)
         {
-            graph.prepareToPlay (currentSampleRate, currentBlockSize);
-            resetDryDelay();
+            auto& processor = *slot.node->getProcessor();
+            if (! validateEffectScope (slot.scope, channelLayout, errorMessage)) return false;
+            juce::AudioProcessor::BusesLayout requested;
+            if (! createProcessorLayout (processor, channelLayout, slot.scope, requested)
+                || ! processor.checkBusesLayoutSupported (requested))
+            {
+                errorMessage = processor.getName() + " does not support "
+                    + channelLayout.getDescription() + " (" + juce::String (channelLayout.size())
+                    + "-channel) processing.";
+                return false;
+            }
+            requestedLayouts.push_back (std::move (requested));
+            previousLayouts.push_back (processor.getBusesLayout());
         }
+    }
+    catch (...)
+    {
+        errorMessage = "A plug-in failed while checking the requested output layout.";
         return false;
     }
 
-    currentChannelLayout = channelLayout;
-    graph.setPlayConfigDetails (currentChannelLayout.size(),
-                                currentChannelLayout.size(),
-                                currentSampleRate,
-                                currentBlockSize);
-    static_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*> (inputNode->getProcessor())
-        ->setParentGraph (&graph);
-    static_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*> (outputNode->getProcessor())
-        ->setParentGraph (&graph);
-    if (! rebuildConnections())
+    const auto previousLayout = currentChannelLayout;
+    const auto configureGraph = [&] (const juce::AudioChannelSet& layout)
     {
-        for (size_t i = 0; i < slots.size(); ++i)
-            static_cast<void> (slots[i].node->getProcessor()->setBusesLayout (previousProcessorLayouts[i]));
-        currentChannelLayout = previousLayout;
-        graph.setPlayConfigDetails (currentChannelLayout.size(),
-                                    currentChannelLayout.size(),
-                                    currentSampleRate,
-                                    currentBlockSize);
+        currentChannelLayout = layout;
+        graph.setPlayConfigDetails (layout.size(), layout.size(), currentSampleRate, currentBlockSize);
         static_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*> (inputNode->getProcessor())
             ->setParentGraph (&graph);
         static_cast<juce::AudioProcessorGraph::AudioGraphIOProcessor*> (outputNode->getProcessor())
             ->setParentGraph (&graph);
-        static_cast<void> (rebuildConnections());
-        errorMessage = "Could not connect all channels in the requested effect graph.";
-        if (prepared)
-        {
-            graph.prepareToPlay (currentSampleRate, currentBlockSize);
-            resetDryDelay();
-        }
-        return false;
-    }
-
-    if (prepared)
-    {
-        graph.prepareToPlay (currentSampleRate, currentBlockSize);
+        if (! rebuildConnections()) throw std::runtime_error ("Could not rebuild the effect graph.");
+        if (prepared) graph.prepareToPlay (currentSampleRate, currentBlockSize);
         resetDryDelay();
+        processingReady.store (prepared, std::memory_order_release);
+    };
+    try
+    {
+        processingReady.store (false, std::memory_order_release);
+        if (prepared) graph.releaseResources();
+        for (size_t i = 0; i < slots.size(); ++i)
+            if (! slots[i].node->getProcessor()->setBusesLayout (requestedLayouts[i]))
+                throw std::runtime_error ("A plug-in rejected the requested output layout.");
+        configureGraph (channelLayout);
+        return true;
     }
-    return true;
+    catch (...)
+    {
+        errorMessage = "A plug-in failed while applying the requested output layout.";
+    }
+    try
+    {
+        if (prepared) graph.releaseResources();
+        for (size_t i = 0; i < slots.size(); ++i)
+            if (! slots[i].node->getProcessor()->setBusesLayout (previousLayouts[i]))
+                throw std::runtime_error ("Could not restore plug-in layout.");
+        configureGraph (previousLayout);
+    }
+    catch (...)
+    {
+        currentChannelLayout = previousLayout;
+        processingReady.store (false, std::memory_order_release);
+        errorMessage += " The previous effect configuration could not be prepared; effects are suspended.";
+    }
+    return false;
 }
 
 int EffectGraph::size() const
@@ -476,52 +509,57 @@ bool EffectGraph::setProcessorScope (int slotId, const EffectScope& scope, juce:
     if (position->scope == scope)
         return true;
 
-    auto& processor = *position->node->getProcessor();
-    juce::AudioProcessor::BusesLayout requested;
-    if (! createProcessorLayout (processor, currentChannelLayout, scope, requested)
-        || ! processor.checkBusesLayoutSupported (requested))
-    {
-        errorMessage = processor.getName() + " does not support the selected effect channel scope.";
-        return false;
-    }
-    if (! beginStateCapture())
+    const ScopedEdit edit (*this);
+    if (! edit)
     {
         errorMessage = "Timed out while preparing the effect for a channel scope change.";
         return false;
     }
-    struct CaptureScope
-    {
-        EffectGraph& owner;
-        ~CaptureScope() { owner.endStateCapture(); }
-    } capture { *this };
-
+    auto& processor = *position->node->getProcessor();
     const auto previousLayout = processor.getBusesLayout();
     const auto previousScope = position->scope;
-    const auto layoutChanged = previousLayout != requested;
-    if (prepared && layoutChanged)
-        processor.releaseResources();
-    if (! processor.setBusesLayout (requested))
+    juce::AudioProcessor::BusesLayout requested;
+    try
     {
-        static_cast<void> (processor.setBusesLayout (previousLayout));
-        if (prepared && layoutChanged)
-            processor.prepareToPlay (currentSampleRate, currentBlockSize);
-        errorMessage = processor.getName() + " rejected the selected effect channel scope.";
+        if (! createProcessorLayout (processor, currentChannelLayout, scope, requested)
+            || ! processor.checkBusesLayoutSupported (requested))
+        {
+            errorMessage = processor.getName() + " does not support the selected effect channel scope.";
+            return false;
+        }
+    }
+    catch (...)
+    {
+        errorMessage = "The plug-in failed while checking the selected effect channel scope.";
         return false;
     }
-    if (prepared && layoutChanged)
-        processor.prepareToPlay (currentSampleRate, currentBlockSize);
-    position->scope = scope;
-    if (rebuildConnections())
-        return true;
-
-    if (prepared && layoutChanged)
-        processor.releaseResources();
-    static_cast<void> (processor.setBusesLayout (previousLayout));
-    if (prepared && layoutChanged)
-        processor.prepareToPlay (currentSampleRate, currentBlockSize);
+    const auto layoutChanged = previousLayout != requested;
+    const auto applyLayout = [&] (const juce::AudioProcessor::BusesLayout& layout)
+    {
+        if (prepared && layoutChanged) processor.releaseResources();
+        if (! processor.setBusesLayout (layout))
+            throw std::runtime_error ("The plug-in rejected the effect channel scope.");
+        if (prepared && layoutChanged) processor.prepareToPlay (currentSampleRate, currentBlockSize);
+    };
+    try
+    {
+        applyLayout (requested);
+        position->scope = scope;
+        if (rebuildConnections()) return true;
+    }
+    catch (...) {}
+    errorMessage = "The plug-in failed while applying the selected effect channel scope.";
     position->scope = previousScope;
-    static_cast<void> (rebuildConnections());
-    errorMessage = "Could not connect the selected effect channels.";
+    try
+    {
+        applyLayout (previousLayout);
+        if (! rebuildConnections()) throw std::runtime_error ("Could not restore effect connections.");
+    }
+    catch (...)
+    {
+        processingReady.store (false, std::memory_order_release);
+        errorMessage += " The previous effect configuration could not be prepared; effects are suspended.";
+    }
     return false;
 }
 
@@ -559,21 +597,20 @@ bool EffectGraph::rebuildConnections()
 
 bool EffectGraph::rebuildGraph()
 {
-    // Graph edits are serialized by the control thread; scope and state edits
-    // may already own the capture gate when they rebuild connections.
-    const auto ownsCapture = ! stateCaptureRequested.load (std::memory_order_acquire);
-    if (ownsCapture && ! beginStateCapture()) return false;
-    struct CaptureScope
+    const ScopedEdit edit (*this);
+    if (! edit) return false;
+    try
     {
-        EffectGraph& owner;
-        bool acquired;
-        ~CaptureScope() { if (acquired) owner.endStateCapture(); }
-    } capture { *this, ownsCapture };
-    graph.rebuild();
-    if (prepared && (dryDelay.getNumChannels() != currentChannelLayout.size()
-                     || dryDelay.getNumSamples() != juce::jmax (0, graph.getLatencySamples())))
-        resetDryDelay();
-    return true;
+        graph.rebuild();
+        if (prepared && (dryDelay.getNumChannels() != currentChannelLayout.size()
+                         || dryDelay.getNumSamples() != juce::jmax (0, graph.getLatencySamples())))
+            resetDryDelay();
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
 }
 
 void EffectGraph::resetDryDelay()

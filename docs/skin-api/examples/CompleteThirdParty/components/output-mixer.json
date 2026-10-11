@@ -40,29 +40,29 @@
         "x": 0,
         "y": 0,
         "width": 40,
-        "height": 28
+        "height": 24
       },
       "row.peak": {
         "x": 40,
         "y": 0,
         "width": {
-          "$expr": "max(0,bounds.width - 174)"
+          "$expr": "max(0,bounds.width - 104)"
         },
-        "height": 28
+        "height": 24
       },
       "row.destination": {
         "x": {
-          "$expr": "bounds.width - 132"
+          "$expr": "bounds.width - 60"
         },
         "y": 0,
         "width": 60,
-        "height": 28
+        "height": 24
       },
       "row.mute": {
         "x": {
           "$expr": "bounds.width - 68"
         },
-        "y": 0,
+        "y": 28,
         "width": 32,
         "height": 28
       },
@@ -70,18 +70,47 @@
         "x": {
           "$expr": "bounds.width - 32"
         },
-        "y": 0,
+        "y": 28,
         "width": 32,
         "height": 28
       },
       "row.gain": {
         "x": 0,
-        "y": 30,
+        "y": 28,
+        "width": {
+          "$expr": "bounds.width - 72"
+        },
+        "height": 28
+      },
+      "row.surface": {
+        "x": 0,
+        "y": 0,
         "width": {
           "$expr": "bounds.width"
         },
-        "height": 24
+        "height": {
+          "$expr": "bounds.height"
+        }
       }
-    }
+    },
+    "breakpoints": [
+      {
+        "slots": {
+          "row.peak": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        "when": {
+          "maxWidth": 194
+        }
+      }
+    ]
+  },
+  "controlStyle": {
+    "minItemWidth": 156,
+    "itemGap": 16
   }
 }

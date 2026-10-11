@@ -7,11 +7,19 @@ PlayerWindow::PlayerWindow (juce::String name)
     setUsingNativeTitleBar (true);
     content = new MainComponent();
     content->onPresentationRequested = [this] (auto mode) { present (mode); };
+    content->presentationIntent = [this]
+    {
+        return pendingWindowed.value_or (enteringFullScreen ? PlayerPresentation::immersive : presentation);
+    };
     content->onPinRequested = [this] (bool pinned) { setMiniPinned (pinned); };
-    setContentOwned (content, true);
-    setResizable (true, true);
-    setResizeLimits (1040, 700, 1800, 1200);
-    centreWithSize (1240, 800);
+    {
+        const juce::ScopedValueSetter<bool> guard (changing, true);
+        setContentOwned (content, false);
+        setResizable (true, true);
+        setContentResizeLimits (content->windowSizing (PlayerPresentation::normal));
+        centreWithSize (1240, 800);
+    }
+    updateContentPresentation();
     normalBounds = getBounds();
     setVisible (true);
    #if JUCE_MAC
@@ -28,6 +36,7 @@ PlayerWindow::~PlayerWindow()
     if (content)
     {
         content->onPresentationRequested = {};
+        content->presentationIntent = {};
         content->onPinRequested = {};
     }
     clearContentComponent();
@@ -50,23 +59,42 @@ void PlayerWindow::moved() { rememberNormalBounds(); }
 
 void PlayerWindow::resized()
 {
-    DocumentWindow::resized();
-    if (! content || changing || fullScreenTransitioning || enteringFullScreen || pendingWindowed) return;
+    if (! content) { DocumentWindow::resized(); return; }
+    if (changing || fullScreenTransitioning || enteringFullScreen || pendingWindowed) return;
     if (isFullScreen() && presentation == PlayerPresentation::normal
         && content->supportsPresentation (PlayerPresentation::immersive))
-    {
-        const juce::ScopedValueSetter<bool> guard (changing, true);
         presentation = PlayerPresentation::immersive;
-        content->setPlayerPresentation (presentation);
-    }
     else if (! isFullScreen() && presentation == PlayerPresentation::immersive)
+    {
         applyWindowedPresentation (PlayerPresentation::normal);
+        return;
+    }
+    updateContentPresentation();
     rememberNormalBounds();
+}
+
+void PlayerWindow::setContentResizeLimits (const PlayerWindowSizing& sizing)
+{
+    auto border = getContentComponentBorder();
+    if (auto* peer = getPeer())
+        if (const auto frame = peer->getFrameSizeIfPresent())
+            border = border.addedTo (*frame);
+    setResizeLimits (sizing.minimumWidth + border.getLeftAndRight(),
+                     sizing.minimumHeight + border.getTopAndBottom(),
+                     sizing.maximumWidth + border.getLeftAndRight(),
+                     sizing.maximumHeight + border.getTopAndBottom());
+}
+
+void PlayerWindow::updateContentPresentation()
+{
+    const juce::ScopedValueSetter<bool> guard (changing, true);
+    content->setPlayerPresentation (presentation, getContentComponentBorder().subtractedFrom (getLocalBounds()));
+    DocumentWindow::resized();
 }
 
 void PlayerWindow::present (PlayerPresentation mode)
 {
-    if (! content || ! content->supportsPresentation (mode)) return;
+    if (! content || ! content->canChangePresentation() || ! content->supportsPresentation (mode)) return;
     if (mode == PlayerPresentation::immersive)
     {
         if (presentation == mode && ! pendingWindowed) return;
@@ -75,11 +103,11 @@ void PlayerWindow::present (PlayerPresentation mode)
         exitRequested = false;
         enteringFullScreen = true;
         const juce::ScopedValueSetter<bool> guard (changing, true);
-        presentation = mode;
         setAlwaysOnTop (false);
         setTitleBarButtonsRequired (allButtons, false);
-        setResizeLimits (1040, 700, 16384, 16384);
-        content->setPlayerPresentation (mode);
+        auto sizing = content->windowSizing (mode);
+        sizing.maximumWidth = sizing.maximumHeight = 16384;
+        setContentResizeLimits (sizing);
         setFullScreen (true);
         startTimer (30);
         return;
@@ -110,6 +138,11 @@ void PlayerWindow::timerCallback()
             exitRequested = true;
             setFullScreen (false);
         }
+        else
+        {
+            presentation = PlayerPresentation::immersive;
+            updateContentPresentation();
+        }
     }
     if (! fullScreenTransitioning && pendingWindowed && ! isFullScreen() && ! enteringFullScreen)
     {
@@ -127,14 +160,14 @@ void PlayerWindow::applyWindowedPresentation (PlayerPresentation mode)
     const juce::ScopedValueSetter<bool> guard (changing, true);
     presentation = mode;
     const auto sizing = content->windowSizing (mode);
-    setResizeLimits (sizing.minimumWidth, sizing.minimumHeight, sizing.maximumWidth, sizing.maximumHeight);
     setTitleBarButtonsRequired (mode == PlayerPresentation::mini ? closeButton | minimiseButton : allButtons, false);
+    setContentResizeLimits (sizing);
     setAlwaysOnTop (mode == PlayerPresentation::mini && miniPinned);
-    content->setPlayerPresentation (mode);
     if (mode == PlayerPresentation::mini)
         setContentComponentSize (sizing.width, sizing.height);
     else if (! normalBounds.isEmpty())
         setBounds (normalBounds);
+    updateContentPresentation();
     content->setMiniPinned (miniPinned);
 }
 

@@ -3,6 +3,7 @@
 #include "skin/SkinLayoutEngine.h"
 #include "skin/SkinRenderer.h"
 #include "ui/JuceSkinAdapter.h"
+#include "ui/OutputMixerComponent.h"
 
 #include <juce_core/juce_core.h>
 
@@ -691,6 +692,67 @@ public:
                                               "popupMenu.default") != nullptr);
             expect (foundation->resolveStyle (SkinRenderTarget::tooltip,
                                               "tooltip.default") != nullptr);
+        }
+
+        beginTest ("named mixer rows inherit default wrapping consistently in compiler and native layout");
+        for (const auto valid : { false, true })
+        {
+            SkinValidationReport report;
+            auto namedRenderer = juce::JSON::parse (foundationPackage.readText ("components/channel-mixer.json", report));
+            if (! valid)
+                namedRenderer.getProperty ("rowLayout", {}).getProperty ("slots", {})
+                    .getProperty ("row.gain", {}).getDynamicObject()->setProperty ("width", 175);
+            auto defaultRenderer = juce::JSON::parse (foundationPackage.readText ("components/channel-mixer.json", report));
+            defaultRenderer.getDynamicObject()->setProperty ("controlStyle", juce::JSON::parse (
+                R"({"minItemWidth":120,"itemGap":16})"));
+            auto index = juce::JSON::parse (foundationPackage.readText ("components/index.json", report));
+            auto mixers = index.getProperty ("channelMixer", {});
+            auto namedStyle = mixers.getProperty ("default", {}).clone();
+            namedStyle.getDynamicObject()->setProperty ("renderer", "components/named-mixer.json");
+            mixers.getDynamicObject()->setProperty ("named", namedStyle);
+            auto layout = foundationPackage.readText ("layouts/studio.json", report)
+                .replace ("channelMixer.default", "channelMixer.named");
+            std::vector<SkinPackage::EmbeddedFile> files;
+            for (const auto& path : foundationPackage.listFiles())
+            {
+                if (path == "components/channel-mixer.json")
+                    files.push_back ({ path, bytes (juce::JSON::toString (defaultRenderer)) });
+                else if (path == "components/index.json")
+                    files.push_back ({ path, bytes (juce::JSON::toString (index)) });
+                else if (path == "layouts/studio.json") files.push_back ({ path, bytes (layout) });
+                else files.push_back ({ path, foundationPackage.readBinary (path, report) });
+            }
+            files.push_back ({ "components/named-mixer.json", bytes (juce::JSON::toString (namedRenderer)) });
+            const auto package = embedded ("inherited-mixer-wrapping", std::move (files), report);
+            const auto skin = package ? SkinCompiler::compile (*package, {}, report) : nullptr;
+            if (! valid)
+            {
+                expect (skin == nullptr, "A fixed native fader that fits a full row must still be rejected when inherited wrapping narrows it.");
+                expect (report.hasCode ("RENDER004"), report.toText());
+                continue;
+            }
+            expect (skin != nullptr, report.toText());
+            if (! skin) continue;
+            const auto* named = skin->resolveStyle (SkinRenderTarget::channelMixer, "channelMixer.named");
+            expect (named != nullptr && ! named->renderer.controlStyle);
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
+                { return JuceSkinAdapter::RuntimeBinding { skin->resolveStyle (target, style) }; }, renderer);
+            OutputMixerComponent mixer;
+            mixer.getProperties().set (JuceSkinAdapter::styleProperty, "channelMixer.named");
+            mixer.setLookAndFeel (&adapter);
+            mixer.setSize (360, 520);
+            mixer.setState (OutputLayout::nineOneSix, defaultOutputChannelMix(), {});
+            auto* viewport = dynamic_cast<juce::Viewport*> (mixer.getChildComponent (0));
+            expect (viewport != nullptr);
+            if (viewport != nullptr)
+                for (auto* row : viewport->getViewedComponent()->getChildren())
+                {
+                    expectEquals (row->getWidth(), 172);
+                    for (auto* control : row->getChildren())
+                        expect (row->getLocalBounds().contains (control->getBounds()), control->getTitle());
+                }
+            mixer.setLookAndFeel (nullptr);
         }
 
         beginTest ("self-contained pre-lyrics packages compile without optional lyrics renderers or window layouts");
