@@ -11,6 +11,7 @@ public:
     void resized() override;
     void moved() override;
     void importCommandLine (const juce::String&);
+    void showStatus (const juce::String&, bool isError = false);
     void present (PlayerPresentation);
     void setMiniPinned (bool);
 

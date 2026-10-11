@@ -50,6 +50,7 @@ public:
     std::unique_ptr<juce::ComponentTraverser> createKeyboardFocusTraverser() override;
     void mouseUp (const juce::MouseEvent&) override;
     void importFilesAndFolders (const juce::Array<juce::File>&);
+    void showStatus (const juce::String&, bool isError = false);
     [[nodiscard]] bool supportsPresentation (PlayerPresentation) const;
     [[nodiscard]] PlayerWindowSizing windowSizing (PlayerPresentation) const;
     [[nodiscard]] bool canChangePresentation() const;
@@ -76,7 +77,6 @@ private:
     void chooseLyricsFile (TrackItem);
     void searchLyrics (TrackItem);
     void changeLyricsOffset (TrackItem, double seconds);
-    void showStatus (const juce::String&, bool isError = false);
     void skinChanged() override;
     int getNumRows() override;
     void paintRowBackground (juce::Graphics& g, int rowNumber, int width, int height, bool rowIsSelected) override;
@@ -145,6 +145,7 @@ private:
 
     PlayerController controller;
     NowPlayingCoordinator nowPlayingCoordinator;
+    juce::String lastNowPlayingError;
     std::shared_ptr<std::atomic_bool> remoteCommandLifetime;
     AutoSaveScheduler autoSaveScheduler;
     StateSaveService stateSaveService;

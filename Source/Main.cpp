@@ -3,6 +3,10 @@
 #include "app/ProductIdentity.h"
 #include "ui/PlayerWindow.h"
 
+#if JUCE_WINDOWS
+ #include "app/WindowsApplicationIdentity.h"
+#endif
+
 class MoonwakeApplication final : public juce::JUCEApplication
 {
 public:
@@ -12,8 +16,18 @@ public:
 
     void initialise (const juce::String& commandLine) override
     {
+       #if JUCE_WINDOWS
+        const auto identity = WindowsApplicationIdentity::initialise();
+       #endif
         mainWindow = std::make_unique<PlayerWindow> (getApplicationName());
         mainWindow->importCommandLine (commandLine);
+       #if JUCE_WINDOWS
+        if (identity.failed())
+        {
+            juce::Logger::writeToLog (identity.getErrorMessage());
+            mainWindow->showStatus (identity.getErrorMessage(), true);
+        }
+       #endif
     }
 
     void shutdown() override

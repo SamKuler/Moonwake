@@ -29,6 +29,7 @@ Moonwake 是一款面向 macOS 的多声道音乐播放器与效果器宿主。�
 - 读取嵌入式或同目录封面并保存为受限尺寸的本地缓存；曲库、歌单、收藏、队列、所选集合、歌曲搜索条件、播放偏好和工作区变更会自动原子保存。
 - macOS 单实例运行；再次打开 Moonwake 或向其传入音乐文件时会唤回现有窗口。
 - 在 macOS 控制中心发布当前作品、艺术家、专辑、封面、进度与队列位置，并响应键盘和耳机的播放、暂停、切歌及进度跳转命令。
+- 在 Windows 系统媒体面板发布作品、艺术家、专辑、封面与进度，并通过 SMTC 接收播放、暂停、上一首、下一首及进度跳转命令。
 - 保存当前作品的播放位置；重新启动后恢复到该位置并保持暂停。播放期间自动保存使用缓存的插件状态，暂停或正常退出时补存最新插件参数，避免捕获插件状态打断音频。
 - 旧会话自动迁移为曲库、播放队列和 Imported queue 歌单，保留条目身份、顺序、循环／随机偏好和播放位置。
 - 在后台读取保存的曲库与队列、重验证元数据和封面；恢复期间接收的导入与媒体键命令会在完成后执行。
@@ -86,9 +87,9 @@ macOS 默认配置会对本地构建的应用包及其内嵌扫描器 helper 执
 
 ### Windows 适配
 
-macOS 是优先验证平台。Windows 已加入平台格式选择、扫描 helper 部署和文件读取适配，仍需完成 Windows 编译、设备播放及真实 VST3 插件验证。
+macOS 是优先验证平台。Windows 已加入平台格式选择、扫描 helper 部署、文件读取及系统媒体控制适配。设备播放和第三方 VST3 插件兼容性仍需在目标机器上验证。
 
-在安装 Visual Studio 2022 的“使用 C++ 的桌面开发”组件和 Windows SDK 后，可使用 PowerShell 构建 x64 版本：
+在安装 Visual Studio 2022 的“使用 C++ 的桌面开发”组件和 Windows 10/11 SDK（含 C++/WinRT 头文件）后，可使用 PowerShell 构建 x64 版本：
 
 ```powershell
 git submodule update --init --recursive
@@ -104,7 +105,19 @@ ctest --test-dir build-windows -C Debug --output-on-failure
 
 Windows 使用 VST3；Audio Unit 只在 macOS 注册，Windows 的 AU 开关不可用，扫描范围中不提供 AU。默认扫描目录由 JUCE 提供，包含 `%LOCALAPPDATA%\Programs\Common\VST3` 和当前进程对应的 `%ProgramFiles%\Common Files\VST3`；其他位置可在 Settings → Plug-ins 添加。已有缓存中的不支持格式保留为不可用记录。
 
-Windows 构建沿用 JUCE 的默认音频后端配置，包括 WASAPI；当前未启用 ASIO。Windows 的音频设备、驱动缓冲和多声道输出能力需要在目标设备上验证，macOS 的控制中心媒体集成不适用于 Windows。
+Windows 构建沿用 JUCE 的默认音频后端配置，包括 WASAPI；当前未启用 ASIO。Windows 的音频设备、驱动缓冲和多声道输出能力需要在目标设备上验证。
+
+Windows 系统媒体控制使用 [SMTC 的桌面窗口接口](https://learn.microsoft.com/en-us/windows/win32/api/systemmediatransportcontrolsinterop/nf-systemmediatransportcontrolsinterop-isystemmediatransportcontrolsinterop-getforwindow)，绑定主窗口并沿用现有播放控制器；无需额外播放器或 MSIX 打包。曲目信息、播放状态和进度会同步到系统媒体面板，媒体键命令通过消息线程执行；清空队列、窗口重建和退出会清理对应会话。系统接口失败会在应用状态提示中显示，并重试发布。封面读取失败不影响媒体控制。
+
+Windows 启动时会在主窗口创建前设置应用身份 `com.samkuler.moonwake`，并在当前用户的开始菜单 Programs 目录下维护 `Moonwake/Moonwake.lnk`，让直接运行构建产物时的系统媒体面板也能解析名称 Moonwake。快捷方式指向最近启动的可执行文件；身份和路径未变时不会重复写入，不需要管理员权限。注册失败会显示提示，不影响播放器启动。卸载便携构建时可一并删除该快捷方式。应用身份与快捷方式使用相同的 [AppUserModelID](https://learn.microsoft.com/en-us/windows/win32/shell/appids)。
+
+`Windows now playing bridge` 集成测试需要可用的 Windows 桌面媒体会话服务，会创建独立测试身份、临时开始菜单快捷方式、测试窗口和临时封面，验证系统名称解析、真实 SMTC 身份、元数据、时间轴、命令回传和清理；结束时删除临时快捷方式。可单独运行：
+
+```powershell
+& .\build-windows\Debug\MoonwakeTests.exe --filter "Windows now playing bridge"
+```
+
+手动验收时播放两首带封面的曲目，在系统媒体面板检查标题、艺术家、专辑与播放状态，并测试媒体键的播放／暂停、上一首／下一首；在系统提供进度拖动控件时验证跳转。再检查无封面曲目、空队列、最小化、Studio / Listening 切换和退出后的会话清理。
 
 ## 开发第三方皮肤
 

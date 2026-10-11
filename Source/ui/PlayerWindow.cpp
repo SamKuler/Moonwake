@@ -48,6 +48,11 @@ void PlayerWindow::closeButtonPressed()
     if (auto* application = juce::JUCEApplication::getInstance()) application->systemRequestedQuit();
 }
 
+void PlayerWindow::showStatus (const juce::String& message, bool isError)
+{
+    if (content) content->showStatus (message, isError);
+}
+
 void PlayerWindow::rememberNormalBounds()
 {
     if (content && ! changing && ! fullScreenTransitioning && ! enteringFullScreen && ! pendingWindowed

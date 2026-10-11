@@ -49,6 +49,13 @@ public:
     virtual void setCommandHandler (CommandHandler) = 0;
     virtual void publish (const NowPlayingSnapshot&) = 0;
     virtual void clear() = 0;
+    // Desktop backends may need the application's top-level native window.
+    // Called on the message thread; nullptr detaches the window.
+    virtual void setNativeWindowHandle (void*) {}
+    [[nodiscard]] virtual juce::String getLastError() const { return {}; }
+    // Optional periodic timeline publication while playing. Zero keeps the
+    // default change/drift-driven behavior; each platform chooses its interval.
+    [[nodiscard]] virtual double getTimelineRefreshIntervalSeconds() const noexcept { return 0.0; }
 };
 
 [[nodiscard]] std::unique_ptr<NowPlayingBridge> createSystemNowPlayingBridge();

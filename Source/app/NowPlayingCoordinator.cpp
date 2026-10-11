@@ -53,12 +53,29 @@ void NowPlayingCoordinator::update (const PlayerViewState& state,
 
     const auto snapshot = project (state, acceptDeferredCommands);
     monotonicSeconds = finiteNonNegative (monotonicSeconds);
-    if (! shouldPublish (snapshot, monotonicSeconds))
+    const auto retryFailedPublication = bridge->getLastError().isNotEmpty()
+        && monotonicSeconds - lastPublishedAt >= 5.0;
+    if (! retryFailedPublication && ! shouldPublish (snapshot, monotonicSeconds))
         return;
 
     bridge->publish (snapshot);
     lastPublished = snapshot;
     lastPublishedAt = monotonicSeconds;
+}
+
+void NowPlayingCoordinator::setNativeWindowHandle (void* handle)
+{
+    if (nativeWindowHandle == handle)
+        return;
+    nativeWindowHandle = handle;
+    if (bridge != nullptr)
+        bridge->setNativeWindowHandle (handle);
+    lastPublished.reset();
+}
+
+juce::String NowPlayingCoordinator::getLastError() const
+{
+    return bridge != nullptr ? bridge->getLastError() : juce::String{};
 }
 
 void NowPlayingCoordinator::clear()
@@ -117,5 +134,8 @@ bool NowPlayingCoordinator::shouldPublish (
         0.0, monotonicSeconds - lastPublishedAt);
     const auto systemPosition = lastPublished->elapsedSeconds
                               + elapsedSincePublication;
-    return std::abs (snapshot.elapsedSeconds - systemPosition) >= 1.0;
+    const auto refreshInterval = bridge->getTimelineRefreshIntervalSeconds();
+    return (std::isfinite (refreshInterval) && refreshInterval > 0.0
+            && elapsedSincePublication >= refreshInterval)
+        || std::abs (snapshot.elapsedSeconds - systemPosition) >= 1.0;
 }

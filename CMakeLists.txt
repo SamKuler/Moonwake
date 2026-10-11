@@ -10,6 +10,8 @@ if (APPLE)
     set_source_files_properties(Source/app/MacNowPlayingBridge.mm Source/ui/PlayerWindowMac.mm
         PROPERTIES COMPILE_FLAGS "-fobjc-arc"
     )
+elseif (WIN32)
+    set(MOONWAKE_NOW_PLAYING_SOURCE Source/app/WindowsNowPlayingBridge.cpp)
 else()
     set(MOONWAKE_NOW_PLAYING_SOURCE Source/app/NullNowPlayingBridge.cpp)
 endif()
@@ -584,6 +586,16 @@ target_link_libraries(MoonwakeTests
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
 )
+
+if (WIN32)
+    # C++/WinRT and the desktop SMTC interop are provided by the Windows SDK.
+    target_link_libraries(Moonwake PRIVATE windowsapp shcore propsys)
+    target_link_libraries(MoonwakeTests PRIVATE windowsapp shcore propsys)
+    target_sources(Moonwake PRIVATE Source/app/WindowsApplicationIdentity.cpp)
+    target_sources(MoonwakeTests PRIVATE
+        Source/app/WindowsApplicationIdentity.cpp
+        Tests/WindowsNowPlayingBridgeTests.cpp)
+endif()
 
 if (APPLE)
     # Native popup menus require an application bundle and an active GUI host.

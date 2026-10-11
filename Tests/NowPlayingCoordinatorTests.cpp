@@ -24,6 +24,14 @@ public:
         current.reset();
     }
 
+    void setNativeWindowHandle (void* handle) override
+    {
+        windowHandles.push_back (handle);
+    }
+
+    juce::String getLastError() const override { return error; }
+    double getTimelineRefreshIntervalSeconds() const noexcept override { return refreshIntervalSeconds; }
+
     bool emit (RemoteTransportCommand command)
     {
         if (! current || ! handler) return false;
@@ -49,6 +57,9 @@ public:
     std::vector<NowPlayingSnapshot> publications;
     std::optional<NowPlayingSnapshot> current;
     int clearCount = 0;
+    std::vector<void*> windowHandles;
+    juce::String error;
+    double refreshIntervalSeconds = 0.0;
 };
 
 PlayerViewState selectedState()
@@ -80,7 +91,7 @@ public:
     void runTest() override
     {
        #if ! JUCE_MAC
-        beginTest ("system bridge factory links and supports platforms without native media controls");
+        beginTest ("system bridge factory supports publication before a native window exists");
         {
             auto bridge = createSystemNowPlayingBridge();
             expect (bridge != nullptr);
@@ -224,11 +235,18 @@ public:
             coordinator.update (state, 101.0);
             expectEquals (static_cast<int> (fake->publications.size()), 1);
 
-            state.positionSeconds = 20.0;
-            coordinator.update (state, 102.0);
+            // Backends such as macOS retain extrapolation even beyond the
+            // Windows refresh interval, unless the position actually drifts.
+            expectEquals (fake->NowPlayingBridge::getTimelineRefreshIntervalSeconds(), 0.0);
+            state.positionSeconds = 22.5;
+            coordinator.update (state, 110.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 1);
+
+            state.positionSeconds = 40.0;
+            coordinator.update (state, 111.0);
             expectEquals (static_cast<int> (fake->publications.size()), 2);
             expectWithinAbsoluteError (fake->publications.back().elapsedSeconds,
-                                       20.0, 0.001);
+                                       40.0, 0.001);
         }
 
         beginTest ("forwards typed remote commands and resets publication state");
@@ -252,6 +270,86 @@ public:
             coordinator.update (selectedState(), 2.0);
             expectEquals (fake->clearCount, 1);
             expectEquals (static_cast<int> (fake->publications.size()), 2);
+        }
+
+        beginTest ("refreshes the playing timeline at the interval requested by the bridge");
+        for (const auto interval : { 2.0, 5.0 })
+        {
+            auto bridge = std::make_unique<FakeNowPlayingBridge>();
+            auto* fake = bridge.get();
+            fake->refreshIntervalSeconds = interval;
+            NowPlayingCoordinator coordinator (std::move (bridge));
+            auto state = selectedState();
+            state.isPlaying = true;
+            coordinator.update (state, 100.0);
+            state.positionSeconds += interval - 0.1;
+            coordinator.update (state, 100.0 + interval - 0.1);
+            expectEquals (static_cast<int> (fake->publications.size()), 1);
+            state.positionSeconds += 0.1;
+            coordinator.update (state, 100.0 + interval);
+            expectEquals (static_cast<int> (fake->publications.size()), 2);
+
+            state.positionSeconds += interval;
+            coordinator.update (state, 100.0 + 2.0 * interval);
+            expectEquals (static_cast<int> (fake->publications.size()), 3);
+        }
+
+        beginTest ("periodic refresh does not republish unchanged paused or empty sessions");
+        {
+            auto bridge = std::make_unique<FakeNowPlayingBridge>();
+            auto* fake = bridge.get();
+            fake->refreshIntervalSeconds = 5.0;
+            NowPlayingCoordinator coordinator (std::move (bridge));
+            auto state = selectedState();
+            coordinator.update (state, 100.0);
+            coordinator.update (state, 110.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 1);
+            state.positionSeconds += 1.0;
+            coordinator.update (state, 111.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 2);
+            coordinator.update ({}, 112.0);
+            coordinator.update ({}, 122.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 3);
+        }
+
+        beginTest ("republishes paused metadata after attaching or replacing the native window");
+        {
+            auto bridge = std::make_unique<FakeNowPlayingBridge>();
+            auto* fake = bridge.get();
+            NowPlayingCoordinator coordinator (std::move (bridge));
+            int firstWindow = 0, secondWindow = 0;
+            const auto state = selectedState();
+            coordinator.update (state, 1.0);
+            coordinator.setNativeWindowHandle (&firstWindow);
+            coordinator.update (state, 2.0);
+            coordinator.setNativeWindowHandle (&firstWindow);
+            coordinator.update (state, 3.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 2);
+            expectEquals (static_cast<int> (fake->windowHandles.size()), 1);
+            coordinator.setNativeWindowHandle (&secondWindow);
+            coordinator.update (state, 4.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 3);
+            coordinator.setNativeWindowHandle (nullptr);
+            expect (fake->windowHandles.back() == nullptr);
+        }
+
+        beginTest ("exposes media errors and retries paused publication at a bounded rate");
+        {
+            auto bridge = std::make_unique<FakeNowPlayingBridge>();
+            auto* fake = bridge.get();
+            NowPlayingCoordinator coordinator (std::move (bridge));
+            fake->error = "System media service unavailable";
+            const auto state = selectedState();
+            coordinator.update (state, 10.0);
+            expectEquals (coordinator.getLastError(), fake->error);
+            coordinator.update (state, 14.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 1);
+            coordinator.update (state, 15.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 2);
+            fake->error.clear();
+            coordinator.update (state, 20.0);
+            expectEquals (static_cast<int> (fake->publications.size()), 2);
+            expect (coordinator.getLastError().isEmpty());
         }
     }
 };

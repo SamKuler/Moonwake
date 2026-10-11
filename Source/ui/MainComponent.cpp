@@ -2487,9 +2487,17 @@ void MainComponent::updateTransportState()
 {
     if (queueViewVersion != controller.getPlaybackQueueVersion()) refreshPlaylist();
     const auto state = controller.getViewState();
+    const auto* peer = getTopLevelComponent()->getPeer();
+    nowPlayingCoordinator.setNativeWindowHandle (peer != nullptr ? peer->getNativeHandle() : nullptr);
     nowPlayingCoordinator.update (
         state, juce::Time::getMillisecondCounterHiRes() / 1000.0,
         shouldDeferTransportCommands());
+    const auto mediaError = nowPlayingCoordinator.getLastError();
+    if (mediaError != lastNowPlayingError)
+    {
+        lastNowPlayingError = mediaError;
+        if (mediaError.isNotEmpty()) showStatus (mediaError, true);
+    }
 
     if (! seekGestureInProgress)
         seekSlider.setValue (state.seekRatio, juce::dontSendNotification);
