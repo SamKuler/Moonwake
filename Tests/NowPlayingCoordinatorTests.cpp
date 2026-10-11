@@ -79,6 +79,28 @@ public:
 
     void runTest() override
     {
+       #if ! JUCE_MAC
+        beginTest ("system bridge factory links and supports platforms without native media controls");
+        {
+            auto bridge = createSystemNowPlayingBridge();
+            expect (bridge != nullptr);
+            if (bridge)
+            {
+                int remoteCommands = 0;
+                NowPlayingCoordinator coordinator (std::move (bridge));
+                coordinator.setCommandHandler ([&] (const auto&) { ++remoteCommands; });
+                auto state = selectedState();
+                coordinator.update (state, 10.0);
+                state.isPlaying = true;
+                coordinator.update (state, 11.0);
+                coordinator.clear();
+                coordinator.update (state, 12.0);
+                coordinator.setCommandHandler ({});
+                expectEquals (remoteCommands, 0);
+            }
+        }
+       #endif
+
         beginTest ("projects selected-track metadata and command capabilities");
         {
             auto bridge = std::make_unique<FakeNowPlayingBridge>();

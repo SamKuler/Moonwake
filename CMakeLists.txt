@@ -5,10 +5,13 @@ project(Moonwake VERSION 0.10.0 LANGUAGES C CXX)
 if (APPLE)
     enable_language(OBJCXX)
     set(MOONWAKE_MAC_SOURCES Source/audio/MacEmbeddedArtworkReader.mm)
-    set(MOONWAKE_MAC_APP_SOURCES Source/app/MacNowPlayingBridge.mm Source/ui/PlayerWindowMac.mm)
+    set(MOONWAKE_NOW_PLAYING_SOURCE Source/app/MacNowPlayingBridge.mm)
+    set(MOONWAKE_MAC_APP_SOURCES Source/ui/PlayerWindowMac.mm)
     set_source_files_properties(Source/app/MacNowPlayingBridge.mm Source/ui/PlayerWindowMac.mm
         PROPERTIES COMPILE_FLAGS "-fobjc-arc"
     )
+else()
+    set(MOONWAKE_NOW_PLAYING_SOURCE Source/app/NullNowPlayingBridge.cpp)
 endif()
 
 enable_testing()
@@ -149,6 +152,7 @@ target_link_libraries(MoonwakeHostingFixture
 
 set(MOONWAKE_SOURCES
     ${MOONWAKE_MAC_SOURCES}
+    ${MOONWAKE_NOW_PLAYING_SOURCE}
     Source/app/ProductPaths.cpp
     Source/app/PlaybackCoordinator.cpp
     Source/app/PlaybackCheckpoint.cpp
@@ -366,6 +370,7 @@ endif()
 
 add_executable(MoonwakeTests
         ${MOONWAKE_MAC_SOURCES}
+        ${MOONWAKE_NOW_PLAYING_SOURCE}
         Source/app/ProductPaths.cpp
         Source/app/PlaybackCoordinator.cpp
         Source/app/PlaybackCheckpoint.cpp
@@ -592,6 +597,7 @@ if (APPLE)
         "-framework AudioToolbox"
         "-framework AVFoundation"
         "-framework CoreAudioKit"
+        "-framework MediaPlayer"
     )
 endif()
 
