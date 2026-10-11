@@ -10,3 +10,7 @@
 // ID3v2.3/2.4 USLT and FLAC/Ogg Vorbis LYRICS or UNSYNCEDLYRICS.
 // Uses the same bounded container traversal as artist extraction; no file writes.
 [[nodiscard]] juce::String readTrackLyricsTag (const juce::File&);
+
+// Bounded title, album, album artist, genre, date, track and disc tags for decoders
+// that expose only audio stream information. Native metadata keeps precedence.
+[[nodiscard]] juce::StringPairArray readTrackMetadataTags (const juce::File&);

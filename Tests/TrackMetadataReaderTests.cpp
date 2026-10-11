@@ -29,6 +29,24 @@ public:
 
     void runTest() override
     {
+        beginTest ("ID3 album text keeps punctuation and Unicode across supported encodings");
+        {
+            const auto file = getMetadataTestDirectory().getNonexistentChildFile ("album-tags", ".tag");
+            for (const auto version : { 3, 4 })
+                for (int encoding = 0; encoding <= (version == 3 ? 1 : 3); ++encoding)
+                {
+                    const auto album = encoding == 0 ? juce::String ("Night / Live") : juce::String::fromUTF8 ("夜航 / Live");
+                    auto tag = trackMetadataFixtures::id3 (version, encoding, { album });
+                    std::memcpy (static_cast<unsigned char*> (tag.getData()) + 10, "TALB", 4);
+                    expect (file.replaceWithData (tag.getData(), tag.getSize()));
+                    expectEquals (readTrackMetadataTags (file)["album"], album);
+                    tag.setSize (tag.getSize() - 1);
+                    expect (file.replaceWithData (tag.getData(), tag.getSize()));
+                    expectEquals (readTrackMetadataTags (file).size(), 0);
+                }
+            expect (file.deleteFile());
+        }
+
         beginTest ("ID3v2.3 collaboration is indexed for each artist and legacy restore updates every occurrence");
         {
             const auto file = getMetadataTestDirectory().getNonexistentChildFile ("collaboration", ".mp3");
@@ -224,16 +242,32 @@ public:
                     expect (writer->writeFromAudioSampleBuffer (samples, 0, samples.getNumSamples()));
                     writer.reset();
                     const juce::StringArray artists { "AC/DC", "Earth, Wind & Fire", juce::String::fromUTF8 ("NÉONHÈART") };
-                    expect (trackMetadataFixtures::replaceVorbisArtists (file, flac, artists));
+                    juce::StringPairArray tags;
+                    tags.set ("TITLE", "Song / Part One");
+                    tags.set ("ALBUM", juce::String::fromUTF8 ("夜航 / Live"));
+                    tags.set ("ALBUM_ARTIST", "Various Artists");
+                    tags.set ("DATE", "2026-10-11");
+                    tags.set ("TRACKNUMBER", "4/12");
+                    tags.set ("DISCNUMBER", "2/3");
+                    expect (trackMetadataFixtures::replaceVorbisArtists (file, flac, artists, tags));
                     TrackMetadataReader reader;
                     const auto read = reader.read (file, false);
                     expect (read.ok, read.error);
+                    expectEquals (read.track.title, juce::String ("Song / Part One"));
+                    expectEquals (read.track.album, juce::String::fromUTF8 ("夜航 / Live"));
+                    expectEquals (read.track.albumArtist, juce::String ("Various Artists"));
+                    expectEquals (read.track.year, 2026);
+                    expectEquals (read.track.trackNumber, 4);
+                    expectEquals (read.track.discNumber, 2);
                     expect (read.track.artists == artists, flac ? "FLAC" : "Ogg Vorbis");
                     expectWithinAbsoluteError (read.track.durationSeconds, 0.1, 0.001);
                     MusicLibrary library;
                     library.upsertTrack (read.track);
                     const auto cards = libraryCollectionSummaries (library, "artists");
                     expectEquals (static_cast<int> (cards.size()), 3);
+                    const auto albums = libraryCollectionSummaries (library, "albums");
+                    expectEquals (static_cast<int> (albums.size()), 1);
+                    if (! albums.empty()) expectEquals (albums.front().name, read.track.album);
                 }
                 expect (file.deleteFile());
             }
@@ -407,8 +441,7 @@ public:
             expect (result.error.containsIgnoreCase ("not found"));
         }
 
-#if JUCE_MAC
-        beginTest ("reads real ID3 tags and embedded MP3 artwork on macOS");
+        beginTest ("reads real ID3 tags and embedded MP3 artwork on every platform");
         {
             const auto mp3File = getMetadataTestDirectory()
                                      .getNonexistentChildFile ("tagged-with-artwork", ".mp3");
@@ -421,6 +454,8 @@ public:
             expectEquals (result.track.title, juce::String ("Dawn Current"));
             expectEquals (result.track.artist, juce::String ("Sam Kuler"));
             expectEquals (result.track.album, juce::String ("Natural Works"));
+            expectEquals (result.track.albumArtist, juce::String ("Moonwake Ensemble"));
+            expectEquals (result.track.discNumber, 2);
             expectEquals (result.track.genre, juce::String ("Ambient"));
             expectEquals (result.track.year, 2026);
             expectEquals (result.track.trackNumber, 4);
@@ -428,7 +463,6 @@ public:
 
             expect (mp3File.deleteFile());
         }
-#endif
     }
 };
 

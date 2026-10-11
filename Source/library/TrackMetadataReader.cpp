@@ -245,7 +245,25 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
         result.track.bitDepth = macMetadata.sourceBitDepth;
 #endif
 
+    // Some decoders omit tags or interpret UTF-8 comments as local text. Prefer
+    // validated container tags, while retaining macOS native metadata precedence.
     applyMetadata (result.track, metadata);
+#if JUCE_MAC
+    const auto preferTaggedMetadata = macMetadata.values.size() == 0;
+#else
+    constexpr auto preferTaggedMetadata = true;
+#endif
+    auto fallbackTrack = result.track;
+    fallbackTrack.title.clear();
+    applyMetadata (fallbackTrack, readTrackMetadataTags (file));
+    if ((preferTaggedMetadata || valueForAliases (metadata, { "title", "id3title", "songname", "inam", "kAFInfoDictionary_Title" }).isEmpty())
+        && fallbackTrack.title.isNotEmpty()) result.track.title = fallbackTrack.title;
+    if (preferTaggedMetadata || result.track.album.isEmpty()) result.track.album = fallbackTrack.album;
+    if (preferTaggedMetadata || result.track.albumArtist.isEmpty()) result.track.albumArtist = fallbackTrack.albumArtist;
+    if (preferTaggedMetadata || result.track.genre.isEmpty()) result.track.genre = fallbackTrack.genre;
+    if ((preferTaggedMetadata || result.track.year == 0) && fallbackTrack.year > 0) result.track.year = fallbackTrack.year;
+    if ((preferTaggedMetadata || result.track.trackNumber == 0) && fallbackTrack.trackNumber > 0) result.track.trackNumber = fallbackTrack.trackNumber;
+    if ((preferTaggedMetadata || result.track.discNumber == 0) && fallbackTrack.discNumber > 0) result.track.discNumber = fallbackTrack.discNumber;
     auto artists = readTrackArtistTags (file);
 #if JUCE_MAC
     if (artists.isEmpty()) artists = macMetadata.artists;

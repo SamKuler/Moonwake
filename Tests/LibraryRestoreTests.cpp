@@ -5,6 +5,8 @@
 #include "library/LibraryRestore.h"
 #include "library/MusicDirectoryScanService.h"
 #include "fixtures/TrackMetadataFixtures.h"
+#include "fixtures/FlacArtwork.h"
+#include "library/LibraryProjection.h"
 
 namespace
 {
@@ -86,6 +88,30 @@ public:
 
     void runTest() override
     {
+        beginTest ("restoring unchanged FLAC tracks backfills missing artwork for artist collections");
+        {
+            RestoreDirectory directory;
+            const auto audio = directory.root.getChildFile ("saved.flac");
+            const auto image = restoreArtwork();
+            expect (flacArtworkFixture::write (audio, { flacArtworkFixture::picture (image) }));
+            auto metadata = TrackMetadataReader().read (audio, false);
+            expect (metadata.ok, metadata.error);
+            metadata.track.artist = "Saved artist";
+            MusicLibrary library;
+            const auto id = library.upsertTrack (metadata.track);
+            PlaylistModel queue;
+            const auto cache = directory.root.getChildFile ("cache");
+            juce::StringArray warnings;
+            expect (prepareLibraryRestore (library, queue, cache, nullptr, warnings));
+            expect (warnings.isEmpty(), warnings.joinIntoString (" "));
+            expect (ArtworkStore (cache).isValid (library.getTrack (id)->artworkCacheKey));
+            const auto summary = libraryCollectionSummary (library, queue, "artist:Saved artist");
+            expectEquals (summary.trackCount, 1);
+            expectEquals (summary.artworkKeys.size(), 1);
+            if (! summary.artworkKeys.isEmpty())
+                expect (ArtworkStore (cache).isValid (summary.artworkKeys[0]));
+        }
+
         beginTest ("changed sources replace removed tags and artwork before scans skip current file stamps");
         {
             RestoreDirectory directory;

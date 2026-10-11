@@ -107,14 +107,20 @@ inline bool writeMp3 (const juce::File& file, int version, int encoding,
     return file.replaceWithData (output.getData(), output.getSize());
 }
 
-inline juce::MemoryBlock vorbisComments (const juce::StringArray& artists)
+inline juce::MemoryBlock vorbisComments (const juce::StringArray& artists, const juce::StringPairArray& metadata = {})
 {
     juce::MemoryOutputStream output;
     output.writeInt (0);
-    output.writeInt (artists.size());
+    output.writeInt (artists.size() + metadata.size());
     for (const auto& artist : artists)
     {
         const auto comment = "ARTIST=" + artist;
+        output.writeInt (static_cast<int> (comment.getNumBytesAsUTF8()));
+        output.write (comment.toRawUTF8(), comment.getNumBytesAsUTF8());
+    }
+    for (int index = 0; index < metadata.size(); ++index)
+    {
+        const auto comment = metadata.getAllKeys()[index] + "=" + metadata.getAllValues()[index];
         output.writeInt (static_cast<int> (comment.getNumBytesAsUTF8()));
         output.write (comment.toRawUTF8(), comment.getNumBytesAsUTF8());
     }
@@ -139,12 +145,13 @@ inline juce::MemoryBlock oggPage (const juce::MemoryBlock& packet, int sequence,
     return output.getMemoryBlock();
 }
 
-inline bool replaceVorbisArtists (const juce::File& file, bool flac, const juce::StringArray& artists)
+inline bool replaceVorbisArtists (const juce::File& file, bool flac, const juce::StringArray& artists,
+                                   const juce::StringPairArray& metadata = {})
 {
     juce::MemoryBlock original;
     if (! file.loadFileAsData (original)) return false;
     const auto* data = static_cast<const unsigned char*> (original.getData());
-    const auto comments = vorbisComments (artists);
+    const auto comments = vorbisComments (artists, metadata);
     juce::MemoryOutputStream output;
     if (flac)
     {

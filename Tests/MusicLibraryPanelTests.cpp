@@ -1,5 +1,6 @@
 #include "fixtures/TestComponentPeer.h"
 #include "fixtures/NativeTestWindow.h"
+#include "fixtures/FlacArtwork.h"
 #include "ui/MusicLibraryPanel.h"
 #include "ui/SkinEffectChainViewport.h"
 #include "ui/SkinInputScope.h"
@@ -7,6 +8,7 @@
 #include "skin/SkinCompiler.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 
 namespace
@@ -279,6 +281,56 @@ public:
         {
             root.deleteRecursively();
             return;
+        }
+
+        beginTest ("artist details render embedded FLAC covers and clear them for artists without artwork");
+        {
+            auto withArtwork = prepared;
+            const std::array<juce::Colour, 3> colours { juce::Colours::red, juce::Colours::green, juce::Colours::blue };
+            for (size_t index = 0; index < withArtwork.size(); ++index)
+            {
+                juce::Image image (juce::Image::ARGB, 32, 32, true);
+                { juce::Graphics graphics (image); graphics.fillAll (colours[index]); }
+                juce::MemoryOutputStream encoded;
+                expect (juce::PNGImageFormat().writeImageToStream (image, encoded));
+                const auto audio = root.getChildFile ("cover-" + juce::String (static_cast<int> (index)) + ".flac");
+                expect (flacArtworkFixture::write (audio, { flacArtworkFixture::picture (encoded.getMemoryBlock()) }));
+                withArtwork[index] = TrackMetadataReader().read (audio);
+                expect (withArtwork[index].ok, withArtwork[index].error);
+                withArtwork[index].track.artist = index == 0 ? "Single cover" : "Two covers";
+            }
+            auto withoutArtwork = prepared.front();
+            withoutArtwork.track.artist = "No cover";
+            withArtwork.push_back (withoutArtwork);
+            LibraryPanelFixture fixture (skin, root, withArtwork);
+            auto* cover = fixture.bindings.find ("library.detailCover");
+            cover->setBounds (0, 0, 120, 120);
+            const auto snapshot = [&]
+            {
+                juce::Image image (juce::Image::ARGB, 120, 120, true);
+                { juce::Graphics graphics (image); cover->paintEntireComponent (graphics, true); }
+                return image;
+            };
+            for (const auto* style : { "artwork.listeningCollection", "artwork.studioCollection" })
+            {
+                cover->getProperties().set (JuceSkinAdapter::styleProperty, style);
+                // Navigation initially hides the hero; layout places it before updateNavigation.
+                cover->setVisible (false);
+                fixture.panel.selectCollection ("artist:Single cover");
+                cover->setVisible (true);
+                fixture.panel.updateNavigation (true);
+                expect (LibraryPanelFixture::waitUntil ([&] { return snapshot().getPixelAt (60, 60) == colours[0]; }));
+                fixture.panel.selectCollection ("artist:Two covers");
+                expect (LibraryPanelFixture::waitUntil ([&]
+                {
+                    const auto image = snapshot();
+                    return image.getPixelAt (30, 30) == colours[1] && image.getPixelAt (90, 30) == colours[2]
+                        && image.getPixelAt (30, 90) == colours[1] && image.getPixelAt (90, 90) == colours[2];
+                }));
+                fixture.panel.selectCollection ("artist:No cover");
+                expect (snapshot().getPixelAt (60, 60) != colours[0]);
+                expect (snapshot().getPixelAt (30, 30) != colours[1]);
+            }
         }
 
         beginTest ("consumed arrow and text keys restore focus feedback after mouse input");

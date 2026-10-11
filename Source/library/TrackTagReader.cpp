@@ -11,7 +11,26 @@ using Bytes = std::span<const unsigned char>;
 constexpr size_t maximumTagBytes = 16 * 1024 * 1024;
 constexpr size_t maximumCommentBytes = 1024 * 1024;
 constexpr size_t maximumTextBytes = 64 * 1024;
-enum class TagField { artist, lyrics };
+enum class TagField { artist, lyrics, metadata };
+
+juce::String id3MetadataKey (Bytes frame)
+{
+    if (std::memcmp (frame.data(), "TIT2", 4) == 0) return "title";
+    if (std::memcmp (frame.data(), "TALB", 4) == 0) return "album";
+    if (std::memcmp (frame.data(), "TPE2", 4) == 0) return "albumartist";
+    if (std::memcmp (frame.data(), "TCON", 4) == 0) return "genre";
+    if (std::memcmp (frame.data(), "TDRC", 4) == 0) return "date";
+    if (std::memcmp (frame.data(), "TYER", 4) == 0) return "year";
+    if (std::memcmp (frame.data(), "TRCK", 4) == 0) return "tracknumber";
+    if (std::memcmp (frame.data(), "TPOS", 4) == 0) return "discnumber";
+    return {};
+}
+
+bool isMetadataKey (const juce::String& key)
+{
+    return key == "title" || key == "album" || key == "albumartist" || key == "genre"
+        || key == "date" || key == "year" || key == "tracknumber" || key == "discnumber";
+}
 
 bool startsWith (Bytes bytes, const char* prefix, size_t length)
 {
@@ -60,7 +79,7 @@ std::vector<unsigned char> removeUnsynchronisation (Bytes bytes)
 
 juce::StringArray id3Text (Bytes bytes, int version, TagField field)
 {
-    if (bytes.empty() || bytes.size() > (field == TagField::artist ? maximumTextBytes : maximumCommentBytes)) return {};
+    if (bytes.empty() || bytes.size() > (field == TagField::lyrics ? maximumCommentBytes : maximumTextBytes)) return {};
     const auto encoding = bytes.front();
     if (encoding > (version == 3 ? 1 : 3)) return {};
     bytes = bytes.subspan (1);
@@ -124,7 +143,7 @@ juce::StringArray id3Text (Bytes bytes, int version, TagField field)
         }
         if (! units.empty() && ! appendValue()) return {};
     }
-    if (field == TagField::lyrics) return values;
+    if (field != TagField::artist) return values;
     juce::StringArray result;
     for (const auto& value : values)
     {
@@ -135,7 +154,7 @@ juce::StringArray id3Text (Bytes bytes, int version, TagField field)
     return result;
 }
 
-juce::StringArray readId3 (juce::InputStream& input, Bytes header, TagField field)
+juce::StringArray readId3 (juce::InputStream& input, Bytes header, TagField field, juce::StringPairArray* metadata = nullptr)
 {
     const auto version = header[3];
     if ((version != 3 && version != 4) || header[4] == 0xff
@@ -154,15 +173,18 @@ juce::StringArray readId3 (juce::InputStream& input, Bytes header, TagField fiel
         if (extended < (version == 3 ? 10u : 6u) || extended > frames.size()) return {};
         frames = frames.subspan (static_cast<size_t> (extended));
     }
+    juce::StringPairArray collected;
     while (frames.size() >= 10 && frames[0] != 0)
     {
         const auto frameSize = bigEndian (frames.subspan (4, 4), version == 4);
         if (frameSize == 0 || frameSize > frames.size() - 10) return {};
-        if (startsWith (frames, field == TagField::artist ? "TPE1" : "USLT", 4))
+        const auto metadataKey = field == TagField::metadata ? id3MetadataKey (frames) : juce::String {};
+        if (field == TagField::metadata ? metadataKey.isNotEmpty()
+                                       : startsWith (frames, field == TagField::artist ? "TPE1" : "USLT", 4))
         {
             const auto flags = frames[9];
             // Compressed or encrypted frames remain the decoder's responsibility.
-            if ((flags & (version == 3 ? 0xdf : 0xbc)) != 0 || frameSize > (field == TagField::artist ? maximumTextBytes : maximumCommentBytes)) return {};
+            if ((flags & (version == 3 ? 0xdf : 0xbc)) != 0 || frameSize > (field == TagField::lyrics ? maximumCommentBytes : maximumTextBytes)) return {};
             auto text = frames.subspan (10, frameSize);
             std::vector<unsigned char> decoded;
             if (version == 4 && ((header[5] & 0x80) != 0 || (flags & 0x02) != 0))
@@ -192,14 +214,18 @@ juce::StringArray readId3 (juce::InputStream& input, Bytes header, TagField fiel
                 value.insert (value.end(), text.begin() + static_cast<std::ptrdiff_t> (content), text.end());
                 return id3Text (value, version, field);
             }
-            return id3Text (text, version, field);
+            const auto values = id3Text (text, version, field);
+            if (field != TagField::metadata) return values;
+            if (! values.isEmpty() && values[0].trim().isNotEmpty() && ! collected.containsKey (metadataKey))
+                collected.set (metadataKey, values[0].trim());
         }
         frames = frames.subspan (10 + frameSize);
     }
+    if (metadata != nullptr) *metadata = std::move (collected);
     return {};
 }
 
-juce::StringArray vorbisComments (Bytes bytes, TagField field)
+juce::StringArray vorbisComments (Bytes bytes, TagField field, juce::StringPairArray* metadata = nullptr)
 {
     const auto readLength = [&bytes] (uint32_t& value)
     {
@@ -213,16 +239,24 @@ juce::StringArray vorbisComments (Bytes bytes, TagField field)
     bytes = bytes.subspan (vendorLength);
     if (! readLength (count) || count > bytes.size() / 4) return {};
     juce::StringArray result;
+    juce::StringPairArray collected;
     for (uint32_t index = 0; index < count; ++index)
     {
         uint32_t length = 0;
         if (! readLength (length) || length > bytes.size()) return {};
-        if (length <= (field == TagField::artist ? maximumTextBytes : maximumCommentBytes))
+        if (length <= (field == TagField::lyrics ? maximumCommentBytes : maximumTextBytes))
         {
             const auto* data = reinterpret_cast<const char*> (bytes.data());
             if (juce::CharPointer_UTF8::isValidString (data, static_cast<int> (length)))
             {
                 const auto comment = juce::String::fromUTF8 (data, static_cast<int> (length));
+                if (field == TagField::metadata)
+                {
+                    const auto separator = comment.indexOfChar ('=');
+                    const auto key = comment.substring (0, separator).toLowerCase().removeCharacters (" _-");
+                    if (separator > 0 && isMetadataKey (key) && ! collected.containsKey (key))
+                        collected.set (key, comment.substring (separator + 1).trim());
+                }
                 if (field == TagField::artist && comment.startsWithIgnoreCase ("ARTIST="))
                     addArtist (result, comment.substring (7));
                 if (field == TagField::lyrics && result.size() < 16)
@@ -234,10 +268,11 @@ juce::StringArray vorbisComments (Bytes bytes, TagField field)
         }
         bytes = bytes.subspan (length);
     }
+    if (metadata != nullptr) *metadata = std::move (collected);
     return result;
 }
 
-juce::StringArray readFlac (juce::InputStream& input, TagField field)
+juce::StringArray readFlac (juce::InputStream& input, TagField field, juce::StringPairArray* metadata = nullptr)
 {
     while (input.getPosition() + 4 <= static_cast<juce::int64> (maximumTagBytes))
     {
@@ -249,14 +284,14 @@ juce::StringArray readFlac (juce::InputStream& input, TagField field)
         {
             std::vector<unsigned char> comments;
             return size <= maximumCommentBytes && readBytes (input, size, comments)
-                ? vorbisComments (comments, field) : juce::StringArray {};
+                ? vorbisComments (comments, field, metadata) : juce::StringArray {};
         }
         if ((header[0] & 0x80) != 0 || ! input.setPosition (input.getPosition() + size)) return {};
     }
     return {};
 }
 
-juce::StringArray readOgg (juce::InputStream& input, TagField field)
+juce::StringArray readOgg (juce::InputStream& input, TagField field, juce::StringPairArray* metadata = nullptr)
 {
     std::vector<unsigned char> packet;
     uint32_t serial = 0, sequence = 0;
@@ -288,21 +323,21 @@ juce::StringArray readOgg (juce::InputStream& input, TagField field)
             ++completedPackets;
             if (completedPackets == 1 && ! startsWith (packet, "\1vorbis", 7)) return {};
             if (completedPackets == 2)
-                return startsWith (packet, "\3vorbis", 7) ? vorbisComments (Bytes (packet).subspan (7), field) : juce::StringArray {};
+                return startsWith (packet, "\3vorbis", 7) ? vorbisComments (Bytes (packet).subspan (7), field, metadata) : juce::StringArray {};
             packet.clear();
         }
     }
     return {};
 }
 
-juce::StringArray readTags (const juce::File& file, TagField field)
+juce::StringArray readTags (const juce::File& file, TagField field, juce::StringPairArray* metadata = nullptr)
 {
     juce::FileInputStream input (file);
     std::array<unsigned char, 10> header {};
     if (! input.openedOk() || input.read (header.data(), 10) != 10) return {};
-    if (startsWith (header, "ID3", 3)) return readId3 (input, header, field);
-    if (startsWith (header, "fLaC", 4) && input.setPosition (4)) return readFlac (input, field);
-    if (startsWith (header, "OggS", 4) && input.setPosition (0)) return readOgg (input, field);
+    if (startsWith (header, "ID3", 3)) return readId3 (input, header, field, metadata);
+    if (startsWith (header, "fLaC", 4) && input.setPosition (4)) return readFlac (input, field, metadata);
+    if (startsWith (header, "OggS", 4) && input.setPosition (0)) return readOgg (input, field, metadata);
     return {};
 }
 
@@ -318,4 +353,11 @@ juce::String readTrackLyricsTag (const juce::File& file)
     for (const auto& text : readTags (file, TagField::lyrics))
         if (text.trim().isNotEmpty()) return text;
     return {};
+}
+
+juce::StringPairArray readTrackMetadataTags (const juce::File& file)
+{
+    juce::StringPairArray result;
+    static_cast<void> (readTags (file, TagField::metadata, &result));
+    return result;
 }
