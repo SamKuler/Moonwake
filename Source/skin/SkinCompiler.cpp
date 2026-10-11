@@ -775,9 +775,9 @@ std::shared_ptr<const CompiledSkin> SkinCompiler::compile (
             const auto preferred = layout.preferredSize.value_or (juce::Point<float> (
                 std::clamp (480.0f, layout.base.common.minWidth, layout.base.common.maxWidth),
                 std::clamp (200.0f, layout.base.common.minHeight, layout.base.common.maxHeight)));
-            validationBounds.emplace_back (0, 0, preferred.x, preferred.y);
+            validationBounds.emplace_back (0.0f, 0.0f, preferred.x, preferred.y);
             if (layout.base.common.minWidth > 0 && layout.base.common.minHeight > 0)
-                validationBounds.emplace_back (0, 0, layout.base.common.minWidth, layout.base.common.minHeight);
+                validationBounds.emplace_back (0.0f, 0.0f, layout.base.common.minWidth, layout.base.common.minHeight);
         }
         for (const auto bounds : validationBounds)
             for (const auto workspace : { WorkspaceMode::studio, WorkspaceMode::listening })

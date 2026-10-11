@@ -143,6 +143,11 @@ public:
             descriptor = -1;
             return;
         }
+#else
+        interProcessLock = std::make_unique<juce::InterProcessLock> (
+            "Moonwake.SkinInstall." + juce::String::toHexString (
+                root.getFullPathName().toLowerCase().hashCode64()) + "." + skinId);
+        if (! interProcessLock->enter()) return;
 #endif
         locked = true;
     }
@@ -155,6 +160,8 @@ public:
             static_cast<void> (::flock (descriptor, LOCK_UN));
             ::close (descriptor);
         }
+#else
+        if (locked) interProcessLock->exit();
 #endif
     }
 
@@ -164,6 +171,8 @@ private:
     std::unique_lock<std::mutex> processLock;
 #if JUCE_MAC || JUCE_LINUX
     int descriptor = -1;
+#else
+    std::unique_ptr<juce::InterProcessLock> interProcessLock;
 #endif
     bool locked = false;
 };

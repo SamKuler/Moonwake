@@ -101,6 +101,9 @@ public:
         expect (! SkinPackage::isSafeRelativePath (juce::String::repeatedString ("a", 513)));
         expect (! SkinPackage::isSafeRelativePath (juce::String::repeatedString ("a", 256) + "/x"));
         expect (! SkinPackage::isSafeRelativePath (juce::String::fromUTF8 ("assets/e\xCC\x81.txt")));
+        expect (SkinPackage::isSafeRelativePath (juce::String::fromUTF8 (u8"assets/音乐 🎵 Café.txt")));
+        expect (! SkinPackage::isSafeRelativePath (juce::String::fromUTF8 (u8"assets/\u1100\u1161.txt")));
+        expect (SkinPackage::isSafeRelativePath (juce::String::fromUTF8 (u8"assets/가.txt")));
 
         beginTest ("embedded packages enforce collisions and resource budgets");
         {
@@ -120,17 +123,30 @@ public:
             expect (! SkinPackage::fromEmbedded ("not-nfc", std::move (files), report));
             expect (report.hasCode ("PKG005"));
         }
-#if JUCE_MAC
+        beginTest ("Unicode case folding rejects expanded and non-Latin collisions on every platform");
+        for (const auto& [firstPath, secondPath] : std::initializer_list<std::pair<juce::String, juce::String>> {
+                 { juce::String::fromUTF8 (u8"assets/Straße.txt"), "assets/STRASSE.txt" },
+                 { juce::String::fromUTF8 (u8"assets/ς.txt"), juce::String::fromUTF8 (u8"assets/σ.txt") },
+                 { juce::String::fromUTF8 (u8"assets/ﬃ.txt"), "assets/FFI.txt" } })
         {
             SkinValidationReport report;
             std::vector<SkinPackage::EmbeddedFile> files {
-                { juce::String::fromUTF8 ("assets/Stra\xC3\x9F" "e.txt"), {} },
-                { "assets/STRASSE.txt", {} }
+                { firstPath, {} }, { secondPath, {} }
             };
             expect (! SkinPackage::fromEmbedded ("unicode-fold", std::move (files), report));
             expect (report.hasCode ("PKG005"));
         }
-#endif
+        beginTest ("Unicode path folding preserves accents and punctuation");
+        {
+            SkinValidationReport report;
+            std::vector<SkinPackage::EmbeddedFile> files {
+                { "assets/cafe.txt", {} }, { juce::String::fromUTF8 (u8"assets/café.txt"), {} },
+                { "assets/x-y.txt", {} }, { "assets/xy.txt", {} }
+            };
+            expect (SkinPackage::fromEmbedded ("distinct-unicode", std::move (files), report).has_value(),
+                    report.toText());
+        }
+        beginTest ("embedded packages enforce resource budgets");
         {
             SkinValidationReport report;
             std::vector<SkinPackage::EmbeddedFile> files;
@@ -199,6 +215,30 @@ public:
                 SkinValidationReport tamperReport;
                 expect (! package->verifySnapshotDigest (tamperReport));
                 expect (tamperReport.hasCode ("PKG012"));
+            }
+        }
+
+        beginTest ("directory capture and cleanup preserve Unicode external and package paths");
+        {
+            TemporaryDirectory temporary;
+            const auto source = temporary.directory.getChildFile (juce::String::fromUTF8 (u8"皮肤 🎵"));
+            const auto snapshots = temporary.directory.getChildFile (juce::String::fromUTF8 (u8"私有快照"));
+            const auto assetPath = juce::String::fromUTF8 (u8"assets/音乐 Café.txt");
+            expect (source.createDirectory().wasOk());
+            expect (snapshots.createDirectory().wasOk());
+            writeTextFile (source, "manifest.json", "{}");
+            writeTextFile (source, assetPath, "Unicode asset");
+            SkinValidationReport report;
+            auto package = SkinPackage::captureSnapshot (source, snapshots, report);
+            expect (package.has_value(), report.toText());
+            if (package)
+            {
+                expectEquals (package->readText (assetPath, report), juce::String ("Unicode asset"));
+                expect (package->verifySnapshotDigest (report), report.toText());
+                const auto capturedRoot = package->snapshotRoot();
+                package.reset();
+                expect (! capturedRoot.exists());
+                expect (source.getChildFile (assetPath).existsAsFile());
             }
         }
 

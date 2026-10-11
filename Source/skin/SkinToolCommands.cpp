@@ -1,4 +1,5 @@
 #include "SkinToolCommands.h"
+#include "platform/FilesystemPath.h"
 #include "SkinControlStyle.h"
 
 #include "CompiledSkin.h"
@@ -172,13 +173,13 @@ bool outputResolvesOutsideInput (const juce::File& input,
 {
     std::error_code error;
     const auto inputPath = std::filesystem::weakly_canonical (
-        std::filesystem::path (input.getFullPathName().toStdString()), error);
+        nativeFilesystem::toNativePath (input), error);
     if (error) return false;
     const auto outputPath = std::filesystem::weakly_canonical (
-        std::filesystem::path (output.getFullPathName().toStdString()), error);
+        nativeFilesystem::toNativePath (output), error);
     if (error) return false;
-    const juce::File canonicalInput (inputPath.string());
-    const juce::File canonicalOutput (outputPath.string());
+    const auto canonicalInput = nativeFilesystem::fromNativePath (inputPath);
+    const auto canonicalOutput = nativeFilesystem::fromNativePath (outputPath);
     return canonicalOutput != canonicalInput
         && ! canonicalOutput.isAChildOf (canonicalInput);
 }

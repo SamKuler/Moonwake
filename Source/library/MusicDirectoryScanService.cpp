@@ -1,6 +1,6 @@
 #include "MusicDirectoryScanService.h"
 
-#include "FilesystemPath.h"
+#include "platform/FilesystemPath.h"
 
 #include "playlist/TrackFileIdentity.h"
 
@@ -159,7 +159,7 @@ void MusicDirectoryScanService::run()
             report.errors.addIfNotAlreadyThere (message);
         };
         const auto rootPath = directory.folder.getFullPathName();
-        const auto nativeRoot = libraryFilesystem::toNativePath (directory.folder);
+        const auto nativeRoot = nativeFilesystem::toNativePath (directory.folder);
         std::error_code error;
         const auto rootStatus = std::filesystem::status (nativeRoot, error);
         if (cancelled())
@@ -189,7 +189,7 @@ void MusicDirectoryScanService::run()
                     break;
                 }
 
-                const auto entryPath = libraryFilesystem::fromNativePath (iterator->path()).getFullPathName();
+                const auto entryPath = nativeFilesystem::fromNativePath (iterator->path()).getFullPathName();
                 std::error_code entryError;
                 const auto entryStatus = iterator->symlink_status (entryError);
                 if (entryError)

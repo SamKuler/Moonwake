@@ -4,6 +4,7 @@
 #include <charconv>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <limits>
 #include <set>
@@ -130,7 +131,7 @@ bool readTree (const juce::File& file, Tree& tree, juce::String& error)
     auto stream = file.createInputStream();
     if (stream == nullptr) return fail (error, "Could not read preset file: " + file.getFullPathName());
     juce::MemoryBlock bytes;
-    stream->readIntoMemoryBlock (bytes, static_cast<ssize_t> (ListeningPresetStore::maximumFileBytes + 1));
+    stream->readIntoMemoryBlock (bytes, static_cast<std::ptrdiff_t> (ListeningPresetStore::maximumFileBytes + 1));
     if (stream->getStatus().failed()) return fail (error, "Could not finish reading preset file: " + file.getFullPathName());
     if (bytes.getSize() == 0 || bytes.getSize() > static_cast<size_t> (ListeningPresetStore::maximumFileBytes))
         return fail (error, "Preset file is empty or exceeds the 64 MiB limit: " + file.getFullPathName());

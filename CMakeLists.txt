@@ -667,3 +667,16 @@ target_link_libraries(MoonwakeSkinTool
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
 )
+
+if (NOT APPLE)
+    if (WIN32)
+        # The system ICU library is available on Windows 10 version 1903 and later.
+        set(MOONWAKE_UNICODE_LIBRARY icu)
+    else()
+        find_package(ICU REQUIRED COMPONENTS uc)
+        set(MOONWAKE_UNICODE_LIBRARY ICU::uc)
+    endif()
+    foreach(target IN ITEMS Moonwake MoonwakeTests MoonwakeSkinTool)
+        target_link_libraries(${target} PRIVATE ${MOONWAKE_UNICODE_LIBRARY})
+    endforeach()
+endif()

@@ -1,6 +1,7 @@
 #include "SkinPackage.h"
 
 #include "app/ProductIdentity.h"
+#include "platform/FilesystemPath.h"
 
 #include <juce_cryptography/juce_cryptography.h>
 
@@ -12,6 +13,11 @@
 
 #if JUCE_MAC
  #include <CoreFoundation/CoreFoundation.h>
+#elif JUCE_WINDOWS
+ #include <icu.h>
+#else
+ #include <unicode/unorm2.h>
+ #include <unicode/ustring.h>
 #endif
 
 #if JUCE_MAC || JUCE_LINUX
@@ -55,6 +61,49 @@ int utf8Bytes (const juce::String& value)
     return static_cast<int> (value.getNumBytesAsUTF8());
 }
 
+#if ! JUCE_MAC
+std::optional<juce::String> normaliseUnicode (const juce::String& value, bool foldCase)
+{
+    UErrorCode status = U_ZERO_ERROR;
+    const auto* nfc = unorm2_getNFCInstance (&status);
+    if (U_FAILURE (status)) return std::nullopt;
+
+    std::vector<UChar> text (static_cast<size_t> (utf8Bytes (value)) + 1);
+    int32_t length = 0;
+    u_strFromUTF8 (text.data(), static_cast<int32_t> (text.size()), &length,
+                  value.toRawUTF8(), utf8Bytes (value), &status);
+    if (U_FAILURE (status)) return std::nullopt;
+
+    const auto transform = [&] (auto operation)
+    {
+        status = U_ZERO_ERROR;
+        const auto required = operation (nullptr, 0, &status);
+        if (U_FAILURE (status) && status != U_BUFFER_OVERFLOW_ERROR) return false;
+        std::vector<UChar> output (static_cast<size_t> (required) + 1);
+        status = U_ZERO_ERROR;
+        const auto written = operation (output.data(), static_cast<int32_t> (output.size()), &status);
+        if (U_FAILURE (status)) return false;
+        text = std::move (output);
+        length = written;
+        return true;
+    };
+
+    if (foldCase && ! transform ([&] (UChar* output, int32_t capacity, UErrorCode* error)
+        { return u_strFoldCase (output, capacity, text.data(), length, U_FOLD_CASE_DEFAULT, error); }))
+        return std::nullopt;
+    if (! transform ([&] (UChar* output, int32_t capacity, UErrorCode* error)
+        { return unorm2_normalize (nfc, text.data(), length, output, capacity, error); }))
+        return std::nullopt;
+
+    std::vector<char> utf8 (static_cast<size_t> (length) * 3 + 1);
+    int32_t bytes = 0;
+    u_strToUTF8 (utf8.data(), static_cast<int32_t> (utf8.size()), &bytes,
+                 text.data(), length, &status);
+    if (U_FAILURE (status)) return std::nullopt;
+    return juce::String::fromUTF8 (utf8.data(), bytes);
+}
+#endif
+
 PathIssue inspectPath (const juce::String& value)
 {
     if (value.isEmpty() || value.startsWithChar ('/') || value.endsWithChar ('/')
@@ -66,7 +115,12 @@ PathIssue inspectPath (const juce::String& value)
     if (utf8Bytes (value) > maximumPathBytes)
         return PathIssue::length;
 
-    if (value.convertToPrecomposedUnicode() != value)
+   #if JUCE_MAC
+    const std::optional<juce::String> normalised = value.convertToPrecomposedUnicode();
+   #else
+    const auto normalised = normaliseUnicode (value, false);
+   #endif
+    if (! normalised || *normalised != value)
         return PathIssue::normalisation;
 
     int segmentStart = 0;
@@ -100,7 +154,7 @@ juce::String pathIssueCode (PathIssue issue)
     return {};
 }
 
-juce::String unicodeCaseFold (const juce::String& value)
+std::optional<juce::String> unicodeCaseFold (const juce::String& value)
 {
 #if JUCE_MAC
     const auto utf8 = value.toRawUTF8();
@@ -127,7 +181,7 @@ juce::String unicodeCaseFold (const juce::String& value)
     return converted ? juce::String::fromUTF8 (result.data())
                      : value.toLowerCase().convertToPrecomposedUnicode();
 #else
-    return value.toLowerCase().convertToPrecomposedUnicode();
+    return normaliseUnicode (value, true);
 #endif
 }
 
@@ -158,8 +212,12 @@ bool validateEntryMetadata (const std::vector<std::pair<juce::String, PackageEnt
             return addPathDiagnostic (report, pathIssueCode (issue), path,
                                       "Skin package path is not canonical and safe.");
 
+        const auto folded = unicodeCaseFold (path);
+        if (! folded)
+            return addPathDiagnostic (report, "PKG005", path,
+                                      "Skin package path could not be normalised.");
         if (! exactPaths.insert (path).second
-            || ! foldedPaths.insert (unicodeCaseFold (path)).second)
+            || ! foldedPaths.insert (*folded).second)
             return addPathDiagnostic (report, "PKG005", path,
                                       "Skin package paths collide after Unicode normalisation or case folding.");
         return true;
@@ -197,7 +255,7 @@ void makeWritableAndRemove (const juce::File& root)
         return;
 
     std::error_code error;
-    const std::filesystem::path path (root.getFullPathName().toStdString());
+    const auto path = nativeFilesystem::toNativePath (root);
     std::filesystem::permissions (path, std::filesystem::perms::owner_all,
                                   std::filesystem::perm_options::add, error);
     error.clear();
@@ -266,6 +324,7 @@ bool copyRegularFileNoFollow (const juce::File& source, const juce::File& destin
     ::close (descriptor);
     return ok && ! output.getStatus().failed();
 #else
+    juce::ignoreUnused (rejectHardLinks);
     return source.copyFileTo (destination);
 #endif
 }
@@ -528,7 +587,7 @@ bool captureDirectory (const juce::File& source, const juce::File& snapshot,
                        SkinValidationReport& report)
 {
     std::error_code error;
-    const std::filesystem::path sourcePath (source.getFullPathName().toStdString());
+    const auto sourcePath = nativeFilesystem::toNativePath (source);
     const auto rootStatus = std::filesystem::symlink_status (sourcePath, error);
     if (error || ! std::filesystem::is_directory (rootStatus)
         || std::filesystem::is_symlink (rootStatus))
@@ -546,7 +605,7 @@ bool captureDirectory (const juce::File& source, const juce::File& snapshot,
         if (error)
             break;
 
-        const auto relativeBytes = iterator->path().lexically_relative (sourcePath).generic_string();
+        const auto relativeBytes = iterator->path().lexically_relative (sourcePath).generic_u8string();
         const auto relative = juce::String::fromUTF8 (relativeBytes.data(),
                                                        static_cast<int> (relativeBytes.size()));
         if (std::filesystem::is_symlink (status))
@@ -587,7 +646,7 @@ bool captureDirectory (const juce::File& source, const juce::File& snapshot,
 
     for (const auto& file : sourceFiles)
     {
-        if (! copyRegularFileNoFollow (juce::File (file.source.string()),
+        if (! copyRegularFileNoFollow (nativeFilesystem::fromNativePath (file.source),
                                        snapshot.getChildFile (file.relativePath), true))
             return addPathDiagnostic (report, "PKG002", file.relativePath,
                                       "Source changed or became a link while the snapshot was captured.");
@@ -607,7 +666,7 @@ bool indexDirectorySnapshot (const juce::File& root,
                              SkinValidationReport& report)
 {
     std::error_code error;
-    const std::filesystem::path rootPath (root.getFullPathName().toStdString());
+    const auto rootPath = nativeFilesystem::toNativePath (root);
     std::vector<std::pair<juce::String, PackageEntry>> metadata;
     juce::StringArray directories;
     std::filesystem::recursive_directory_iterator iterator (
@@ -617,7 +676,7 @@ bool indexDirectorySnapshot (const juce::File& root,
         const auto status = iterator->symlink_status (error);
         if (error)
             break;
-        const auto relativeBytes = iterator->path().lexically_relative (rootPath).generic_string();
+        const auto relativeBytes = iterator->path().lexically_relative (rootPath).generic_u8string();
         const auto relative = juce::String::fromUTF8 (relativeBytes.data(),
                                                        static_cast<int> (relativeBytes.size()));
         if (std::filesystem::is_symlink (status))
@@ -702,12 +761,12 @@ bool lockSnapshotContents (const PackageStateData& state)
 
     bool succeeded = true;
     std::error_code error;
-    const std::filesystem::path rootPath (state.root.getFullPathName().toStdString());
+    const auto rootPath = nativeFilesystem::toNativePath (state.root);
     for (std::filesystem::recursive_directory_iterator iterator (
              rootPath, std::filesystem::directory_options::none, error), end;
          ! error && iterator != end; iterator.increment (error))
     {
-        succeeded = setOwnerPermissions (juce::File (iterator->path().string()),
+        succeeded = setOwnerPermissions (nativeFilesystem::fromNativePath (iterator->path()),
                                          iterator->is_directory (error) ? 0500 : 0400)
                  && succeeded;
         if (error)

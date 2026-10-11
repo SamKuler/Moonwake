@@ -22,7 +22,7 @@ std::optional<juce::Colour> parseSkinCssColour (juce::StringRef source)
     const auto green = parseByte (value, 3);
     const auto blue = parseByte (value, 5);
     const auto alpha = value.length() == 9 ? parseByte (value, 7)
-                                           : std::optional<uint8_t> (0xff);
+                                           : std::optional<uint8_t> (uint8_t { 0xff });
     if (! red || ! green || ! blue || ! alpha)
         return std::nullopt;
     return juce::Colour (*red, *green, *blue, *alpha);

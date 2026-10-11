@@ -1,6 +1,6 @@
 #include "LibraryImportService.h"
 
-#include "FilesystemPath.h"
+#include "platform/FilesystemPath.h"
 
 #include "playlist/PlaylistFile.h"
 #include "playlist/TrackFileIdentity.h"
@@ -155,7 +155,7 @@ juce::Array<juce::File> LibraryImportService::collectAudioFiles (
         std::error_code error;
         const auto options = std::filesystem::directory_options::skip_permission_denied;
         std::filesystem::recursive_directory_iterator iterator (
-            libraryFilesystem::toNativePath (input),
+            nativeFilesystem::toNativePath (input),
             options, error);
         const std::filesystem::recursive_directory_iterator end;
         if (error)
@@ -199,7 +199,7 @@ juce::Array<juce::File> LibraryImportService::collectAudioFiles (
                 continue;
             }
             if (iterator->is_regular_file (entryError))
-                addFile (libraryFilesystem::fromNativePath (iterator->path()));
+                addFile (nativeFilesystem::fromNativePath (iterator->path()));
         }
     }
 

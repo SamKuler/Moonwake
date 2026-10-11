@@ -4,7 +4,7 @@
 
 #include <filesystem>
 
-namespace libraryFilesystem
+namespace nativeFilesystem
 {
 [[nodiscard]] inline std::filesystem::path toNativePath (const juce::File& file)
 {
@@ -23,4 +23,4 @@ namespace libraryFilesystem
     return juce::File (juce::String::fromUTF8 (path.c_str()));
 #endif
 }
-} // namespace libraryFilesystem
+} // namespace nativeFilesystem

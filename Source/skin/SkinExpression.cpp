@@ -515,7 +515,7 @@ private:
     {
         const auto leftType = nodes[static_cast<size_t> (left)].type;
         const auto rightType = nodes[static_cast<size_t> (right)].type;
-        Opcode opcode;
+        Opcode opcode = Opcode::add;
         SkinExpressionType result = SkinExpressionType::number;
         switch (operation.kind)
         {

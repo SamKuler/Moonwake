@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 
 namespace
@@ -158,7 +159,7 @@ PlaylistFileReadResult PlaylistFile::read (const juce::File& source)
         return fail ("Could not open playlist: " + source.getFullPathName());
 
     juce::MemoryBlock bytes;
-    input->readIntoMemoryBlock (bytes, static_cast<ssize_t> (maximumFileBytes + 1));
+    input->readIntoMemoryBlock (bytes, static_cast<std::ptrdiff_t> (maximumFileBytes + 1));
     if (input->getStatus().failed())
         return fail ("Could not read playlist: " + input->getStatus().getErrorMessage());
     if (bytes.getSize() > maximumFileBytes)

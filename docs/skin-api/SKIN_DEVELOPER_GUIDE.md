@@ -109,7 +109,8 @@ Skin Tool 的 verify-docs 命令会解析本文每个 json fenced block；对带
 - 不允许空 segment、"." segment、NUL、加密 ZIP 或多卷 ZIP。
 - 单条路径最长 512 UTF-8 bytes，单个 segment 最长 255 bytes，归档最多 2048 entries。
 - 所有路径必须使用 Unicode NFC 规范化。
-- NFC 后重复、以及 Unicode case-fold 后重复的路径会被拒绝，避免在默认 macOS 文件系统上覆盖。
+- NFC 后重复、以及 Unicode case-fold 后重复的路径会被拒绝，避免在不区分大小写的文件系统上覆盖。此规则在 macOS 和 Windows 上一致。
+- Windows 版本使用系统 ICU 进行 Unicode 规范化，需要 Windows 10 1903 或更高版本。
 - assets/ 之外的资源引用会被拒绝。
 
 有效：
