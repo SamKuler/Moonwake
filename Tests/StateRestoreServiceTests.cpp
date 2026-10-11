@@ -159,6 +159,20 @@ public:
             juce::String error;
             expect (AppStateStore::writeAtomically (saved, stateFile, error), error);
             expect (plugins.replaceWithText ("<KNOWNPLUGINS/>"));
+            {
+                StateRestoreService service (root.getChildFile ("artwork"));
+                expectEquals (static_cast<int> (service.getProgress().second), 0);
+                bool completed = false;
+                expect (service.start (stateFile, plugins, [&] (StateRestoreResult prepared)
+                {
+                    expect (prepared.state.has_value());
+                    const auto [done, total] = service.getProgress();
+                    expectEquals (static_cast<int> (done), 1);
+                    expectEquals (static_cast<int> (total), 1);
+                    completed = true;
+                }));
+                expect (dispatchRestoreUntil ([&] { return completed; }));
+            }
             auto result = StateRestoreService::prepare (stateFile, plugins, root.getChildFile ("artwork"));
             expect (result.errorMessage.isEmpty(), result.errorMessage);
             expect (result.state.has_value());

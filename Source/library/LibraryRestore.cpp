@@ -14,7 +14,8 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
                     const std::atomic_bool* cancelled,
                     juce::StringArray& warnings,
                     const std::vector<MusicDirectory>& managedDirectories,
-                    juce::StringArray& preparedArtworkKeys)
+                    juce::StringArray& preparedArtworkKeys,
+                    LibraryRestoreProgress* progress)
 {
     const auto isCancelled = [cancelled]
     {
@@ -23,6 +24,7 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
     std::vector<TrackItem> prepared;
     TrackMetadataReader reader;
     ArtworkStore artwork (artworkCacheRoot);
+    ArtworkStore::EncodingCache artworkEncoding;
     int unavailableCount = 0;
     int artworkWarningCount = 0;
     juce::String firstUnavailableError;
@@ -35,6 +37,7 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
 
     for (const auto& saved : tracks)
     {
+        if (progress != nullptr) progress->completed.store (prepared.size());
         if (isCancelled())
             return false;
 
@@ -119,7 +122,7 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
             {
                 juce::String error;
                 restored.artworkCacheKey = artwork.store (
-                    metadata.track.id, metadata.artworkData, error);
+                    metadata.track.id, metadata.artworkData, error, &artworkEncoding);
                 if (restored.artworkCacheKey.isNotEmpty())
                     preparedArtworkKeys.add (restored.artworkCacheKey);
                 if (error.isNotEmpty())
@@ -140,6 +143,7 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
     if (isCancelled())
         return false;
 
+    if (progress != nullptr) progress->completed.store (prepared.size());
     tracks = std::move (prepared);
 
     if (unavailableCount > 0)
@@ -167,11 +171,17 @@ bool prepareLibraryRestore (MusicLibrary& library, PlaylistModel& playlist,
                             const std::atomic_bool* cancelled,
                             juce::StringArray& warnings,
                             const std::vector<MusicDirectory>& managedDirectories,
-                            PreparedRestoreArtwork* preparedArtwork)
+                            PreparedRestoreArtwork* preparedArtwork,
+                            LibraryRestoreProgress* progress)
 {
     PreparedRestoreArtwork stagedArtwork (artworkCacheRoot);
     auto tracks = library.getTracks();
-    if (! prepareTracks (tracks, artworkCacheRoot, cancelled, warnings, managedDirectories, stagedArtwork.keys)) return false;
+    if (progress != nullptr)
+    {
+        progress->completed.store (0);
+        progress->total.store (tracks.size());
+    }
+    if (! prepareTracks (tracks, artworkCacheRoot, cancelled, warnings, managedDirectories, stagedArtwork.keys, progress)) return false;
     auto savedPlaylists = library.getPlaylists();
     const ArtworkStore artwork (artworkCacheRoot);
     for (auto& saved : savedPlaylists)

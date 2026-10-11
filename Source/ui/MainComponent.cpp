@@ -1080,6 +1080,7 @@ void MainComponent::finishStateRestore (StateRestoreResult result)
 {
     const auto restoredState = controller.applyPreparedState (std::move (result));
     restoreStatus = restoredState ? RestoreStatus::ready : RestoreStatus::failed;
+    if (statusLabel.getText().startsWith ("Restoring library")) showStatus ({});
     setRestoreControlsEnabled (true);
     SkinValidationReport skinReport;
     if (restoredState && skinManager.activeSession() != nullptr)
@@ -1546,7 +1547,18 @@ void MainComponent::timerCallback (int timerID)
         showStatus ({});
 
     if (restoreStatus == RestoreStatus::loading)
+    {
+        const auto [completed, total] = stateRestoreService.getProgress();
+        const auto message = total == 0 ? juce::String ("Restoring library...")
+            : "Restoring library: " + juce::String (static_cast<juce::int64> (completed))
+                + " / " + juce::String (static_cast<juce::int64> (total)) + " tracks (metadata and artwork)...";
+        if (statusLabel.getText().isEmpty() || statusLabel.getText().startsWith ("Restoring library"))
+        {
+            showStatus (message);
+            statusLabel.setTooltip ("Controls become available when the saved library is ready.");
+        }
         return;
+    }
 
     bool preparationFailed = false;
     const auto playbackChanged = controller.synchronizePlayback (true, &preparationFailed);

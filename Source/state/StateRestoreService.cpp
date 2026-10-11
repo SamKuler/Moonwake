@@ -8,13 +8,13 @@
 #include <utility>
 
 StateRestoreService::StateRestoreService (juce::File artworkCacheRoot)
-    : StateRestoreService (
-          [cacheRoot = std::move (artworkCacheRoot)] (
+    : juce::Thread ("Moonwake session restore"), preparer (
+          [this, cacheRoot = std::move (artworkCacheRoot)] (
               const juce::File& stateFile, const juce::File& pluginListFile,
               const std::atomic_bool* cancelled)
           {
               return prepare (stateFile, pluginListFile,
-                              cacheRoot, cancelled);
+                              cacheRoot, cancelled, &progress);
           })
 {
 }
@@ -47,6 +47,8 @@ bool StateRestoreService::start (juce::File stateFile,
         return false;
 
     pendingStateFile = std::move (stateFile);
+    progress.completed.store (0);
+    progress.total.store (0);
     pendingPluginListFile = std::move (pluginListFile);
     pendingCompletion = std::move (completion);
     lifecycle->cancelled.store (false);
@@ -69,6 +71,12 @@ bool StateRestoreService::isRunning() const noexcept
     return lifecycle->pending.load();
 }
 
+std::pair<size_t, size_t> StateRestoreService::getProgress() const noexcept
+{
+    const auto total = progress.total.load();
+    return { juce::jmin (progress.completed.load(), total), total };
+}
+
 bool StateRestoreService::waitForPendingRestore (int timeoutMilliseconds)
 {
     return ! isThreadRunning() || waitForThreadToExit (timeoutMilliseconds);
@@ -76,7 +84,8 @@ bool StateRestoreService::waitForPendingRestore (int timeoutMilliseconds)
 
 StateRestoreResult StateRestoreService::prepare (
     const juce::File& stateFile, const juce::File& pluginListFile,
-    const juce::File& artworkCacheRoot, const std::atomic_bool* cancelled)
+    const juce::File& artworkCacheRoot, const std::atomic_bool* cancelled,
+    LibraryRestoreProgress* progress)
 {
     StateRestoreResult result;
     const auto isCancelled = [cancelled]
@@ -130,7 +139,7 @@ StateRestoreResult StateRestoreService::prepare (
             result.preparedArtwork = std::make_unique<PreparedRestoreArtwork> (artworkCacheRoot);
             if (prepareLibraryRestore (state.library, state.playlist, artworkCacheRoot,
                                        cancelled, result.warnings, state.musicDirectories,
-                                       result.preparedArtwork.get()))
+                                       result.preparedArtwork.get(), progress))
                 result.state = std::move (state);
         }
     }

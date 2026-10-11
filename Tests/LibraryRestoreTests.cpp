@@ -102,7 +102,10 @@ public:
             PlaylistModel queue;
             const auto cache = directory.root.getChildFile ("cache");
             juce::StringArray warnings;
-            expect (prepareLibraryRestore (library, queue, cache, nullptr, warnings));
+            LibraryRestoreProgress progress;
+            expect (prepareLibraryRestore (library, queue, cache, nullptr, warnings, {}, nullptr, &progress));
+            expectEquals (static_cast<int> (progress.completed.load()), 1);
+            expectEquals (static_cast<int> (progress.total.load()), 1);
             expect (warnings.isEmpty(), warnings.joinIntoString (" "));
             expect (ArtworkStore (cache).isValid (library.getTrack (id)->artworkCacheKey));
             const auto summary = libraryCollectionSummary (library, queue, "artist:Saved artist");

@@ -37,13 +37,15 @@ public:
                 CompletionCallback);
     void cancel();
     [[nodiscard]] bool isRunning() const noexcept;
+    [[nodiscard]] std::pair<size_t, size_t> getProgress() const noexcept;
     bool waitForPendingRestore (int timeoutMilliseconds = -1);
 
     [[nodiscard]] static StateRestoreResult prepare (
         const juce::File& stateFile,
         const juce::File& pluginListFile,
         const juce::File& artworkCacheRoot,
-        const std::atomic_bool* cancelled = nullptr);
+        const std::atomic_bool* cancelled = nullptr,
+        LibraryRestoreProgress* progress = nullptr);
 
 private:
     struct Lifecycle
@@ -56,6 +58,7 @@ private:
     void run() override;
 
     Preparer preparer;
+    LibraryRestoreProgress progress;
     juce::File pendingStateFile;
     juce::File pendingPluginListFile;
     CompletionCallback pendingCompletion;

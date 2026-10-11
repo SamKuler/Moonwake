@@ -108,7 +108,8 @@ ArtworkStore::ArtworkStore (juce::File rootDirectoryToUse)
 
 juce::String ArtworkStore::store (const juce::String& trackId,
                                   const juce::MemoryBlock& encodedImage,
-                                  juce::String& errorMessage) const
+                                  juce::String& errorMessage,
+                                  EncodingCache* encodingCache) const
 {
     errorMessage.clear();
     if (rootDirectory == juce::File() || encodedImage.getSize() == 0)
@@ -119,34 +120,40 @@ juce::String ArtworkStore::store (const juce::String& trackId,
         return {};
     }
 
-    const auto dimensions = inspectEncodedDimensions (
-        encodedImage.getData(), encodedImage.getSize());
-    if (! dimensions)
+    const auto reused = encodingCache != nullptr && encodingCache->source == encodedImage
+        && ! encodingCache->png.isEmpty();
+    juce::Image image;
+    if (! reused)
     {
-        errorMessage = "Artwork is not a supported PNG or JPEG image.";
-        return {};
-    }
-    if (! dimensionsAreSafe (*dimensions, errorMessage))
-        return {};
+        const auto dimensions = inspectEncodedDimensions (
+            encodedImage.getData(), encodedImage.getSize());
+        if (! dimensions)
+        {
+            errorMessage = "Artwork is not a supported PNG or JPEG image.";
+            return {};
+        }
+        if (! dimensionsAreSafe (*dimensions, errorMessage))
+            return {};
 
-    auto image = juce::ImageFileFormat::loadFrom (encodedImage.getData(),
-                                                   encodedImage.getSize());
-    if (! image.isValid())
-    {
-        errorMessage = "Artwork is not a supported PNG or JPEG image.";
-        return {};
-    }
+        image = juce::ImageFileFormat::loadFrom (encodedImage.getData(),
+                                                       encodedImage.getSize());
+        if (! image.isValid())
+        {
+            errorMessage = "Artwork is not a supported PNG or JPEG image.";
+            return {};
+        }
 
-    constexpr int maximumDimension = 1600;
-    if (image.getWidth() > maximumDimension || image.getHeight() > maximumDimension)
-    {
-        const auto scale = juce::jmin (
-            static_cast<double> (maximumDimension) / image.getWidth(),
-            static_cast<double> (maximumDimension) / image.getHeight());
-        image = image.rescaled (
-            juce::jmax (1, static_cast<int> (std::round (image.getWidth() * scale))),
-            juce::jmax (1, static_cast<int> (std::round (image.getHeight() * scale))),
-            juce::Graphics::highResamplingQuality);
+        constexpr int maximumDimension = 1600;
+        if (image.getWidth() > maximumDimension || image.getHeight() > maximumDimension)
+        {
+            const auto scale = juce::jmin (
+                static_cast<double> (maximumDimension) / image.getWidth(),
+                static_cast<double> (maximumDimension) / image.getHeight());
+            image = image.rescaled (
+                juce::jmax (1, static_cast<int> (std::round (image.getWidth() * scale))),
+                juce::jmax (1, static_cast<int> (std::round (image.getHeight() * scale))),
+                juce::Graphics::highResamplingQuality);
+        }
     }
 
     if (! rootDirectory.isDirectory() && ! rootDirectory.createDirectory())
@@ -162,7 +169,24 @@ juce::String ArtworkStore::store (const juce::String& trackId,
     auto output = std::unique_ptr<juce::FileOutputStream> (
         temporary.getFile().createOutputStream());
     juce::PNGImageFormat png;
-    if (output == nullptr || ! png.writeImageToStream (image, *output))
+    bool written = false;
+    if (output != nullptr)
+    {
+        if (reused)
+            written = output->write (encodingCache->png.getData(), encodingCache->png.getSize());
+        else if (encodingCache != nullptr)
+        {
+            juce::MemoryOutputStream encoded;
+            if (png.writeImageToStream (image, encoded))
+            {
+                encodingCache->source = encodedImage;
+                encodingCache->png = encoded.getMemoryBlock();
+                written = output->write (encodingCache->png.getData(), encodingCache->png.getSize());
+            }
+        }
+        else written = png.writeImageToStream (image, *output);
+    }
+    if (! written)
     {
         errorMessage = "Could not encode artwork cache image.";
         return {};

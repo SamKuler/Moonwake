@@ -55,6 +55,29 @@ public:
             expect (root.deleteRecursively());
         }
 
+        beginTest ("reuses a batch cover while preserving per-track ownership and image validation");
+        {
+            const auto root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                .getNonexistentChildFile ("moonwake-artwork-batch", {}, true);
+            ArtworkStore store (root);
+            ArtworkStore::EncodingCache cache;
+            const auto source = makeLargePng();
+            juce::String error;
+            const auto first = store.store ("first", source, error, &cache);
+            const auto second = store.store ("second", source, error, &cache);
+            expect (first.isNotEmpty() && second.isNotEmpty() && first != second, error);
+            expect (store.isValid (first) && store.isValid (second));
+            expect (store.resolve (first).hasIdenticalContentTo (store.resolve (second)));
+            expect (store.remove (first));
+            expect (store.isValid (second));
+            const auto image = juce::ImageFileFormat::loadFrom (store.resolve (second));
+            expectEquals (image.getWidth(), 1600);
+            expect (image.getPixelAt (800, 400) == juce::Colours::darkorange);
+            expect (store.store ("invalid", makeOversizedPngHeader(), error, &cache).isEmpty());
+            expect (error.isNotEmpty());
+            expect (root.deleteRecursively());
+        }
+
         beginTest ("rejects unsafe dimensions before decoding pixel data");
         {
             const auto root = juce::File::getSpecialLocation (

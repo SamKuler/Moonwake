@@ -6,6 +6,11 @@
 
 #include <atomic>
 
+struct LibraryRestoreProgress
+{
+    std::atomic<size_t> completed { 0 }, total { 0 };
+};
+
 struct PreparedRestoreArtwork
 {
     explicit PreparedRestoreArtwork (juce::File root) : cacheRoot (std::move (root)) {}
@@ -24,4 +29,5 @@ struct PreparedRestoreArtwork
     const std::atomic_bool* cancelled,
     juce::StringArray& warnings,
     const std::vector<MusicDirectory>& managedDirectories = {},
-    PreparedRestoreArtwork* preparedArtwork = nullptr);
+    PreparedRestoreArtwork* preparedArtwork = nullptr,
+    LibraryRestoreProgress* progress = nullptr);
