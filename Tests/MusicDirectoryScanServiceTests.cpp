@@ -3,6 +3,8 @@
 
 #include "library/MusicDirectoryScanService.h"
 #include "fixtures/TrackMetadataFixtures.h"
+#include "fixtures/FileAlias.h"
+#include "fixtures/DirectoryAccess.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -313,7 +315,7 @@ public:
                 auto second = first;
                 second.id = "historical-alias";
                 second.file = alias;
-                expect (target.createSymbolicLink (alias, true));
+                expect (createTestFileAlias (target, alias));
                 const auto unchanged = scan (service, { directory }, { second, first });
                 expectEquals (unchanged.metadataReads, 0);
                 expect (unchanged.updates.empty(), "Existing alias paths must not be relocated to the representative file.");
@@ -413,16 +415,11 @@ public:
             const auto denied = fixture.root.getChildFile ("Denied");
             expect (denied.createDirectory());
             TrackItem known (denied.getChildFile ("missing.wav"), "Previously present", 1.0);
-            const auto nativePath = std::filesystem::path (denied.getFullPathName().toStdString());
-            std::error_code error;
-            const auto permissions = std::filesystem::status (nativePath, error).permissions();
-            expect (! error);
-            std::filesystem::permissions (nativePath, std::filesystem::perms::none, error);
-            expect (! error);
+            ScopedTestDirectoryAccess access (denied);
+            expect (access.denyListing(), "The fixture must deny directory enumeration");
             MusicDirectoryScanService service;
             const auto result = scan (service, { { "music", fixture.root, true } }, { known });
-            std::filesystem::permissions (nativePath, permissions, error);
-            expect (! error);
+            expect (access.restore(), "Restore the fixture's original permissions");
             expect (result.missingTrackIds.isEmpty());
             expect (! result.errors.isEmpty());
             if (! result.roots.empty())

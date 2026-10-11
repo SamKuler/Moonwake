@@ -585,7 +585,7 @@ bool PlaylistModel::recordPlayback (const juce::String& trackId)
 
     const auto wasPrioritised = std::any_of (navigation.playNextTracks.begin(), navigation.playNextTracks.end(),
         [&] (const auto& pending) { return pending.id == trackId; });
-    const auto forward = std::find (navigation.history.begin() + navigation.historyIndex + 1,
+    const auto forward = std::find (navigation.history.begin() + (navigation.historyIndex + 1),
                                     navigation.history.end(), trackId);
     if (shuffleEnabled)
     {

@@ -60,7 +60,7 @@ public:
             {
                 juce::MemoryBlock data;
                 expect (file.loadFileAsData (data));
-                files.push_back ({ file.getRelativePathFrom (source), std::move (data) });
+                files.push_back ({ file.getRelativePathFrom (source).replaceCharacter ('\\', '/'), std::move (data) });
             }
             SkinValidationReport exampleReport;
             const auto package = SkinPackage::fromEmbedded ("artwork-example", std::move (files), exampleReport);

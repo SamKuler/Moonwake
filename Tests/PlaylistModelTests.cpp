@@ -1,3 +1,4 @@
+#include "fixtures/FileAlias.h"
 #include <juce_core/juce_core.h>
 
 #include "playlist/PlaylistModel.h"
@@ -759,7 +760,6 @@ public:
 
         beginTest ("file identity index deduplicates aliases and is cleaned on remove and clear");
         {
-           #if ! JUCE_WINDOWS
             const auto temporaryDirectory = juce::File::getCurrentWorkingDirectory()
                 .getNonexistentChildFile ("moonwake-playlist-identity", {}, true);
             const auto directoryResult = temporaryDirectory.createDirectory();
@@ -770,7 +770,7 @@ public:
             const auto alias = temporaryDirectory.getChildFile ("alias.wav");
             expect (original.replaceWithText ("audio fixture"),
                     original.getFullPathName());
-            expect (original.createSymbolicLink (alias, true));
+            expect (createTestFileAlias (original, alias));
 
             PlaylistModel playlist;
             playlist.addTrack ({ original, "Original", 1.0 });
@@ -789,7 +789,6 @@ public:
             expect (! restored.containsFile (original));
 
             expect (temporaryDirectory.deleteRecursively());
-           #endif
         }
 
         beginTest ("same path remains indexed when the file identity changes");
@@ -1079,7 +1078,7 @@ public:
         {
             PlaylistModel playlist ([] (const juce::File& file)
             {
-                return file.getFileName() == "alias.wav" ? juce::String ("/music/a.wav")
+                return file.getFileName() == "alias.wav" ? juce::File ("/music/a.wav").getFullPathName()
                                                          : file.getFullPathName();
             });
             auto alias = occurrence ("alias");

@@ -1,3 +1,4 @@
+#include "fixtures/FileAlias.h"
 #include "skin/SkinSchemaRegistry.h"
 #include "skin/PlayerComponentCatalog.h"
 #include "skin/SkinToolCommands.h"
@@ -297,7 +298,7 @@ public:
             const auto copiedInput = temporary.directory.getChildFile ("skin-input");
             const auto inputAlias = temporary.directory.getChildFile ("skin-alias");
             expect (fixture().copyDirectoryTo (copiedInput));
-            expect (copiedInput.createSymbolicLink (inputAlias, false));
+            expect (createTestDirectoryAlias (copiedInput, inputAlias));
             const auto aliasedOutput = inputAlias.getChildFile ("inside.moonwake-skin");
             const auto unsafe = run (
                 { "pack", copiedInput.getFullPathName().toRawUTF8(), "--output",
@@ -558,3 +559,4 @@ public:
 
 SkinToolTests skinToolTests;
 } // namespace
+#include "fixtures/FileAlias.h"

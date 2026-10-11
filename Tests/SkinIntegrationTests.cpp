@@ -528,7 +528,6 @@ public:
 juce::Colour renderCentre (const SkinRenderStyleEntry& style, bool selected = false)
 {
     juce::Image image (juce::Image::ARGB, 32, 32, true);
-    juce::Graphics graphics (image);
     SkinRenderContext context;
     context.bounds = image.getBounds().toFloat();
     context.contentBounds = context.bounds;
@@ -536,7 +535,10 @@ juce::Colour renderCentre (const SkinRenderStyleEntry& style, bool selected = fa
     context.state.selected = selected;
     SkinRenderer renderer (style.assets);
     SilentFaultSink sink;
-    renderer.draw (graphics, style.renderer, context, true, sink);
+    {
+        juce::Graphics graphics (image);
+        renderer.draw (graphics, style.renderer, context, true, sink);
+    }
     return image.getPixelAt (16, 16);
 }
 
@@ -544,13 +546,15 @@ juce::Colour renderCentreWithContext (const SkinRenderStyleEntry& style,
                                       SkinRenderContext context)
 {
     juce::Image image (juce::Image::ARGB, 160, 36, true);
-    juce::Graphics graphics (image);
     context.bounds = image.getBounds().toFloat();
     context.contentBounds = context.bounds;
     context.state.enabled = true;
     SkinRenderer renderer (style.assets);
     SilentFaultSink sink;
-    renderer.draw (graphics, style.renderer, context, true, sink);
+    {
+        juce::Graphics graphics (image);
+        renderer.draw (graphics, style.renderer, context, true, sink);
+    }
     return image.getPixelAt (80, 18);
 }
 
@@ -559,13 +563,15 @@ juce::Colour renderPixelWithContext (const SkinRenderStyleEntry& style,
                                      int width, int height, int x, int y)
 {
     juce::Image image (juce::Image::ARGB, width, height, true);
-    juce::Graphics graphics (image);
     context.bounds = image.getBounds().toFloat();
     context.contentBounds = context.bounds;
     context.state.enabled = true;
     SkinRenderer renderer (style.assets);
     SilentFaultSink sink;
-    renderer.draw (graphics, style.renderer, context, true, sink);
+    {
+        juce::Graphics graphics (image);
+        renderer.draw (graphics, style.renderer, context, true, sink);
+    }
     return image.getPixelAt (x, y);
 }
 
@@ -1290,13 +1296,15 @@ public:
             for (const auto hover : { false, true })
             {
                 juce::Image image (juce::Image::ARGB, 80, 60, true);
-                juce::Graphics graphics (image);
                 SkinRenderContext context;
                 context.bounds = context.contentBounds = { 20.0f, 18.0f, 4.0f, 16.0f };
                 context.state.hover = hover;
                 SkinRenderer renderer (handle->assets);
                 SilentFaultSink sink;
-                renderer.draw (graphics, handle->renderer, context, true, sink);
+                {
+                    juce::Graphics graphics (image);
+                    renderer.draw (graphics, handle->renderer, context, true, sink);
+                }
                 juce::Rectangle<int> painted;
                 for (int y = 0; y < image.getHeight(); ++y)
                     for (int x = 0; x < image.getWidth(); ++x)

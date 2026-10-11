@@ -7,8 +7,7 @@ namespace
 juce::MemoryBlock makeLargePng()
 {
     juce::Image image (juce::Image::ARGB, 2000, 1000, true);
-    juce::Graphics graphics (image);
-    graphics.fillAll (juce::Colours::darkorange);
+    { juce::Graphics graphics (image); graphics.fillAll (juce::Colours::darkorange); }
     juce::MemoryOutputStream output;
     juce::PNGImageFormat png;
     if (! png.writeImageToStream (image, output))

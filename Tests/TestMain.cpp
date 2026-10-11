@@ -2,6 +2,7 @@
 #include "skin/SkinCompiler.h"
 #include "skin/SkinInstaller.h"
 #include "skin/SkinPackage.h"
+#include "fixtures/NativeTestWindow.h"
 
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
@@ -16,6 +17,15 @@
 
 namespace
 {
+class ConsoleTestRunner final : public juce::UnitTestRunner
+{
+    void logMessage (const juce::String& message) override
+    {
+        // JUCE's Windows logger uses OutputDebugString, which CTest cannot capture.
+        std::fprintf (stderr, "%s\n", message.toRawUTF8());
+    }
+};
+
 int runSkinInstallWorker (char* argv[])
 {
     const juce::File source (argv[2]);
@@ -163,30 +173,36 @@ int main (int argc, char* argv[])
     if (argc >= 2 && juce::String (argv[1]) == "--plugin-scan-fixture")
         return runPluginScannerFixture (argc, argv);
 
-   #if JUCE_MAC
+   #if JUCE_MAC || JUCE_WINDOWS
     // PopupMenu checks the native application's focus even for synthetic peers.
+    #if JUCE_MAC
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [NSApp finishLaunching];
+    #endif
     juce::Component nativeHost;
     nativeHost.setName ("Moonwake UI Tests");
     nativeHost.setBounds (80, 80, 240, 80);
     nativeHost.addToDesktop (juce::ComponentPeer::windowHasTitleBar
                             | juce::ComponentPeer::windowAppearsOnTaskbar);
     nativeHost.setVisible (true);
+    #if JUCE_WINDOWS
+    activateNativeTestWindow (nativeHost);
+    #else
     nativeHost.toFront (true);
     juce::Process::makeForegroundProcess();
+    #endif
     const auto activationDeadline = juce::Time::getMillisecondCounterHiRes() + 1500.0;
     while (! juce::Process::isForegroundProcess()
            && juce::Time::getMillisecondCounterHiRes() < activationDeadline)
         juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
     if (! juce::Process::isForegroundProcess())
     {
-        std::fputs ("Moonwake UI tests require an unlocked, active macOS desktop.\n", stderr);
+        std::fputs ("Moonwake UI tests require an unlocked, active desktop.\n", stderr);
         return 4;
     }
    #endif
 
-    juce::UnitTestRunner runner;
+    ConsoleTestRunner runner;
 
     if (argc == 1)
     {

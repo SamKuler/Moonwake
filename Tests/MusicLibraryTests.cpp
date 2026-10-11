@@ -1,4 +1,5 @@
 #include "library/MusicLibrary.h"
+#include "fixtures/FileAlias.h"
 
 namespace
 {
@@ -96,7 +97,7 @@ public:
             const auto file = directory.getChildFile ("original.wav");
             const auto alias = directory.getChildFile ("alias.wav");
             expect (file.replaceWithText ("audio fixture"));
-            expect (file.createSymbolicLink (alias, true));
+            expect (createTestFileAlias (file, alias));
             MusicLibrary library;
             const auto id = library.upsertTrack ({ file, "Original", 1.0 });
             const auto aliasId = library.upsertTrack ({ alias, "Updated", 2.0 });
@@ -375,7 +376,7 @@ public:
             const auto id = library.upsertTrack ({ file, "Original", 1.0 });
             expect (file.moveFileTo (oldFile));
             expect (file.replaceWithText ("replacement audio"));
-            expect (file.createSymbolicLink (alias, true));
+            expect (createTestFileAlias (file, alias));
             expectEquals (library.upsertTrack ({ file, "Replacement", 2.0 }), id);
             expect (library.findTrackByFile (oldFile) == nullptr);
             expect (library.findTrackByFile (alias) == library.getTrack (id));
@@ -406,8 +407,8 @@ public:
             const auto alias = directory.getChildFile ("alias.wav");
             const auto relocated = directory.getChildFile ("relocated.wav");
             expect (first.replaceWithText ("shared audio"));
-            expect (first.createSymbolicLink (second, true));
-            expect (first.createSymbolicLink (alias, true));
+            expect (createTestFileAlias (first, second));
+            expect (createTestFileAlias (first, alias));
             expect (relocated.replaceWithText ("other audio"));
             TrackItem a { first, "First", 1.0 }, b { second, "Second", 1.0 };
             a.id = "a";

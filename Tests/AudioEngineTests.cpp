@@ -1081,8 +1081,13 @@ private:
         expect (! engine.hasReadError());
         expectEquals (engine.getPlaybackProgress().positionSeconds, before.positionSeconds);
         expect (engine.drainPreparationFailures().empty());
+        const auto blockDurationMs = static_cast<int> (std::ceil (
+            1000.0 * actual.getNumSamples() / control.getCurrentAudioSampleRate()));
         for (int frame = 256; frame < 8192; frame += 256)
         {
+            // Both engines decode in the background. Compare rollback at device
+            // cadence instead of racing their independently scheduled prefetch.
+            juce::Thread::sleep (blockDurationMs);
             device->render (actual);
             controlDevice->render (expected);
             for (int channel = 0; channel < 2; ++channel)
@@ -1579,18 +1584,27 @@ public:
             juce::String error;
             playback.play();
             juce::AudioBuffer<float> block (channels, 1024);
-            device->render (block);
+            const auto blockDurationMs = static_cast<int> (std::ceil (
+                1000.0 * block.getNumSamples() / device->getAudioDeviceSetup().sampleRate));
+            const auto render = [&]
+            {
+                // loadFile guarantees only an initial prefill. Keep device cadence
+                // so this routing/bypass test does not outrun the decoder worker.
+                juce::Thread::sleep (blockDurationMs);
+                device->render (block);
+            };
+            render();
             // The source may not contain every speaker in the selected output layout.
             std::vector<float> dry;
             for (int channel = 0; channel < channels; ++channel) dry.push_back (block.getSample (channel, 1023));
             expect (playback.addEffectPlugin (1, std::make_unique<MixProbePlugin>(), error), error);
-            device->render (block);
+            render();
             expectWithinAbsoluteError (block.getSample (0, 1023), 0.08f, 0.0001f);
             const auto position = playback.getCurrentPositionSeconds();
             playback.setAllEffectsBypassed (true);
             {
                 juce::UnitTestAllocationChecker allocations (*this);
-                device->render (block);
+                render();
             }
             expect (playback.areAllEffectsBypassed());
             expect (block.getSample (0, 0) < 0.08f && block.getSample (0, 0) > 0.016f,
@@ -1602,23 +1616,23 @@ public:
             expect (playback.areAllEffectsBypassed());
             expect (playback.setEffectBypassed (1, true));
             playback.setAllEffectsBypassed (false);
-            device->render (block);
+            render();
             for (int channel = 0; channel < channels; ++channel)
                 expectWithinAbsoluteError (block.getSample (channel, 1023), dry[static_cast<size_t> (channel)], 0.0001f);
             expect (playback.setEffectBypassed (1, false));
-            device->render (block);
+            render();
             expectWithinAbsoluteError (block.getSample (0, 1023), 0.08f, 0.0001f);
             playback.setAllEffectsBypassed (true);
             expect (playback.clearEffectPlugins());
             expect (playback.addEffectPlugin (2, std::make_unique<MixProbePlugin>(), error), error);
-            device->render (block);
+            render();
             expectWithinAbsoluteError (block.getSample (0, 1023), 0.016f, 0.0001f,
                                        "New effects respect the active master bypass.");
             playback.seekToSeconds (playback.getLengthInSeconds());
-            device->render (block);
+            render();
             expect (! playback.isPlaying());
             expect (playback.clearEffectTails (error), error);
-            device->render (block);
+            render();
             expectEquals (block.getMagnitude (0, 1024), 0.0f);
             playback.unload();
             expect (source.deleteFile());
@@ -1669,6 +1683,10 @@ public:
             int renderedSamples = 0;
             const auto render = [&]
             {
+                // Model the device cadence: a tight offline loop can consume the
+                // initial read-ahead window before the decoder gets another turn.
+                // This test measures delay alignment, not decoder throughput.
+                juce::Thread::sleep (static_cast<int> (std::ceil (1000.0 * block.getNumSamples() / 48000.0)));
                 juce::UnitTestAllocationChecker allocations (*this);
                 device->render (block);
                 renderedSamples += block.getNumSamples();

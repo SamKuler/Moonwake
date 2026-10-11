@@ -1,4 +1,5 @@
 #include "fixtures/TestComponentPeer.h"
+#include "fixtures/NativeTestWindow.h"
 #include "ui/MusicLibraryPanel.h"
 #include "ui/SkinEffectChainViewport.h"
 #include "ui/SkinInputScope.h"
@@ -6,6 +7,7 @@
 #include "skin/SkinCompiler.h"
 
 #include <algorithm>
+#include <cstdio>
 
 namespace
 {
@@ -129,15 +131,23 @@ struct LibraryPanelFixture
         panel.updateVisibility();
         auto* component = bindings.find (componentId);
         const auto point = host.getLocalPoint (component, component->getLocalBounds().getCentre()).toFloat();
-        if (! waitUntil ([&] { return host.getComponentAt (point) == component; })) return {};
+        if (! waitUntil ([&] { return host.getComponentAt (point) == component; }))
+        {
+            std::fprintf (stderr, "Detail menu hit test failed for %s\n", componentId.toRawUTF8());
+            return {};
+        }
         auto* peer = host.getPeer();
         const auto time = juce::Time::currentTimeMillis();
         peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0, 0, time);
         peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point,
                                juce::ModifierKeys::rightButtonModifier, 0, 0, time + 1);
+        const auto openedOnMouseDown = juce::Component::getCurrentlyModalComponent() != nullptr;
         peer->handleMouseEvent (juce::MouseInputSource::InputSourceType::mouse, point, {}, 0, 0, time + 2);
         waitUntil ([] { return juce::Component::getCurrentlyModalComponent() != nullptr; });
         activeMenu = juce::Component::getCurrentlyModalComponent();
+        if (activeMenu == nullptr)
+            std::fprintf (stderr, "Detail menu missing for %s (opened on mouse down: %d)\n",
+                          componentId.toRawUTF8(), openedOnMouseDown ? 1 : 0);
         return activeMenu;
     }
     static juce::StringArray menuTitles (juce::Component& menu)
@@ -163,8 +173,10 @@ struct LibraryPanelFixture
     juce::Colour markerPixel (int row)
     {
         juce::Image image (juce::Image::ARGB, 400, 40, true);
-        juce::Graphics graphics (image);
-        model().paintRowBackground (graphics, row, 400, 40, table().isRowSelected (row));
+        {
+            juce::Graphics graphics (image);
+            model().paintRowBackground (graphics, row, 400, 40, table().isRowSelected (row));
+        } // Finish native rendering before reading the image pixels.
         return image.getPixelAt (2, 20);
     }
     const std::vector<PlaylistEntry>& entries() const { return controller.getLibrary().getPlaylist (playlistId)->entries; }
@@ -197,6 +209,16 @@ struct LibraryPanelFixture
         // Desktop focus can change between tests; PopupMenu observes it on mouse-up.
         juce::Process::makeForegroundProcess();
         return waitUntil ([] { return juce::Process::isForegroundProcess(); });
+       #elif JUCE_WINDOWS
+        // makeForegroundProcess is a no-op on Windows. Activate the native test
+        // host; synthetic peers alone cannot keep a native PopupMenu active.
+        for (int index = 0; index < juce::ComponentPeer::getNumPeers(); ++index)
+            if (auto* peer = juce::ComponentPeer::getPeer (index);
+                peer->getComponent().getName() == "Moonwake UI Tests")
+                activateNativeTestWindow (peer->getComponent());
+        const auto active = waitUntil ([] { return juce::Process::isForegroundProcess(); });
+        if (! active) std::fputs ("Native menu test host could not gain foreground focus.\n", stderr);
+        return active;
        #else
         return true;
        #endif

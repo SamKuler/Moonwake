@@ -1,4 +1,5 @@
 #include "state/ListeningPresetStore.h"
+#include "fixtures/TemporaryDirectoryCleanup.h"
 #include <juce_data_structures/juce_data_structures.h>
 #include <limits>
 
@@ -347,7 +348,7 @@ public:
                 }
             }
         }
-        expect (directory.deleteRecursively());
+        expect (deleteTestDirectory (directory), directory.getFullPathName());
     }
 };
 ListeningPresetsTests listeningPresetsTests;

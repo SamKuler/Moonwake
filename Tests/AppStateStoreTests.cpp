@@ -2,6 +2,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 
 #include "state/AppStateStore.h"
+#include "fixtures/TemporaryDirectoryCleanup.h"
 
 namespace
 {
@@ -153,7 +154,7 @@ public:
             expect (restored.library.getPlaylist (list)->entries == entries);
             expect (restored.library.isFavourite (id));
             expect (restored.library.getTrack (id)->file == renamed);
-            expect (root.deleteRecursively());
+            expect (deleteTestDirectory (root), root.getFullPathName());
         }
 
         beginTest ("invalid managed roots and smart rules fail state reads without replacing caller state");
@@ -201,7 +202,7 @@ public:
             PlayerAppState destination;
             juce::String error;
             expect (! AppStateStore::readFromFile (file, destination, error));
-            expect (root.deleteRecursively());
+            expect (deleteTestDirectory (root), root.getFullPathName());
         }
 
         beginTest ("schema 11 migration keeps queue occurrences and creates one referenced library");
@@ -434,7 +435,8 @@ public:
             state.playbackPositionSeconds = 37.25;
             state.outputLayout = OutputLayout::fiveOneTwo;
             state.audioDevice = { "Aggregate Output", 96000.0, 128 };
-            state.customVst3Directories = { "/plugins/Custom VST3", "/offline/Plug-ins" };
+            state.customVst3Directories = { juce::File ("/plugins/Custom VST3").getFullPathName(),
+                                           juce::File ("/offline/Plug-ins").getFullPathName() };
             state.audioDevice.outputRoutes.push_back ({ "device-uid", OutputLayout::stereo, { 7, -1 } });
             state.workspaceMode = WorkspaceMode::studio;
             state.activeSkinId = "com.example.skin";
@@ -462,7 +464,7 @@ public:
             expectEquals (restored.playlist.size(), 2);
             expectEquals (restored.playlist.getSelectedIndex(), 1);
             expectEquals (restored.playlist.getTrack (0)->file.getFullPathName(),
-                          juce::String ("/music/first.wav"));
+                          state.playlist.getTrack (0)->file.getFullPathName());
             expectEquals (restored.playlist.getTrack (1)->title, juce::String ("Second"));
             expectEquals (restored.playlist.getTrack (0)->id, juce::String ("first-id"));
             expectEquals (restored.playlist.getTrack (0)->artist, juce::String ("Artist"));

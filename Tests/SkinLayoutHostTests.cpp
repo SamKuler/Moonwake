@@ -922,8 +922,10 @@ public:
             juce::Image directViewport (juce::Image::ARGB, 120, 80, true);
             if (viewport != nullptr)
             {
-                juce::Graphics graphics (directViewport);
-                viewport->paintEntireComponent (graphics, true);
+                {
+                    juce::Graphics graphics (directViewport);
+                    viewport->paintEntireComponent (graphics, true);
+                }
                 expect (directViewport.getPixelAt (8, 8).getRed()
                             > directViewport.getPixelAt (8, 8).getGreen(),
                         "viewport="

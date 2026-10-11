@@ -100,6 +100,8 @@ ctest --test-dir build-windows -C Debug --output-on-failure
 
 构建会把 `MoonwakePluginScanner.exe` 和第三方许可证复制到 `Moonwake.exe` 所在目录。移动或分发应用时应保留这些文件；扫描始终在独立 helper 进程中执行。`MoonwakeScannerDeployment` 测试检查 helper 副本与当前构建一致，并验证它能启动。
 
+重建前请退出正在运行的同一配置应用，避免 Windows 锁定可执行文件。UI 测试需要已解锁的交互式桌面，会创建并激活原生测试窗口；不要同时运行多个 UI 测试进程。文件别名测试在 Windows 使用硬链接和目录 junction，无需管理员权限；访问拒绝测试只修改临时夹具目录的 ACL，结束时恢复原权限。macOS 保留符号链接和 POSIX 权限测试。
+
 Windows 使用 VST3；Audio Unit 只在 macOS 注册，Windows 的 AU 开关不可用，扫描范围中不提供 AU。默认扫描目录由 JUCE 提供，包含 `%LOCALAPPDATA%\Programs\Common\VST3` 和当前进程对应的 `%ProgramFiles%\Common Files\VST3`；其他位置可在 Settings → Plug-ins 添加。已有缓存中的不支持格式保留为不可用记录。
 
 Windows 构建沿用 JUCE 的默认音频后端配置，包括 WASAPI；当前未启用 ASIO。Windows 的音频设备、驱动缓冲和多声道输出能力需要在目标设备上验证，macOS 的控制中心媒体集成不适用于 Windows。

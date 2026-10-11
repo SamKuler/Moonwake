@@ -127,19 +127,23 @@ public:
                             program.baseLayers[0].properties["font"].value = requested;
                             program.baseLayers[0].properties["align"].value = juce::String ("center");
                             auto actual = blankImage (frame);
-                            juce::Graphics graphics (actual);
                             SkinRenderContext context;
                             context.bounds = actual.getBounds().toFloat();
                             context.contentBounds = context.bounds;
                             TextFaultSink sink;
                             SkinRenderer renderer (*assets);
-                            expect (renderer.draw (graphics, program, context, true, sink) == SkinRenderStatus::ok);
+                            {
+                                juce::Graphics graphics (actual);
+                                expect (renderer.draw (graphics, program, context, true, sink) == SkinRenderStatus::ok);
+                            }
                             auto expected = blankImage (frame);
-                            juce::Graphics reference (expected);
-                            reference.reduceClipRegion (frame.getSmallestIntegerContainer());
-                            reference.setFont (font);
-                            reference.setColour (juce::Colours::white);
-                            reference.drawText (text, frame, juce::Justification::centred, true);
+                            {
+                                juce::Graphics reference (expected);
+                                reference.reduceClipRegion (frame.getSmallestIntegerContainer());
+                                reference.setFont (font);
+                                reference.setColour (juce::Colours::white);
+                                reference.drawText (text, frame, juce::Justification::centred, true);
+                            }
                             expect (samePixels (actual, expected), text + " / " + juce::String (width));
                         }
                 }
@@ -153,12 +157,14 @@ public:
             for (const auto* overflow : { "clip", "ellipsis" })
             {
                 auto reference = blankImage (frame);
-                juce::Graphics graphics (reference);
-                graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
-                graphics.setFont (juce::Font (juce::FontOptions (28.0f)));
-                graphics.setColour (juce::Colours::white);
-                graphics.drawText (text, frame, juce::Justification::topLeft,
-                                   juce::String (overflow) == "ellipsis");
+                {
+                    juce::Graphics graphics (reference);
+                    graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
+                    graphics.setFont (juce::Font (juce::FontOptions (28.0f)));
+                    graphics.setColour (juce::Colours::white);
+                    graphics.drawText (text, frame, juce::Justification::topLeft,
+                                       juce::String (overflow) == "ellipsis");
+                }
                 expect (samePixels (render (text, overflow, 28, 2, frame), reference), overflow);
             }
         }
@@ -208,11 +214,13 @@ public:
             const juce::Rectangle<float> frame (8, 6, 100, 30);
             const juce::String text ("MMMM WWWW MMMM WWWW MMMM WWWW");
             auto reference = blankImage (frame);
-            juce::Graphics graphics (reference);
-            graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
-            graphics.setFont (juce::Font (juce::FontOptions (28.0f)));
-            graphics.setColour (juce::Colours::white);
-            graphics.drawFittedText (text, frame.toNearestInt(), juce::Justification::topLeft, 2, 0.2f);
+            {
+                juce::Graphics graphics (reference);
+                graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
+                graphics.setFont (juce::Font (juce::FontOptions (28.0f)));
+                graphics.setColour (juce::Colours::white);
+                graphics.drawFittedText (text, frame.toNearestInt(), juce::Justification::topLeft, 2, 0.2f);
+            }
             const auto shrunk = render (text, "shrink", 28, 2, frame);
             expect (samePixels (shrunk, reference));
             expect (! samePixels (shrunk, render (text, "clip", 28, 2, frame)));
@@ -228,12 +236,14 @@ public:
                                          juce::String::fromUTF8 ("مرحبا 🐈 中\nÁ שלום 音乐") })
             {
                 auto reference = blankImage (frame);
-                juce::Graphics graphics (reference);
-                graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
-                graphics.setFont (juce::Font (juce::FontOptions (20.0f)));
-                graphics.setColour (juce::Colours::white);
-                graphics.drawFittedText (visible, frame.toNearestInt(),
-                                         juce::Justification::topLeft, 2, 0.2f);
+                {
+                    juce::Graphics graphics (reference);
+                    graphics.reduceClipRegion (frame.getSmallestIntegerContainer());
+                    graphics.setFont (juce::Font (juce::FontOptions (20.0f)));
+                    graphics.setColour (juce::Colours::white);
+                    graphics.drawFittedText (visible, frame.toNearestInt(),
+                                             juce::Justification::topLeft, 2, 0.2f);
+                }
                 expect (samePixels (render (visible, "shrink", 20, 2, frame), reference),
                         "Mixed-font glyphs must not truncate an otherwise complete two-line layout.");
                 expect (samePixels (render (visible + "\nHidden 第三行 🐈", "shrink", 20, 2, frame), reference),

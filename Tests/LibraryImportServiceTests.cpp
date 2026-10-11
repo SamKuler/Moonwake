@@ -1,3 +1,4 @@
+#include "fixtures/FileAlias.h"
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
 
@@ -98,14 +99,14 @@ public:
             expect (root.deleteRecursively());
         }
 
-        beginTest ("deduplicates direct symbolic-link aliases by file identity");
+        beginTest ("deduplicates direct file aliases by file identity");
         {
             const auto root = importFixtureDirectory();
             expect (root.createDirectory());
             const auto target = root.getChildFile ("target.wav");
             const auto alias = root.getChildFile ("alias.wav");
             expect (target.replaceWithText ("fixture"));
-            expect (target.createSymbolicLink (alias, true));
+            expect (createTestFileAlias (target, alias));
             const auto files = LibraryImportService::collectAudioFiles (
                 { target, alias });
             expectEquals (files.size(), 1);
@@ -197,7 +198,7 @@ public:
             const auto unreadable = root.getChildFile ("broken.wav");
             expect (writeImportWav (first, "Embedded first"));
             expect (writeImportWav (second, "Embedded second"));
-            expect (first.createSymbolicLink (alias, true));
+            expect (createTestFileAlias (first, alias));
             expect (unreadable.replaceWithText ("not audio"));
             expect (writeImportArtwork (root.getChildFile ("cover.png")));
             const auto cache = root.getChildFile ("artwork");

@@ -299,8 +299,15 @@ std::optional<juce::Image> renderFocusProbe (
     const SkinRenderStyleEntry& style, juce::Rectangle<float> bounds, bool focused,
     const std::map<juce::String, SkinExpressionType>& allowedContext)
 {
+   #if JUCE_WINDOWS
+    // These images are only used for validation-time pixel comparisons. Native
+    // images repeatedly create D3D devices in tools without a persistent window.
+    juce::SoftwareImageType imageType;
+   #else
+    juce::NativeImageType imageType;
+   #endif
     juce::Image image (juce::Image::ARGB, juce::roundToInt (bounds.getWidth()),
-                       juce::roundToInt (bounds.getHeight()), true);
+                       juce::roundToInt (bounds.getHeight()), true, imageType);
     juce::Graphics graphics (image);
     SkinRenderContext context;
     context.bounds = bounds;

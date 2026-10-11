@@ -74,7 +74,22 @@ bool borderPixelsPreserved (ClipList& list, const juce::Image& composite, juce::
             if (background.getPixelAt (x, y) == border)
             {
                 ++checked;
-                if (composite.getPixelAt (x, y) != border) return false;
+                const auto actual = composite.getPixelAt (x, y);
+                if (actual == border) continue;
+               #if JUCE_WINDOWS
+                // Direct2D rasterises the stroke and clipping mask separately.
+                // Allow their fractional coverage only at the one-pixel fringe;
+                // solid interiors, alpha, and gross overpainting remain exact.
+                const auto fringe = background.getPixelAt (x - 1, y) != border
+                                 || background.getPixelAt (x + 1, y) != border
+                                 || background.getPixelAt (x, y - 1) != border
+                                 || background.getPixelAt (x, y + 1) != border;
+                const auto delta = juce::jmax (std::abs (int (actual.getRed()) - border.getRed()),
+                                              std::abs (int (actual.getGreen()) - border.getGreen()),
+                                              std::abs (int (actual.getBlue()) - border.getBlue()));
+                if (fringe && actual.getAlpha() == border.getAlpha() && delta <= 32) continue;
+               #endif
+                return false;
             }
     return checked > 0;
 }
@@ -141,6 +156,10 @@ public:
                 expect (list.getVerticalScrollBar().isVisible());
                 expect (image.getPixelAt (96, 50) == juce::Colours::yellow, "native scrollbars remain visible inside the boundary");
             }
+            auto damaged = list.createComponentSnapshot (list.getLocalBounds());
+            damaged.setPixelAt (50, 0, juce::Colours::red);
+            expect (! borderPixelsPreserved (list, damaged, juce::Colours::lime),
+                    "overpainted borders must still fail the coverage check");
             auto* cache = list.getViewport()->getCachedComponentImage();
             adapter.configureListContentClip (list, SkinRenderTarget::skinList);
             expect (cache != nullptr && list.getViewport()->getCachedComponentImage() == cache);

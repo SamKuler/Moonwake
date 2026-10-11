@@ -45,12 +45,14 @@ juce::Result writeJson (const juce::File& file, const juce::var& value)
     const auto created = file.getParentDirectory().createDirectory();
     if (created.failed()) return created;
     juce::TemporaryFile temporary (file);
-    juce::FileOutputStream output (temporary.getFile());
-    const auto text = juce::JSON::toString (value);
-    if (! output.openedOk() || ! output.write (text.toRawUTF8(), text.getNumBytesAsUTF8()))
-        return juce::Result::fail ("Could not save lyrics: " + output.getStatus().getErrorMessage());
-    output.flush();
-    if (output.getStatus().failed()) return output.getStatus();
+    {
+        juce::FileOutputStream output (temporary.getFile());
+        const auto text = juce::JSON::toString (value);
+        if (! output.openedOk() || ! output.write (text.toRawUTF8(), text.getNumBytesAsUTF8()))
+            return juce::Result::fail ("Could not save lyrics: " + output.getStatus().getErrorMessage());
+        output.flush();
+        if (output.getStatus().failed()) return output.getStatus();
+    } // Close the file before replacing it; Windows does not allow renaming this open handle.
     if (! temporary.overwriteTargetFileWithTemporary())
         return juce::Result::fail ("Could not replace the saved lyrics file.");
     return juce::Result::ok();

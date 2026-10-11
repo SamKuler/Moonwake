@@ -506,16 +506,19 @@ ExecutionResult snapshotCommand (const Options& options)
         return validationFailure (loaded->report);
 
     juce::Image image (juce::Image::ARGB, options.width, options.height, true);
-    juce::Graphics graphics (image);
-    const auto representativeFocusOrder = firstVisibleFocusOrder (resolved->root);
-    if (! drawResolvedNode (graphics, *loaded->compiled, resolved->root,
-                            *options.workspace,
-                            options.theme.value_or (loaded->compiled->layouts.at (*options.workspace).defaultWorkspace),
-                            options.queueOpen, options.lyricsOpen, options.snapshotState,
-                            representativeFocusOrder,
-                            loaded->report)
-        || loaded->report.hasErrors())
-        return validationFailure (loaded->report);
+    // Finish the native drawing batch before PNG encoding reads the pixels.
+    {
+        juce::Graphics graphics (image);
+        const auto representativeFocusOrder = firstVisibleFocusOrder (resolved->root);
+        if (! drawResolvedNode (graphics, *loaded->compiled, resolved->root,
+                                *options.workspace,
+                                options.theme.value_or (loaded->compiled->layouts.at (*options.workspace).defaultWorkspace),
+                                options.queueOpen, options.lyricsOpen, options.snapshotState,
+                                representativeFocusOrder,
+                                loaded->report)
+            || loaded->report.hasErrors())
+            return validationFailure (loaded->report);
+    }
 
     juce::MemoryOutputStream encoded;
     juce::PNGImageFormat png;

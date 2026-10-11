@@ -124,7 +124,8 @@ juce::String pixelHash (const juce::Image& image)
     juce::MemoryBlock pixels;
     juce::Image::BitmapData data (image, juce::Image::BitmapData::readOnly);
     for (int y = 0; y < data.height; ++y)
-        pixels.append (data.getLinePointer (y), static_cast<size_t> (data.lineStride));
+        // Native backends may pad each row; padding is not part of the image.
+        pixels.append (data.getLinePointer (y), static_cast<size_t> (data.width * data.pixelStride));
     return juce::SHA256 (pixels).toHexString();
 }
 
@@ -194,8 +195,14 @@ public:
                 rect.primitive, "stroke.placement", juce::String ("inside"));
             const auto image = render (simpleProgram (SkinRenderTarget::surface, rect),
                                        context, renderer, sink);
+            // Native rasterization and default fonts have platform-specific pixels.
+           #if JUCE_WINDOWS
+            expectEquals (pixelHash (image),
+                          juce::String ("92bc7e37363e52e9400630fe2be1e93cf4b76b814c44d633234bc780bb79d0af"));
+           #else
             expectEquals (pixelHash (image),
                           juce::String ("1d08f82368912257dfe27d4fe2844d2b559f4497478da98513d42e0f28778c7e"));
+           #endif
             expect (sink.status == SkinRenderStatus::ok);
         }
 
@@ -234,8 +241,11 @@ public:
             FaultRecorder sink;
             SkinRenderer renderer;
             juce::Image image (juce::Image::ARGB, 80, 40, true);
-            juce::Graphics graphics (image);
-            expect (renderer.draw (graphics, program, context, true, sink, &animations, "static") == SkinRenderStatus::ok);
+
+            {
+                juce::Graphics graphics (image);
+                expect (renderer.draw (graphics, program, context, true, sink, &animations, "static") == SkinRenderStatus::ok);
+            }
             expectEquals (hiddenGeometryReads, 0);
             expect (image.getPixelAt (5, 5).isTransparent());
             expect (image.getPixelAt (35, 15) == juce::Colours::green);
@@ -417,8 +427,26 @@ public:
             FaultRecorder sink;
             SkinRenderer renderer;
             const auto image = render (program, context, renderer, sink);
+           #if JUCE_WINDOWS
+            // DirectWrite's default font may vary with Windows/font versions.
+            // Keep an exact geometry baseline, and check native text independently.
+            const juce::Rectangle<int> textFrame (8, 42, 90, 24);
+            int textPixels = 0;
+            for (int y = textFrame.getY(); y < textFrame.getBottom(); ++y)
+                for (int x = textFrame.getX(); x < textFrame.getRight(); ++x)
+                    if (! image.getPixelAt (x, y).isTransparent()) ++textPixels;
+            expect (textPixels > 0 && textPixels < textFrame.getWidth() * textFrame.getHeight(),
+                    "Native text must draw glyphs inside its frame");
+            expectEquals (pixelHash (image), pixelHash (render (program, context, renderer, sink)),
+                          "Rendering the same native font twice must be deterministic");
+            auto geometry = image.createCopy();
+            geometry.clear (textFrame);
+            expectEquals (pixelHash (geometry),
+                          juce::String ("5fb37950eca6d4d10ce9945fde1807a6fb29df677147e1f0031921958f4d7e64"));
+           #else
             expectEquals (pixelHash (image),
                           juce::String ("62a36eff76f990565ede4b3f3d8ebad3464d33f7571388f96e07fb9f1387254a"));
+           #endif
         }
 
         beginTest ("native table repeat bindings include the fourth column and skip hidden columns");
@@ -454,12 +482,18 @@ public:
                 for (const auto* label : { "Track", "Artist", "Time", "Album" })
                     table.getHeader().addColumn (label, ++id, 50);
                 juce::Image image (juce::Image::ARGB, 200, 40, true);
-                juce::Graphics graphics (image);
-                adapter.drawListBoxBackground (graphics, table, 0, 4);
+
+                {
+                    juce::Graphics graphics (image);
+                    adapter.drawListBoxBackground (graphics, table, 0, 4);
+                }
                 expect (image.getPixelAt (65, 10) == juce::Colours::green);
                 table.getHeader().setColumnVisible (4, false);
                 image.clear (image.getBounds(), juce::Colours::transparentBlack);
-                adapter.drawListBoxBackground (graphics, table, 0, 3);
+                {
+                    juce::Graphics graphics (image);
+                    adapter.drawListBoxBackground (graphics, table, 0, 3);
+                }
                 expect (image.getPixelAt (65, 10).isTransparent());
             }
         }
@@ -514,8 +548,14 @@ public:
             FaultRecorder sink;
             SkinRenderer renderer (*cache);
             const auto image = render (program, {}, renderer, sink);
+            // Native rasterization and default fonts have platform-specific pixels.
+           #if JUCE_WINDOWS
+            expectEquals (pixelHash (image),
+                          juce::String ("29b647ee6284774c6c7f4a63de3ce544f4391cf00c3de5314555719953771c9e"));
+           #else
             expectEquals (pixelHash (image),
                           juce::String ("7d80ee9fd35b5af9d87375f331432c268ff6d4d904feb916b5ebf9bbb303603b"));
+           #endif
             expect (sink.status == SkinRenderStatus::ok);
         }
 
@@ -1192,10 +1232,13 @@ public:
             const auto draw = [&]
             {
                 juce::Image image (juce::Image::ARGB, 16, 16, true);
-                juce::Graphics graphics (image);
-                expect (renderer.draw (graphics, renderProgram, context, true, sink,
-                                       &renderEngine, "resource-render")
-                        == SkinRenderStatus::ok);
+
+                {
+                    juce::Graphics graphics (image);
+                    expect (renderer.draw (graphics, renderProgram, context, true, sink,
+                                           &renderEngine, "resource-render")
+                            == SkinRenderStatus::ok);
+                }
                 return image.getPixelAt (8, 8);
             };
             expect (draw() == juce::Colours::red);
@@ -1228,11 +1271,14 @@ public:
             const auto drawRepeat = [&]
             {
                 juce::Image image (juce::Image::ARGB, 16, 16, true);
-                juce::Graphics graphics (image);
-                expect (repeatRenderer.draw (
-                            graphics, repeatProgram, repeatContext, true, sink,
-                            &repeatEngine, "resource-repeat")
-                        == SkinRenderStatus::ok);
+
+                {
+                    juce::Graphics graphics (image);
+                    expect (repeatRenderer.draw (
+                                graphics, repeatProgram, repeatContext, true, sink,
+                                &repeatEngine, "resource-repeat")
+                            == SkinRenderStatus::ok);
+                }
                 return image.getPixelAt (8, 8);
             };
             expect (drawRepeat() == juce::Colours::red);
@@ -1274,18 +1320,24 @@ public:
                 imageLayer.primitive, "opacity", 0.5);
             const auto program = simpleProgram (SkinRenderTarget::surface, imageLayer);
             juce::Image image (juce::Image::ARGB, 20, 20, true);
-            juce::Graphics graphics (image);
+
             SkinRenderContext context;
             context.bounds = image.getBounds().toFloat();
             context.contentBounds = context.bounds;
             FaultRecorder optionalSink;
             FaultRecorder requiredSink;
             SkinRenderer renderer;
-            expect (renderer.draw (graphics, program, context, false, optionalSink)
-                    == SkinRenderStatus::recoverableFault);
+            {
+                juce::Graphics graphics (image);
+                expect (renderer.draw (graphics, program, context, false, optionalSink)
+                        == SkinRenderStatus::recoverableFault);
+            }
             expect (optionalSink.diagnostics.front().code == "RUNTIME001");
-            expect (renderer.draw (graphics, program, context, true, requiredSink)
-                    == SkinRenderStatus::fatalFault);
+            {
+                juce::Graphics graphics (image);
+                expect (renderer.draw (graphics, program, context, true, requiredSink)
+                        == SkinRenderStatus::fatalFault);
+            }
             expect (requiredSink.diagnostics.front().code == "RUNTIME002");
 
             auto validProgram = simpleProgram (
@@ -1293,8 +1345,11 @@ public:
                 rectangleLayer ("valid", { 0.0f, 0.0f, 20.0f, 20.0f },
                                 juce::Colours::red));
             FaultRecorder validSink;
-            expect (renderer.draw (graphics, validProgram, context, true, validSink)
-                    == SkinRenderStatus::ok);
+            {
+                juce::Graphics graphics (image);
+                expect (renderer.draw (graphics, validProgram, context, true, validSink)
+                        == SkinRenderStatus::ok);
+            }
             expect (image.getPixelAt (10, 10) == juce::Colours::red);
 
             auto extreme = rectangleLayer (
@@ -1303,8 +1358,11 @@ public:
                 extreme.primitive, "frame.x", 1.0e308);
             auto extremeProgram = simpleProgram (SkinRenderTarget::surface, extreme);
             FaultRecorder extremeSink;
-            expect (renderer.draw (graphics, extremeProgram, context, true, extremeSink)
-                    == SkinRenderStatus::fatalFault);
+            {
+                juce::Graphics graphics (image);
+                expect (renderer.draw (graphics, extremeProgram, context, true, extremeSink)
+                        == SkinRenderStatus::fatalFault);
+            }
             expect (extremeSink.diagnostics.front().message.containsIgnoreCase ("range"));
         }
 
@@ -1485,7 +1543,7 @@ public:
                     };
                 }, renderer);
             juce::Image image (juce::Image::ARGB, 200, 120, true);
-            juce::Graphics graphics (image);
+
 
             SkinComponentBindings bindings;
             SkinValidationReport bindingReport;
@@ -1495,7 +1553,10 @@ public:
             queueCount.setJustificationType (juce::Justification::centredLeft);
             expect (bindings.bind ("queue.count", queueCount, bindingReport),
                     bindingReport.toText());
-            adapter.drawLabel (graphics, queueCount);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawLabel (graphics, queueCount);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0,
                     "bound queue.count must use catalog right alignment");
 
@@ -1504,7 +1565,10 @@ public:
             unbound.setBounds (0, 0, 100, 20);
             unbound.setText ("Fallback", juce::dontSendNotification);
             unbound.setJustificationType (juce::Justification::centredRight);
-            adapter.drawLabel (graphics, unbound);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawLabel (graphics, unbound);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0,
                     "unbound labels must preserve JUCE justification");
 
@@ -1515,9 +1579,12 @@ public:
                 { 60.0f, 0.0f, 10.0f, 20.0f }
             };
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            adapter.drawListBoxRow (
-                graphics, list, 0, 100, 20, false, "Track", "Folder", "3:12",
-                rowGeometry);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawListBoxRow (
+                    graphics, list, 0, 100, 20, false, "Track", "Folder", "3:12",
+                    rowGeometry);
+            }
             expect (image.getPixelAt (10, 10).isTransparent());
             expect (image.getPixelAt (40, 10).isTransparent());
             expect (image.getPixelAt (65, 10).getAlpha() > 0,
@@ -1530,12 +1597,18 @@ public:
             table.getHeader().addColumn ("Duration", 3, 50);
             auto& header = table.getHeader();
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            adapter.drawTableHeaderColumn (
-                graphics, header, "Title", 1, 80, 20, false, false, 0);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawTableHeaderColumn (
+                    graphics, header, "Title", 1, 80, 20, false, false, 0);
+            }
             expect (image.getPixelAt (10, 10).isTransparent());
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            adapter.drawTableHeaderColumn (
-                graphics, header, "Duration", 3, 50, 20, false, false, 0);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawTableHeaderColumn (
+                    graphics, header, "Duration", 3, 50, 20, false, false, 0);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0,
                     "duration header must be right aligned");
         }
@@ -1646,7 +1719,7 @@ public:
                 }, renderer);
 
             juce::Image image (juce::Image::ARGB, 200, 120, true);
-            juce::Graphics graphics (image);
+
             class RetinaTextButton final : public juce::TextButton
             {
             public:
@@ -1656,44 +1729,95 @@ public:
             RetinaTextButton textButton ("Play");
             textButton.getProperties().set (JuceSkinAdapter::scaleFactorProperty, 2.0);
             textButton.getProperties().set (SkinComponentBindings::iconNameProperty, "play");
-            adapter.drawButtonBackground (graphics, textButton, {}, false, false);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawButtonBackground (graphics, textButton, {}, false, false);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0);
-            adapter.drawButtonBackground (graphics, textButton, {}, true, false);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawButtonBackground (graphics, textButton, {}, true, false);
+            }
             juce::ToggleButton toggle ("Repeat");
-            adapter.drawToggleButton (graphics, toggle, false, false);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawToggleButton (graphics, toggle, false, false);
+            }
             juce::ComboBox combo;
-            adapter.drawComboBox (graphics, 100, 30, false, 70, 0, 30, 30, combo);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawComboBox (graphics, 100, 30, false, 70, 0, 30, 30, combo);
+            }
             juce::TextEditor editor;
-            adapter.fillTextEditorBackground (graphics, 100, 30, editor);
+            {
+                juce::Graphics graphics (image);
+                adapter.fillTextEditorBackground (graphics, 100, 30, editor);
+            }
             juce::Slider slider;
-            adapter.drawLinearSlider (graphics, 0, 0, 100, 20, 50, 0, 100,
-                                      juce::Slider::LinearHorizontal, slider);
-            adapter.drawRotarySlider (graphics, 0, 0, 40, 40, 0.5f, 0.0f, 6.0f, slider);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawLinearSlider (graphics, 0, 0, 100, 20, 50, 0, 100,
+                                          juce::Slider::LinearHorizontal, slider);
+            }
+            {
+                juce::Graphics graphics (image);
+                adapter.drawRotarySlider (graphics, 0, 0, 40, 40, 0.5f, 0.0f, 6.0f, slider);
+            }
             double progressValue = 0.5;
             juce::ProgressBar progress (progressValue);
-            adapter.drawProgressBar (graphics, progress, 100, 20, 0.5, "50%");
+            {
+                juce::Graphics graphics (image);
+                adapter.drawProgressBar (graphics, progress, 100, 20, 0.5, "50%");
+            }
             juce::ScrollBar scroll (true);
             scroll.getProperties().set (JuceSkinAdapter::styleProperty, "scrollBar.loud");
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            adapter.drawScrollbar (graphics, scroll, 0, 0, 12, 100, true,
-                                   20, 30, false, false);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawScrollbar (graphics, scroll, 0, 0, 12, 100, true,
+                                       20, 30, false, false);
+            }
             expect (image.getPixelAt (6, 50).getAlpha() > 0);
-            adapter.drawScrollbarButton (graphics, scroll, 12, 12, 0, true, false, false);
-            adapter.drawPopupMenuBackground (graphics, 100, 80);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawScrollbarButton (graphics, scroll, 12, 12, 0, true, false, false);
+            }
+            {
+                juce::Graphics graphics (image);
+                adapter.drawPopupMenuBackground (graphics, 100, 80);
+            }
             juce::PopupMenu::Item popupItem;
             popupItem.itemID = 73;
             popupItem.text = "Item";
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            adapter.drawPopupMenuItemWithOptions (
-                graphics, { 0, 0, 100, 20 }, true, popupItem, {});
+            {
+                juce::Graphics graphics (image);
+                adapter.drawPopupMenuItemWithOptions (
+                    graphics, { 0, 0, 100, 20 }, true, popupItem, {});
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0);
-            adapter.drawPopupMenuItem (graphics, { 0, 20, 100, 4 }, true, true, false,
-                                       false, false, {}, {}, nullptr, nullptr);
-            adapter.drawPopupMenuSectionHeader (graphics, { 0, 24, 100, 20 }, "Section");
-            adapter.drawPopupMenuUpDownArrow (graphics, 100, 12, true);
-            adapter.drawPopupMenuColumnSeparatorWithOptions (
-                graphics, { 50, 0, 1, 80 }, {});
-            adapter.drawTooltip (graphics, "Tip", 100, 20);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawPopupMenuItem (graphics, { 0, 20, 100, 4 }, true, true, false,
+                                           false, false, {}, {}, nullptr, nullptr);
+            }
+            {
+                juce::Graphics graphics (image);
+                adapter.drawPopupMenuSectionHeader (graphics, { 0, 24, 100, 20 }, "Section");
+            }
+            {
+                juce::Graphics graphics (image);
+                adapter.drawPopupMenuUpDownArrow (graphics, 100, 12, true);
+            }
+            {
+                juce::Graphics graphics (image);
+                adapter.drawPopupMenuColumnSeparatorWithOptions (
+                    graphics, { 50, 0, 1, 80 }, {});
+            }
+            {
+                juce::Graphics graphics (image);
+                adapter.drawTooltip (graphics, "Tip", 100, 20);
+            }
             SkinTableListBox table;
             table.setBounds (0, 0, 200, 120);
             table.setLookAndFeel (&adapter);
@@ -1706,11 +1830,20 @@ public:
             table.setSize (201, 120);
             expect (header.getTotalWidth() <= table.getWidth(),
                     "skinnable table columns must fit without a horizontal scrollbar");
-            adapter.drawTableHeaderBackground (graphics, header);
-            adapter.drawTableHeaderColumn (
-                graphics, header, "Title", 1, 100, 20, false, false, 0);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawTableHeaderBackground (graphics, header);
+            }
+            {
+                juce::Graphics graphics (image);
+                adapter.drawTableHeaderColumn (
+                    graphics, header, "Title", 1, 100, 20, false, false, 0);
+            }
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            table.paint (graphics);
+            {
+                juce::Graphics graphics (image);
+                table.paint (graphics);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0,
                     "empty table body must use its bound table renderer");
             expect (std::find (requestedStyles.begin(), requestedStyles.end(),
@@ -1720,16 +1853,22 @@ public:
                     "table header and body must inherit the owner style");
             juce::ListBox list;
             adapter.configureListBox (list);
-            adapter.drawListBoxBackground (graphics, list, 12, 3);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawListBoxBackground (graphics, list, 12, 3);
+            }
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
             const JuceSkinAdapter::ListBoxRowGeometry rowGeometry {
                 { 0.0f, 0.0f, 20.0f, 20.0f },
                 { 30.0f, 0.0f, 20.0f, 20.0f },
                 { 60.0f, 0.0f, 10.0f, 20.0f }
             };
-            adapter.drawListBoxRow (
-                graphics, list, 2, 100, 20, true, "Track", "Folder", "3:12",
-                rowGeometry, true, false);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawListBoxRow (
+                    graphics, list, 2, 100, 20, true, "Track", "Folder", "3:12",
+                    rowGeometry, true, false);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0);
             expect (image.getPixelAt (40, 10).getAlpha() > 0);
             expect (image.getPixelAt (65, 10).getAlpha() > 0);
@@ -1739,9 +1878,12 @@ public:
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
             auto hiddenLocation = rowGeometry;
             hiddenLocation.location = {};
-            adapter.drawListBoxRow (
-                graphics, list, 2, 100, 20, true, "Track", "Folder", "3:12",
-                hiddenLocation, true, false);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawListBoxRow (
+                    graphics, list, 2, 100, 20, true, "Track", "Folder", "3:12",
+                    hiddenLocation, true, false);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0);
             expect (image.getPixelAt (65, 10).getAlpha() > 0);
             expect (image.getPixelAt (55, 10).isTransparent(),
@@ -1754,15 +1896,21 @@ public:
             SkinRenderContext customContext;
             customContext.primaryText = "Track";
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            expect (adapter.drawCustomComponent (
-                graphics, customComponent, SkinRenderTarget::artwork,
-                customContext, "artwork"));
+            {
+                juce::Graphics graphics (image);
+                expect (adapter.drawCustomComponent (
+                    graphics, customComponent, SkinRenderTarget::artwork,
+                    customContext, "artwork"));
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0);
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
             customContext.meterPeaks[0] = 0.75f;
-            expect (adapter.drawCustomComponent (
-                graphics, customComponent, SkinRenderTarget::outputStage,
-                customContext, "output"));
+            {
+                juce::Graphics graphics (image);
+                expect (adapter.drawCustomComponent (
+                    graphics, customComponent, SkinRenderTarget::outputStage,
+                    customContext, "output"));
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0);
 
             SkinEffectChainViewport effectChain;
@@ -1770,7 +1918,10 @@ public:
             effectChain.setSlotCount (3);
             effectChain.setLookAndFeel (&adapter);
             image.clear (image.getBounds(), juce::Colours::transparentBlack);
-            effectChain.paint (graphics);
+            {
+                juce::Graphics graphics (image);
+                effectChain.paint (graphics);
+            }
             expect (image.getPixelAt (10, 10).getAlpha() > 0);
             SkinRenderContext slotContext;
             slotContext.bounds = { 0.0f, 0.0f, 40.0f, 20.0f };
@@ -1779,10 +1930,13 @@ public:
                                          SkinRenderTarget target,
                                          const juce::String& style)
             {
-                expect (adapter.drawCustomSlot (
-                    graphics, effectChain, SkinRenderTarget::effectChain,
-                    slot, target, slotContext,
-                    "slot:0:" + juce::String (slot)));
+                {
+                    juce::Graphics graphics (image);
+                    expect (adapter.drawCustomSlot (
+                        graphics, effectChain, SkinRenderTarget::effectChain,
+                        slot, target, slotContext,
+                        "slot:0:" + juce::String (slot)));
+                }
                 expect (std::find (requestedStyles.begin(), requestedStyles.end(),
                                    std::pair { target, style })
                         != requestedStyles.end(), juce::String (slot));
@@ -1872,8 +2026,11 @@ public:
             {
                 slider.setValue (value, juce::dontSendNotification);
                 juce::Image image (juce::Image::ARGB, 120, 24, true);
-                juce::Graphics graphics (image);
-                slider.paintEntireComponent (graphics, true);
+
+                {
+                    juce::Graphics graphics (image);
+                    slider.paintEntireComponent (graphics, true);
+                }
                 int pixels = 0;
                 for (int x = 0; x < image.getWidth(); ++x)
                     if (image.getPixelAt (x, 6).getAlpha() > 127) ++pixels;
@@ -2120,8 +2277,11 @@ public:
             const auto paintedColour = [&]
             {
                 juce::Image image (juce::Image::ARGB, 180, 36, true);
-                juce::Graphics graphics (image);
-                combo.paintEntireComponent (graphics, true);
+
+                {
+                    juce::Graphics graphics (image);
+                    combo.paintEntireComponent (graphics, true);
+                }
                 return image.getPixelAt (5, 5);
             };
             expect (combo.hasKeyboardFocus (true));
@@ -2602,7 +2762,7 @@ public:
             juce::Component owner;
             owner.setBounds (0, 0, 80, 24);
             juce::Image image (juce::Image::ARGB, 80, 24, true);
-            juce::Graphics graphics (image);
+
             const auto drawNamedPlugin = [&] (const juce::String& name)
             {
                 image.clear (image.getBounds(), juce::Colours::transparentBlack);
@@ -2615,10 +2775,13 @@ public:
                     if (path == "plugin.name") return SkinExpressionValue (name);
                     return std::nullopt;
                 };
-                expect (adapter.drawCustomSlot (
-                    graphics, owner, SkinRenderTarget::pluginList,
-                    "row.surface", SkinRenderTarget::surface,
-                    std::move (context), "plugin:0"));
+                {
+                    juce::Graphics graphics (image);
+                    expect (adapter.drawCustomSlot (
+                        graphics, owner, SkinRenderTarget::pluginList,
+                        "row.surface", SkinRenderTarget::surface,
+                        std::move (context), "plugin:0"));
+                }
             };
             drawNamedPlugin ("Limiter");
             expect (image.getPixelAt (10, 10).isTransparent());
@@ -2704,16 +2867,19 @@ public:
                 }, renderer);
             juce::ListBox list;
             juce::Image image (juce::Image::ARGB, 80, 24, true);
-            juce::Graphics graphics (image);
+
             const JuceSkinAdapter::ListBoxRowGeometry geometry {
                 { 0.0f, 0.0f, 24.0f, 24.0f },
                 { 24.0f, 0.0f, 40.0f, 24.0f },
                 { 64.0f, 0.0f, 16.0f, 24.0f }
             };
-            adapter.drawListBoxRow (
-                graphics, list, 0, 80, 24, false, "Track",
-                "/Music/Album/Track.flac", "3:12", geometry,
-                false, false, true, "Artist", "Album", true, true, -1);
+            {
+                juce::Graphics graphics (image);
+                adapter.drawListBoxRow (
+                    graphics, list, 0, 80, 24, false, "Track",
+                    "/Music/Album/Track.flac", "3:12", geometry,
+                    false, false, true, "Artist", "Album", true, true, -1);
+            }
             expect (image.getPixelAt (40, 12).getAlpha() > 0,
                     "cell.location must receive the absolute path in text.primary "
                     "while row.artist and row.album remain additive context");
@@ -2721,11 +2887,14 @@ public:
                      { false, true, -1 }, { true, false, -1 }, { true, true, 0 }, { true, true, 1 } })
             {
                 image.clear (image.getBounds(), juce::Colours::transparentBlack);
-                adapter.drawListBoxRow (
-                    graphics, list, 0, 80, 24, false, "Track",
-                    "/Music/Album/Track.flac", "3:12", geometry,
-                    false, false, true, "Artist", "Album",
-                    std::get<0> (state), std::get<1> (state), std::get<2> (state));
+                {
+                    juce::Graphics graphics (image);
+                    adapter.drawListBoxRow (
+                        graphics, list, 0, 80, 24, false, "Track",
+                        "/Music/Album/Track.flac", "3:12", geometry,
+                        false, false, true, "Artist", "Album",
+                        std::get<0> (state), std::get<1> (state), std::get<2> (state));
+                }
                 expect (image.getPixelAt (40, 12).isTransparent(),
                         "playing, favourite and insertion edge must reach row slots independently");
             }
