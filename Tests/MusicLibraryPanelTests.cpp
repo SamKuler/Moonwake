@@ -179,7 +179,8 @@ struct LibraryPanelFixture
             juce::Graphics graphics (image);
             model().paintRowBackground (graphics, row, 400, 40, table().isRowSelected (row));
         } // Finish native rendering before reading the image pixels.
-        return image.getPixelAt (2, 20);
+        // Sample inside the title gutter where both static and animated bars are filled.
+        return image.getPixelAt (17, 25);
     }
     const std::vector<PlaylistEntry>& entries() const { return controller.getLibrary().getPlaylist (playlistId)->entries; }
 

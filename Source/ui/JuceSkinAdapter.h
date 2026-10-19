@@ -144,7 +144,8 @@ public:
                          bool available = true,
                          const juce::String& artist = {},
                          const juce::String& album = {},
-                         bool playing = false, bool favourite = false, int dropEdge = 0);
+                         bool playing = false, bool favourite = false, int dropEdge = 0,
+                         bool playbackActive = false, double playbackSeconds = 0.0);
 
     [[nodiscard]] std::optional<ArtworkImageStyle> artworkImageStyleFor (
         const juce::Component&, SkinRenderContext) const;

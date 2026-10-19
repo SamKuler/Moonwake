@@ -407,6 +407,7 @@ MainComponent::MainComponent()
         });
 
         appliedSkinSession = skinManager.activeSession();
+        appliedSkinSession->refreshMotionPreference();
         skinManager.addListener (this);
         if (skinReport.hasErrors())
             skinFallbackDiagnostic.setMessage (skinReport.toText());
@@ -743,7 +744,6 @@ MainComponent::MainComponent()
     musicLibraryPanel.onChanged = [this] { refreshPlaylist(); updateTransportState(); };
     musicLibraryPanel.onPageChanged = [this]
     {
-        if (! queueVisibilityChosen) queueOpen = musicLibraryPanel.page() == MusicLibraryPanel::Page::player;
         closeDrawers();
         applyWorkspaceVisuals();
         resized();
@@ -1234,6 +1234,8 @@ void MainComponent::bindSkinComponents()
 
 void MainComponent::skinChanged()
 {
+    if (const auto session = skinManager.activeSession())
+        session->refreshMotionPreference();
     if (! supportsPresentation (playerPresentation))
     {
         playerPresentation = PlayerPresentation::normal;
@@ -1534,6 +1536,12 @@ void MainComponent::timerCallback (int timerID)
 {
     if (timerID == 2)
     {
+        if (controller.isPlaying())
+        {
+            if (playlistTable.isShowing() && ! skinAdapter.reduceMotionFor (playlistTable, SkinRenderTarget::table))
+                repaintPlaybackIndicators();
+            musicLibraryPanel.repaintPlaybackIndicators();
+        }
         if (lyricsView.isShowing())
             lyricsView.setPlaybackPosition (controller.getCurrentPositionSeconds() + lyricsOffsetSeconds);
         if (outputStage.isShowing() || outputMixer.isShowing())
@@ -1544,6 +1552,9 @@ void MainComponent::timerCallback (int timerID)
         }
         return;
     }
+
+    if (const auto session = skinManager.activeSession(); session != nullptr && session->refreshMotionPreference())
+        repaint();
 
     if (statusVisibleUntil > 0.0
         && juce::Time::getMillisecondCounterHiRes() / 1000.0 >= statusVisibleUntil)
@@ -1691,7 +1702,8 @@ void MainComponent::paintRowBackground (juce::Graphics& graphics,
         track->file.getFullPathName(),
         duration, playlistTable.rowGeometry (height),
         false, false, track->available, track->artist, track->album,
-        queueEntryAtRow (rowNumber)->current, controller.getLibrary().isFavourite (track->libraryId));
+        entry->current, controller.getLibrary().isFavourite (track->libraryId), 0,
+        controller.isPlaying(), controller.getCurrentPositionSeconds());
 }
 
 void MainComponent::paintCell (juce::Graphics&, int, int, int, int, bool)
@@ -2084,6 +2096,17 @@ void MainComponent::choosePlaylistExport (std::vector<TrackItem> exportTracks)
         });
 }
 
+void MainComponent::repaintPlaybackIndicators()
+{
+    if (! playlistTable.isShowing()) return;
+    const auto* viewport = playlistTable.getViewport();
+    const auto first = viewport->getViewPositionY() / playlistTable.getRowHeight();
+    const auto end = juce::jmin (getNumRows(), first + viewport->getHeight() / playlistTable.getRowHeight() + 2);
+    for (int row = first; row < end; ++row)
+        if (const auto* entry = queueEntryAtRow (row); entry != nullptr && entry->current)
+            playlistTable.repaintRow (row);
+}
+
 void MainComponent::setQueueOpen (bool open)
 {
     const auto* focused = juce::Component::getCurrentlyFocusedComponent();
@@ -2093,7 +2116,6 @@ void MainComponent::setQueueOpen (bool open)
             if (id.startsWith ("queue.") && id != "queue.toggle")
                 if (const auto* component = skinBindings.find (id))
                     restoreQueueFocus = restoreQueueFocus || component == focused || component->isParentOf (focused);
-    queueVisibilityChosen = true;
     queueOpen = open;
     queueToggleButton.setToggleState (open, juce::dontSendNotification);
     queueToggleButton.setTooltip (open ? "Hide play queue" : "Show play queue");
@@ -2646,6 +2668,11 @@ void MainComponent::updateTransportState()
     moveTrackUpButton.setEnabled (canMoveQueueSelection (-1));
     moveTrackDownButton.setEnabled (canMoveQueueSelection (1));
     musicLibraryPanel.updatePlayback();
+    if (indicatorPlaybackActive != state.isPlaying)
+    {
+        indicatorPlaybackActive = state.isPlaying;
+        repaintPlaybackIndicators();
+    }
     queueToggleButton.setToggleState (queueOpen, juce::dontSendNotification);
     queueToggleButton.setTooltip (queueOpen ? "Hide play queue" : "Show play queue");
     const auto transportReady = restoreStatus != RestoreStatus::loading;

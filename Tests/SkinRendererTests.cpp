@@ -2804,6 +2804,8 @@ public:
                     SkinRenderTarget::table, slot,
                     juce::String (slot) == "row.surface" ? SkinRenderTarget::surface : SkinRenderTarget::label);
                 expect (fields.contains ("row.playing") && fields.at ("row.playing") == SkinExpressionType::boolean);
+                expect (fields.contains ("row.animating") && fields.at ("row.animating") == SkinExpressionType::boolean);
+                expect (fields.contains ("row.playbackSeconds") && fields.at ("row.playbackSeconds") == SkinExpressionType::number);
                 expect (fields.contains ("row.favourite") && fields.at ("row.favourite") == SkinExpressionType::boolean);
                 expect (fields.contains ("row.dropEdge") && fields.at ("row.dropEdge") == SkinExpressionType::number);
             }
@@ -2901,6 +2903,110 @@ public:
             expect (! report.hasErrors(), report.toText());
         }
 
+
+        beginTest ("playback row animation follows transport state and Reduce Motion");
+        {
+            SkinValidationReport report;
+            SkinTokenStore tokens;
+            auto indicator = rectangleLayer ("indicator", { 0.0f, 0.0f, 40.0f, 24.0f }, juce::Colours::white);
+            const auto visible = SkinExpression::compile (
+                "row.animating and row.playbackSeconds == 1.25",
+                skinRenderContextForCompositeSlot (SkinRenderTarget::table, "row.surface", SkinRenderTarget::surface),
+                tokens, report, "playback-indicator", "/visible");
+            expect (visible.has_value(), report.toText());
+            if (visible)
+            {
+                auto binding = literalBinding (SkinPrimitive::rectangle, "visible", false);
+                binding.value = *visible;
+                indicator.properties["visible"] = std::move (binding);
+            }
+            std::map<SkinRenderTarget, SkinRenderStyleEntry> entries;
+            entries[SkinRenderTarget::surface].renderer = simpleProgram (SkinRenderTarget::surface, std::move (indicator));
+            entries[SkinRenderTarget::label].renderer = simpleProgram (SkinRenderTarget::label,
+                rectangleLayer ("empty", { 0.0f, 0.0f, 40.0f, 24.0f }, juce::Colours::transparentBlack));
+            entries[SkinRenderTarget::table].slotStyles = {
+                { "row.surface", "surface.default" }, { "cell.title", "label.default" },
+                { "cell.location", "label.default" }, { "cell.duration", "label.default" }
+            };
+            SkinAnimationEngine animations;
+            FaultRecorder sink;
+            SkinRenderer renderer;
+            JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String&)
+            { return JuceSkinAdapter::RuntimeBinding { &entries.at (target), &animations, &sink, true }; }, renderer);
+            juce::ListBox list;
+            for (const auto& [current, active, reduced] : std::vector<std::tuple<bool, bool, bool>> {
+                    { true, true, false }, { true, false, false }, { true, true, true }, { false, true, false } })
+            {
+                animations.setReduceMotionEnabled (reduced);
+                juce::Image image (juce::Image::ARGB, 40, 24, true);
+                {
+                    juce::Graphics graphics (image);
+                    adapter.drawListBoxRow (graphics, list, 0, 40, 24, false, "Track", {}, {}, std::nullopt,
+                        false, false, true, {}, {}, current, false, 0, active, 1.25);
+                }
+                expect (image.getPixelAt (2, 12).isOpaque() == (current && active && ! reduced));
+            }
+            expect (! report.hasErrors(), report.toText());
+            expect (sink.diagnostics.empty());
+        }
+
+        beginTest ("playback and favourite indicators follow a reordered title column");
+        {
+            SkinValidationReport report;
+            const auto foundationPackage = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::foundation, report);
+            const auto foundation = foundationPackage ? SkinCompiler::compile (*foundationPackage, {}, report) : nullptr;
+            const auto package = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::defaultSkin, report);
+            const auto skin = package && foundation ? SkinCompiler::compile (*package, foundation, report) : nullptr;
+            expect (skin != nullptr, report.toText());
+            if (skin)
+                for (const auto& theme : { juce::String ("studio"), juce::String ("listening") })
+                {
+                    SkinAnimationEngine animations;
+                    FaultRecorder sink;
+                    SkinRenderer renderer;
+                    JuceSkinAdapter adapter ([&] (const juce::Component&, SkinRenderTarget target, const juce::String& style)
+                    { return JuceSkinAdapter::RuntimeBinding { skin->resolveStyle (target, style), &animations, &sink, true }; }, renderer);
+                    SkinTableListBox table;
+                    table.setBounds (0, 0, 800, 120);
+                    table.getHeader().addColumn ("Track", 1, 220);
+                    table.getHeader().addColumn ("Artist", 2, 220);
+                    table.getHeader().addColumn ("Time", 3, 80);
+                    table.getHeader().addColumn ("Album", 4, 220);
+                    table.getProperties().set (JuceSkinAdapter::styleProperty, "table." + theme + "Collection");
+                    table.setLookAndFeel (&adapter);
+                    adapter.configureListBox (table);
+                    table.setPresentation ("table");
+                    table.getHeader().moveColumn (2, 0);
+                    const auto geometry = table.rowGeometry (40);
+                    expect (geometry.title.getX() > 0.0f);
+                    juce::Image image (juce::Image::ARGB, 800, 40, true);
+                    {
+                        juce::Graphics graphics (image);
+                        adapter.drawListBoxRow (graphics, table, 0, 800, 40, false, "Title", {}, "3:10", geometry,
+                            false, false, true, "Artist", "Album", true, true, 0, true, 0.125);
+                    }
+                    const auto* accent = skin->tokens.find<juce::Colour> ("colors." + theme + ".active");
+                    expect (accent != nullptr);
+                    if (accent)
+                    {
+                        const auto pixels = [&] (int start, int width)
+                        {
+                            int count = 0;
+                            for (int y = 0; y < image.getHeight(); ++y)
+                                for (int x = start; x < start + width; ++x)
+                                    if (image.getPixelAt (x, y) == *accent) ++count;
+                            return count;
+                        };
+                        expectEquals (pixels (12, 10), 0, "Artist column keeps its text space.");
+                        expect (pixels (juce::roundToInt (geometry.title.getX()) + 12, 10) > 0,
+                                "Playback marker stays with the title.");
+                        expect (pixels (juce::roundToInt (geometry.title.getRight()) - 16, 8) > 0,
+                                "Favourite marker stays with the title.");
+                    }
+                    expect (sink.diagnostics.empty());
+                    table.setLookAndFeel (nullptr);
+                }
+        }
 
         beginTest ("custom artwork and output components populate their frozen context");
         {

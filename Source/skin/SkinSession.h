@@ -19,6 +19,7 @@ public:
     [[nodiscard]] const SkinValidationReport& runtimeReport() const noexcept;
     [[nodiscard]] bool isPreview() const noexcept;
     SkinAnimationEngine& animations() noexcept;
+    bool refreshMotionPreference();
     SkinAssetCache& assets() const;
 
     void commitPreview() noexcept;

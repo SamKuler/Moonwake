@@ -25,6 +25,7 @@ public:
     void refresh();
     void updateVisibility();
     void updatePlayback();
+    void repaintPlaybackIndicators();
     [[nodiscard]] bool canStartPlayback() const;
     bool startPlayback();
     void finishEditing();
@@ -61,6 +62,7 @@ private:
     juce::var getDragSourceDescription (const juce::SparseSet<int>&) override;
     void sortOrderChanged (int, bool) override;
     [[nodiscard]] const TrackItem* trackAtRow (int) const;
+    [[nodiscard]] bool isCurrentTrack (const TrackItem&) const;
     struct SelectedEntry
     {
         juce::String entryId, libraryId;
@@ -114,6 +116,7 @@ private:
     std::map<juce::String, int> scrollByCollection;
     std::map<juce::String, std::pair<int, bool>> viewSorts;
     juce::String collectionId, renameId, playingQueueId, playingLibraryId;
+    bool indicatorPlaybackActive = false;
     uint64_t renameGeneration = 0;
     struct PlaybackOrigin
     {

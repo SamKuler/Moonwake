@@ -284,13 +284,26 @@ void MusicLibraryPanel::updatePlayback()
     if (current != nullptr && current->id != controller.getLoadedTrackId()) current = nullptr;
     const auto id = current != nullptr ? current->id : juce::String{};
     const auto libraryId = current != nullptr ? current->libraryId : juce::String{};
-    if (id != playingQueueId || libraryId != playingLibraryId)
+    const auto active = controller.isPlaying();
+    if (id != playingQueueId || libraryId != playingLibraryId || active != indicatorPlaybackActive)
     {
         prunePlaybackOrigins();
         playingQueueId = id;
         playingLibraryId = libraryId;
+        indicatorPlaybackActive = active;
         table->repaint();
     }
+}
+
+void MusicLibraryPanel::repaintPlaybackIndicators()
+{
+    if (! table->isShowing() || adapter.reduceMotionFor (*table, SkinRenderTarget::table)) return;
+    const auto* viewport = table->getViewport();
+    const auto first = viewport->getViewPositionY() / table->getRowHeight();
+    const auto end = juce::jmin (getNumRows(), first + viewport->getHeight() / table->getRowHeight() + 2);
+    for (int row = first; row < end; ++row)
+        if (const auto* track = trackAtRow (row); track != nullptr && isCurrentTrack (*track))
+            table->repaintRow (row);
 }
 
 bool MusicLibraryPanel::canStartPlayback() const
@@ -321,23 +334,28 @@ const TrackItem* MusicLibraryPanel::trackAtRow (int row) const
     return juce::isPositiveAndBelow (index, static_cast<int> (tracks.size())) ? &tracks[static_cast<size_t> (index)] : nullptr;
 }
 
+bool MusicLibraryPanel::isCurrentTrack (const TrackItem& track) const
+{
+    if (collectionId == "queue") return track.id == playingQueueId;
+    if (const auto origin = playbackOrigins.find (playingQueueId);
+        origin != playbackOrigins.end() && origin->second.collectionId == collectionId)
+        return origin->second.entryId == track.id;
+    return ! collectionId.startsWith ("playlist:") && track.libraryId == playingLibraryId;
+}
+
 void MusicLibraryPanel::paintRowBackground (juce::Graphics& g, int row, int width, int height, bool selected)
 {
     const auto* track = trackAtRow (row);
     if (track == nullptr) return;
-    bool playing = collectionId == "queue" ? track->id == playingQueueId
-        : (! collectionId.startsWith ("playlist:") && track->libraryId == playingLibraryId);
-    if (collectionId != "queue")
-        if (const auto origin = playbackOrigins.find (playingQueueId);
-            origin != playbackOrigins.end() && origin->second.collectionId == collectionId)
-            playing = origin->second.entryId == track->id;
+    const auto playing = isCurrentTrack (*track);
     const auto seconds = static_cast<int> (std::round (track->durationSeconds));
     const auto duration = seconds > 0 ? juce::String (seconds / 60) + ":" + juce::String (seconds % 60).paddedLeft ('0', 2) : "--";
     const auto dropEdge = row == dropBeforeRow ? -1 : row == getNumRows() - 1 && dropBeforeRow == getNumRows() ? 1 : 0;
     adapter.drawListBoxRow (g, *table, row, width, height, selected,
         track->title + (track->available ? juce::String{} : " (Missing)"), track->file.getFullPathName(), duration,
         table->rowGeometry (height), false, false, track->available, track->artist, track->album,
-        playing, controller.getLibrary().isFavourite (track->libraryId), dropEdge);
+        playing, controller.getLibrary().isFavourite (track->libraryId), dropEdge,
+        controller.isPlaying(), controller.getCurrentPositionSeconds());
 }
 
 juce::String MusicLibraryPanel::getCellTooltip (int row, int)

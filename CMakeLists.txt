@@ -4,6 +4,8 @@ project(Moonwake VERSION 0.11.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
+    set_source_files_properties(Source/skin/SkinSession.cpp
+        PROPERTIES LANGUAGE OBJCXX COMPILE_FLAGS "-fobjc-arc")
     set(MOONWAKE_MAC_SOURCES Source/library/MacEmbeddedArtworkReader.mm)
     set(MOONWAKE_NOW_PLAYING_SOURCE Source/app/MacNowPlayingBridge.mm)
     set(MOONWAKE_MAC_APP_SOURCES Source/ui/PlayerWindowMac.mm)

@@ -49,7 +49,9 @@
     "miniTitle": "components/miniTitle.json",
     "miniArtist": "components/miniArtist.json",
     "playerNotice": "components/playerNotice.json",
-    "miniNotice": "components/miniNotice.json"
+    "miniNotice": "components/miniNotice.json",
+    "studioTrackTitle": "components/studio-track-title.json",
+    "listeningTrackTitle": "components/listening-track-title.json"
   },
   "textButton": {
     "studio": "components/studio-button.json",
@@ -373,7 +375,7 @@
         "header.surface": "surface.studioListRow",
         "header.text": "label.studioTable",
         "row.surface": "surface.studioTrackRow",
-        "cell.title": "label.studioTable",
+        "cell.title": "label.studioTrackTitle",
         "cell.location": "label.studioTableMetadata",
         "cell.duration": "label.studioTable"
       }
@@ -395,7 +397,7 @@
         "header.surface": "surface.studioListRow",
         "header.text": "label.studioTable",
         "row.surface": "surface.studioTrackRow",
-        "cell.title": "label.studioTable",
+        "cell.title": "label.studioTrackTitle",
         "cell.location": "label.studioTableMetadata",
         "cell.duration": "label.studioTable",
         "cell.artist": "label.studioTable",
@@ -408,7 +410,7 @@
         "header.surface": "surface.listeningListRow",
         "header.text": "label.listeningTable",
         "row.surface": "surface.listeningTrackRow",
-        "cell.title": "label.listeningTable",
+        "cell.title": "label.listeningTrackTitle",
         "cell.location": "label.listeningTableMetadata",
         "cell.duration": "label.listeningTable",
         "cell.artist": "label.listeningTable",

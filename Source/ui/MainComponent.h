@@ -100,6 +100,7 @@ private:
     void chooseTrackRelocation (juce::String);
     void choosePlaylistArtwork (juce::String);
     void setQueueOpen (bool);
+    void repaintPlaybackIndicators();
     void startLibraryImport (juce::Array<juce::File>);
     void setLibraryImportRunning (bool);
     void choosePluginDirectory();
@@ -277,7 +278,7 @@ private:
 
     WorkspaceMode workspaceMode = WorkspaceMode::listening;
     bool queueOpen = false;
-    bool queueVisibilityChosen = false;
+    bool indicatorPlaybackActive = false;
     bool effectsDrawerOpen = false;
     bool settingsDrawerOpen = false;
     SkinLayoutEntry activeSkinLayoutEntry = SkinLayoutEntry::listening;

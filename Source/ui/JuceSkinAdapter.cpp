@@ -1212,7 +1212,7 @@ void JuceSkinAdapter::drawListBoxRow (
     const juce::String& locationText, const juce::String& durationText,
     const std::optional<ListBoxRowGeometry>& geometry, bool hovered, bool pressed,
     bool available, const juce::String& artist, const juce::String& album,
-    bool playing, bool favourite, int dropEdge)
+    bool playing, bool favourite, int dropEdge, bool playbackActive, double playbackSeconds)
 {
     SkinRenderContext context;
     context.bounds = { 0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height) };
@@ -1220,7 +1220,8 @@ void JuceSkinAdapter::drawListBoxRow (
     context.state = stateFor (list, hovered, pressed, selected);
     context.primaryText = primaryText;
     context.secondaryText = locationText;
-    context.extraLookup = [rowNumber, selected, available, playing, favourite, dropEdge,
+    const auto animating = playing && playbackActive && ! reduceMotionFor (list, SkinRenderTarget::table);
+    context.extraLookup = [rowNumber, selected, available, playing, favourite, dropEdge, animating, playbackSeconds,
                            primaryText, locationText, artist, album,
                            durationText]
                           (std::string_view path)
@@ -1230,6 +1231,8 @@ void JuceSkinAdapter::drawListBoxRow (
             return SkinExpressionValue (static_cast<double> (rowNumber));
         if (path == "row.selected") return SkinExpressionValue (selected);
         if (path == "row.playing") return SkinExpressionValue (playing);
+        if (path == "row.animating") return SkinExpressionValue (animating);
+        if (path == "row.playbackSeconds") return SkinExpressionValue (playing ? playbackSeconds : 0.0);
         if (path == "row.favourite") return SkinExpressionValue (favourite);
         if (path == "row.dropEdge") return SkinExpressionValue (static_cast<double> (dropEdge));
         if (path == "row.available") return SkinExpressionValue (available);

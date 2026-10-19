@@ -487,6 +487,8 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
                     { "row.index", Type::number },
                     { "row.selected", Type::boolean },
                     { "row.playing", Type::boolean },
+                    { "row.animating", Type::boolean },
+                    { "row.playbackSeconds", Type::number },
                     { "row.favourite", Type::boolean },
                     { "row.dropEdge", Type::number },
                     { "row.available", Type::boolean },

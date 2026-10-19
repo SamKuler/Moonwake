@@ -33,46 +33,6 @@
       }
     },
     {
-      "id": "playing",
-      "type": "path",
-      "data": "M0 4 L1.5 4 L1.5 9 L0 9 Z M3 0 L4.5 0 L4.5 9 L3 9 Z M6 2 L7.5 2 L7.5 9 L6 9 Z",
-      "visible": {
-        "$context": "row.playing"
-      },
-      "fill": {
-        "$ref": "colors.studio.active"
-      },
-      "transform": {
-        "pivotX": 0,
-        "pivotY": 0,
-        "translateX": 1,
-        "translateY": {
-          "$expr": "(bounds.height - 9) * 0.5"
-        }
-      }
-    },
-    {
-      "id": "favourite",
-      "type": "path",
-      "data": "M4 0 L5.2 2.8 L8 3 L5.9 5 L6.5 8 L4 6.5 L1.5 8 L2.1 5 L0 3 L2.8 2.8 Z",
-      "visible": {
-        "$context": "row.favourite"
-      },
-      "fill": {
-        "$ref": "colors.studio.active"
-      },
-      "transform": {
-        "pivotX": 0,
-        "pivotY": 0,
-        "translateX": {
-          "$expr": "bounds.width - 74"
-        },
-        "translateY": {
-          "$expr": "(bounds.height - 8) * 0.5"
-        }
-      }
-    },
-    {
       "id": "drop-before",
       "type": "rect",
       "visible": {

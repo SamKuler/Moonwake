@@ -86,7 +86,8 @@
       "renderer": "components/collection-table.json",
       "slots": {
         "cell.artist": "label.default",
-        "cell.album": "label.default"
+        "cell.album": "label.default",
+        "cell.title": "label.playbackTitle"
       }
     }
   },
@@ -162,7 +163,8 @@
     "miniTitle": "components/miniTitle.json",
     "miniArtist": "components/miniArtist.json",
     "playerNotice": "components/playerNotice.json",
-    "miniNotice": "components/miniNotice.json"
+    "miniNotice": "components/miniNotice.json",
+    "playbackTitle": "components/playback-title.json"
   },
   "lyrics": {
     "document": {

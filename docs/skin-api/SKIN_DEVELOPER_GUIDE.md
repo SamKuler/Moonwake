@@ -400,7 +400,7 @@ Token 引用：
 - 循环、递归。
 - 动态字段访问。
 - 字符串拼接。
-- 文件、时间、随机数或网络。
+- 文件系统访问、系统时钟、随机数或网络。
 
 静态类型只有 number、boolean、string 和 color，没有隐式转换。+、-、*、/ 与有序比较只接受 number；== 和 != 要求两侧同类型；and、or、not 只接受 boolean，and 与 or 短路。
 
@@ -1256,7 +1256,7 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 
 `queue.toggle` 不导航到新页面。应用公开只读布局状态 `view.queueOpen`，皮肤可以将 `visibleWhen: "view.queueOpen"` 声明在队列容器上，也可通过 `not view.queueOpen` 切换其他装饰区域。条件在测量前求值；flex 的空隙、margin 和尺寸一并回收，grid 的显式轨道保持声明尺寸。0.10.0 起还支持独立的 `view.lyricsOpen` 状态；未知上下文、token 和非布尔结果均被拒绝。编译器验证队列与歌词开关的全部四种组合状态，数值运算错误报告 `LAYOUT018`。`queue.toggle` 必须在两个状态中可达。声明 `queue.toggle` 或兼容入口 `library.browseQueue` 的每个完整 root 都必须在展开状态提供可见的 `queue.table`；`library.tracks` 不能替代此目标。使用 `library.browseQueue` 打开可折叠队列时，还必须声明可达的 `queue.toggle` 以供收起；队列表格始终可见时可省略开关。这些可达性错误报告 `LAYOUT011`，交互节点继续使用唯一正数 `focusOrder`。布局引擎参数缺省为关闭。完整示例的 Library 与 Collection 入口演示内嵌队列，Library 同时保留兼容入口。
 
-应用默认在 Now Playing 展示队列；用户显式开关后，跨页面保留该选择。Library、Collection 与 Now Playing 复用同一个队列表格和播放计划；皮肤决定浮层、侧栏或上下布局。Default 皮肤将队列放在根 stack 中，通过锚点和 zIndex 覆盖正文，展开与收起不改变其他组件的尺寸和位置；容器声明 pointerEvents: "block" 防止空白区域点穿。点击队列按钮打开后，键盘焦点进入队列；再次点击按钮或由队列处理 Escape 时收起，队列中取得的键盘焦点回到开关按钮。当前编辑控件、状态提示及上层界面优先处理 Escape。内嵌队列继续遵循所在 flex 或 grid 的空间分配。随机播放的后续顺序来自已成功发布给音频引擎的计划，手动 Next 与自然换曲均遵循它。循环队列只展示有限的剩余前缀与一轮循环；当前条目通过 `row.playing` 标记。移除操作以队列条目为单位，当前播放条目固定；移动仅在可保留实际待播顺序的相邻非当前条目间启用。
+应用启动时队列默认收起；通过队列入口显式展开后，跨页面保留该选择。进入 Now Playing 或切换工作区沿用当前开关状态。Library、Collection 与 Now Playing 复用同一个队列表格和播放计划；皮肤决定浮层、侧栏或上下布局。Default 皮肤将队列放在根 stack 中，通过锚点和 zIndex 覆盖正文，展开与收起不改变其他组件的尺寸和位置；容器声明 pointerEvents: "block" 防止空白区域点穿。点击队列按钮打开后，键盘焦点进入队列；再次点击按钮或由队列处理 Escape 时收起，队列中取得的键盘焦点回到开关按钮。当前编辑控件、状态提示及上层界面优先处理 Escape。内嵌队列继续遵循所在 flex 或 grid 的空间分配。随机播放的后续顺序来自已成功发布给音频引擎的计划，手动 Next 与自然换曲均遵循它。循环队列只展示有限的剩余前缀与一轮循环；当前条目通过 `row.playing` 标记。移除操作以队列条目为单位，当前播放条目固定；移动仅在可保留实际待播顺序的相邻非当前条目间启用。
 
 `queue.table` 与 `library.tracks` 使用相同的 table renderer target、slots 和最小尺寸，可设置 `presentation: "table"` 或 `presentation: "list"`。table 展示标题、位置和时长列；list 使用无表头的较高行，展示标题和时长。省略 presentation 等同于 `table`，行高、表头高度和列几何继续使用解析出的 Skin rowLayout。布局切换和窗口缩放保留表格中的用户列调整；组件从皮肤布局卸载时恢复宿主原始列宽、顺序、可见性、行高和表头高度。`queue.table` 的 presentation 选项自应用 `0.3.0` 起提供；新增 `library.*` 组件要求 `minAppVersion` 为 `0.7.0` 或更高。
 
@@ -1285,6 +1285,8 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 - row.index：整数。
 - row.selected：布尔，当前浏览选区。
 - row.playing：布尔，当前加载的播放条目标记；与 row.selected 独立，暂停时仍可保留标记；0.7.0 起。
+- row.animating：布尔，当前行对应正在播放的曲目，且系统允许动态效果；暂停、停止或 Reduce Motion 时为 false；0.11.0 起。
+- row.playbackSeconds：number，当前行对应的播放位置，单位为秒；其他行为 0。可结合 row.animating 绘制播放状态提示，皮肤决定节奏和几何；此值为播放位置，不表示音频电平；0.11.0 起。
 - row.favourite：布尔，对应曲库记录是否收藏；0.7.0 起。
 - row.dropEdge：number，-1 表示在该行前插入，0 表示无插入标记，1 表示在该行后插入；0.7.0 起。
 - row.available：布尔。
@@ -1295,7 +1297,7 @@ workspace.studio 与 workspace.listening 由应用保持互斥 selected 状态�
 - row.duration：字符串。
 - column.id：title、location、duration、artist 或 album，仅在 cell.* slots 中提供。
 
-引用 `row.playing`、`row.favourite` 或 `row.dropEdge` 的皮肤须将 `minAppVersion` 设为 `0.7.0` 或更高。
+引用 `row.playing`、`row.favourite` 或 `row.dropEdge` 的皮肤须将 `minAppVersion` 设为 `0.7.0` 或更高；引用 `row.animating` 或 `row.playbackSeconds` 时须为 `0.11.0` 或更高。播放期间应用仅刷新可见的当前播放行，隐藏列表和 Reduce Motion 停止持续刷新。
 
 表格不向皮肤暴露文件对象；`row.location` 保持 Skin API 1 的原始绝对路径语义。`cell.location` 的 `text.primary` 与 `row.location` 始终是同一个绝对路径，`column.id` 仍为 `location`。Default 内置皮肤的专用 location label renderer 显式读取 `row.artist` 与 `row.album`，二者都为空时回退到 `text.primary`。第三方皮肤可以选择元数据字段，但不能把 `row.location` 或 `text.primary` 重新解释为艺术家/专辑。字符串内容及是否脱敏由应用决定，皮肤只决定是否以及如何绘制。
 
@@ -2010,7 +2012,7 @@ number、color、opacity 和 transform 数值支持插值；color 使用预乘 a
 
 ### 14.3 Reduce Motion
 
-respectReduceMotion 默认 true。系统开启 Reduce Motion 时：
+respectReduceMotion 默认 true。macOS 的 Reduce Motion 与 Windows 的动画效果偏好在启动时读取，运行期间随系统设置更新。系统开启 Reduce Motion 时：
 
 - durationMs 大于 0 的状态过渡缩短到 0。
 - value 驱动的仪表仍更新，但不增加补间。
