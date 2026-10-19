@@ -29,7 +29,9 @@ juce::String id3MetadataKey (Bytes frame)
 bool isMetadataKey (const juce::String& key)
 {
     return key == "title" || key == "album" || key == "albumartist" || key == "genre"
-        || key == "date" || key == "year" || key == "tracknumber" || key == "discnumber";
+        || key == "date" || key == "year" || key == "tracknumber" || key == "discnumber"
+        || key == "replaygaintrackgain" || key == "replaygaintrackpeak"
+        || key == "replaygainalbumgain" || key == "replaygainalbumpeak";
 }
 
 bool startsWith (Bytes bytes, const char* prefix, size_t length)
@@ -101,7 +103,7 @@ juce::StringArray id3Text (Bytes bytes, int version, TagField field)
                 for (auto index = begin; index < end; ++index)
                     value += juce::String::charToString (bytes[index]);
             values.add (value);
-            if (version == 3) break;
+            if (version == 3 && field == TagField::artist) break;
             begin = end + 1;
         }
     }
@@ -137,7 +139,7 @@ juce::StringArray id3Text (Bytes bytes, int version, TagField field)
             if (unit == 0)
             {
                 if (! appendValue()) return {};
-                if (version == 3) break;
+                if (version == 3 && field == TagField::artist) break;
             }
             else units.push_back (unit);
         }
@@ -178,8 +180,9 @@ juce::StringArray readId3 (juce::InputStream& input, Bytes header, TagField fiel
     {
         const auto frameSize = bigEndian (frames.subspan (4, 4), version == 4);
         if (frameSize == 0 || frameSize > frames.size() - 10) return {};
-        const auto metadataKey = field == TagField::metadata ? id3MetadataKey (frames) : juce::String {};
-        if (field == TagField::metadata ? metadataKey.isNotEmpty()
+        auto metadataKey = field == TagField::metadata ? id3MetadataKey (frames) : juce::String {};
+        const auto custom = field == TagField::metadata && startsWith (frames, "TXXX", 4);
+        if (field == TagField::metadata ? (metadataKey.isNotEmpty() || custom)
                                        : startsWith (frames, field == TagField::artist ? "TPE1" : "USLT", 4))
         {
             const auto flags = frames[9];
@@ -215,6 +218,17 @@ juce::StringArray readId3 (juce::InputStream& input, Bytes header, TagField fiel
                 return id3Text (value, version, field);
             }
             const auto values = id3Text (text, version, field);
+            if (custom)
+            {
+                if (values.size() >= 2)
+                {
+                    metadataKey = values[0].toLowerCase().removeCharacters (" _-");
+                    if (isMetadataKey (metadataKey) && ! collected.containsKey (metadataKey))
+                        collected.set (metadataKey, values[1].trim());
+                }
+                frames = frames.subspan (10 + frameSize);
+                continue;
+            }
             if (field != TagField::metadata) return values;
             if (! values.isEmpty() && values[0].trim().isNotEmpty() && ! collected.containsKey (metadataKey))
                 collected.set (metadataKey, values[0].trim());

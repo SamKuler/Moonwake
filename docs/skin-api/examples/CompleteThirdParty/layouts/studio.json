@@ -285,7 +285,7 @@
                 "component": "transport.seek",
                 "style": "linearSlider.seek",
                 "height": 28,
-                "focusOrder": 17
+                "focusOrder": 16
               },
               {
                 "id": "studio-time",
@@ -304,21 +304,21 @@
                     "type": "component",
                     "component": "transport.previous",
                     "style": "textButton.neutral",
-                    "focusOrder": 18
+                    "focusOrder": 17
                   },
                   {
                     "id": "studio-play",
                     "type": "component",
                     "component": "transport.playPause",
                     "style": "textButton.primary",
-                    "focusOrder": 19
+                    "focusOrder": 18
                   },
                   {
                     "id": "studio-next",
                     "type": "component",
                     "component": "transport.next",
                     "style": "textButton.neutral",
-                    "focusOrder": 20
+                    "focusOrder": 19
                   }
                 ]
               },
@@ -328,7 +328,69 @@
                 "component": "transport.volume",
                 "presentation": "linearHorizontal",
                 "height": 32,
-                "focusOrder": 21
+                "focusOrder": 20
+              },
+              {
+                "id": "comparison-studio-1",
+                "type": "column",
+                "gap": 4,
+                "shrink": 0,
+                "children": [
+                  {
+                    "id": "comparison-studio-1-controls",
+                    "type": "row",
+                    "height": 32,
+                    "shrink": 0,
+                    "gap": 8,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "comparison-studio-1-effects-compare-original",
+                        "type": "component",
+                        "component": "effects.compare.original",
+                        "style": "textButton.neutral",
+                        "width": 84,
+                        "height": 32,
+                        "focusOrder": 21
+                      },
+                      {
+                        "id": "comparison-studio-1-effects-compare-processed",
+                        "type": "component",
+                        "component": "effects.compare.processed",
+                        "style": "textButton.neutral",
+                        "width": 84,
+                        "height": 32,
+                        "focusOrder": 22
+                      },
+                      {
+                        "id": "comparison-studio-1-effects-compare-match",
+                        "type": "component",
+                        "component": "effects.compare.match",
+                        "style": "textButton.neutral",
+                        "width": 132,
+                        "height": 32,
+                        "focusOrder": 23
+                      },
+                      {
+                        "id": "comparison-studio-1-effects-compare-reset",
+                        "type": "component",
+                        "component": "effects.compare.reset",
+                        "style": "textButton.neutral",
+                        "width": 104,
+                        "height": 32,
+                        "focusOrder": 24
+                      }
+                    ]
+                  },
+                  {
+                    "id": "comparison-studio-1-effects-compare-status",
+                    "type": "component",
+                    "component": "effects.compare.status",
+                    "style": "label.default",
+                    "height": 24,
+                    "shrink": 0
+                  }
+                ]
               },
               {
                 "id": "studio-effects-presets",
@@ -345,7 +407,7 @@
                     "style": "comboBox.default",
                     "height": 32,
                     "grow": 1,
-                    "focusOrder": 22
+                    "focusOrder": 25
                   },
                   {
                     "id": "studio-effects-presets-actions",
@@ -355,7 +417,7 @@
                     "height": 32,
                     "width": 92,
                     "shrink": 0,
-                    "focusOrder": 23
+                    "focusOrder": 26
                   }
                 ]
               },
@@ -366,7 +428,7 @@
                 "style": "textButton.neutral",
                 "width": 112,
                 "height": 34,
-                "focusOrder": 24
+                "focusOrder": 27
               }
             ]
           }

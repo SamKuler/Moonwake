@@ -1432,6 +1432,11 @@ transport.seek 仅允许 linearHorizontal。皮肤不能改变值域或步进。
 | effects.add | textButton | Effects 必需 | 插入所选插件 |
 | effects.clearTails | textButton | 可选 | 清除所有已加载插件的尾音与宿主延迟缓冲，保留参数、作用声道和单插件旁路状态；0.6.1 起 |
 | effects.bypassAll | textButton | 可选 | 切换全链监听旁路，保留每个插件的独立旁路状态；0.6.1 起 |
+| effects.compare.original | textButton | 可选 | 试听延迟对齐的原声；selected/toggled 表示原声路径；0.11.0 起 |
+| effects.compare.processed | textButton | 可选 | 试听当前效果链；selected/toggled 表示处理后路径；0.11.0 起 |
+| effects.compare.match | textButton | 可选 | 开关等响度测量和试听补偿；toggled 表示启用；0.11.0 起 |
+| effects.compare.reset | textButton | 可选 | 重新测量当前片段的响度差；0.11.0 起 |
+| effects.compare.status | label | 可选 | 测量进度、固定补偿值与中断状态；0.11.0 起 |
 | effects.chain | effectChain | Effects 必需 | 动态效果槽列表 |
 | effects.empty | label | 可选 | 空效果链提示 |
 | effects.outputLayout | comboBox | 可选 | 当前处理声道布局 |
@@ -1452,6 +1457,10 @@ effects.chain 内部动态槽使用固定 style slots：
 皮肤不能直接实例化、删除或重排动态槽；这些行为仍由 effects.chain 组件处理。
 
 应用 0.4.0 增加可选 `slot.scope`（textButton）绘制槽，显示并编辑该效果器作用范围。空声道集合表示完整输出总线，显式单声道或声道对按扬声器身份保存；未选声道透传。插件不支持所选总线或切换后扬声器缺失时，变更失败并保留原处理链。
+
+等响度试听复用全链旁路。原声与效果路径使用相同的插件延迟对齐，两条路径同步测量至少 3 秒有效音频后，仅衰减较响的一条路径，随后固定补偿。暂停保留尾音与已匹配结果；跳转、换曲、修改效果或均衡设置后重新测量。测量中断或静音会保留未匹配状态。测量取自均衡增益之后、试听补偿之前的原声与效果信号，并应用相同的输出 Mixer 声道增益、Mute/Solo 与校准 Trim 权重，并排除断开的输出路由。修改输出 Mixer 或校准 Trim 会重新测量。皮肤可将 `effects.compare.original`、`effects.compare.processed` 作为一组选择控件，替代同一布局中的 `effects.bypassAll`。
+
+新增控件为 Skin API 1 的可选组件，使用它们的皮肤包须声明 `minAppVersion: "0.11.0"`。按钮最小命中区域为 28 × 28，建议高度 32；推荐键盘顺序为 Original、Effects、Match loudness、Re-measure。状态标签使用独立的一行，保持测量状态变化时布局稳定。
 
 ### 10.7 输出显示
 
@@ -1518,6 +1527,15 @@ outputStage 提供：
 | settings.calibration.title | label | 否 | Speaker calibration 卡片标题；0.9.0 起 |
 | output.calibration | outputCalibration | 否 | 扬声器校准与逐声道测试表单；0.9.0 起 |
 | output.reset | textButton | 否 | 停止测试并重置所有扬声器校准；0.9.0 起 |
+| settings.loudness.heading | label | 否 | 响度设置标题；0.11.0 起 |
+| settings.loudness.modeLabel | label | 否 | 响度均衡模式标签；0.11.0 起 |
+| settings.loudness.mode | comboBox | 否 | 关闭、按曲目、按专辑；0.11.0 起 |
+| settings.loudness.targetLabel | label | 否 | 目标响度标签；0.11.0 起 |
+| settings.loudness.target | comboBox | 否 | 目标 LUFS；0.11.0 起 |
+| settings.loudness.preventClipping | toggleButton | 否 | 按源峰值限制均衡增益；0.11.0 起 |
+| settings.loudness.analyze | textButton | 否 | 后台分析曲库的曲目与专辑响度；0.11.0 起 |
+| settings.loudness.cancel | textButton | 否 | 取消剩余分析并保留已完成结果；0.11.0 起 |
+| settings.loudness.status | label | 否 | 已有数据数量、分析进度和错误摘要；0.11.0 起 |
 | settings.audio.device | comboBox | 是 | 选择 CoreAudio 输出设备 |
 | settings.audio.deviceConfiguration | textButton | 否 | 打开设备配置界面；macOS 回退 Audio MIDI Setup，Windows 回退系统声音设置；0.6.1 起 |
 | settings.audio.sampleRate | comboBox | 是 | 选择设备采样率 |
@@ -1571,6 +1589,10 @@ Studio 可直接绑定 effects.chain 及添加插件组件，和 Output／Mixer 
 皮肤库视口是紧凑、可滚动的卡片区域，不提供额外 header 或空白占位 slots。导入包与开发目录入口由相邻的公共按钮 Component IDs 提供，皮肤不应在列表内部复制这些动作。
 
 皮肤不得根据 `skin.*` Context 改写按钮动作，也不得把 `row.status` 画成另一个可点击控制。应用保留选择、键盘滚动、预览、应用与删除行为。
+
+响度均衡控件建议放在 Settings 的独立纵向区块中。模式、目标与峰值保护按组对齐，状态与分析操作放在下一行。键盘顺序为 mode、target、preventClipping、analyze、cancel；交互控件最小为 28 × 28，建议高度 36。模式关闭时禁用目标与峰值保护，分析按钮仍可使用。分析运行时禁用重复启动，取消按钮可用。
+
+均衡优先使用文件的 ReplayGain 标签；后台分析使用 libebur128 计算曲目和专辑响度，结果保存到 Moonwake 状态。默认目标为 −18 LUFS，默认关闭均衡；专辑数据缺失或成员变化时回退到曲目数据，缺少曲目数据时使用原始增益。峰值保护依据源文件峰值限制均衡增益，保留 1 dB 余量；路由与插件带来的增益由输出仪表观察。均衡在效果链之前对全部素材声道使用相同增益，无缝曲目边界各自应用对应数据。
 
 ### 10.8.1 手动输出校准
 

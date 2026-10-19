@@ -13,6 +13,7 @@
 #include "state/StateRestoreService.h"
 #include "library/ArtworkStore.h"
 #include "library/MusicDirectoryScanService.h"
+#include "library/LoudnessScanService.h"
 
 #include <atomic>
 #include <functional>
@@ -135,6 +136,15 @@ public:
     void setShuffleEnabled (bool shouldShuffle);
     void setRepeatMode (RepeatMode mode);
     void setVolume (double volume);
+    [[nodiscard]] LoudnessPreferences getLoudnessPreferences() const noexcept { return loudnessPreferences; }
+    void setLoudnessPreferences (LoudnessPreferences);
+    bool startLoudnessScan();
+    void cancelLoudnessScan();
+    [[nodiscard]] const LoudnessScanUpdate& getLoudnessScanStatus() const noexcept { return loudnessScanStatus; }
+    [[nodiscard]] int getMeasuredTrackCount() const;
+    void setLoudnessComparisonEnabled (bool);
+    void resetLoudnessComparison() noexcept { audioEngine.resetLoudnessComparison(); }
+    [[nodiscard]] LoudnessComparisonStatus getLoudnessComparisonStatus();
     [[nodiscard]] std::vector<OutputChannelMix> getOutputChannelMix() const { return audioEngine.getOutputChannelMix(); }
     bool setOutputChannelMix (juce::AudioChannelSet::ChannelType, float gain, bool muted, bool solo);
     void resetOutputChannelMix();
@@ -157,6 +167,7 @@ public:
     bool moveEffect (int fromIndex, int toIndex);
     bool setEffectBypassedAtIndex (int effectIndex, bool shouldBypass);
     void setAllEffectsBypassed (bool value) noexcept { audioEngine.setAllEffectsBypassed (value); }
+    [[nodiscard]] bool areAllEffectsBypassed() const noexcept { return audioEngine.areAllEffectsBypassed(); }
     bool clearEffectTails();
     bool setEffectScopeAtIndex (int effectIndex, const EffectScope&);
     [[nodiscard]] bool captureStateSnapshot (PlayerAppState&,
@@ -238,6 +249,20 @@ private:
     void prepareNextPresetEffect (std::shared_ptr<PendingPresetApply>, size_t index);
     void finishPresetApply (const std::shared_ptr<PendingPresetApply>&, juce::String error);
     EffectChainState effectChain;
+    LoudnessPreferences loudnessPreferences;
+    LoudnessScanService loudnessScan;
+    LoudnessScanUpdate loudnessScanStatus;
+    struct NormalizationEntry
+    {
+        TrackItem source;
+        std::shared_ptr<std::atomic<float>> gain;
+    };
+    std::map<juce::String, NormalizationEntry> normalizationGains;
+    std::map<juce::String, juce::String> albumSignatures;
+    uint64_t comparisonEffectRevision = 0, comparisonParameterRevision = 0;
+    void pollLoudnessScan();
+    void refreshNormalizationGains();
+    std::shared_ptr<std::atomic<float>> normalizationGainFor (const TrackItem&);
     AudioEngine audioEngine;
     PluginManager pluginManager;
     TrackMetadataReader metadataReader;

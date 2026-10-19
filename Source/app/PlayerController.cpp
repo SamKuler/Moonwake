@@ -61,6 +61,7 @@ PlayerController::PlayerController (std::unique_ptr<IAudioDeviceBackend> backend
 
 PlayerController::~PlayerController()
 {
+    loudnessScan.cancel();
     lifetimeFlag->store (false);
     playlistArtworkJobs.removeAllJobs (true, -1);
     audioEngine.shutdown();
@@ -291,7 +292,7 @@ bool PlayerController::refreshUpcomingPlayback (const PlaylistPlaybackPlan* publ
     const auto currentToken = expected.token;
     AudioPlaybackPlan nextPlan;
     std::unordered_map<uint64_t, juce::String> ids;
-    nextPlan.items.push_back ({ current->file, currentToken });
+    nextPlan.items.push_back ({ current->file, currentToken, normalizationGainFor (*current) });
     ids.emplace (currentToken, currentId);
     const auto navigation = publishedTail != nullptr ? *publishedTail : playlist.continuousPlaybackPlan();
     if (navigation.trackIds.size() > 1)
@@ -305,7 +306,7 @@ bool PlayerController::refreshUpcomingPlayback (const PlaylistPlaybackPlan* publ
             const auto found = tracks.find (id.toStdString());
             if (found == tracks.end()) continue;
             if (token == currentToken) ++token;
-            nextPlan.items.push_back ({ found->second->file, token });
+            nextPlan.items.push_back ({ found->second->file, token, normalizationGainFor (*found->second) });
             ids.emplace (token++, id);
         }
     }
@@ -337,6 +338,7 @@ bool PlayerController::refreshUpcomingPlayback (const PlaylistPlaybackPlan* publ
 
 bool PlayerController::synchronizePlayback (bool finishQueue, bool* preparationFailed)
 {
+    pollLoudnessScan();
     synchronizeNativeEffectBypass();
     const auto changed = synchronizePlayback (audioEngine.getPlaybackProgress(), finishQueue, preparationFailed);
     if (upcomingPlaybackDirty) return refreshUpcomingPlayback() || changed;
@@ -403,6 +405,7 @@ bool PlayerController::synchronizePlayback (const AudioPlaybackProgress& progres
             if (found == playbackTrackIds.end()) continue;
             if (! playlist.recordPlayback (found->second)) continue;
             playbackCoordinator.trackStarted (found->second, playbackCoordinator.getIntent());
+            audioEngine.resetLoudnessComparison();
             ++stateRevision;
             changed = true;
         }
@@ -1276,7 +1279,7 @@ bool PlayerController::loadTrackById (const juce::String& trackId, bool shouldPl
     const auto title = track->title;
     const auto path = track->file.getFullPathName();
     upcomingPlaybackDirty = false;
-    if (! audioEngine.loadFile (track->file))
+    if (! audioEngine.loadPlaybackPlan ({ { { track->file, 1, normalizationGainFor (*track) } }, -1 }))
     {
         setLibraryTrackAvailable (trackId, false);
         lastStatusMessage = "Could not load audio file: " + path;
@@ -1396,6 +1399,7 @@ bool PlayerController::captureStateSnapshot (PlayerAppState& state,
 
     if (! captureEffectChainSnapshot (state.effectChain, errorMessage, false)) return false;
 
+    state.loudness = loudnessPreferences;
     state.volume = audioEngine.getGain();
     state.outputLayout = preferredOutputLayout;
     state.outputChannelMix = audioEngine.getOutputChannelMix();
@@ -1494,6 +1498,10 @@ bool PlayerController::restoreStateSnapshot (PlayerAppState state)
     if (const auto deviceWarning = restoreAudioDeviceSettings (state);
         deviceWarning.isNotEmpty())
         restoreDiagnostics.add (deviceWarning);
+    loudnessScan.cancel();
+    loudnessPreferences = state.loudness;
+    refreshNormalizationGains();
+    audioEngine.setLoudnessComparisonEnabled (false);
     setVolume (state.volume);
     if (const auto layoutWarning = setOutputLayout (state.outputLayout);
         layoutWarning.isNotEmpty())

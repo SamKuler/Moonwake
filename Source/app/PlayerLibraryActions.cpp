@@ -57,6 +57,8 @@ juce::String PlayerController::storePreparedLibraryTrack (
             }
             return id;
         }
+        if (sameLoudnessSource (track, *existing) && existing->loudness.measured)
+            track.loudness = existing->loudness;
         track.id = existing->id;
     }
     if (prepared.artworkData.getSize() > 0)
@@ -120,6 +122,7 @@ void PlayerController::refreshQueueMetadata()
             occurrence.libraryId = canonical->id;
         }
     playlist.replaceTracks (std::move (tracks));
+    refreshNormalizationGains();
 }
 
 void PlayerController::setLibraryTrackAvailable (const juce::String& occurrenceId, bool available)

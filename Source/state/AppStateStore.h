@@ -31,6 +31,7 @@ struct PlayerAppState
     EffectChainState effectChain;
     PluginFormatPreferences pluginFormats;
     juce::StringArray customVst3Directories;
+    LoudnessPreferences loudness;
     double volume = 0.8;
     double playbackPositionSeconds = 0.0;
     OutputLayout outputLayout = OutputLayout::stereo;

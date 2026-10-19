@@ -276,7 +276,7 @@
                         {
                           "id": "studio-rack",
                           "type": "column",
-                          "height": 304,
+                          "height": 376,
                           "shrink": 0,
                           "padding": 12,
                           "gap": 8,
@@ -312,16 +312,68 @@
                                   "height": 28,
                                   "shrink": 0,
                                   "focusOrder": 13
+                                }
+                              ]
+                            },
+                            {
+                              "id": "comparison-studio-1",
+                              "type": "column",
+                              "gap": 4,
+                              "shrink": 0,
+                              "children": [
+                                {
+                                  "id": "comparison-studio-1-controls",
+                                  "type": "row",
+                                  "height": 32,
+                                  "shrink": 0,
+                                  "gap": 8,
+                                  "align": "center",
+                                  "children": [
+                                    {
+                                      "id": "comparison-studio-1-effects-compare-original",
+                                      "type": "component",
+                                      "component": "effects.compare.original",
+                                      "style": "textButton.default",
+                                      "width": 84,
+                                      "height": 32,
+                                      "focusOrder": 14
+                                    },
+                                    {
+                                      "id": "comparison-studio-1-effects-compare-processed",
+                                      "type": "component",
+                                      "component": "effects.compare.processed",
+                                      "style": "textButton.default",
+                                      "width": 84,
+                                      "height": 32,
+                                      "focusOrder": 15
+                                    },
+                                    {
+                                      "id": "comparison-studio-1-effects-compare-match",
+                                      "type": "component",
+                                      "component": "effects.compare.match",
+                                      "style": "textButton.default",
+                                      "width": 132,
+                                      "height": 32,
+                                      "focusOrder": 16
+                                    },
+                                    {
+                                      "id": "comparison-studio-1-effects-compare-reset",
+                                      "type": "component",
+                                      "component": "effects.compare.reset",
+                                      "style": "textButton.default",
+                                      "width": 104,
+                                      "height": 32,
+                                      "focusOrder": 17
+                                    }
+                                  ]
                                 },
                                 {
-                                  "id": "studio-rack-header-bypassAll",
+                                  "id": "comparison-studio-1-effects-compare-status",
                                   "type": "component",
-                                  "component": "effects.bypassAll",
-                                  "style": "textButton.default",
-                                  "width": 104,
-                                  "height": 28,
-                                  "shrink": 0,
-                                  "focusOrder": 14
+                                  "component": "effects.compare.status",
+                                  "style": "label.default",
+                                  "height": 24,
+                                  "shrink": 0
                                 }
                               ]
                             },
@@ -340,7 +392,7 @@
                                   "style": "comboBox.default",
                                   "height": 32,
                                   "grow": 1,
-                                  "focusOrder": 15
+                                  "focusOrder": 18
                                 },
                                 {
                                   "id": "studio-rack-presets-actions",
@@ -350,7 +402,7 @@
                                   "height": 32,
                                   "width": 92,
                                   "shrink": 0,
-                                  "focusOrder": 16
+                                  "focusOrder": 19
                                 }
                               ]
                             },
@@ -367,7 +419,7 @@
                                   "component": "effects.filter",
                                   "style": "textEditor.default",
                                   "grow": 1,
-                                  "focusOrder": 17
+                                  "focusOrder": 20
                                 },
                                 {
                                   "id": "studio-rack-type",
@@ -375,7 +427,7 @@
                                   "component": "effects.typeFilter",
                                   "style": "comboBox.default",
                                   "width": 100,
-                                  "focusOrder": 18
+                                  "focusOrder": 21
                                 },
                                 {
                                   "id": "studio-rack-vendor",
@@ -383,7 +435,7 @@
                                   "component": "effects.manufacturerFilter",
                                   "style": "comboBox.default",
                                   "width": 142,
-                                  "focusOrder": 19
+                                  "focusOrder": 22
                                 },
                                 {
                                   "id": "studio-rack-format",
@@ -391,7 +443,7 @@
                                   "component": "effects.formatFilter",
                                   "style": "comboBox.default",
                                   "width": 98,
-                                  "focusOrder": 20
+                                  "focusOrder": 23
                                 }
                               ]
                             },
@@ -408,7 +460,7 @@
                                   "component": "effects.catalog",
                                   "style": "comboBox.default",
                                   "grow": 1,
-                                  "focusOrder": 21
+                                  "focusOrder": 24
                                 },
                                 {
                                   "id": "studio-rack-add-label",
@@ -423,7 +475,7 @@
                                   "component": "effects.scope",
                                   "style": "comboBox.default",
                                   "width": 148,
-                                  "focusOrder": 22
+                                  "focusOrder": 25
                                 },
                                 {
                                   "id": "studio-rack-insert",
@@ -432,7 +484,7 @@
                                   "style": "textButton.iconPrimary",
                                   "width": 32,
                                   "height": 32,
-                                  "focusOrder": 23
+                                  "focusOrder": 26
                                 }
                               ]
                             },
@@ -452,7 +504,7 @@
                                     "top": 0,
                                     "bottom": 0
                                   },
-                                  "focusOrder": 24
+                                  "focusOrder": 27
                                 },
                                 {
                                   "id": "studio-rack-empty",
@@ -495,7 +547,7 @@
                         "component": "effects.outputLayout",
                         "style": "comboBox.default",
                         "grow": 1,
-                        "focusOrder": 25
+                        "focusOrder": 28
                       },
                       {
                         "id": "studio-meter-mode",
@@ -503,7 +555,7 @@
                         "component": "output.mode",
                         "style": "comboBox.default",
                         "grow": 1,
-                        "focusOrder": 26
+                        "focusOrder": 29
                       },
                       {
                         "id": "studio-meter-reset",
@@ -511,7 +563,7 @@
                         "component": "output.reset",
                         "style": "textButton.default",
                         "width": 62,
-                        "focusOrder": 27
+                        "focusOrder": 30
                       }
                     ]
                   },
@@ -543,7 +595,7 @@
                           "top": 0,
                           "bottom": 0
                         },
-                        "focusOrder": 28
+                        "focusOrder": 31
                       }
                     ]
                   }
@@ -575,7 +627,7 @@
                     "style": "linearSlider.default",
                     "presentation": "linearHorizontal",
                     "grow": 1,
-                    "focusOrder": 30
+                    "focusOrder": 32
                   },
                   {
                     "id": "studio-transport-time",
@@ -640,7 +692,7 @@
                         "style": "toggleButton.shuffle",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 31
+                        "focusOrder": 33
                       },
                       {
                         "id": "studio-transport-previous",
@@ -649,7 +701,7 @@
                         "style": "textButton.iconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 32
+                        "focusOrder": 34
                       },
                       {
                         "id": "studio-transport-playPause",
@@ -658,7 +710,7 @@
                         "style": "textButton.iconPrimary",
                         "width": 52,
                         "height": 52,
-                        "focusOrder": 33
+                        "focusOrder": 35
                       },
                       {
                         "id": "studio-transport-next",
@@ -667,7 +719,7 @@
                         "style": "textButton.iconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 34
+                        "focusOrder": 36
                       },
                       {
                         "id": "studio-transport-repeat-cycle",
@@ -676,7 +728,7 @@
                         "style": "textButton.iconNeutral",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 35
+                        "focusOrder": 37
                       }
                     ]
                   },
@@ -719,7 +771,7 @@
                         "style": "linearSlider.default",
                         "presentation": "linearHorizontal",
                         "height": 28,
-                        "focusOrder": 36
+                        "focusOrder": 38
                       }
                     ]
                   }

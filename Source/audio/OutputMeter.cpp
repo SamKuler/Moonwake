@@ -1,6 +1,6 @@
 #include "audio/OutputMeter.h"
 
-#include <ebur128.h>
+#include "audio/Ebur128Support.h"
 
 #include <algorithm>
 #include <atomic>
@@ -8,37 +8,7 @@
 #include <mutex>
 #include <vector>
 
-namespace
-{
-// Upstream initialization rewrites process-global energy tables. Serialize all
-// library access across meter instances; this mutex is worker-only.
-std::mutex ebur128Mutex;
 
-int ebuChannel (juce::AudioChannelSet::ChannelType type)
-{
-    using C = juce::AudioChannelSet;
-    static constexpr std::pair<C::ChannelType, int> positions[] {
-        { C::left, EBUR128_Mp030 }, { C::right, EBUR128_Mm030 },
-        { C::centre, EBUR128_Mp000 },
-        { C::LFE, EBUR128_UNUSED }, { C::LFE2, EBUR128_UNUSED },
-        { C::leftSurround, EBUR128_Mp110 }, { C::rightSurround, EBUR128_Mm110 },
-        { C::leftSurroundSide, EBUR128_Mp090 }, { C::rightSurroundSide, EBUR128_Mm090 },
-        { C::leftSurroundRear, EBUR128_Mp135 }, { C::rightSurroundRear, EBUR128_Mm135 },
-        { C::centreSurround, EBUR128_Mp180 },
-        { C::leftCentre, EBUR128_MpSC }, { C::rightCentre, EBUR128_MmSC },
-        { C::wideLeft, EBUR128_Mp060 }, { C::wideRight, EBUR128_Mm060 },
-        { C::topMiddle, EBUR128_Tp000 },
-        { C::topFrontLeft, EBUR128_Up030 }, { C::topFrontRight, EBUR128_Um030 },
-        { C::topFrontCentre, EBUR128_Up000 },
-        { C::topSideLeft, EBUR128_Up090 }, { C::topSideRight, EBUR128_Um090 },
-        { C::topRearLeft, EBUR128_Up135 }, { C::topRearRight, EBUR128_Um135 },
-        { C::topRearCentre, EBUR128_Up180 }
-    };
-    for (const auto& [speaker, position] : positions)
-        if (speaker == type) return position;
-    return -1;
-}
-} // namespace
 
 struct OutputMeter::Impl final : juce::Thread
 {
@@ -87,7 +57,7 @@ struct OutputMeter::Impl final : juce::Thread
                 while (stale != writeIndex.load (std::memory_order_acquire)
                        && packets[stale % queueCapacity].epoch < requestedEpoch)
                     readIndex.store (++stale, std::memory_order_release);
-                const std::lock_guard libraryLock (ebur128Mutex);
+                const std::lock_guard libraryLock (MoonwakeEbu::ebur128WorkerMutex());
                 if (state != nullptr) ebur128_destroy (&state);
                 state = ebur128_init (static_cast<unsigned> (channels),
                                      static_cast<unsigned long> (std::llround (sampleRate)),
@@ -120,7 +90,7 @@ struct OutputMeter::Impl final : juce::Thread
             if (packet.epoch > activeEpoch) continue;
             if (packet.epoch == activeEpoch && state != nullptr)
             {
-                const std::lock_guard libraryLock (ebur128Mutex);
+                const std::lock_guard libraryLock (MoonwakeEbu::ebur128WorkerMutex());
                 const auto result = ebur128_add_frames_float (state, packet.samples.data(), packet.frames);
                 current.available = result == EBUR128_SUCCESS;
                 if (current.available)
@@ -176,7 +146,7 @@ struct OutputMeter::Impl final : juce::Thread
             }
             readIndex.store (read + 1, std::memory_order_release);
         }
-        const std::lock_guard libraryLock (ebur128Mutex);
+        const std::lock_guard libraryLock (MoonwakeEbu::ebur128WorkerMutex());
         if (state != nullptr) ebur128_destroy (&state);
     }
 
@@ -204,7 +174,7 @@ void OutputMeter::prepare (double sampleRate, const juce::AudioChannelSet& layou
         return;
     for (int channel = 0; channel < layout.size(); ++channel)
     {
-        const auto mapped = ebuChannel (layout.getTypeOfChannel (channel));
+        const auto mapped = MoonwakeEbu::ebuChannel (layout.getTypeOfChannel (channel));
         if (mapped < 0) return;
         impl->channelMap[static_cast<size_t> (channel)] = mapped;
     }
@@ -235,7 +205,7 @@ uint64_t OutputMeter::beginBlock() const noexcept
 }
 
 void OutputMeter::push (const juce::AudioBuffer<float>& source, int startSample, int numSamples,
-                        uint64_t blockEpoch) noexcept
+                        uint64_t blockEpoch, const std::array<float, maximumOutputChannels>* channelWeights) noexcept
 {
     if (impl->channels <= 0 || numSamples <= 0) return;
     if (blockEpoch != impl->epoch.load (std::memory_order_acquire)) return;
@@ -258,7 +228,7 @@ void OutputMeter::push (const juce::AudioBuffer<float>& source, int startSample,
                                     ? source.getReadPointer (channel, startSample + offset) : nullptr;
             for (size_t frame = 0; frame < packet.frames; ++frame)
                 packet.samples[frame * static_cast<size_t> (impl->channels) + static_cast<size_t> (channel)]
-                    = input != nullptr ? input[frame] : 0.0f;
+                    = input != nullptr ? input[frame] * (channelWeights != nullptr ? (*channelWeights)[static_cast<size_t> (channel)] : 1.0f) : 0.0f;
         }
         impl->writeIndex.store (write + 1, std::memory_order_release);
         offset += static_cast<int> (packet.frames);

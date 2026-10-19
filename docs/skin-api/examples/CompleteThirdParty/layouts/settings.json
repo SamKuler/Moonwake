@@ -388,6 +388,124 @@
               "gap": 16
             },
             {
+              "type": "column",
+              "shrink": 0,
+              "padding": 20,
+              "gap": 12,
+              "style": "surface.card",
+              "id": "loudness-1-section",
+              "children": [
+                {
+                  "id": "loudness-1-settings-loudness-heading",
+                  "type": "component",
+                  "component": "settings.loudness.heading",
+                  "style": "label.section",
+                  "height": 32,
+                  "shrink": 0
+                },
+                {
+                  "id": "loudness-1-preferences",
+                  "type": "row",
+                  "height": 36,
+                  "shrink": 0,
+                  "gap": 12,
+                  "align": "center",
+                  "children": [
+                    {
+                      "id": "loudness-1-preferences-fields",
+                      "type": "row",
+                      "height": 36,
+                      "grow": 1,
+                      "gap": 12,
+                      "align": "center",
+                      "children": [
+                        {
+                          "id": "loudness-1-settings-loudness-modeLabel",
+                          "type": "component",
+                          "component": "settings.loudness.modeLabel",
+                          "style": "label.default",
+                          "width": 112,
+                          "height": 32
+                        },
+                        {
+                          "id": "loudness-1-settings-loudness-mode",
+                          "type": "component",
+                          "component": "settings.loudness.mode",
+                          "style": "comboBox.default",
+                          "width": 144,
+                          "height": 36,
+                          "focusOrder": 28
+                        },
+                        {
+                          "id": "loudness-1-settings-loudness-targetLabel",
+                          "type": "component",
+                          "component": "settings.loudness.targetLabel",
+                          "style": "label.default",
+                          "width": 48,
+                          "height": 32
+                        },
+                        {
+                          "id": "loudness-1-settings-loudness-target",
+                          "type": "component",
+                          "component": "settings.loudness.target",
+                          "style": "comboBox.default",
+                          "width": 132,
+                          "height": 36,
+                          "focusOrder": 29
+                        }
+                      ]
+                    },
+                    {
+                      "id": "loudness-1-settings-loudness-preventClipping",
+                      "type": "component",
+                      "component": "settings.loudness.preventClipping",
+                      "style": "toggleButton.default",
+                      "height": 36,
+                      "focusOrder": 30,
+                      "width": 212,
+                      "shrink": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "loudness-1-analysis",
+                  "type": "row",
+                  "height": 36,
+                  "shrink": 0,
+                  "gap": 12,
+                  "align": "center",
+                  "children": [
+                    {
+                      "id": "loudness-1-settings-loudness-status",
+                      "type": "component",
+                      "component": "settings.loudness.status",
+                      "style": "label.default",
+                      "grow": 1,
+                      "height": 32
+                    },
+                    {
+                      "id": "loudness-1-settings-loudness-analyze",
+                      "type": "component",
+                      "component": "settings.loudness.analyze",
+                      "style": "textButton.neutral",
+                      "width": 136,
+                      "height": 36,
+                      "focusOrder": 31
+                    },
+                    {
+                      "id": "loudness-1-settings-loudness-cancel",
+                      "type": "component",
+                      "component": "settings.loudness.cancel",
+                      "style": "textButton.neutral",
+                      "width": 88,
+                      "height": 36,
+                      "focusOrder": 32
+                    }
+                  ]
+                }
+              ]
+            },
+            {
               "id": "example-0-foundation-music-section",
               "type": "column",
               "shrink": 0,
@@ -410,7 +528,7 @@
                   "style": "directoryList.default",
                   "height": 168,
                   "shrink": 0,
-                  "focusOrder": 28
+                  "focusOrder": 33
                 },
                 {
                   "id": "example-0-foundation-music-actions",
@@ -427,7 +545,7 @@
                       "height": 36,
                       "shrink": 0,
                       "width": 132,
-                      "focusOrder": 29
+                      "focusOrder": 34
                     },
                     {
                       "id": "example-0-foundation-music-scan",
@@ -437,7 +555,7 @@
                       "height": 36,
                       "shrink": 0,
                       "width": 120,
-                      "focusOrder": 30
+                      "focusOrder": 35
                     },
                     {
                       "id": "example-0-foundation-music-cancel",
@@ -447,7 +565,7 @@
                       "height": 36,
                       "shrink": 0,
                       "width": 120,
-                      "focusOrder": 31
+                      "focusOrder": 36
                     },
                     {
                       "id": "example-0-foundation-music-remove",
@@ -457,7 +575,7 @@
                       "height": 36,
                       "shrink": 0,
                       "width": 148,
-                      "focusOrder": 32
+                      "focusOrder": 37
                     },
                     {
                       "id": "example-0-foundation-music-automatic",
@@ -467,7 +585,7 @@
                       "height": 36,
                       "shrink": 0,
                       "grow": 1,
-                      "focusOrder": 33
+                      "focusOrder": 38
                     }
                   ]
                 },
@@ -879,6 +997,124 @@
                   "gap": 16
                 },
                 {
+                  "type": "column",
+                  "shrink": 0,
+                  "padding": 20,
+                  "gap": 12,
+                  "style": "surface.card",
+                  "id": "loudness-2-section",
+                  "children": [
+                    {
+                      "id": "loudness-2-settings-loudness-heading",
+                      "type": "component",
+                      "component": "settings.loudness.heading",
+                      "style": "label.section",
+                      "height": 32,
+                      "shrink": 0
+                    },
+                    {
+                      "id": "loudness-2-preferences",
+                      "type": "row",
+                      "height": 36,
+                      "shrink": 0,
+                      "gap": 12,
+                      "align": "center",
+                      "children": [
+                        {
+                          "id": "loudness-2-preferences-fields",
+                          "type": "row",
+                          "height": 36,
+                          "grow": 1,
+                          "gap": 12,
+                          "align": "center",
+                          "children": [
+                            {
+                              "id": "loudness-2-settings-loudness-modeLabel",
+                              "type": "component",
+                              "component": "settings.loudness.modeLabel",
+                              "style": "label.default",
+                              "width": 112,
+                              "height": 32
+                            },
+                            {
+                              "id": "loudness-2-settings-loudness-mode",
+                              "type": "component",
+                              "component": "settings.loudness.mode",
+                              "style": "comboBox.default",
+                              "width": 144,
+                              "height": 36,
+                              "focusOrder": 28
+                            },
+                            {
+                              "id": "loudness-2-settings-loudness-targetLabel",
+                              "type": "component",
+                              "component": "settings.loudness.targetLabel",
+                              "style": "label.default",
+                              "width": 48,
+                              "height": 32
+                            },
+                            {
+                              "id": "loudness-2-settings-loudness-target",
+                              "type": "component",
+                              "component": "settings.loudness.target",
+                              "style": "comboBox.default",
+                              "width": 132,
+                              "height": 36,
+                              "focusOrder": 29
+                            }
+                          ]
+                        },
+                        {
+                          "id": "loudness-2-settings-loudness-preventClipping",
+                          "type": "component",
+                          "component": "settings.loudness.preventClipping",
+                          "style": "toggleButton.default",
+                          "height": 36,
+                          "focusOrder": 30,
+                          "width": 212,
+                          "shrink": 0
+                        }
+                      ]
+                    },
+                    {
+                      "id": "loudness-2-analysis",
+                      "type": "row",
+                      "height": 36,
+                      "shrink": 0,
+                      "gap": 12,
+                      "align": "center",
+                      "children": [
+                        {
+                          "id": "loudness-2-settings-loudness-status",
+                          "type": "component",
+                          "component": "settings.loudness.status",
+                          "style": "label.default",
+                          "grow": 1,
+                          "height": 32
+                        },
+                        {
+                          "id": "loudness-2-settings-loudness-analyze",
+                          "type": "component",
+                          "component": "settings.loudness.analyze",
+                          "style": "textButton.neutral",
+                          "width": 136,
+                          "height": 36,
+                          "focusOrder": 31
+                        },
+                        {
+                          "id": "loudness-2-settings-loudness-cancel",
+                          "type": "component",
+                          "component": "settings.loudness.cancel",
+                          "style": "textButton.neutral",
+                          "width": 88,
+                          "height": 36,
+                          "focusOrder": 32
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
                   "id": "example-1-foundation-music-section",
                   "type": "column",
                   "shrink": 0,
@@ -901,7 +1137,7 @@
                       "style": "directoryList.default",
                       "height": 168,
                       "shrink": 0,
-                      "focusOrder": 28
+                      "focusOrder": 33
                     },
                     {
                       "id": "example-1-foundation-music-actions",
@@ -918,7 +1154,7 @@
                           "height": 36,
                           "shrink": 0,
                           "width": 132,
-                          "focusOrder": 29
+                          "focusOrder": 34
                         },
                         {
                           "id": "example-1-foundation-music-scan",
@@ -928,7 +1164,7 @@
                           "height": 36,
                           "shrink": 0,
                           "width": 120,
-                          "focusOrder": 30
+                          "focusOrder": 35
                         },
                         {
                           "id": "example-1-foundation-music-cancel",
@@ -938,7 +1174,7 @@
                           "height": 36,
                           "shrink": 0,
                           "width": 120,
-                          "focusOrder": 31
+                          "focusOrder": 36
                         },
                         {
                           "id": "example-1-foundation-music-remove",
@@ -948,7 +1184,7 @@
                           "height": 36,
                           "shrink": 0,
                           "width": 148,
-                          "focusOrder": 32
+                          "focusOrder": 37
                         },
                         {
                           "id": "example-1-foundation-music-automatic",
@@ -958,7 +1194,7 @@
                           "height": 36,
                           "shrink": 0,
                           "grow": 1,
-                          "focusOrder": 33
+                          "focusOrder": 38
                         }
                       ]
                     },

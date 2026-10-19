@@ -453,7 +453,7 @@ public:
             const auto tree = AppStateStore::toValueTree (state);
             const auto restored = AppStateStore::fromValueTree (tree);
 
-            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 14);
+            expectEquals (static_cast<int> (tree.getProperty ("schemaVersion")), 15);
             expect (restored.customVst3Directories == state.customVst3Directories);
             expectEquals (static_cast<int> (restored.audioDevice.outputRoutes.size()), 1);
             if (! restored.audioDevice.outputRoutes.empty())

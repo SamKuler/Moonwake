@@ -90,6 +90,7 @@ bool prepareTracks (std::vector<TrackItem>& tracks,
             }
             else
             {
+                if (! restored.loudness.measured) restored.loudness = metadata.track.loudness;
                 restored.durationSeconds = metadata.track.durationSeconds;
                 restored.sampleRate = metadata.track.sampleRate;
                 restored.channelCount = metadata.track.channelCount;

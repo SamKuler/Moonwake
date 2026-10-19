@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Moonwake VERSION 0.10.0 LANGUAGES C CXX)
+project(Moonwake VERSION 0.11.0 LANGUAGES C CXX)
 
 if (APPLE)
     enable_language(OBJCXX)
@@ -159,6 +159,7 @@ set(MOONWAKE_SOURCES
     Source/app/PlaybackCoordinator.cpp
     Source/app/PlaybackCheckpoint.cpp
     Source/app/PlayerController.cpp
+    Source/app/PlayerLoudness.cpp
     Source/app/PlayerLibraryActions.cpp
     Source/app/PlayerMusicDirectories.cpp
     Source/app/PlayerPresets.cpp
@@ -166,6 +167,8 @@ set(MOONWAKE_SOURCES
     Source/app/NowPlayingCoordinator.cpp
     Source/audio/AudioEngine.cpp
     Source/audio/OutputMeter.cpp
+    Source/audio/LoudnessNormalization.cpp
+    Source/audio/LoudnessComparison.cpp
     Source/audio/OutputCalibrationProcessor.cpp
     Source/audio/GaplessAudioSource.cpp
     Source/audio/ChannelRouter.cpp
@@ -176,6 +179,7 @@ set(MOONWAKE_SOURCES
     Source/lyrics/LyricsService.cpp
     Source/library/TrackTagReader.cpp
     Source/library/TrackMetadataReader.cpp
+    Source/library/LoudnessScanService.cpp
     Source/library/ArtworkExtractor.cpp
     Source/library/ArtworkStore.cpp
     Source/library/LibraryProjection.cpp
@@ -246,6 +250,7 @@ set(MOONWAKE_SOURCES
     Source/ui/OutputMixerComponent.cpp
     Source/ui/OutputCalibrationComponent.cpp
     Source/ui/PresetControls.cpp
+    Source/ui/LoudnessControls.cpp
     Source/ui/LyricsComponent.cpp
     Source/ui/OutputStageComponent.cpp
     Source/ui/SkinFallbackDiagnostic.cpp
@@ -377,17 +382,21 @@ add_executable(MoonwakeTests
         Source/app/PlaybackCoordinator.cpp
         Source/app/PlaybackCheckpoint.cpp
         Source/app/PlayerController.cpp
+        Source/app/PlayerLoudness.cpp
         Source/app/PlayerLibraryActions.cpp
         Source/app/PlayerMusicDirectories.cpp
         Source/app/PlayerPresets.cpp
         Source/audio/AudioEngine.cpp
         Source/audio/OutputMeter.cpp
+        Source/audio/LoudnessNormalization.cpp
+        Source/audio/LoudnessComparison.cpp
         Source/audio/OutputCalibrationProcessor.cpp
         Source/audio/GaplessAudioSource.cpp
         Source/lyrics/LyricsDocument.cpp
         Source/lyrics/LyricsService.cpp
         Source/library/TrackTagReader.cpp
         Source/library/TrackMetadataReader.cpp
+        Source/library/LoudnessScanService.cpp
         Source/library/ArtworkExtractor.cpp
         Source/library/ArtworkStore.cpp
         Source/library/LibraryProjection.cpp
@@ -462,6 +471,7 @@ add_executable(MoonwakeTests
         Source/ui/OutputMixerComponent.cpp
         Source/ui/OutputCalibrationComponent.cpp
         Source/ui/PresetControls.cpp
+        Source/ui/LoudnessControls.cpp
         Source/ui/LyricsComponent.cpp
         Source/ui/OutputStageComponent.cpp
         Source/ui/SkinFallbackDiagnostic.cpp
@@ -479,6 +489,7 @@ add_executable(MoonwakeTests
         Tests/AudioEngineTests.cpp
         Tests/QueuePublicationTests.cpp
         Tests/OutputMeterTests.cpp
+        Tests/LoudnessTests.cpp
         Tests/AudioDeviceSettingsTests.cpp
         Tests/ChannelRouterTests.cpp
         Tests/ChannelMappedAudioSourceTests.cpp

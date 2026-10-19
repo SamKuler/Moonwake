@@ -35,16 +35,68 @@
             "height": 28,
             "shrink": 0,
             "focusOrder": 1
+          }
+        ]
+      },
+      {
+        "id": "comparison-effects-1",
+        "type": "column",
+        "gap": 4,
+        "shrink": 0,
+        "children": [
+          {
+            "id": "comparison-effects-1-controls",
+            "type": "row",
+            "height": 32,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "comparison-effects-1-effects-compare-original",
+                "type": "component",
+                "component": "effects.compare.original",
+                "style": "textButton.default",
+                "width": 84,
+                "height": 32,
+                "focusOrder": 2
+              },
+              {
+                "id": "comparison-effects-1-effects-compare-processed",
+                "type": "component",
+                "component": "effects.compare.processed",
+                "style": "textButton.default",
+                "width": 84,
+                "height": 32,
+                "focusOrder": 3
+              },
+              {
+                "id": "comparison-effects-1-effects-compare-match",
+                "type": "component",
+                "component": "effects.compare.match",
+                "style": "textButton.default",
+                "width": 132,
+                "height": 32,
+                "focusOrder": 4
+              },
+              {
+                "id": "comparison-effects-1-effects-compare-reset",
+                "type": "component",
+                "component": "effects.compare.reset",
+                "style": "textButton.default",
+                "width": 104,
+                "height": 32,
+                "focusOrder": 5
+              }
+            ]
           },
           {
-            "id": "effects-header-bypassAll",
+            "id": "comparison-effects-1-effects-compare-status",
             "type": "component",
-            "component": "effects.bypassAll",
-            "style": "textButton.default",
-            "width": 104,
-            "height": 28,
-            "shrink": 0,
-            "focusOrder": 2
+            "component": "effects.compare.status",
+            "style": "label.default",
+            "height": 24,
+            "shrink": 0
           }
         ]
       },
@@ -63,7 +115,7 @@
             "style": "comboBox.default",
             "grow": 1,
             "height": 32,
-            "focusOrder": 3
+            "focusOrder": 6
           },
           {
             "id": "effects-header-preset-actions",
@@ -73,7 +125,7 @@
             "width": 92,
             "height": 32,
             "shrink": 0,
-            "focusOrder": 4
+            "focusOrder": 7
           }
         ]
       },
@@ -96,7 +148,7 @@
             "type": "component",
             "component": "effects.filter",
             "style": "textEditor.default",
-            "focusOrder": 5,
+            "focusOrder": 8,
             "grow": 1
           },
           {
@@ -106,7 +158,7 @@
             "style": "comboBox.default",
             "width": 116,
             "shrink": 0,
-            "focusOrder": 6
+            "focusOrder": 9
           },
           {
             "id": "effects-filter-manufacturerFilter",
@@ -115,7 +167,7 @@
             "style": "comboBox.default",
             "width": 180,
             "shrink": 0,
-            "focusOrder": 7
+            "focusOrder": 10
           },
           {
             "id": "effects-filter-formatFilter",
@@ -124,7 +176,7 @@
             "style": "comboBox.default",
             "width": 132,
             "shrink": 0,
-            "focusOrder": 8
+            "focusOrder": 11
           }
         ]
       },
@@ -140,7 +192,7 @@
             "component": "effects.catalog",
             "style": "comboBox.default",
             "grow": 1,
-            "focusOrder": 9
+            "focusOrder": 12
           },
           {
             "id": "effects-add",
@@ -148,7 +200,7 @@
             "component": "effects.add",
             "style": "textButton.iconPrimary",
             "width": 36,
-            "focusOrder": 10,
+            "focusOrder": 13,
             "height": 36,
             "shrink": 0
           }
@@ -160,7 +212,7 @@
         "component": "effects.chain",
         "style": "effectChain.default",
         "grow": 1,
-        "focusOrder": 11
+        "focusOrder": 14
       }
     ]
   },

@@ -718,6 +718,7 @@ MainComponent::MainComponent()
     effectPresetControls.addTo (*this);
     pluginFilters.addTo (*this);
     audioSettingsPanel.addTo (*this);
+    loudnessControls.addTo (*this);
     pluginSettingsPanel.addTo (*this);
     musicDirectoriesPanel.addTo (*this);
     musicDirectoriesPanel.onAdd = [this] { chooseMusicDirectory(); };
@@ -1068,6 +1069,7 @@ MainComponent::~MainComponent()
 
 void MainComponent::setRestoreControlsEnabled (bool enabled)
 {
+    loudnessControls.refresh (enabled);
     musicLibraryPanel.setEnabled (enabled);
     for (auto* component : std::initializer_list<juce::Component*> {
              &studioModeButton, &listeningModeButton, &settingsButton,
@@ -1220,6 +1222,7 @@ void MainComponent::bindSkinComponents()
     effectPresetControls.bind (skinBindings, "effects.preset", report);
     pluginFilters.bind (skinBindings, "effects", report);
     audioSettingsPanel.bind (skinBindings, report);
+    loudnessControls.bind (skinBindings, report);
     pluginSettingsPanel.bind (skinBindings, report);
     musicDirectoriesPanel.bind (skinBindings, report);
     skinLibraryPanel.bind (skinBindings, report);
@@ -2497,6 +2500,7 @@ void MainComponent::choosePresetFile (PlayerController::PresetKind kind, const j
 
 void MainComponent::updateTransportState()
 {
+    loudnessControls.refresh (restoreStatus != RestoreStatus::loading && ! pluginInsertionInProgress);
     if (queueViewVersion != controller.getPlaybackQueueVersion()) refreshPlaylist();
     const auto state = controller.getViewState();
     const auto* peer = getTopLevelComponent()->getPeer();

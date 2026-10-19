@@ -96,13 +96,17 @@ RouteTargets getRouteTargets (juce::AudioChannelSet::ChannelType type,
                              juce::AudioChannelSet::right }, heightFold);
     else if (type == juce::AudioChannelSet::leftSurround)
     {
-        const auto surround = destinationFor (juce::AudioChannelSet::leftSurroundSide);
+        auto surround = sourceLayout.getChannelIndexForType (juce::AudioChannelSet::leftSurroundSide) >= 0
+            ? destinationFor (juce::AudioChannelSet::leftSurroundRear) : -1;
+        if (surround < 0) surround = destinationFor (juce::AudioChannelSet::leftSurroundSide);
         result.add (surround >= 0 ? surround : destinationFor (juce::AudioChannelSet::left),
                     surround >= 0 ? 1.0f : equalPower);
     }
     else if (type == juce::AudioChannelSet::rightSurround)
     {
-        const auto surround = destinationFor (juce::AudioChannelSet::rightSurroundSide);
+        auto surround = sourceLayout.getChannelIndexForType (juce::AudioChannelSet::rightSurroundSide) >= 0
+            ? destinationFor (juce::AudioChannelSet::rightSurroundRear) : -1;
+        if (surround < 0) surround = destinationFor (juce::AudioChannelSet::rightSurroundSide);
         result.add (surround >= 0 ? surround : destinationFor (juce::AudioChannelSet::right),
                     surround >= 0 ? 1.0f : equalPower);
     }

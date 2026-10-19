@@ -14,6 +14,7 @@
 #include "OutputMixerComponent.h"
 #include "OutputCalibrationComponent.h"
 #include "PresetControls.h"
+#include "LoudnessControls.h"
 #include "LyricsComponent.h"
 #include "PlayerPresentation.h"
 #include "lyrics/LyricsService.h"
@@ -168,6 +169,7 @@ private:
     std::shared_ptr<SkinSession> appliedSkinSession;
     JuceSkinAdapter skinAdapter;
     AudioSettingsPanel audioSettingsPanel;
+    LoudnessControls loudnessControls { controller };
     PluginSettingsPanel pluginSettingsPanel;
     MusicDirectoriesPanel musicDirectoriesPanel;
     SkinLibraryPanel skinLibraryPanel;

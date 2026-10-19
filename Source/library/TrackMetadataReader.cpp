@@ -255,7 +255,11 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
 #endif
     auto fallbackTrack = result.track;
     fallbackTrack.title.clear();
-    applyMetadata (fallbackTrack, readTrackMetadataTags (file));
+    const auto supplementalTags = readTrackMetadataTags (file);
+    applyMetadata (fallbackTrack, supplementalTags);
+    auto gainTags = metadata;
+    gainTags.addArray (supplementalTags);
+    result.track.loudness = readReplayGainTags (gainTags);
     if ((preferTaggedMetadata || valueForAliases (metadata, { "title", "id3title", "songname", "inam", "kAFInfoDictionary_Title" }).isEmpty())
         && fallbackTrack.title.isNotEmpty()) result.track.title = fallbackTrack.title;
     if (preferTaggedMetadata || result.track.album.isEmpty()) result.track.album = fallbackTrack.album;

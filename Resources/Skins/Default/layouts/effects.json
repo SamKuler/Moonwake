@@ -141,19 +141,71 @@
                     "height": 28,
                     "shrink": 0,
                     "focusOrder": 7
-                  },
-                  {
-                    "id": "effects-effects-page-heading-bypassAll",
-                    "type": "component",
-                    "component": "effects.bypassAll",
-                    "style": "textButton.listeningNeutral",
-                    "width": 104,
-                    "height": 28,
-                    "shrink": 0,
-                    "focusOrder": 8
                   }
                 ],
                 "shrink": 0
+              },
+              {
+                "id": "comparison-effects-1",
+                "type": "column",
+                "gap": 4,
+                "shrink": 0,
+                "children": [
+                  {
+                    "id": "comparison-effects-1-controls",
+                    "type": "row",
+                    "height": 32,
+                    "shrink": 0,
+                    "gap": 8,
+                    "align": "center",
+                    "children": [
+                      {
+                        "id": "comparison-effects-1-effects-compare-original",
+                        "type": "component",
+                        "component": "effects.compare.original",
+                        "style": "textButton.listeningNeutral",
+                        "width": 84,
+                        "height": 32,
+                        "focusOrder": 8
+                      },
+                      {
+                        "id": "comparison-effects-1-effects-compare-processed",
+                        "type": "component",
+                        "component": "effects.compare.processed",
+                        "style": "textButton.listeningNeutral",
+                        "width": 84,
+                        "height": 32,
+                        "focusOrder": 9
+                      },
+                      {
+                        "id": "comparison-effects-1-effects-compare-match",
+                        "type": "component",
+                        "component": "effects.compare.match",
+                        "style": "textButton.listeningNeutral",
+                        "width": 132,
+                        "height": 32,
+                        "focusOrder": 10
+                      },
+                      {
+                        "id": "comparison-effects-1-effects-compare-reset",
+                        "type": "component",
+                        "component": "effects.compare.reset",
+                        "style": "textButton.listeningNeutral",
+                        "width": 104,
+                        "height": 32,
+                        "focusOrder": 11
+                      }
+                    ]
+                  },
+                  {
+                    "id": "comparison-effects-1-effects-compare-status",
+                    "type": "component",
+                    "component": "effects.compare.status",
+                    "style": "label.listeningData",
+                    "height": 24,
+                    "shrink": 0
+                  }
+                ]
               },
               {
                 "id": "effects-effects-page-heading-preset",
@@ -170,7 +222,7 @@
                     "style": "comboBox.listening",
                     "grow": 1,
                     "height": 32,
-                    "focusOrder": 9
+                    "focusOrder": 12
                   },
                   {
                     "id": "effects-effects-page-heading-preset-actions",
@@ -180,7 +232,7 @@
                     "width": 92,
                     "height": 32,
                     "shrink": 0,
-                    "focusOrder": 10
+                    "focusOrder": 13
                   }
                 ]
               },
@@ -204,7 +256,7 @@
                     "type": "component",
                     "component": "effects.filter",
                     "style": "textEditor.listening",
-                    "focusOrder": 11,
+                    "focusOrder": 14,
                     "grow": 1
                   },
                   {
@@ -214,7 +266,7 @@
                     "style": "comboBox.listening",
                     "width": 116,
                     "shrink": 0,
-                    "focusOrder": 12
+                    "focusOrder": 15
                   },
                   {
                     "id": "effects-effects-filter-manufacturerFilter",
@@ -223,7 +275,7 @@
                     "style": "comboBox.listening",
                     "width": 180,
                     "shrink": 0,
-                    "focusOrder": 13
+                    "focusOrder": 16
                   },
                   {
                     "id": "effects-effects-filter-formatFilter",
@@ -232,7 +284,7 @@
                     "style": "comboBox.listening",
                     "width": 132,
                     "shrink": 0,
-                    "focusOrder": 14
+                    "focusOrder": 17
                   }
                 ]
               },
@@ -248,7 +300,7 @@
                     "component": "effects.catalog",
                     "style": "comboBox.listening",
                     "grow": 1,
-                    "focusOrder": 15
+                    "focusOrder": 18
                   },
                   {
                     "id": "effects-effects-add",
@@ -256,7 +308,7 @@
                     "component": "effects.add",
                     "style": "textButton.listeningIconPrimary",
                     "width": 36,
-                    "focusOrder": 16,
+                    "focusOrder": 19,
                     "height": 36,
                     "shrink": 0
                   }
@@ -283,7 +335,7 @@
                     "component": "effects.scope",
                     "style": "comboBox.listening",
                     "width": 220,
-                    "focusOrder": 17
+                    "focusOrder": 20
                   },
                   {
                     "id": "effects-effects-root-layout",
@@ -291,7 +343,7 @@
                     "component": "effects.outputLayout",
                     "style": "comboBox.listening",
                     "width": 220,
-                    "focusOrder": 18
+                    "focusOrder": 21
                   }
                 ]
               },
@@ -305,7 +357,7 @@
                     "type": "component",
                     "component": "effects.chain",
                     "style": "effectChain.listening",
-                    "focusOrder": 19,
+                    "focusOrder": 22,
                     "anchors": {
                       "top": 0,
                       "right": 0,
@@ -492,19 +544,71 @@
                         "height": 28,
                         "shrink": 0,
                         "focusOrder": 7
-                      },
-                      {
-                        "id": "themed-effects-themed-effects-page-heading-bypassAll",
-                        "type": "component",
-                        "component": "effects.bypassAll",
-                        "style": "textButton.studioNeutral",
-                        "width": 104,
-                        "height": 28,
-                        "shrink": 0,
-                        "focusOrder": 8
                       }
                     ],
                     "shrink": 0
+                  },
+                  {
+                    "id": "comparison-effects-2",
+                    "type": "column",
+                    "gap": 4,
+                    "shrink": 0,
+                    "children": [
+                      {
+                        "id": "comparison-effects-2-controls",
+                        "type": "row",
+                        "height": 32,
+                        "shrink": 0,
+                        "gap": 8,
+                        "align": "center",
+                        "children": [
+                          {
+                            "id": "comparison-effects-2-effects-compare-original",
+                            "type": "component",
+                            "component": "effects.compare.original",
+                            "style": "textButton.studioNeutral",
+                            "width": 84,
+                            "height": 32,
+                            "focusOrder": 8
+                          },
+                          {
+                            "id": "comparison-effects-2-effects-compare-processed",
+                            "type": "component",
+                            "component": "effects.compare.processed",
+                            "style": "textButton.studioNeutral",
+                            "width": 84,
+                            "height": 32,
+                            "focusOrder": 9
+                          },
+                          {
+                            "id": "comparison-effects-2-effects-compare-match",
+                            "type": "component",
+                            "component": "effects.compare.match",
+                            "style": "textButton.studioNeutral",
+                            "width": 132,
+                            "height": 32,
+                            "focusOrder": 10
+                          },
+                          {
+                            "id": "comparison-effects-2-effects-compare-reset",
+                            "type": "component",
+                            "component": "effects.compare.reset",
+                            "style": "textButton.studioNeutral",
+                            "width": 104,
+                            "height": 32,
+                            "focusOrder": 11
+                          }
+                        ]
+                      },
+                      {
+                        "id": "comparison-effects-2-effects-compare-status",
+                        "type": "component",
+                        "component": "effects.compare.status",
+                        "style": "label.studioData",
+                        "height": 24,
+                        "shrink": 0
+                      }
+                    ]
                   },
                   {
                     "id": "themed-effects-themed-effects-page-heading-preset",
@@ -521,7 +625,7 @@
                         "style": "comboBox.studio",
                         "grow": 1,
                         "height": 32,
-                        "focusOrder": 9
+                        "focusOrder": 12
                       },
                       {
                         "id": "themed-effects-themed-effects-page-heading-preset-actions",
@@ -531,7 +635,7 @@
                         "width": 92,
                         "height": 32,
                         "shrink": 0,
-                        "focusOrder": 10
+                        "focusOrder": 13
                       }
                     ]
                   },
@@ -555,7 +659,7 @@
                         "type": "component",
                         "component": "effects.filter",
                         "style": "textEditor.studio",
-                        "focusOrder": 11,
+                        "focusOrder": 14,
                         "grow": 1
                       },
                       {
@@ -565,7 +669,7 @@
                         "style": "comboBox.studio",
                         "width": 116,
                         "shrink": 0,
-                        "focusOrder": 12
+                        "focusOrder": 15
                       },
                       {
                         "id": "themed-effects-themed-effects-filter-manufacturerFilter",
@@ -574,7 +678,7 @@
                         "style": "comboBox.studio",
                         "width": 180,
                         "shrink": 0,
-                        "focusOrder": 13
+                        "focusOrder": 16
                       },
                       {
                         "id": "themed-effects-themed-effects-filter-formatFilter",
@@ -583,7 +687,7 @@
                         "style": "comboBox.studio",
                         "width": 132,
                         "shrink": 0,
-                        "focusOrder": 14
+                        "focusOrder": 17
                       }
                     ]
                   },
@@ -599,7 +703,7 @@
                         "component": "effects.catalog",
                         "style": "comboBox.studio",
                         "grow": 1,
-                        "focusOrder": 15
+                        "focusOrder": 18
                       },
                       {
                         "id": "themed-effects-themed-effects-add",
@@ -607,7 +711,7 @@
                         "component": "effects.add",
                         "style": "textButton.studioIconPrimary",
                         "width": 36,
-                        "focusOrder": 16,
+                        "focusOrder": 19,
                         "height": 36,
                         "shrink": 0
                       }
@@ -634,7 +738,7 @@
                         "component": "effects.scope",
                         "style": "comboBox.studio",
                         "width": 220,
-                        "focusOrder": 17
+                        "focusOrder": 20
                       },
                       {
                         "id": "themed-effects-themed-effects-root-layout",
@@ -642,7 +746,7 @@
                         "component": "effects.outputLayout",
                         "style": "comboBox.studio",
                         "width": 220,
-                        "focusOrder": 18
+                        "focusOrder": 21
                       }
                     ]
                   },
@@ -656,7 +760,7 @@
                         "type": "component",
                         "component": "effects.chain",
                         "style": "effectChain.studio",
-                        "focusOrder": 19,
+                        "focusOrder": 22,
                         "anchors": {
                           "top": 0,
                           "right": 0,

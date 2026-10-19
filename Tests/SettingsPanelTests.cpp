@@ -6,6 +6,7 @@
 #include "ui/settings/SettingsSkinContext.h"
 #include "ui/SkinLayoutHost.h"
 #include "ui/PresetControls.h"
+#include "ui/LoudnessControls.h"
 #include "ui/OutputCalibrationComponent.h"
 #include "plugins/PluginManager.h"
 #include "skin/SkinBuiltInPackages.h"
@@ -1214,6 +1215,7 @@ public:
             expect (controller.setOutputLayout (OutputLayout::sevenOneTwo).isEmpty());
             AudioSettingsPanel audio (controller, &foundationSkin.adapter);
             PresetControls listeningPresets ("Listening setup");
+            LoudnessControls loudness (controller);
             OutputCalibrationComponent calibration;
             juce::Label calibrationTitle;
             juce::TextButton calibrationReset { "Reset" };
@@ -1234,6 +1236,7 @@ public:
             root.addAndMakeVisible (title);
             root.addAndMakeVisible (close);
             audio.addTo (root);
+            loudness.addTo (root);
             listeningPresets.addTo (root);
             root.addAndMakeVisible (calibration);
             root.addAndMakeVisible (calibrationTitle);
@@ -1257,6 +1260,7 @@ public:
             expect (bindings.bind ("library.browseFavourites", favouritesOpen, report));
             expect (bindings.bind ("library.browseQueue", queueOpen, report));
             audio.bind (bindings, report);
+            loudness.bind (bindings, report);
             listeningPresets.bind (bindings, "listeningPreset", report);
             expect (bindings.bind ("output.calibration", calibration, report));
             expect (bindings.bind ("settings.calibration.title", calibrationTitle, report));
@@ -1367,7 +1371,7 @@ public:
             auto* page = outerViewport (audio.headingControl());
             expect (page != nullptr && page == outerViewport (plugins.formatsControl())
                     && page == outerViewport (skins.headingControl()) && page == outerViewport (*musicHeading),
-                    "All four sections share one page scroller.");
+                    "Settings sections share one page scroller.");
             if (page != nullptr)
             {
                 root.setVisible (true);

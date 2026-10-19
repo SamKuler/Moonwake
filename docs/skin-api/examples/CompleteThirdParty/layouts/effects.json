@@ -28,16 +28,68 @@
             "height": 28,
             "shrink": 0,
             "focusOrder": 1
+          }
+        ]
+      },
+      {
+        "id": "comparison-effects-1",
+        "type": "column",
+        "gap": 4,
+        "shrink": 0,
+        "children": [
+          {
+            "id": "comparison-effects-1-controls",
+            "type": "row",
+            "height": 32,
+            "shrink": 0,
+            "gap": 8,
+            "align": "center",
+            "children": [
+              {
+                "id": "comparison-effects-1-effects-compare-original",
+                "type": "component",
+                "component": "effects.compare.original",
+                "style": "textButton.neutral",
+                "width": 84,
+                "height": 32,
+                "focusOrder": 2
+              },
+              {
+                "id": "comparison-effects-1-effects-compare-processed",
+                "type": "component",
+                "component": "effects.compare.processed",
+                "style": "textButton.neutral",
+                "width": 84,
+                "height": 32,
+                "focusOrder": 3
+              },
+              {
+                "id": "comparison-effects-1-effects-compare-match",
+                "type": "component",
+                "component": "effects.compare.match",
+                "style": "textButton.neutral",
+                "width": 132,
+                "height": 32,
+                "focusOrder": 4
+              },
+              {
+                "id": "comparison-effects-1-effects-compare-reset",
+                "type": "component",
+                "component": "effects.compare.reset",
+                "style": "textButton.neutral",
+                "width": 104,
+                "height": 32,
+                "focusOrder": 5
+              }
+            ]
           },
           {
-            "id": "effects-header-bypassAll",
+            "id": "comparison-effects-1-effects-compare-status",
             "type": "component",
-            "component": "effects.bypassAll",
-            "style": "textButton.default",
-            "width": 104,
-            "height": 28,
-            "shrink": 0,
-            "focusOrder": 2
+            "component": "effects.compare.status",
+            "style": "label.default",
+            "height": 24,
+            "shrink": 0
           }
         ]
       },
@@ -56,7 +108,7 @@
             "style": "comboBox.default",
             "grow": 1,
             "height": 32,
-            "focusOrder": 3
+            "focusOrder": 6
           },
           {
             "id": "effects-header-preset-actions",
@@ -66,7 +118,7 @@
             "width": 92,
             "height": 32,
             "shrink": 0,
-            "focusOrder": 4
+            "focusOrder": 7
           }
         ]
       },
@@ -89,7 +141,7 @@
             "component": "effects.scope",
             "style": "comboBox.default",
             "width": 200,
-            "focusOrder": 5
+            "focusOrder": 8
           }
         ]
       },
@@ -111,7 +163,7 @@
                 "type": "component",
                 "component": "effects.filter",
                 "width": "34%",
-                "focusOrder": 6,
+                "focusOrder": 13,
                 "grow": 1
               },
               {
@@ -121,7 +173,7 @@
                 "style": "comboBox.default",
                 "width": 116,
                 "shrink": 0,
-                "focusOrder": 7
+                "focusOrder": 14
               },
               {
                 "id": "effects-manufacturerFilter",
@@ -130,7 +182,7 @@
                 "style": "comboBox.default",
                 "width": 180,
                 "shrink": 0,
-                "focusOrder": 8
+                "focusOrder": 15
               },
               {
                 "id": "effects-formatFilter",
@@ -139,7 +191,7 @@
                 "style": "comboBox.default",
                 "width": 132,
                 "shrink": 0,
-                "focusOrder": 9
+                "focusOrder": 16
               }
             ]
           },
@@ -148,7 +200,7 @@
             "type": "component",
             "component": "effects.catalog",
             "grow": 1,
-            "focusOrder": 10
+            "focusOrder": 17
           },
           {
             "id": "effects-add",
@@ -156,7 +208,7 @@
             "component": "effects.add",
             "style": "textButton.primary",
             "width": 36,
-            "focusOrder": 11,
+            "focusOrder": 18,
             "height": 36,
             "shrink": 0
           }
@@ -167,7 +219,7 @@
         "type": "component",
         "component": "effects.chain",
         "grow": 1,
-        "focusOrder": 12
+        "focusOrder": 19
       }
     ]
   },
@@ -204,16 +256,68 @@
                 "height": 28,
                 "shrink": 0,
                 "focusOrder": 1
+              }
+            ]
+          },
+          {
+            "id": "comparison-effects-3",
+            "type": "column",
+            "gap": 4,
+            "shrink": 0,
+            "children": [
+              {
+                "id": "comparison-effects-3-controls",
+                "type": "row",
+                "height": 32,
+                "shrink": 0,
+                "gap": 8,
+                "align": "center",
+                "children": [
+                  {
+                    "id": "comparison-effects-3-effects-compare-original",
+                    "type": "component",
+                    "component": "effects.compare.original",
+                    "style": "textButton.neutral",
+                    "width": 84,
+                    "height": 32,
+                    "focusOrder": 2
+                  },
+                  {
+                    "id": "comparison-effects-3-effects-compare-processed",
+                    "type": "component",
+                    "component": "effects.compare.processed",
+                    "style": "textButton.neutral",
+                    "width": 84,
+                    "height": 32,
+                    "focusOrder": 3
+                  },
+                  {
+                    "id": "comparison-effects-3-effects-compare-match",
+                    "type": "component",
+                    "component": "effects.compare.match",
+                    "style": "textButton.neutral",
+                    "width": 132,
+                    "height": 32,
+                    "focusOrder": 4
+                  },
+                  {
+                    "id": "comparison-effects-3-effects-compare-reset",
+                    "type": "component",
+                    "component": "effects.compare.reset",
+                    "style": "textButton.neutral",
+                    "width": 104,
+                    "height": 32,
+                    "focusOrder": 5
+                  }
+                ]
               },
               {
-                "id": "effects-header-studio-bypassAll",
+                "id": "comparison-effects-3-effects-compare-status",
                 "type": "component",
-                "component": "effects.bypassAll",
-                "style": "textButton.default",
-                "width": 104,
-                "height": 28,
-                "shrink": 0,
-                "focusOrder": 2
+                "component": "effects.compare.status",
+                "style": "label.default",
+                "height": 24,
+                "shrink": 0
               }
             ]
           },
@@ -232,7 +336,7 @@
                 "style": "comboBox.default",
                 "grow": 1,
                 "height": 32,
-                "focusOrder": 3
+                "focusOrder": 6
               },
               {
                 "id": "effects-header-studio-preset-actions",
@@ -242,7 +346,7 @@
                 "width": 92,
                 "height": 32,
                 "shrink": 0,
-                "focusOrder": 4
+                "focusOrder": 7
               }
             ]
           },
@@ -265,7 +369,7 @@
                 "component": "effects.scope",
                 "style": "comboBox.default",
                 "width": 200,
-                "focusOrder": 5
+                "focusOrder": 8
               }
             ]
           },
@@ -287,7 +391,7 @@
                     "type": "component",
                     "component": "effects.filter",
                     "width": "34%",
-                    "focusOrder": 6,
+                    "focusOrder": 13,
                     "grow": 1
                   },
                   {
@@ -297,7 +401,7 @@
                     "style": "comboBox.default",
                     "width": 116,
                     "shrink": 0,
-                    "focusOrder": 7
+                    "focusOrder": 14
                   },
                   {
                     "id": "branch1-effects-manufacturerFilter",
@@ -306,7 +410,7 @@
                     "style": "comboBox.default",
                     "width": 180,
                     "shrink": 0,
-                    "focusOrder": 8
+                    "focusOrder": 15
                   },
                   {
                     "id": "branch1-effects-formatFilter",
@@ -315,7 +419,7 @@
                     "style": "comboBox.default",
                     "width": 132,
                     "shrink": 0,
-                    "focusOrder": 9
+                    "focusOrder": 16
                   }
                 ]
               },
@@ -324,7 +428,7 @@
                 "type": "component",
                 "component": "effects.catalog",
                 "grow": 1,
-                "focusOrder": 10
+                "focusOrder": 17
               },
               {
                 "id": "effects-add-studio",
@@ -332,7 +436,7 @@
                 "component": "effects.add",
                 "style": "textButton.primary",
                 "width": 36,
-                "focusOrder": 11,
+                "focusOrder": 18,
                 "height": 36,
                 "shrink": 0
               }
@@ -343,7 +447,7 @@
             "type": "component",
             "component": "effects.chain",
             "grow": 1,
-            "focusOrder": 12
+            "focusOrder": 19
           }
         ]
       },

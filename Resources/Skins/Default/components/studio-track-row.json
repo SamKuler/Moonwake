@@ -35,7 +35,7 @@
     {
       "id": "playing",
       "type": "path",
-      "data": "M0 0 L6 4 L0 8 Z",
+      "data": "M0 4 L1.5 4 L1.5 9 L0 9 Z M3 0 L4.5 0 L4.5 9 L3 9 Z M6 2 L7.5 2 L7.5 9 L6 9 Z",
       "visible": {
         "$context": "row.playing"
       },
@@ -47,7 +47,7 @@
         "pivotY": 0,
         "translateX": 1,
         "translateY": {
-          "$expr": "(bounds.height - 8) * 0.5"
+          "$expr": "(bounds.height - 9) * 0.5"
         }
       }
     },

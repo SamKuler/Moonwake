@@ -14,7 +14,7 @@ const juce::Identifier playlistType { "Playlist" };
 const juce::Identifier trackType { "Track" };
 
 const juce::Identifier schemaVersionProperty { "schemaVersion" };
-constexpr int currentSchemaVersion = 14;
+constexpr int currentSchemaVersion = 15;
 const juce::Identifier playbackPositionProperty { "playbackPositionSeconds" };
 const juce::Identifier pathProperty { "path" };
 const juce::Identifier idProperty { "id" };
@@ -110,6 +110,7 @@ juce::ValueTree trackToTree (const TrackItem& track)
     tree.setProperty ("fileModifiedAtMs", track.fileModifiedAtMs, nullptr);
     tree.setProperty ("fileIdentity", track.fileIdentity, nullptr);
     tree.setProperty ("reservedEffectChainState", track.reservedEffectChainState, nullptr);
+    tree.appendChild (loudnessToTree (track.loudness), nullptr);
     return tree;
 }
 
@@ -141,6 +142,7 @@ TrackItem trackFromTree (const juce::ValueTree& tree)
     track.fileSizeBytes = juce::jmax (juce::int64 { 0 }, static_cast<juce::int64> (tree.getProperty ("fileSizeBytes", 0)));
     track.fileModifiedAtMs = static_cast<juce::int64> (tree.getProperty ("fileModifiedAtMs", 0));
     track.fileIdentity = tree.getProperty ("fileIdentity").toString();
+    track.loudness = loudnessFromTree (tree.getChildWithName ("Loudness"));
     track.reservedEffectChainState = tree.getProperty ("reservedEffectChainState").toString();
     return track;
 }
@@ -431,6 +433,9 @@ juce::ValueTree AppStateStore::toValueTree (const PlayerAppState& state)
     formats.setProperty ("audioUnit", state.pluginFormats.audioUnit, nullptr);
     root.appendChild (formats, nullptr);
     root.setProperty (volumeProperty, state.volume, nullptr);
+    root.setProperty ("loudnessMode", static_cast<int> (state.loudness.mode), nullptr);
+    root.setProperty ("loudnessTarget", state.loudness.targetLufs, nullptr);
+    root.setProperty ("loudnessPreventClipping", state.loudness.preventClipping, nullptr);
     root.setProperty (playbackPositionProperty,
                       finiteNonNegative (state.playbackPositionSeconds), nullptr);
     root.setProperty (outputLayoutProperty, toString (state.outputLayout), nullptr);
@@ -557,6 +562,10 @@ PlayerAppState AppStateStore::fromValueTree (const juce::ValueTree& tree)
                 route.channels.push_back (static_cast<int> (channel.getProperty ("port", -1)));
         state.audioDevice.outputRoutes.push_back (std::move (route));
     }
+    state.loudness.mode = static_cast<LoudnessMode> (juce::jlimit (0, 2, static_cast<int> (tree.getProperty ("loudnessMode", 0))));
+    const auto target = static_cast<double> (tree.getProperty ("loudnessTarget", -18.0));
+    state.loudness.targetLufs = std::isfinite (target) ? juce::jlimit (-30.0, -9.0, target) : -18.0;
+    state.loudness.preventClipping = static_cast<bool> (tree.getProperty ("loudnessPreventClipping", true));
     state.volume = static_cast<double> (tree.getProperty (volumeProperty, state.volume));
     const auto formats = tree.getChildWithName ("PluginFormats");
     state.pluginFormats.vst3 = static_cast<bool> (formats.getProperty ("vst3", state.pluginFormats.vst3));

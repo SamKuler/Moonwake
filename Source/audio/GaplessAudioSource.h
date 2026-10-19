@@ -15,8 +15,13 @@
 
 struct AudioPlaybackItem
 {
+    AudioPlaybackItem() = default;
+    AudioPlaybackItem (juce::File source, uint64_t identity,
+                       std::shared_ptr<std::atomic<float>> gain = {})
+        : file (std::move (source)), token (identity), normalizationGain (std::move (gain)) {}
     juce::File file;
     uint64_t token = 0;
+    std::shared_ptr<std::atomic<float>> normalizationGain;
 };
 
 struct AudioPlaybackPlan
@@ -90,6 +95,7 @@ private:
         uint64_t token = 0;
         double lengthSeconds = 0.0;
         long double renderedEnd = 0.0L;
+        const std::atomic<float>* normalizationGain = nullptr;
     };
 
     int useTimeSlice() override;
@@ -115,6 +121,8 @@ private:
     std::atomic<uint64_t> bufferState { 0 };
     juce::AudioBuffer<float> renderBuffer { maximumOutputChannels, chunkFrames };
 
+    juce::SmoothedValue<float> normalizationRamp;
+    uint64_t normalizationToken = 0, normalizationGeneration = 0;
     std::atomic<juce::int64> consumedFrames { 0 };
     std::atomic_bool loaded { false };
     std::mutex failureMutex;

@@ -35,7 +35,7 @@ public:
     // relabel an already-rendered block as audio from the new measurement.
     [[nodiscard]] uint64_t beginBlock() const noexcept;
     void push (const juce::AudioBuffer<float>&, int startSample, int numSamples,
-               uint64_t blockEpoch) noexcept;
+               uint64_t blockEpoch, const std::array<float, maximumOutputChannels>* channelWeights = nullptr) noexcept;
     // Control/UI thread only; never called by the audio producer.
     [[nodiscard]] OutputMeterReadings getReadings() const;
 

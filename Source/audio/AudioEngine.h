@@ -8,6 +8,7 @@
 #include "audio/OutputLayout.h"
 #include "audio/OutputChannelMix.h"
 #include "audio/OutputMeter.h"
+#include "audio/LoudnessComparison.h"
 #include "audio/OutputCalibrationProcessor.h"
 #include "audio/ListeningOutputConfiguration.h"
 #include "audio/AudioOutputRoute.h"
@@ -155,6 +156,9 @@ public:
     bool setEffectPluginOrder (const std::vector<int>& orderedSlotIds);
     bool setEffectBypassed (int slotId, bool shouldBypass);
     void setAllEffectsBypassed (bool) noexcept;
+    void setLoudnessComparisonEnabled (bool);
+    void resetLoudnessComparison() noexcept;
+    [[nodiscard]] LoudnessComparisonStatus getLoudnessComparisonStatus();
     [[nodiscard]] bool areAllEffectsBypassed() const noexcept;
     bool clearEffectTails (juce::String& errorMessage);
     bool setEffectScope (int slotId, const EffectScope&, juce::String& errorMessage);
@@ -254,6 +258,7 @@ private:
         bool setChannelLayout (const juce::AudioChannelSet& layout, juce::String& errorMessage);
         std::unique_ptr<EffectGraph> replaceGraph (std::unique_ptr<EffectGraph>,
             const juce::AudioChannelSet&, double sampleRate, int blockSize);
+        LoudnessComparison comparison;
         OutputCalibrationProcessor calibration;
         void setChannelGainTargets (const std::array<float, maximumOutputChannels>&) noexcept;
         [[nodiscard]] int getPluginCount() const;
@@ -275,6 +280,7 @@ private:
         OutputMeter& outputMeter;
         juce::SmoothedValue<float> smoothedGain;
         std::atomic_bool allBypassed { false };
+        juce::SmoothedValue<float> dryMatchGain { 1.0f }, wetMatchGain { 1.0f };
         juce::SmoothedValue<float> effectWetMix { 1.0f };
         juce::AudioBuffer<float> dryBuffer;
         std::array<std::atomic<float>, maximumOutputChannels> channelGainTargets;
@@ -303,6 +309,7 @@ private:
     CalibrationTestSignal calibrationTestSignal;
     std::vector<int> outputRouting { 0, 1 };
     bool initialised = false;
+    void resetPlaybackMeasurements() noexcept;
     void updateOutputChannelMixTargets();
     void updateOutputCalibrationTargets();
     std::unique_ptr<EffectGraph> prepareEffectGraph (std::vector<PreparedEffect>,

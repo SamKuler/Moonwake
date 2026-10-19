@@ -318,7 +318,6 @@ AudioEngine::AudioEngine (std::unique_ptr<IAudioDeviceBackend> backend)
 {
     jassert (deviceBackend != nullptr);
     formatManager.registerBasicFormats();
-    updateOutputChannelMixTargets();
     updateOutputCalibrationTargets();
     transportSource.setSource (&playbackSource);
     sourcePlayer.setSource (&deviceOutputSource);
@@ -383,7 +382,7 @@ bool AudioEngine::loadPlaybackPlan (AudioPlaybackPlan plan, double startSeconds)
     transportSource.stop();
     const ScopedPlaybackEdit edit (*this);
     const auto loaded = playbackSource.loadPlan (std::move (plan), startSeconds);
-    if (loaded) outputMeter.reset();
+    if (loaded) resetPlaybackMeasurements();
     return loaded;
 }
 
@@ -408,7 +407,7 @@ void AudioEngine::unload()
     transportSource.stop();
     const ScopedPlaybackEdit edit (*this);
     playbackSource.clear();
-    outputMeter.reset();
+    resetPlaybackMeasurements();
     for (auto& level : outputPeakLevels)
         level.store (0.0f, std::memory_order_relaxed);
 }
@@ -433,7 +432,7 @@ bool AudioEngine::seekToSeconds (double seconds)
 {
     const ScopedPlaybackEdit edit (*this);
     const auto sought = playbackSource.seekToSeconds (juce::jmax (0.0, seconds));
-    if (sought) outputMeter.reset();
+    if (sought) resetPlaybackMeasurements();
     return sought;
 }
 
@@ -482,6 +481,13 @@ void AudioEngine::updateOutputChannelMixTargets()
         if (const auto index = channels.getChannelIndexForType (mix.channel); index >= 0)
             targets[static_cast<size_t> (index)] = mix.muted || (hasSolo && ! mix.solo) ? 0.0f : mix.gain;
     effectProcessingSource.setChannelGainTargets (targets);
+    for (const auto& setting : outputCalibration)
+        if (const auto index = channels.getChannelIndexForType (setting.channel); index >= 0)
+            targets[static_cast<size_t> (index)] *= juce::Decibels::decibelsToGain (setting.trimDb);
+    for (int channel = 0; channel < channels.size(); ++channel)
+        if (static_cast<size_t> (channel) >= outputRouting.size() || outputRouting[static_cast<size_t> (channel)] < 0)
+            targets[static_cast<size_t> (channel)] = 0.0f;
+    effectProcessingSource.comparison.setChannelWeights (targets);
 }
 
 std::vector<OutputChannelCalibration> AudioEngine::getOutputCalibration() const
@@ -511,6 +517,7 @@ void AudioEngine::resetOutputCalibration()
 void AudioEngine::updateOutputCalibrationTargets()
 {
     effectProcessingSource.calibration.setCalibration (toAudioChannelSet (outputLayout), outputCalibration);
+    updateOutputChannelMixTargets();
 }
 
 juce::String AudioEngine::validateCalibrationTestSignal (const CalibrationTestSignal& signal) const
@@ -619,7 +626,7 @@ juce::String AudioEngine::replaceEffectPlugins (std::vector<PreparedEffect> effe
     }
     else
         previousGraph = effectProcessingSource.replaceGraph (std::move (graph), layout, 0.0, 0);
-    outputMeter.reset();
+    resetPlaybackMeasurements();
     return {};
 }
 
@@ -713,7 +720,6 @@ juce::String AudioEngine::applyListeningConfiguration (const ListeningOutputConf
             outputLayout = configuration.layout;
             outputChannelMix = nextMix;
             outputCalibration = nextCalibration;
-            updateOutputChannelMixTargets();
             updateOutputCalibrationTargets();
             return callbackPause.prepareOutput (true);
         }).getErrorMessage();
@@ -726,9 +732,9 @@ juce::String AudioEngine::applyListeningConfiguration (const ListeningOutputConf
             outputLayout = previousLayout;
             outputChannelMix = previousMix;
             outputCalibration = previousCalibration;
-            updateOutputChannelMixTargets();
             updateOutputCalibrationTargets();
             deviceOutputSource.setRouting (outputRouting);
+            updateOutputChannelMixTargets();
         }
         auto rollbackError = callbackPause.restoreDevice();
         if (rollbackError.isEmpty()) rollbackError = callbackPause.recoverPreparation();
@@ -736,12 +742,14 @@ juce::String AudioEngine::applyListeningConfiguration (const ListeningOutputConf
         {
             outputRouting.assign (static_cast<size_t> (getChannelCount (outputLayout)), -1);
             deviceOutputSource.setRouting (outputRouting);
+            updateOutputChannelMixTargets();
         }
         return setupFailureMessage ("the listening configuration", error, rollbackError);
     }
     outputRouting = configuration.routing;
     deviceOutputSource.setRouting (outputRouting);
-    outputMeter.reset();
+    updateOutputChannelMixTargets();
+    resetPlaybackMeasurements();
     return {};
 }
 
@@ -818,7 +826,6 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout,
                 graphChanged = true;
                 deviceOutputSource.setRouting (sequentialRouting (requestedChannelLayout.size()));
                 outputLayout = layout;
-                updateOutputChannelMixTargets();
                 updateOutputCalibrationTargets();
                 return callbackPause.prepareOutput (true);
             }
@@ -832,9 +839,9 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout,
     if (deviceError.isNotEmpty())
     {
         outputLayout = previousOutputLayout;
-        updateOutputChannelMixTargets();
         updateOutputCalibrationTargets();
         deviceOutputSource.setRouting (outputRouting);
+        updateOutputChannelMixTargets();
         const auto rollbackError = callbackPause.restoreDevice();
         if (graphChanged)
         {
@@ -858,7 +865,7 @@ juce::String AudioEngine::setOutputLayout (OutputLayout layout,
     updateOutputChannelMixTargets();
     const auto warning = restoreOutputRouting (savedRoutes);
     if (routingWarning != nullptr) *routingWarning = warning;
-    outputMeter.reset();
+    resetPlaybackMeasurements();
     return {};
 }
 
@@ -960,14 +967,16 @@ juce::String AudioEngine::selectOutputDevice (const juce::String& deviceName,
             {
                 outputRouting = sequentialRouting (getChannelCount (outputLayout));
                 deviceOutputSource.setRouting (outputRouting);
+                updateOutputChannelMixTargets();
                 const auto warning = restoreOutputRouting (savedRoutes);
                 if (routingWarning != nullptr) *routingWarning = warning;
-                outputMeter.reset();
+                resetPlaybackMeasurements();
                 return {};
             }
         }
     }
     deviceOutputSource.setRouting (outputRouting);
+    updateOutputChannelMixTargets();
     auto rollbackError = callbackPause.restoreDevice();
     if (rollbackError.isEmpty()) rollbackError = callbackPause.recoverPreparation();
     return setupFailureMessage ("output device " + deviceName,
@@ -1027,7 +1036,8 @@ juce::String AudioEngine::applyOutputRouting (const std::vector<int>& physicalOu
     }
     outputRouting = physicalOutputs;
     deviceOutputSource.setRouting (outputRouting);
-    outputMeter.reset();
+    updateOutputChannelMixTargets();
+    resetPlaybackMeasurements();
     return {};
 }
 
@@ -1054,6 +1064,7 @@ juce::String AudioEngine::restoreOutputRouting (const std::vector<AudioOutputRou
     // Even a failed hardware rollback must not expose default output ports.
     outputRouting = silent;
     deviceOutputSource.setRouting (outputRouting);
+    updateOutputChannelMixTargets();
     return "Could not restore output routing. Outputs are disconnected; choose available ports in Settings. "
         + error + (fallbackError.isNotEmpty() ? " " + fallbackError : juce::String {});
 }
@@ -1089,7 +1100,7 @@ juce::String AudioEngine::setSampleRate (double sampleRate)
     {
         error = playbackSource.reconfigureOutput (toAudioChannelSet (outputLayout), sampleRate,
             [&] { return callbackPause.prepareOutput(); }).getErrorMessage();
-        if (error.isEmpty()) { outputMeter.reset(); return {}; }
+        if (error.isEmpty()) { resetPlaybackMeasurements(); return {}; }
     }
     auto rollbackError = callbackPause.restoreDevice();
     if (rollbackError.isEmpty()) rollbackError = callbackPause.recoverPreparation();
@@ -1262,7 +1273,7 @@ juce::String AudioEngine::setBufferSize (int bufferSize)
         && std::abs (deviceBackend->getCurrentDeviceState().sampleRate - state.sampleRate) < 0.01)
     {
         error = callbackPause.prepareOutput().getErrorMessage();
-        if (error.isEmpty()) { outputMeter.reset(); return {}; }
+        if (error.isEmpty()) { resetPlaybackMeasurements(); return {}; }
     }
     auto rollbackError = callbackPause.restoreDevice();
     if (rollbackError.isEmpty()) rollbackError = callbackPause.recoverPreparation();
@@ -1344,6 +1355,12 @@ OutputMeterReadings AudioEngine::getOutputMeterReadings() const
     return outputMeter.getReadings();
 }
 
+void AudioEngine::resetPlaybackMeasurements() noexcept
+{
+    effectProcessingSource.comparison.reset();
+    outputMeter.reset();
+}
+
 void AudioEngine::resetOutputMeter() noexcept
 {
     outputMeter.reset();
@@ -1394,7 +1411,9 @@ bool AudioEngine::areAllEffectsBypassed() const noexcept
 
 bool AudioEngine::clearEffectTails (juce::String& errorMessage)
 {
-    return effectProcessingSource.clearTails (errorMessage);
+    if (! effectProcessingSource.clearTails (errorMessage)) return false;
+    resetPlaybackMeasurements();
+    return true;
 }
 
 bool AudioEngine::setEffectScope (int slotId, const EffectScope& scope, juce::String& errorMessage)
@@ -1452,6 +1471,9 @@ void AudioEngine::EffectProcessingSource::prepareToPlay (int samplesPerBlockExpe
     effectWetMix.reset (sampleRate, 0.02);
     effectWetMix.setCurrentAndTargetValue (areAllBypassed() ? 0.0f : 1.0f);
     outputMeter.prepare (sampleRate, channelLayout);
+    comparison.prepare (sampleRate, channelLayout);
+    dryMatchGain.reset (sampleRate, 0.02); wetMatchGain.reset (sampleRate, 0.02);
+    dryMatchGain.setCurrentAndTargetValue (1.0f); wetMatchGain.setCurrentAndTargetValue (1.0f);
     smoothedGain.reset (sampleRate, 0.02);
     smoothedGain.setCurrentAndTargetValue (outputGain.load (std::memory_order_relaxed));
     for (size_t channel = 0; channel < smoothedChannelGains.size(); ++channel)
@@ -1472,6 +1494,7 @@ void AudioEngine::EffectProcessingSource::releaseResources()
     stagedSampleRate = 0.0;
     stagedBlockSize = 0;
     transport.releaseResources();
+    comparison.release();
     outputMeter.release();
     for (auto& level : outputPeakLevels)
         level.store (0.0f, std::memory_order_relaxed);
@@ -1480,6 +1503,7 @@ void AudioEngine::EffectProcessingSource::releaseResources()
 void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill)
 {
     const auto meterEpoch = outputMeter.beginBlock();
+    const auto comparisonBlock = comparison.beginBlock();
     bufferToFill.clearActiveBufferRegion();
     if (! calibration.isTestSignalActive() && ! playbackEditRequested.load())
     {
@@ -1507,19 +1531,24 @@ void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSo
     effectWetMix.setTargetValue (areAllBypassed() ? 0.0f : 1.0f);
     const auto blendDry = effectWetMix.isSmoothing() || effectWetMix.getTargetValue() == 0.0f;
     // Keep processing during monitoring bypass so delay/reverb state does not freeze.
-    effectGraph->processBlock (processBuffer, midiBuffer, blendDry ? &dryBuffer : nullptr);
-    if (effectWetMix.isSmoothing())
+    const auto compare = comparison.isEnabled();
+    effectGraph->processBlock (processBuffer, midiBuffer, blendDry || compare ? &dryBuffer : nullptr);
+    if (compare && transport.isPlaying() && ! calibration.isTestSignalActive()
+        && ! playbackEditRequested.load (std::memory_order_relaxed))
+        comparison.push (dryBuffer, processBuffer, bufferToFill.numSamples, comparisonBlock);
+    dryMatchGain.setTargetValue (comparison.dryGain());
+    wetMatchGain.setTargetValue (comparison.wetGain());
+    if (effectWetMix.isSmoothing() || dryMatchGain.isSmoothing() || wetMatchGain.isSmoothing()
+        || compare || blendDry)
         for (int sample = 0; sample < bufferToFill.numSamples; ++sample)
         {
             const auto wet = effectWetMix.getNextValue();
+            const auto dryGain = dryMatchGain.getNextValue(), wetGain = wetMatchGain.getNextValue();
             for (int channel = 0; channel < channelCount; ++channel)
                 processBuffer.setSample (channel, sample,
-                    wet * processBuffer.getSample (channel, sample)
-                    + (1.0f - wet) * dryBuffer.getSample (channel, sample));
+                    wet * wetGain * processBuffer.getSample (channel, sample)
+                    + (wet < 1.0f ? (1.0f - wet) * dryGain * dryBuffer.getSample (channel, sample) : 0.0f));
         }
-    else if (blendDry)
-        for (int channel = 0; channel < channelCount; ++channel)
-            processBuffer.copyFrom (channel, 0, dryBuffer, channel, 0, bufferToFill.numSamples);
 
     for (int channel = 0; channel < juce::jmin (channelCount, maximumOutputChannels); ++channel)
     {
@@ -1650,4 +1679,15 @@ std::unique_ptr<EffectGraph> AudioEngine::EffectProcessingSource::replaceGraph (
     stagedSampleRate = sampleRate;
     stagedBlockSize = blockSize;
     return replacement;
+}
+
+void AudioEngine::setLoudnessComparisonEnabled (bool enabled)
+{
+    effectProcessingSource.comparison.setEnabled (enabled);
+}
+
+void AudioEngine::resetLoudnessComparison() noexcept { effectProcessingSource.comparison.reset(); }
+LoudnessComparisonStatus AudioEngine::getLoudnessComparisonStatus()
+{
+    return effectProcessingSource.comparison.update();
 }

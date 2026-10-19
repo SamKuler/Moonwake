@@ -8,7 +8,7 @@
   },
   "description": "A complete Skin API 1 package with workspace, library and collection layouts.",
   "license": "MIT",
-  "minAppVersion": "0.10.0",
+  "minAppVersion": "0.11.0",
   "extends": "builtin.foundation",
   "capabilities": [
     "tokens",

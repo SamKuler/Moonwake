@@ -278,7 +278,7 @@ bool GaplessAudioSource::prepareDecoder (uint64_t sequence, double startSeconds)
                                * deviceSampleRate / next->sampleRate;
     next->boundary = { offset,
         startSeconds * deviceSampleRate + static_cast<double> (static_cast<long double> (offset) - start),
-        sequence, item.token, lengthSeconds, end };
+        sequence, item.token, lengthSeconds, end, item.normalizationGain.get() };
     rendering->nativeStream->spans.push_back ({ next->boundary, start, end, next->sampleRate });
     rendering->decoder = std::move (next);
     return true;
@@ -481,6 +481,7 @@ bool GaplessAudioSource::setUpcoming (std::vector<AudioPlaybackItem> upcoming,
             && rendering->nativeStream->spans.back().boundary.sequence > current.progress.sequence);
     const auto preservedEnd = juce::jmin (rendering->producedFrames, currentEnd);
     auto boundary = current.boundary;
+    boundary.normalizationGain = rendering->plan.items[static_cast<size_t> (index)].normalizationGain.get();
     boundary.sequence = 0;
     next.reset (rendering->generation + 1, deviceSampleRate, current.frame, boundary);
     const auto preserved = static_cast<int> (juce::jmax (juce::int64{}, preservedEnd - current.frame));
@@ -833,6 +834,28 @@ void GaplessAudioSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& 
     }
     const auto end = position + count;
     queue.nextReadFrame += skip + count;
+    auto gainPosition = position;
+    const auto applyNormalization = [&] (juce::int64 until)
+    {
+        const auto samples = static_cast<int> (until - gainPosition);
+        if (samples <= 0) return;
+        const auto& boundary = queue.activeBoundary;
+        const auto target = boundary.normalizationGain != nullptr
+            ? boundary.normalizationGain->load (std::memory_order_relaxed) : 1.0f;
+        if (normalizationGeneration != queue.generation || normalizationToken != boundary.token)
+        {
+            normalizationGeneration = queue.generation;
+            normalizationToken = boundary.token;
+            normalizationRamp.reset (deviceSampleRate, 0.02);
+            normalizationRamp.setCurrentAndTargetValue (target);
+        }
+        normalizationRamp.setTargetValue (target);
+        const auto firstGain = normalizationRamp.getCurrentValue();
+        const auto lastGain = normalizationRamp.skip (samples);
+        info.buffer->applyGainRamp (info.startSample + static_cast<int> (gainPosition - position),
+                                   samples, firstGain, lastGain);
+        gainPosition = until;
+    };
     for (;;)
     {
         int start1, size1, start2, size2;
@@ -840,9 +863,11 @@ void GaplessAudioSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& 
         if (size1 == 0) break;
         const auto& next = queue.boundaries[static_cast<size_t> (start1)];
         if (next.streamOffset >= end) break;
+        applyNormalization (juce::jmax (gainPosition, next.streamOffset));
         queue.activeBoundary = next;
         queue.boundaryFifo.finishedRead (1);
     }
+    applyNormalization (end);
     consumedFrames.store (end, std::memory_order_release);
     queue.publish (queue.activeBoundary, end);
     // Publish the matching read clock before the producer may overwrite consumed PCM.

@@ -154,7 +154,7 @@
                   {
                     "id": "studio-rack",
                     "type": "column",
-                    "height": 304,
+                    "height": 376,
                     "shrink": 0,
                     "padding": 12,
                     "gap": 8,
@@ -190,16 +190,68 @@
                             "height": 28,
                             "shrink": 0,
                             "focusOrder": 9
+                          }
+                        ]
+                      },
+                      {
+                        "id": "comparison-studio-1",
+                        "type": "column",
+                        "gap": 4,
+                        "shrink": 0,
+                        "children": [
+                          {
+                            "id": "comparison-studio-1-controls",
+                            "type": "row",
+                            "height": 32,
+                            "shrink": 0,
+                            "gap": 8,
+                            "align": "center",
+                            "children": [
+                              {
+                                "id": "comparison-studio-1-effects-compare-original",
+                                "type": "component",
+                                "component": "effects.compare.original",
+                                "style": "textButton.studioNeutral",
+                                "width": 84,
+                                "height": 32,
+                                "focusOrder": 10
+                              },
+                              {
+                                "id": "comparison-studio-1-effects-compare-processed",
+                                "type": "component",
+                                "component": "effects.compare.processed",
+                                "style": "textButton.studioNeutral",
+                                "width": 84,
+                                "height": 32,
+                                "focusOrder": 11
+                              },
+                              {
+                                "id": "comparison-studio-1-effects-compare-match",
+                                "type": "component",
+                                "component": "effects.compare.match",
+                                "style": "textButton.studioNeutral",
+                                "width": 132,
+                                "height": 32,
+                                "focusOrder": 12
+                              },
+                              {
+                                "id": "comparison-studio-1-effects-compare-reset",
+                                "type": "component",
+                                "component": "effects.compare.reset",
+                                "style": "textButton.studioNeutral",
+                                "width": 104,
+                                "height": 32,
+                                "focusOrder": 13
+                              }
+                            ]
                           },
                           {
-                            "id": "studio-rack-header-bypassAll",
+                            "id": "comparison-studio-1-effects-compare-status",
                             "type": "component",
-                            "component": "effects.bypassAll",
-                            "style": "textButton.studioNeutral",
-                            "width": 104,
-                            "height": 28,
-                            "shrink": 0,
-                            "focusOrder": 10
+                            "component": "effects.compare.status",
+                            "style": "label.studioData",
+                            "height": 24,
+                            "shrink": 0
                           }
                         ]
                       },
@@ -218,7 +270,7 @@
                             "style": "comboBox.studio",
                             "height": 32,
                             "grow": 1,
-                            "focusOrder": 11
+                            "focusOrder": 14
                           },
                           {
                             "id": "studio-rack-presets-actions",
@@ -228,7 +280,7 @@
                             "height": 32,
                             "width": 92,
                             "shrink": 0,
-                            "focusOrder": 12
+                            "focusOrder": 15
                           }
                         ]
                       },
@@ -245,7 +297,7 @@
                             "component": "effects.filter",
                             "style": "textEditor.studio",
                             "grow": 1,
-                            "focusOrder": 13
+                            "focusOrder": 16
                           },
                           {
                             "id": "studio-rack-type",
@@ -253,7 +305,7 @@
                             "component": "effects.typeFilter",
                             "style": "comboBox.studio",
                             "width": 100,
-                            "focusOrder": 14
+                            "focusOrder": 17
                           },
                           {
                             "id": "studio-rack-vendor",
@@ -261,7 +313,7 @@
                             "component": "effects.manufacturerFilter",
                             "style": "comboBox.studio",
                             "width": 180,
-                            "focusOrder": 15
+                            "focusOrder": 18
                           },
                           {
                             "id": "studio-rack-format",
@@ -269,7 +321,7 @@
                             "component": "effects.formatFilter",
                             "style": "comboBox.studio",
                             "width": 120,
-                            "focusOrder": 16
+                            "focusOrder": 19
                           }
                         ]
                       },
@@ -286,7 +338,7 @@
                             "component": "effects.catalog",
                             "style": "comboBox.studio",
                             "grow": 1,
-                            "focusOrder": 17
+                            "focusOrder": 20
                           },
                           {
                             "id": "studio-rack-add-label",
@@ -301,7 +353,7 @@
                             "component": "effects.scope",
                             "style": "comboBox.studio",
                             "width": 148,
-                            "focusOrder": 18
+                            "focusOrder": 21
                           },
                           {
                             "id": "studio-rack-insert",
@@ -310,7 +362,7 @@
                             "style": "textButton.studioIconPrimary",
                             "width": 32,
                             "height": 32,
-                            "focusOrder": 19
+                            "focusOrder": 22
                           }
                         ]
                       },
@@ -330,7 +382,7 @@
                               "top": 0,
                               "bottom": 0
                             },
-                            "focusOrder": 20
+                            "focusOrder": 23
                           },
                           {
                             "id": "studio-rack-empty",
@@ -372,7 +424,7 @@
                         "component": "effects.outputLayout",
                         "style": "comboBox.studio",
                         "grow": 1,
-                        "focusOrder": 21
+                        "focusOrder": 24
                       },
                       {
                         "id": "studio-meter-mode",
@@ -380,7 +432,7 @@
                         "component": "output.mode",
                         "style": "comboBox.studio",
                         "grow": 1,
-                        "focusOrder": 22
+                        "focusOrder": 25
                       },
                       {
                         "id": "studio-meter-reset",
@@ -388,7 +440,7 @@
                         "component": "output.reset",
                         "style": "textButton.studioNeutral",
                         "width": 62,
-                        "focusOrder": 23
+                        "focusOrder": 26
                       }
                     ]
                   },
@@ -420,7 +472,7 @@
                           "top": 0,
                           "bottom": 0
                         },
-                        "focusOrder": 24
+                        "focusOrder": 27
                       }
                     ]
                   }
@@ -454,7 +506,7 @@
                     "style": "linearSlider.studio",
                     "presentation": "linearHorizontal",
                     "grow": 1,
-                    "focusOrder": 26
+                    "focusOrder": 28
                   },
                   {
                     "id": "studio-transport-time",
@@ -519,7 +571,7 @@
                         "style": "toggleButton.studioShuffle",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 27
+                        "focusOrder": 29
                       },
                       {
                         "id": "studio-transport-previous",
@@ -528,7 +580,7 @@
                         "style": "textButton.studioIconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 28
+                        "focusOrder": 30
                       },
                       {
                         "id": "studio-transport-playPause",
@@ -537,7 +589,7 @@
                         "style": "textButton.studioIconPrimary",
                         "width": 52,
                         "height": 52,
-                        "focusOrder": 29
+                        "focusOrder": 31
                       },
                       {
                         "id": "studio-transport-next",
@@ -546,7 +598,7 @@
                         "style": "textButton.studioIconNeutral",
                         "width": 40,
                         "height": 40,
-                        "focusOrder": 30
+                        "focusOrder": 32
                       },
                       {
                         "id": "studio-transport-repeat-cycle",
@@ -555,7 +607,7 @@
                         "style": "textButton.studioRepeat",
                         "width": 36,
                         "height": 36,
-                        "focusOrder": 31
+                        "focusOrder": 33
                       }
                     ]
                   },
@@ -598,7 +650,7 @@
                         "style": "linearSlider.studioGain",
                         "presentation": "linearHorizontal",
                         "height": 28,
-                        "focusOrder": 32
+                        "focusOrder": 34
                       }
                     ]
                   },
@@ -613,7 +665,7 @@
                       "right": 0,
                       "centerY": 0.5
                     },
-                    "focusOrder": 33
+                    "focusOrder": 35
                   }
                 ]
               }
@@ -672,7 +724,7 @@
                 "style": "textButton.studioNeutral",
                 "width": 72,
                 "height": 28,
-                "focusOrder": 34
+                "focusOrder": 36
               }
             ]
           },
@@ -694,7 +746,7 @@
                   "bottom": 0,
                   "left": 0
                 },
-                "focusOrder": 35,
+                "focusOrder": 37,
                 "presentation": "list"
               },
               {

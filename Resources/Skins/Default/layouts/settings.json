@@ -322,6 +322,124 @@
                       ]
                     },
                     {
+                      "type": "column",
+                      "shrink": 0,
+                      "padding": 20,
+                      "gap": 12,
+                      "style": "surface.listening",
+                      "id": "loudness-1-section",
+                      "children": [
+                        {
+                          "id": "loudness-1-settings-loudness-heading",
+                          "type": "component",
+                          "component": "settings.loudness.heading",
+                          "style": "label.listeningSection",
+                          "height": 32,
+                          "shrink": 0
+                        },
+                        {
+                          "id": "loudness-1-preferences",
+                          "type": "row",
+                          "height": 36,
+                          "shrink": 0,
+                          "gap": 12,
+                          "align": "center",
+                          "children": [
+                            {
+                              "id": "loudness-1-preferences-fields",
+                              "type": "row",
+                              "height": 36,
+                              "grow": 1,
+                              "gap": 12,
+                              "align": "center",
+                              "children": [
+                                {
+                                  "id": "loudness-1-settings-loudness-modeLabel",
+                                  "type": "component",
+                                  "component": "settings.loudness.modeLabel",
+                                  "style": "label.listeningData",
+                                  "width": 112,
+                                  "height": 32
+                                },
+                                {
+                                  "id": "loudness-1-settings-loudness-mode",
+                                  "type": "component",
+                                  "component": "settings.loudness.mode",
+                                  "style": "comboBox.listening",
+                                  "width": 144,
+                                  "height": 36,
+                                  "focusOrder": 17
+                                },
+                                {
+                                  "id": "loudness-1-settings-loudness-targetLabel",
+                                  "type": "component",
+                                  "component": "settings.loudness.targetLabel",
+                                  "style": "label.listeningData",
+                                  "width": 48,
+                                  "height": 32
+                                },
+                                {
+                                  "id": "loudness-1-settings-loudness-target",
+                                  "type": "component",
+                                  "component": "settings.loudness.target",
+                                  "style": "comboBox.listening",
+                                  "width": 132,
+                                  "height": 36,
+                                  "focusOrder": 18
+                                }
+                              ]
+                            },
+                            {
+                              "id": "loudness-1-settings-loudness-preventClipping",
+                              "type": "component",
+                              "component": "settings.loudness.preventClipping",
+                              "style": "toggleButton.listening",
+                              "height": 36,
+                              "focusOrder": 19,
+                              "width": 212,
+                              "shrink": 0
+                            }
+                          ]
+                        },
+                        {
+                          "id": "loudness-1-analysis",
+                          "type": "row",
+                          "height": 36,
+                          "shrink": 0,
+                          "gap": 12,
+                          "align": "center",
+                          "children": [
+                            {
+                              "id": "loudness-1-settings-loudness-status",
+                              "type": "component",
+                              "component": "settings.loudness.status",
+                              "style": "label.listeningData",
+                              "grow": 1,
+                              "height": 32
+                            },
+                            {
+                              "id": "loudness-1-settings-loudness-analyze",
+                              "type": "component",
+                              "component": "settings.loudness.analyze",
+                              "style": "textButton.listeningNeutral",
+                              "width": 136,
+                              "height": 36,
+                              "focusOrder": 20
+                            },
+                            {
+                              "id": "loudness-1-settings-loudness-cancel",
+                              "type": "component",
+                              "component": "settings.loudness.cancel",
+                              "style": "textButton.listeningNeutral",
+                              "width": 88,
+                              "height": 36,
+                              "focusOrder": 21
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
                       "id": "default-music-section",
                       "type": "column",
                       "shrink": 0,
@@ -344,7 +462,7 @@
                           "style": "directoryList.listening",
                           "height": 168,
                           "shrink": 0,
-                          "focusOrder": 17
+                          "focusOrder": 22
                         },
                         {
                           "id": "default-music-actions",
@@ -361,7 +479,7 @@
                               "height": 36,
                               "shrink": 0,
                               "width": 132,
-                              "focusOrder": 18
+                              "focusOrder": 23
                             },
                             {
                               "id": "default-music-scan",
@@ -371,7 +489,7 @@
                               "height": 36,
                               "shrink": 0,
                               "width": 120,
-                              "focusOrder": 19
+                              "focusOrder": 24
                             },
                             {
                               "id": "default-music-cancel",
@@ -381,7 +499,7 @@
                               "height": 36,
                               "shrink": 0,
                               "width": 120,
-                              "focusOrder": 20
+                              "focusOrder": 25
                             },
                             {
                               "id": "default-music-remove",
@@ -391,7 +509,7 @@
                               "height": 36,
                               "shrink": 0,
                               "width": 148,
-                              "focusOrder": 21
+                              "focusOrder": 26
                             },
                             {
                               "id": "default-music-automatic",
@@ -401,7 +519,7 @@
                               "height": 36,
                               "shrink": 0,
                               "grow": 1,
-                              "focusOrder": 22
+                              "focusOrder": 27
                             }
                           ]
                         },
@@ -443,7 +561,7 @@
                               "type": "component",
                               "component": "settings.plugins.enableVst3",
                               "style": "toggleButton.listening",
-                              "focusOrder": 23,
+                              "focusOrder": 28,
                               "width": 80,
                               "shrink": 0,
                               "height": 32
@@ -453,7 +571,7 @@
                               "type": "component",
                               "component": "settings.plugins.enableAu",
                               "style": "toggleButton.listening",
-                              "focusOrder": 24,
+                              "focusOrder": 29,
                               "width": 68,
                               "shrink": 0,
                               "height": 32
@@ -473,7 +591,7 @@
                               "type": "component",
                               "component": "settings.plugins.filter",
                               "style": "textEditor.listening",
-                              "focusOrder": 25,
+                              "focusOrder": 30,
                               "grow": 1,
                               "height": 36
                             },
@@ -482,7 +600,7 @@
                               "type": "component",
                               "component": "settings.plugins.typeFilter",
                               "style": "comboBox.listening",
-                              "focusOrder": 26,
+                              "focusOrder": 31,
                               "width": 132,
                               "shrink": 0,
                               "height": 36
@@ -492,7 +610,7 @@
                               "type": "component",
                               "component": "settings.plugins.manufacturerFilter",
                               "style": "comboBox.listening",
-                              "focusOrder": 27,
+                              "focusOrder": 32,
                               "width": 200,
                               "shrink": 0,
                               "height": 36
@@ -502,7 +620,7 @@
                               "type": "component",
                               "component": "settings.plugins.formatFilter",
                               "style": "comboBox.listening",
-                              "focusOrder": 28,
+                              "focusOrder": 33,
                               "width": 132,
                               "shrink": 0,
                               "height": 36
@@ -514,7 +632,7 @@
                           "type": "component",
                           "component": "settings.plugins.knownList",
                           "style": "pluginList.listening",
-                          "focusOrder": 29,
+                          "focusOrder": 34,
                           "height": 220,
                           "shrink": 0
                         },
@@ -531,7 +649,7 @@
                               "type": "component",
                               "component": "settings.plugins.scanScope",
                               "style": "comboBox.listening",
-                              "focusOrder": 30,
+                              "focusOrder": 35,
                               "width": 176,
                               "shrink": 0,
                               "height": 36
@@ -541,7 +659,7 @@
                               "type": "component",
                               "component": "settings.plugins.scanAll",
                               "style": "textButton.listeningLeadingPrimary",
-                              "focusOrder": 31,
+                              "focusOrder": 36,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -551,7 +669,7 @@
                               "type": "component",
                               "component": "settings.plugins.cancel",
                               "style": "textButton.listeningNeutral",
-                              "focusOrder": 32,
+                              "focusOrder": 37,
                               "width": 112,
                               "shrink": 0,
                               "height": 36
@@ -579,7 +697,7 @@
                               "type": "component",
                               "component": "settings.plugins.customDirectories",
                               "style": "comboBox.listening",
-                              "focusOrder": 33,
+                              "focusOrder": 38,
                               "grow": 1,
                               "height": 36
                             },
@@ -588,7 +706,7 @@
                               "type": "component",
                               "component": "settings.plugins.scanFolder",
                               "style": "textButton.listeningLeadingNeutral",
-                              "focusOrder": 34,
+                              "focusOrder": 39,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -598,7 +716,7 @@
                               "type": "component",
                               "component": "settings.plugins.removeDirectory",
                               "style": "textButton.listeningIconNeutral",
-                              "focusOrder": 35,
+                              "focusOrder": 40,
                               "width": 36,
                               "shrink": 0,
                               "height": 36
@@ -636,7 +754,7 @@
                           "type": "component",
                           "component": "settings.skins.library",
                           "style": "skinList.listening",
-                          "focusOrder": 36,
+                          "focusOrder": 41,
                           "height": 112,
                           "shrink": 0
                         },
@@ -653,7 +771,7 @@
                               "type": "component",
                               "component": "settings.skins.import",
                               "style": "textButton.listeningLeadingNeutral",
-                              "focusOrder": 37,
+                              "focusOrder": 42,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -663,7 +781,7 @@
                               "type": "component",
                               "component": "settings.skins.reload",
                               "style": "textButton.listeningLeadingNeutral",
-                              "focusOrder": 38,
+                              "focusOrder": 43,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -673,7 +791,7 @@
                               "type": "component",
                               "component": "settings.skins.remove",
                               "style": "textButton.listeningLeadingNeutral",
-                              "focusOrder": 39,
+                              "focusOrder": 44,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -693,7 +811,7 @@
                               "type": "component",
                               "component": "settings.skins.preview",
                               "style": "textButton.listeningLeadingNeutral",
-                              "focusOrder": 40,
+                              "focusOrder": 45,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -703,7 +821,7 @@
                               "type": "component",
                               "component": "settings.skins.apply",
                               "style": "textButton.listeningPrimary",
-                              "focusOrder": 41,
+                              "focusOrder": 46,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -713,7 +831,7 @@
                               "type": "component",
                               "component": "settings.skins.cancelPreview",
                               "style": "textButton.listeningNeutral",
-                              "focusOrder": 42,
+                              "focusOrder": 47,
                               "width": 160,
                               "shrink": 0,
                               "height": 36
@@ -1072,6 +1190,124 @@
                           ]
                         },
                         {
+                          "type": "column",
+                          "shrink": 0,
+                          "padding": 20,
+                          "gap": 12,
+                          "style": "surface.studio",
+                          "id": "loudness-2-section",
+                          "children": [
+                            {
+                              "id": "loudness-2-settings-loudness-heading",
+                              "type": "component",
+                              "component": "settings.loudness.heading",
+                              "style": "label.studioSection",
+                              "height": 32,
+                              "shrink": 0
+                            },
+                            {
+                              "id": "loudness-2-preferences",
+                              "type": "row",
+                              "height": 36,
+                              "shrink": 0,
+                              "gap": 12,
+                              "align": "center",
+                              "children": [
+                                {
+                                  "id": "loudness-2-preferences-fields",
+                                  "type": "row",
+                                  "height": 36,
+                                  "grow": 1,
+                                  "gap": 12,
+                                  "align": "center",
+                                  "children": [
+                                    {
+                                      "id": "loudness-2-settings-loudness-modeLabel",
+                                      "type": "component",
+                                      "component": "settings.loudness.modeLabel",
+                                      "style": "label.studioData",
+                                      "width": 112,
+                                      "height": 32
+                                    },
+                                    {
+                                      "id": "loudness-2-settings-loudness-mode",
+                                      "type": "component",
+                                      "component": "settings.loudness.mode",
+                                      "style": "comboBox.studio",
+                                      "width": 144,
+                                      "height": 36,
+                                      "focusOrder": 17
+                                    },
+                                    {
+                                      "id": "loudness-2-settings-loudness-targetLabel",
+                                      "type": "component",
+                                      "component": "settings.loudness.targetLabel",
+                                      "style": "label.studioData",
+                                      "width": 48,
+                                      "height": 32
+                                    },
+                                    {
+                                      "id": "loudness-2-settings-loudness-target",
+                                      "type": "component",
+                                      "component": "settings.loudness.target",
+                                      "style": "comboBox.studio",
+                                      "width": 132,
+                                      "height": 36,
+                                      "focusOrder": 18
+                                    }
+                                  ]
+                                },
+                                {
+                                  "id": "loudness-2-settings-loudness-preventClipping",
+                                  "type": "component",
+                                  "component": "settings.loudness.preventClipping",
+                                  "style": "toggleButton.studio",
+                                  "height": 36,
+                                  "focusOrder": 19,
+                                  "width": 212,
+                                  "shrink": 0
+                                }
+                              ]
+                            },
+                            {
+                              "id": "loudness-2-analysis",
+                              "type": "row",
+                              "height": 36,
+                              "shrink": 0,
+                              "gap": 12,
+                              "align": "center",
+                              "children": [
+                                {
+                                  "id": "loudness-2-settings-loudness-status",
+                                  "type": "component",
+                                  "component": "settings.loudness.status",
+                                  "style": "label.studioData",
+                                  "grow": 1,
+                                  "height": 32
+                                },
+                                {
+                                  "id": "loudness-2-settings-loudness-analyze",
+                                  "type": "component",
+                                  "component": "settings.loudness.analyze",
+                                  "style": "textButton.studioNeutral",
+                                  "width": 136,
+                                  "height": 36,
+                                  "focusOrder": 20
+                                },
+                                {
+                                  "id": "loudness-2-settings-loudness-cancel",
+                                  "type": "component",
+                                  "component": "settings.loudness.cancel",
+                                  "style": "textButton.studioNeutral",
+                                  "width": 88,
+                                  "height": 36,
+                                  "focusOrder": 21
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
                           "id": "default-bp0-music-section",
                           "type": "column",
                           "shrink": 0,
@@ -1094,7 +1330,7 @@
                               "style": "directoryList.studio",
                               "height": 168,
                               "shrink": 0,
-                              "focusOrder": 17
+                              "focusOrder": 22
                             },
                             {
                               "id": "default-bp0-music-actions",
@@ -1111,7 +1347,7 @@
                                   "height": 36,
                                   "shrink": 0,
                                   "width": 132,
-                                  "focusOrder": 18
+                                  "focusOrder": 23
                                 },
                                 {
                                   "id": "default-bp0-music-scan",
@@ -1121,7 +1357,7 @@
                                   "height": 36,
                                   "shrink": 0,
                                   "width": 120,
-                                  "focusOrder": 19
+                                  "focusOrder": 24
                                 },
                                 {
                                   "id": "default-bp0-music-cancel",
@@ -1131,7 +1367,7 @@
                                   "height": 36,
                                   "shrink": 0,
                                   "width": 120,
-                                  "focusOrder": 20
+                                  "focusOrder": 25
                                 },
                                 {
                                   "id": "default-bp0-music-remove",
@@ -1141,7 +1377,7 @@
                                   "height": 36,
                                   "shrink": 0,
                                   "width": 148,
-                                  "focusOrder": 21
+                                  "focusOrder": 26
                                 },
                                 {
                                   "id": "default-bp0-music-automatic",
@@ -1151,7 +1387,7 @@
                                   "height": 36,
                                   "shrink": 0,
                                   "grow": 1,
-                                  "focusOrder": 22
+                                  "focusOrder": 27
                                 }
                               ]
                             },
@@ -1193,7 +1429,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.enableVst3",
                                   "style": "toggleButton.studio",
-                                  "focusOrder": 23,
+                                  "focusOrder": 28,
                                   "width": 80,
                                   "shrink": 0,
                                   "height": 32
@@ -1203,7 +1439,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.enableAu",
                                   "style": "toggleButton.studio",
-                                  "focusOrder": 24,
+                                  "focusOrder": 29,
                                   "width": 68,
                                   "shrink": 0,
                                   "height": 32
@@ -1223,7 +1459,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.filter",
                                   "style": "textEditor.studio",
-                                  "focusOrder": 25,
+                                  "focusOrder": 30,
                                   "grow": 1,
                                   "height": 36
                                 },
@@ -1232,7 +1468,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.typeFilter",
                                   "style": "comboBox.studio",
-                                  "focusOrder": 26,
+                                  "focusOrder": 31,
                                   "width": 132,
                                   "shrink": 0,
                                   "height": 36
@@ -1242,7 +1478,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.manufacturerFilter",
                                   "style": "comboBox.studio",
-                                  "focusOrder": 27,
+                                  "focusOrder": 32,
                                   "width": 200,
                                   "shrink": 0,
                                   "height": 36
@@ -1252,7 +1488,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.formatFilter",
                                   "style": "comboBox.studio",
-                                  "focusOrder": 28,
+                                  "focusOrder": 33,
                                   "width": 132,
                                   "shrink": 0,
                                   "height": 36
@@ -1264,7 +1500,7 @@
                               "type": "component",
                               "component": "settings.plugins.knownList",
                               "style": "pluginList.studio",
-                              "focusOrder": 29,
+                              "focusOrder": 34,
                               "height": 220,
                               "shrink": 0
                             },
@@ -1281,7 +1517,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.scanScope",
                                   "style": "comboBox.studio",
-                                  "focusOrder": 30,
+                                  "focusOrder": 35,
                                   "width": 176,
                                   "shrink": 0,
                                   "height": 36
@@ -1291,7 +1527,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.scanAll",
                                   "style": "textButton.studioLeadingPrimary",
-                                  "focusOrder": 31,
+                                  "focusOrder": 36,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36
@@ -1301,7 +1537,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.cancel",
                                   "style": "textButton.studioNeutral",
-                                  "focusOrder": 32,
+                                  "focusOrder": 37,
                                   "width": 112,
                                   "shrink": 0,
                                   "height": 36
@@ -1329,7 +1565,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.customDirectories",
                                   "style": "comboBox.studio",
-                                  "focusOrder": 33,
+                                  "focusOrder": 38,
                                   "grow": 1,
                                   "height": 36
                                 },
@@ -1338,7 +1574,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.scanFolder",
                                   "style": "textButton.studioLeadingNeutral",
-                                  "focusOrder": 34,
+                                  "focusOrder": 39,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36
@@ -1348,7 +1584,7 @@
                                   "type": "component",
                                   "component": "settings.plugins.removeDirectory",
                                   "style": "textButton.studioIconNeutral",
-                                  "focusOrder": 35,
+                                  "focusOrder": 40,
                                   "width": 36,
                                   "shrink": 0,
                                   "height": 36
@@ -1386,7 +1622,7 @@
                               "type": "component",
                               "component": "settings.skins.library",
                               "style": "skinList.studio",
-                              "focusOrder": 36,
+                              "focusOrder": 41,
                               "height": 112,
                               "shrink": 0
                             },
@@ -1403,7 +1639,7 @@
                                   "type": "component",
                                   "component": "settings.skins.import",
                                   "style": "textButton.studioLeadingNeutral",
-                                  "focusOrder": 37,
+                                  "focusOrder": 42,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36
@@ -1413,7 +1649,7 @@
                                   "type": "component",
                                   "component": "settings.skins.reload",
                                   "style": "textButton.studioLeadingNeutral",
-                                  "focusOrder": 38,
+                                  "focusOrder": 43,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36
@@ -1423,7 +1659,7 @@
                                   "type": "component",
                                   "component": "settings.skins.remove",
                                   "style": "textButton.studioLeadingNeutral",
-                                  "focusOrder": 39,
+                                  "focusOrder": 44,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36
@@ -1443,7 +1679,7 @@
                                   "type": "component",
                                   "component": "settings.skins.preview",
                                   "style": "textButton.studioLeadingNeutral",
-                                  "focusOrder": 40,
+                                  "focusOrder": 45,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36
@@ -1453,7 +1689,7 @@
                                   "type": "component",
                                   "component": "settings.skins.apply",
                                   "style": "textButton.studioPrimary",
-                                  "focusOrder": 41,
+                                  "focusOrder": 46,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36
@@ -1463,7 +1699,7 @@
                                   "type": "component",
                                   "component": "settings.skins.cancelPreview",
                                   "style": "textButton.studioNeutral",
-                                  "focusOrder": 42,
+                                  "focusOrder": 47,
                                   "width": 160,
                                   "shrink": 0,
                                   "height": 36

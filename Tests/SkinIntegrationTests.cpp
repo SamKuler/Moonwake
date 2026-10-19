@@ -1023,10 +1023,10 @@ public:
             expect (channels != meter.baseLayers.end() && channels->repeatLimit >= 16,
                     "Studio meters must use the actual channel list through 9.1.6");
             expectEquals (foundation->manifest.version, juce::String ("1.0.0"));
-            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.10.0"));
+            expectEquals (foundation->manifest.minAppVersion, juce::String ("0.11.0"));
             expectEquals (foundation->manifest.license, juce::String ("AGPL-3.0-only"));
             expectEquals (defaultSkin->manifest.version, juce::String ("1.0.0"));
-            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.10.0"));
+            expectEquals (defaultSkin->manifest.minAppVersion, juce::String ("0.11.0"));
             expectEquals (defaultSkin->manifest.license, juce::String ("AGPL-3.0-only"));
         }
 
@@ -1557,7 +1557,8 @@ public:
                             || id.startsWith ("settings.audio.")
                             || id.startsWith ("settings.plugins.")
                             || id.startsWith ("settings.skins.")
-                            || id.startsWith ("settings.music."), id);
+                            || id.startsWith ("settings.music.")
+                            || id.startsWith ("settings.loudness."), id);
                 }
 
                 const auto effects = componentParents (

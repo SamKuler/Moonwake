@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_core/juce_core.h>
+#include "audio/LoudnessNormalization.h"
 
 struct TrackItem
 {
@@ -36,6 +37,7 @@ struct TrackItem
     juce::int64 fileSizeBytes = 0;
     juce::int64 fileModifiedAtMs = 0;
     juce::String fileIdentity;
+    TrackLoudness loudness;
     bool available = true;
     juce::String reservedEffectChainState;
 
