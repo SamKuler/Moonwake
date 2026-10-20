@@ -17,6 +17,31 @@
 
 namespace
 {
+#if JUCE_MAC
+class ScopedNativeKeyboardIsolation
+{
+public:
+    ScopedNativeKeyboardIsolation()
+    {
+        // Test input enters through ComponentPeer. Native key events can otherwise
+        // reach the global JUCE focus held by a synthetic fixture.
+        monitor = [[NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown | NSEventMaskKeyUp
+            handler:^NSEvent* (NSEvent* event)
+            {
+                juce::ignoreUnused (event);
+                return nil;
+            }] retain];
+    }
+    ~ScopedNativeKeyboardIsolation()
+    {
+        [NSEvent removeMonitor:monitor];
+        [monitor release];
+    }
+private:
+    id monitor = nil;
+};
+#endif
+
 class ConsoleTestRunner final : public juce::UnitTestRunner
 {
     void logMessage (const juce::String& message) override
@@ -202,6 +227,9 @@ int main (int argc, char* argv[])
     }
    #endif
 
+   #if JUCE_MAC
+    const ScopedNativeKeyboardIsolation keyboardIsolation;
+   #endif
     ConsoleTestRunner runner;
 
     if (argc == 1)

@@ -19,6 +19,13 @@ public:
     SmartPlaylistEditorTests() : UnitTest ("SmartPlaylistEditor", "skin") {}
     void runTest() override
     {
+        const auto waitFor = [] (const auto& ready)
+        {
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1000.0;
+            while (! ready() && juce::Time::getMillisecondCounterHiRes() < deadline)
+                juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            return ready();
+        };
         SkinValidationReport report;
         const auto foundationPackage = SkinBuiltInPackages::create (SkinBuiltInPackages::Package::foundation, report);
         const auto foundation = foundationPackage ? SkinCompiler::compile (*foundationPackage, {}, report) : nullptr;
@@ -95,7 +102,7 @@ public:
         editor.refreshPreview();
         editor.refreshPreview();
         editor.refreshPreview();
-        juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+        expect (waitFor ([&] { return refreshed > beforeRefresh; }), "Preview refresh must reach the message thread");
         expectEquals (refreshed, beforeRefresh + 1);
         expect (originalInput != nullptr && originalInput == findEditorControl (editor, "Rule value"));
         if (value != nullptr)
@@ -168,13 +175,6 @@ public:
         editor.close();
 
         beginTest ("sixteen-rule editing keeps new and remaining rows visible, focused and intact across save and cancel");
-        const auto waitFor = [] (const auto& ready)
-        {
-            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1000.0;
-            while (! ready() && juce::Time::getMillisecondCounterHiRes() < deadline)
-                juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
-            return ready();
-        };
         const auto activate = [&] (juce::TextButton& button)
         {
             expect (button.isEnabled(), button.getButtonText());

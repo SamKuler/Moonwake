@@ -5,6 +5,7 @@
 #include "ui/SkinTableListBox.h"
 #include "ui/OutputMixerComponent.h"
 #include "ui/SkinEffectChainViewport.h"
+#include "fixtures/NativeTestWindow.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -491,8 +492,14 @@ public:
                 if (auto* viewport = dynamic_cast<juce::Viewport*> (parent))
                     viewports.emplace_back (viewport);
             expectEquals (static_cast<int> (viewports.size()), 2);
+            const auto dispatchFocusEvents = [&]
+            {
+                const auto active = dispatchNativeFocusTestEvents (root, 5);
+                expect (active, "Focus traversal requires a foreground native test window");
+                return active;
+            };
             first.grabKeyboardFocus();
-            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            if (! dispatchFocusEvents()) return;
             expect (first.hasKeyboardFocus (false));
             juce::StringArray focusPath;
             for (int step = 0; step < 20 && ! last.hasKeyboardFocus (false); ++step)
@@ -502,7 +509,7 @@ public:
                 focusPath.add (current->getProperties().getWithDefault (
                     SkinComponentBindings::componentIdProperty, current->getName()).toString());
                 current->moveKeyboardFocusToSibling (true);
-                juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+                if (! dispatchFocusEvents()) return;
             }
             expect (last.hasKeyboardFocus (false), "Tab reaches the offscreen button in the same scroll subtree: "
                                                      + focusPath.joinIntoString (", "));
@@ -516,11 +523,11 @@ public:
             for (const auto& viewport : viewports)
                 viewport->setViewPosition (0, 0);
             unrelated.grabKeyboardFocus();
-            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            if (! dispatchFocusEvents()) return;
             for (const auto& viewport : viewports)
                 expect (viewport->getViewPosition() == juce::Point<int>(), "unrelated focus must not move a skin viewport");
             last.grabKeyboardFocus();
-            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            if (! dispatchFocusEvents()) return;
             for (const auto& viewport : viewports)
                 expect (viewport->getViewPosition() != juce::Point<int>(), "direct focus also reveals content");
             expect (manager.activate ({ "builtin.foundation", "1.0.0" }, false, report), report.toText());
@@ -528,7 +535,7 @@ public:
             for (const auto& viewport : viewports)
                 expect (viewport == nullptr, "replacing the skin destroys its viewport and focus subscription");
             unrelated.grabKeyboardFocus();
-            juce::MessageManager::getInstance()->runDispatchLoopUntil (5);
+            if (! dispatchFocusEvents()) return;
             expect (unrelated.hasKeyboardFocus (false));
             root.removeFromDesktop();
             static_cast<void> (storage.deleteRecursively());

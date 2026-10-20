@@ -40,3 +40,39 @@ inline void activateNativeTestWindow (juce::Component& window)
     SetFocus (handle);
 }
 #endif
+
+#if JUCE_MAC
+inline void activateNativeTestWindow (juce::Component& window)
+{
+    juce::Process::makeForegroundProcess();
+    window.toFront (true);
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1500.0;
+    while ((! juce::Process::isForegroundProcess() || ! window.getPeer()->isFocused())
+           && juce::Time::getMillisecondCounterHiRes() < deadline)
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (10);
+}
+#endif
+
+// Synthetic focus changes require a foreground native peer. Restore the actual
+// focus reached by the input only when the OS interrupts that precondition.
+inline bool dispatchNativeFocusTestEvents (juce::Component& window, int milliseconds)
+{
+   #if JUCE_MAC || JUCE_WINDOWS
+    const juce::Component::SafePointer<juce::Component> focused (juce::Component::getCurrentlyFocusedComponent());
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1500.0;
+   #endif
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (milliseconds);
+   #if JUCE_MAC || JUCE_WINDOWS
+    while (! juce::Process::isForegroundProcess() || ! window.getPeer()->isFocused())
+    {
+        if (juce::Time::getMillisecondCounterHiRes() >= deadline) return false;
+        activateNativeTestWindow (window);
+        if (! juce::Process::isForegroundProcess() || ! window.getPeer()->isFocused()) return false;
+        if (focused != nullptr) focused->grabKeyboardFocus();
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (milliseconds);
+    }
+   #else
+    juce::ignoreUnused (window);
+   #endif
+    return true;
+}
