@@ -71,6 +71,8 @@ public:
                                    const std::function<juce::Result()>& prepareOutput = {});
     [[nodiscard]] bool isLoaded() const noexcept;
     [[nodiscard]] AudioPlaybackProgress progress() const noexcept;
+    // Audio thread, immediately after rendering and inside the playback edit gate.
+    [[nodiscard]] double getLastBlockStartPositionSeconds() const noexcept { return lastBlockStartPositionSeconds; }
     std::vector<AudioPreparationFailure> drainPreparationFailures();
 
     void prepareToPlay (int samplesPerBlockExpected, double sampleRate) override;
@@ -114,6 +116,7 @@ private:
     std::unique_ptr<RenderState> rendering;
     juce::AudioChannelSet destinationLayout = juce::AudioChannelSet::stereo();
     double deviceSampleRate = 44100.0;
+    double lastBlockStartPositionSeconds = 0.0;
     static constexpr int bufferFrames = 65536;
     static constexpr int chunkFrames = 1024;
     std::array<std::unique_ptr<PlaybackBuffer>, 2> buffers;

@@ -6,7 +6,11 @@ void SkinEffectChainViewport::reveal (const juce::Component& control)
 {
     auto* content = getViewedComponent();
     if (content == nullptr || ! content->isParentOf (&control)) return;
-    const auto bounds = content->getLocalArea (&control, control.getLocalBounds());
+    reveal (content->getLocalArea (&control, control.getLocalBounds()));
+}
+
+void SkinEffectChainViewport::reveal (juce::Rectangle<int> bounds)
+{
     const auto view = getViewArea();
     if (bounds.getY() < view.getY()) setViewPosition (getViewPositionX(), bounds.getY());
     else if (bounds.getBottom() > view.getBottom())

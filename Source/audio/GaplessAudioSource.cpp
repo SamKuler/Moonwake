@@ -833,6 +833,7 @@ void GaplessAudioSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& 
         info.buffer->copyFrom (channel, info.startSample + first, queue.audio, channel, 0, count - first);
     }
     const auto end = position + count;
+    auto firstBoundary = queue.activeBoundary;
     queue.nextReadFrame += skip + count;
     auto gainPosition = position;
     const auto applyNormalization = [&] (juce::int64 until)
@@ -864,10 +865,13 @@ void GaplessAudioSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& 
         const auto& next = queue.boundaries[static_cast<size_t> (start1)];
         if (next.streamOffset >= end) break;
         applyNormalization (juce::jmax (gainPosition, next.streamOffset));
+        if (next.streamOffset <= position) firstBoundary = next;
         queue.activeBoundary = next;
         queue.boundaryFifo.finishedRead (1);
     }
     applyNormalization (end);
+    lastBlockStartPositionSeconds = juce::jlimit (0.0, firstBoundary.lengthSeconds,
+        (firstBoundary.startFrame + static_cast<double> (position - firstBoundary.streamOffset)) / queue.sampleRate);
     consumedFrames.store (end, std::memory_order_release);
     queue.publish (queue.activeBoundary, end);
     // Publish the matching read clock before the producer may overwrite consumed PCM.

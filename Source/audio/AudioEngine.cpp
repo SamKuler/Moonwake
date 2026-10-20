@@ -313,7 +313,7 @@ AudioEngine::AudioEngine()
 
 AudioEngine::AudioEngine (std::unique_ptr<IAudioDeviceBackend> backend)
     : deviceBackend (std::move (backend)),
-      effectProcessingSource (transportSource, outputPeakLevels, outputGain, outputMeter),
+      effectProcessingSource (transportSource, playbackSource, outputPeakLevels, outputGain, outputMeter),
       deviceOutputSource (effectProcessingSource), sourcePlayer (deviceOutputSource, deviceConfigurationRevision)
 {
     jassert (deviceBackend != nullptr);
@@ -1443,10 +1443,12 @@ void AudioEngine::endEffectStateCapture() noexcept
 
 AudioEngine::EffectProcessingSource::EffectProcessingSource (
     juce::AudioTransportSource& sourceToWrap,
+    GaplessAudioSource& playbackToUse,
     std::array<std::atomic<float>, maximumOutputChannels>& outputPeakLevelsToUse,
     std::atomic<float>& outputGainToUse,
     OutputMeter& outputMeterToUse)
     : transport (sourceToWrap),
+      playback (playbackToUse),
       outputPeakLevels (outputPeakLevelsToUse),
       outputGain (outputGainToUse),
       outputMeter (outputMeterToUse)
@@ -1504,15 +1506,22 @@ void AudioEngine::EffectProcessingSource::getNextAudioBlock (const juce::AudioSo
 {
     const auto meterEpoch = outputMeter.beginBlock();
     const auto comparisonBlock = comparison.beginBlock();
+    bool blockPlaying = false;
     bufferToFill.clearActiveBufferRegion();
     if (! calibration.isTestSignalActive() && ! playbackEditRequested.load())
     {
         activeTransportCallbacks.fetch_add (1);
         if (! playbackEditRequested.load())
+        {
+            lastTransportPositionSeconds = playback.progress().positionSeconds;
+            blockPlaying = transport.isPlaying();
             transport.getNextAudioBlock (bufferToFill);
+            if (blockPlaying) lastTransportPositionSeconds = playback.getLastBlockStartPositionSeconds();
+        }
         activeTransportCallbacks.fetch_sub (1);
     }
 
+    effectGraph->setTransportPosition (lastTransportPositionSeconds, blockPlaying);
     if (bufferToFill.buffer == nullptr || bufferToFill.numSamples <= 0)
         return;
 

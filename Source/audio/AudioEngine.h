@@ -234,6 +234,7 @@ private:
     {
     public:
         EffectProcessingSource (juce::AudioTransportSource& sourceToWrap,
+                                GaplessAudioSource& playbackToUse,
                                 std::array<std::atomic<float>, maximumOutputChannels>& outputPeakLevelsToUse,
                                 std::atomic<float>& outputGainToUse,
                                 OutputMeter& outputMeterToUse);
@@ -270,6 +271,8 @@ private:
 
     private:
         juce::AudioTransportSource& transport;
+        GaplessAudioSource& playback;
+        double lastTransportPositionSeconds = 0.0; // Audio thread only.
         std::unique_ptr<EffectGraph> effectGraph = std::make_unique<EffectGraph>();
         double stagedSampleRate = 0.0;
         int stagedBlockSize = 0;

@@ -34,46 +34,42 @@
     }
   },
   "rowLayout": {
-    "rowHeight": 84,
+    "rowHeight": 112,
     "rowGap": 0,
     "slots": {
       "slot.name": {
         "x": 12,
         "y": 8,
         "width": {
-          "$expr": "max(0,bounds.width - 180)"
+          "$expr": "max(0,bounds.width - 24)"
         },
         "height": 28
       },
       "slot.scope": {
-        "x": {
-          "$expr": "bounds.width - 156"
-        },
-        "y": 8,
+        "x": 12,
+        "y": 44,
         "width": 144,
         "height": 28
       },
       "slot.bypass": {
         "x": {
-          "$expr": "bounds.width - 188"
+          "$expr": "bounds.width - 76"
         },
         "y": 44,
-        "width": 80,
+        "width": 64,
         "height": 28
       },
       "slot.editor": {
-        "x": {
-          "$expr": "bounds.width - 102"
-        },
-        "y": 44,
-        "width": 56,
+        "x": 104,
+        "y": 80,
+        "width": 88,
         "height": 28
       },
       "slot.remove": {
         "x": {
           "$expr": "bounds.width - 40"
         },
-        "y": 44,
+        "y": 80,
         "width": 28,
         "height": 28
       },
@@ -94,45 +90,111 @@
         },
         "width": 4,
         "height": 16
+      },
+      "slot.expand": {
+        "x": 12,
+        "y": 80,
+        "width": 84,
+        "height": 28
       }
     },
     "breakpoints": [
+      {
+        "when": {
+          "minWidth": 360
+        },
+        "rowHeight": 84,
+        "slots": {
+          "slot.name": {
+            "x": 12,
+            "y": 8,
+            "width": {
+              "$expr": "max(0,bounds.width - 180)"
+            },
+            "height": 28
+          },
+          "slot.scope": {
+            "x": {
+              "$expr": "bounds.width - 156"
+            },
+            "y": 8,
+            "width": 144,
+            "height": 28
+          },
+          "slot.expand": {
+            "x": 12,
+            "y": 44,
+            "width": 84,
+            "height": 28
+          },
+          "slot.bypass": {
+            "x": {
+              "$expr": "bounds.width - 224"
+            },
+            "y": 44,
+            "width": 64,
+            "height": 28
+          },
+          "slot.editor": {
+            "x": {
+              "$expr": "bounds.width - 152"
+            },
+            "y": 44,
+            "width": 104,
+            "height": 28
+          },
+          "slot.remove": {
+            "x": {
+              "$expr": "bounds.width - 40"
+            },
+            "y": 44,
+            "width": 28,
+            "height": 28
+          }
+        }
+      },
       {
         "when": {
           "minWidth": 600
         },
         "rowHeight": 52,
         "slots": {
-          "slot.name": {
+          "slot.expand": {
             "x": 12,
             "y": 10,
+            "width": 84,
+            "height": 32
+          },
+          "slot.name": {
+            "x": 104,
+            "y": 10,
             "width": {
-              "$expr": "max(0,bounds.width - 368)"
+              "$expr": "max(0,bounds.width - 440)"
             },
             "height": 32
           },
           "slot.scope": {
             "x": {
-              "$expr": "bounds.width - 340"
+              "$expr": "bounds.width - 324"
             },
             "y": 10,
-            "width": 144,
+            "width": 120,
             "height": 32
           },
           "slot.bypass": {
             "x": {
-              "$expr": "bounds.width - 188"
+              "$expr": "bounds.width - 196"
             },
             "y": 10,
-            "width": 80,
+            "width": 64,
             "height": 32
           },
           "slot.editor": {
             "x": {
-              "$expr": "bounds.width - 102"
+              "$expr": "bounds.width - 124"
             },
             "y": 10,
-            "width": 56,
+            "width": 76,
             "height": 32
           },
           "slot.remove": {

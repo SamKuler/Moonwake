@@ -500,7 +500,8 @@
         "slot.editor": "textButton.listeningNeutral",
         "slot.remove": "textButton.listeningCompact",
         "slot.dragIndicator": "surface.listeningDragHandle",
-        "slot.scope": "textButton.listeningNeutral"
+        "slot.scope": "textButton.listeningNeutral",
+        "slot.expand": "textButton.listeningNeutral"
       }
     },
     "studio": {
@@ -512,7 +513,8 @@
         "slot.editor": "textButton.studioNeutral",
         "slot.remove": "textButton.studioCompact",
         "slot.dragIndicator": "surface.studioDragHandle",
-        "slot.scope": "textButton.studioNeutral"
+        "slot.scope": "textButton.studioNeutral",
+        "slot.expand": "textButton.studioNeutral"
       }
     }
   },

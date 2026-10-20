@@ -317,6 +317,7 @@ const std::vector<SkinComponentDescriptor>& catalog()
         makeDescriptor ("effects.chain", Kind::effectChain, { Entry::effects }, {}, {}, {
             Slot { "slot.surface", "surface" }, Slot { "slot.name", "label" },
             Slot { "slot.bypass", "textButton" }, Slot { "slot.editor", "textButton" },
+            Slot { "slot.expand", "textButton", false },
             Slot { "slot.remove", "textButton" }, Slot { "slot.scope", "textButton" },
             Slot { "slot.dragIndicator", "surface" }
         }),

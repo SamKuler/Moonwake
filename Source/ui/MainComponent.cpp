@@ -1,3 +1,4 @@
+#include "PluginEditorHost.h"
 #include "MainComponent.h"
 
 #include "EffectRackLayout.h"
@@ -85,50 +86,6 @@ private:
 
 } // namespace
 
-class MainComponent::PluginEditorWindow final : public juce::DocumentWindow
-{
-public:
-    PluginEditorWindow (int slotIdToUse, juce::String title, juce::AudioProcessorEditor* editor)
-        : DocumentWindow (
-              std::move (title),
-              juce::Desktop::getInstance().getDefaultLookAndFeel().findColour (
-                  juce::ResizableWindow::backgroundColourId),
-              DocumentWindow::closeButton),
-          slotId (slotIdToUse)
-    {
-        setUsingNativeTitleBar (true);
-        setContentOwned (editor, true);
-        setResizable (true, true);
-        centreWithSize (juce::jmax (420, getWidth()), juce::jmax (320, getHeight()));
-        showWindow();
-    }
-
-    ~PluginEditorWindow() override
-    {
-        if (auto* editor = dynamic_cast<juce::AudioProcessorEditor*> (getContentComponent()))
-            editor->processor.editorBeingDeleted (editor);
-    }
-
-    [[nodiscard]] bool ownsEffect (int id) const
-    {
-        return slotId == id;
-    }
-
-    void showWindow()
-    {
-        setVisible (true);
-        toFront (true);
-    }
-
-    void closeButtonPressed() override
-    {
-        setVisible (false);
-    }
-
-private:
-    int slotId = 0;
-};
-
 class MainComponent::EffectSlotRow final : public juce::Component
 {
 public:
@@ -141,7 +98,10 @@ public:
         nameLabel.setInterceptsMouseClicks (false, false);
 
         bypassButton.setClickingTogglesState (true);
-        editorButton.setTooltip ("Open plugin editor");
+        editorButton.setTooltip ("Open plug-in in a floating window");
+        expandButton.setTooltip ("Expand plug-in controls in the rack");
+        expandButton.setClickingTogglesState (true);
+        expandButton.onClick = [this] { setExpanded (! expanded); };
         removeButton.setTooltip ("Remove effect");
 
         bypassButton.onClick = [this]
@@ -195,7 +155,7 @@ public:
                                              bool over, bool down)
         {
             return drawSlot (graphics, editorButton, "slot.editor",
-                             SkinRenderTarget::textButton, "Edit", "editor",
+                             SkinRenderTarget::textButton, "Pop out", "editor",
                              over, down, false);
         });
         removeButton.setSkinPainter ([this] (juce::Graphics& graphics,
@@ -209,11 +169,21 @@ public:
 
         addAndMakeVisible (nameLabel);
         addAndMakeVisible (bypassButton);
+        expandButton.setSkinPainter ([this] (juce::Graphics& graphics, bool over, bool down)
+        {
+            return drawSlot (graphics, expandButton, "slot.expand", SkinRenderTarget::textButton,
+                             expanded ? "Collapse" : "Expand", {}, over, down, expanded);
+        });
+        addAndMakeVisible (expandButton);
         addAndMakeVisible (editorButton);
         addAndMakeVisible (removeButton);
         addAndMakeVisible (scopeButton);
-        for (auto* button : { &bypassButton, &editorButton, &removeButton, &scopeButton })
-            button->onFocusGained = [this] { owner.effectRackViewport.reveal (*this); };
+        int focusOrder = 1;
+        for (auto* button : { &expandButton, &scopeButton, &bypassButton, &editorButton, &removeButton })
+        {
+            button->setExplicitFocusOrder (focusOrder++);
+            button->onFocusGained = [this, button] { owner.effectRackViewport.reveal (*button); };
+        }
     }
 
     [[nodiscard]] int getSlotId() const noexcept { return slotId; }
@@ -234,10 +204,49 @@ public:
         bypassButton.setToggleState (slot.bypassed, juce::dontSendNotification);
         bypassButton.setEnabled (slot.available);
         editorButton.setEnabled (slot.available);
+        editorButton.setButtonText ("Pop out " + slotName);
+        expandButton.setEnabled (slot.available);
         scopeButton.setButtonText (::effectScopeLabel (slot.scope));
         scopeButton.setEnabled (slot.available);
         repaint();
     }
+
+    void closeEditor()
+    {
+        editorHost.reset();
+        expanded = false;
+    }
+
+    void showEditorWindow()
+    {
+        if (ensureEditor()) editorHost->showWindow();
+    }
+
+    int rowHeight (int width) const
+    {
+        return owner.effectRowHeight + (expanded && editorHost != nullptr
+            ? editorHost->requiredHeight (width) : 0);
+    }
+
+    void setExpanded (bool value)
+    {
+        if (value && ! ensureEditor()) return;
+        expanded = value;
+        if (expanded) editorHost->dock();
+        owner.layoutEffects();
+        if (expanded) owner.effectRackViewport.reveal (expandButton);
+        repaint();
+    }
+
+    void focusOfChildComponentChanged (FocusChangeType) override
+    {
+        auto* focused = juce::Component::getCurrentlyFocusedComponent();
+        if (focused != nullptr && isParentOf (focused))
+            owner.effectRackViewport.reveal (focused->getHeight() > owner.effectRackViewport.getHeight()
+                ? static_cast<const juce::Component&> (expandButton) : *focused);
+    }
+
+    void mouseDoubleClick (const juce::MouseEvent&) override { setExpanded (! expanded); }
 
     void mouseDown (const juce::MouseEvent& event) override
     {
@@ -295,11 +304,46 @@ public:
         place (nameLabel, "slot.name");
         place (scopeButton, "slot.scope");
         place (bypassButton, "slot.bypass");
+        expandButton.setButtonText ((expanded ? "Collapse " : "Expand ") + slotName);
+        expandButton.setToggleState (expanded, juce::dontSendNotification);
+        expandButton.setTooltip (expanded ? "Collapse plug-in controls" : "Expand plug-in controls in the rack");
+        place (expandButton, "slot.expand");
+        expandButton.setVisible (! expandButton.getBounds().isEmpty());
         place (editorButton, "slot.editor");
         place (removeButton, "slot.remove");
+        if (editorHost != nullptr)
+        {
+            editorHost->setVisible (expanded && ! editorHost->isFloating());
+            editorHost->setBounds (0, owner.effectRowHeight, getWidth(),
+                                  juce::jmax (0, getHeight() - owner.effectRowHeight));
+        }
     }
 
 private:
+    bool ensureEditor()
+    {
+        if (editorHost != nullptr) return true;
+        auto* plugin = owner.controller.getEffectPluginForEditor (index);
+        if (plugin == nullptr) return false;
+        editorHost = std::make_unique<PluginEditorHost> (*plugin);
+        addChildComponent (*editorHost);
+        editorHost->onSizeChanged = [this] { if (expanded) owner.layoutEffects(); };
+        editorHost->onEditorFocusChanged = [this] (juce::Component& focused)
+        {
+            if (focused.getHeight() > owner.effectRackViewport.getHeight())
+                owner.effectRackViewport.reveal (expandButton);
+            else
+                owner.effectRackViewport.reveal (owner.effectRackContent.getLocalArea (&focused, focused.getLocalBounds()));
+        };
+        editorHost->onPlacementChanged = [this]
+        {
+            expanded = ! editorHost->isFloating();
+            owner.layoutEffects();
+            repaint();
+        };
+        return true;
+    }
+
     bool drawSlot (juce::Graphics& graphics, const juce::Component& control,
                    juce::StringRef slot, SkinRenderTarget target,
                    juce::String primaryText, juce::String icon,
@@ -318,7 +362,7 @@ private:
         context.state.selected = selected;
         context.state.dragging = dragging;
         context.extraLookup = [count = slotCount, row = index,
-                               isBypassed = bypassed, error = hasError,
+                               isBypassed = bypassed, isExpanded = expanded, error = hasError,
                                name = slotName] (std::string_view path)
             -> std::optional<SkinExpressionValue>
         {
@@ -327,6 +371,7 @@ private:
             if (path == "slot.index")
                 return SkinExpressionValue (static_cast<double> (row));
             if (path == "slot.bypassed") return SkinExpressionValue (isBypassed);
+            if (path == "slot.expanded") return SkinExpressionValue (isExpanded);
             if (path == "slot.hasError") return SkinExpressionValue (error);
             if (path == "slot.name") return SkinExpressionValue (name);
             return std::nullopt;
@@ -337,6 +382,9 @@ private:
             "slot:" + juce::String (index) + ":" + juce::String (slot));
     }
 
+    std::unique_ptr<PluginEditorHost> editorHost;
+    bool expanded = false;
+    RackIconButton expandButton { "Expand plug-in" };
     MainComponent& owner;
     const int slotId;
     int index = -1;
@@ -517,12 +565,12 @@ MainComponent::MainComponent()
     effectScopeLabel.setText ("Add to", juce::dontSendNotification);
     effectScopeBox.setTitle ("Channels for the next effect");
     meterModeBox.addItem ("Peak", 1);
-    meterModeBox.addItem ("Peak + RMS", 2);
+    meterModeBox.addItem ("True Peak + RMS", 2);
     meterModeBox.addItem ("Loudness", 3);
     meterModeBox.addItem ("Mixer", 4);
     meterModeBox.setSelectedId (2, juce::dontSendNotification);
     meterModeBox.setTitle ("Output view");
-    resetMeterButton.setTooltip ("Start a new loudness measurement");
+    resetMeterButton.setTooltip ("Reset Moonwake loudness and peak history; plug-in meters use their own Reset and Hold controls");
     meterModeBox.onChange = [this]
     {
         updateOutputView();
@@ -2397,24 +2445,27 @@ void MainComponent::layoutEffects()
     if (! initialLayout) return;
     effectRowHeight = juce::jmax (1, juce::roundToInt (initialLayout->rowHeight));
     effectRowGap = juce::jmax (0, juce::roundToInt (initialLayout->rowGap));
-    const auto contentHeight = juce::jmax (effectRackViewport.getHeight(),
-        chain.size() * (effectRowHeight + effectRowGap) - (chain.size() > 0 ? effectRowGap : 0));
-    const auto scrollbarWidth = contentHeight > effectRackViewport.getHeight()
+    const auto totalHeight = [&] (int width)
+    {
+        int height = 0;
+        for (const auto& row : effectRows) height += row->rowHeight (width) + effectRowGap;
+        return juce::jmax (0, height - (effectRows.empty() ? 0 : effectRowGap));
+    };
+    const auto scrollbarWidth = totalHeight (effectRackViewport.getWidth()) > effectRackViewport.getHeight()
         ? effectRackViewport.getScrollBarThickness() : 0;
     const auto contentWidth = juce::jmax (1, effectRackViewport.getWidth() - scrollbarWidth);
     layoutContext.bounds.setWidth (static_cast<float> (contentWidth));
     effectRowLayout = skinAdapter.rowLayoutFor (effectRackViewport, SkinRenderTarget::effectChain, layoutContext).value_or (*initialLayout);
     effectRowHeight = juce::jmax (1, juce::roundToInt (effectRowLayout.rowHeight));
     effectRowGap = juce::jmax (0, juce::roundToInt (effectRowLayout.rowGap));
-    effectRackContent.setSize (contentWidth, juce::jmax (effectRackViewport.getHeight(),
-        chain.size() * (effectRowHeight + effectRowGap) - (chain.size() > 0 ? effectRowGap : 0)));
-
-    auto y = 0;
+    effectRackContent.setSize (contentWidth, juce::jmax (effectRackViewport.getHeight(), totalHeight (contentWidth)));
+    int y = 0;
     for (auto& row : effectRows)
     {
-        row->setBounds (0, y, contentWidth, effectRowHeight);
+        const auto height = row->rowHeight (contentWidth);
+        row->setBounds (0, y, contentWidth, height);
         row->resized();
-        y += effectRowHeight + effectRowGap;
+        y += height + effectRowGap;
     }
 
     effectRackContent.repaint();
@@ -2445,7 +2496,7 @@ void MainComponent::updateOutputView()
     if (meterModeBox.getSelectedId() >= 1 && meterModeBox.getSelectedId() <= 3)
         outputStage.setMeterMode (static_cast<OutputStageComponent::MeterMode> (meterModeBox.getSelectedId() - 1));
     resetMeterButton.setTooltip (calibrating ? "Stop the test and reset all channel calibration"
-        : mixing ? "Reset all channel gains, mutes and solos" : "Start a new loudness measurement");
+        : mixing ? "Reset all channel gains, mutes and solos" : "Reset Moonwake loudness and peak history; plug-in meters use their own Reset and Hold controls");
 }
 
 void MainComponent::refreshPresetControls()
@@ -2751,46 +2802,14 @@ void MainComponent::handleRemoteTransportCommand (
 
 void MainComponent::openPluginEditor (int effectIndex)
 {
-    const auto* slot = controller.getEffectChain().getSlot (effectIndex);
-    if (slot == nullptr || ! slot->available)
-    {
-        showStatus (slot != nullptr ? slot->errorMessage : "No effect selected.", true);
-        return;
-    }
-
-    for (auto& window : pluginEditorWindows)
-    {
-        if (window->ownsEffect (slot->id))
-        {
-            window->showWindow();
-            return;
-        }
-    }
-
-    auto* plugin = controller.getEffectPluginForEditor (effectIndex);
-
-    if (plugin == nullptr)
-    {
-        showStatus ("No effect selected.", true);
-        return;
-    }
-
-    auto* editor = plugin->getActiveEditor();
-    if (editor == nullptr)
-        editor = plugin->createEditorIfNeeded();
-
-    if (editor == nullptr)
-    {
-        showStatus ("This plug-in has no editor.");
-        return;
-    }
-
-    pluginEditorWindows.push_back (std::make_unique<PluginEditorWindow> (slot->id, plugin->getName(), editor));
+    if (juce::isPositiveAndBelow (effectIndex, static_cast<int> (effectRows.size())))
+        effectRows[static_cast<size_t> (effectIndex)]->showEditorWindow();
 }
 
 void MainComponent::removeEffect (int effectIndex)
 {
-    closePluginEditors();
+    if (juce::isPositiveAndBelow (effectIndex, static_cast<int> (effectRows.size())))
+        effectRows[static_cast<size_t> (effectIndex)]->closeEditor();
 
     if (! controller.removeEffectAtIndex (effectIndex))
         showStatus ("Could not remove effect.", true);
@@ -2800,14 +2819,11 @@ void MainComponent::removeEffect (int effectIndex)
 
 void MainComponent::moveEffectFromDrag (int fromIndex, int yInRackContent)
 {
-    const auto toIndex = calculateEffectDropIndex (yInRackContent,
-                                                   effectRowHeight,
-                                                   effectRowGap,
-                                                   controller.getEffectChain().size());
+    std::vector<int> heights;
+    for (const auto& row : effectRows) heights.push_back (row->getHeight());
+    const auto toIndex = calculateEffectDropIndex (yInRackContent, heights, effectRowGap);
     if (toIndex < 0 || toIndex == fromIndex)
         return;
-
-    closePluginEditors();
 
     if (! controller.moveEffect (fromIndex, toIndex))
     {
@@ -2820,7 +2836,8 @@ void MainComponent::moveEffectFromDrag (int fromIndex, int yInRackContent)
 
 void MainComponent::closePluginEditors()
 {
-    pluginEditorWindows.clear();
+    for (auto& row : effectRows) row->closeEditor();
+    layoutEffects();
 }
 
 juce::File MainComponent::getStateDirectory() const

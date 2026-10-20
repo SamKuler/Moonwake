@@ -51,6 +51,7 @@ struct RepeatItem
     double peak = 0.0;
     double peakDb = -60.0;
     double rmsDb = -60.0;
+    double rmsSineDb = -60.0;
     double truePeakDb = -60.0;
     bool isLfe = false;
 };
@@ -365,6 +366,7 @@ private:
                 if (path == "item.peak") return number (item->peak);
                 if (path == "item.peakDb") return number (item->peakDb);
                 if (path == "item.rmsDb") return number (item->rmsDb);
+                if (path == "item.rmsSineDb") return number (item->rmsSineDb);
                 if (path == "item.truePeakDb") return number (item->truePeakDb);
                 if (path == "item.isLfe") return boolean (item->isLfe);
             }
@@ -384,6 +386,7 @@ private:
                     if (field == "peak") return number (context.meterPeaks[index]);
                     if (field == "peakDb") return number (meterPeakDecibels (context.meterPeaks[index]));
                     if (field == "rmsDb") return number (meterPeakDecibels (context.meterRms[index]));
+                    if (field == "rmsSineDb") return number (meterPeakDecibels (context.meterRms[index] * std::sqrt (2.0)));
                     if (field == "truePeakDb") return number (meterPeakDecibels (context.meterTruePeaks[index]));
                     if (field == "isLfe") return boolean (context.meterIsLfe[index]);
                 }
@@ -957,6 +960,7 @@ private:
             item.peak = context.meterPeaks[static_cast<size_t> (index)];
             item.peakDb = meterPeakDecibels (item.peak);
             item.rmsDb = meterPeakDecibels (context.meterRms[static_cast<size_t> (index)]);
+            item.rmsSineDb = meterPeakDecibels (context.meterRms[static_cast<size_t> (index)] * std::sqrt (2.0));
             item.truePeakDb = meterPeakDecibels (context.meterTruePeaks[static_cast<size_t> (index)]);
             item.isLfe = context.meterIsLfe[static_cast<size_t> (index)];
         }

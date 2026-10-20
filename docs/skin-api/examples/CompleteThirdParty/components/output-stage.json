@@ -25,7 +25,7 @@
         "fill": "#8DC8D9FF"
       },
       "visible": {
-        "$expr": "meter.mode != 'loudness'"
+        "$expr": "meter.mode == 'peak'"
       }
     },
     {
@@ -41,14 +41,38 @@
             "$expr": "item.index * min(24, bounds.width / max(1, meter.channelCount))"
           },
           "y": {
-            "$expr": "bounds.height * (1 - clamp((item.rmsDb + 60) / 60, 0, 1))"
+            "$expr": "bounds.height * (1 - clamp((item.rmsSineDb + 60) / 60, 0, 1))"
           },
-          "width": 6,
+          "width": 12,
           "height": {
-            "$expr": "bounds.height * clamp((item.rmsDb + 60) / 60, 0, 1)"
+            "$expr": "bounds.height * clamp((item.rmsSineDb + 60) / 60, 0, 1)"
           }
         },
         "fill": "#D19C64"
+      },
+      "visible": {
+        "$expr": "meter.mode == 'rms'"
+      }
+    },
+    {
+      "id": "true-peak-channels",
+      "type": "repeat",
+      "source": "meter.channels",
+      "limit": 16,
+      "template": {
+        "id": "true-peak",
+        "type": "rect",
+        "frame": {
+          "x": {
+            "$expr": "item.index * min(24, bounds.width / max(1, meter.channelCount))"
+          },
+          "y": {
+            "$expr": "bounds.height * (1 - clamp((item.truePeakDb + 60) / 60, 0, 1))"
+          },
+          "width": 12,
+          "height": 2
+        },
+        "fill": "#FFFFFFFF"
       },
       "visible": {
         "$expr": "meter.mode == 'rms'"

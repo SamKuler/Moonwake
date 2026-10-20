@@ -1,6 +1,7 @@
 #include "EffectGraph.h"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 class EffectGraph::ScopedEdit
@@ -20,6 +21,7 @@ private:
 
 EffectGraph::EffectGraph()
 {
+    graph.setPlayHead (this);
     graph.setPlayConfigDetails (currentChannelLayout.size(),
                                 currentChannelLayout.size(),
                                 currentSampleRate,
@@ -149,6 +151,13 @@ void EffectGraph::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuff
         }
     }
     graph.processBlock (buffer, midi);
+}
+
+void EffectGraph::setTransportPosition (double seconds, bool playing) noexcept
+{
+    transportPosition.setTimeInSeconds (seconds);
+    transportPosition.setTimeInSamples (static_cast<juce::int64> (std::llround (seconds * currentSampleRate)));
+    transportPosition.setIsPlaying (playing);
 }
 
 bool EffectGraph::beginStateCapture (int timeoutMilliseconds)

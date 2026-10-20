@@ -36,7 +36,8 @@ void OutputStageComponent::setMeterReadings (OutputMeterReadings next)
         || readings.truePeak != next.truePeak || readings.maxTruePeak != next.maxTruePeak
         || ! juce::exactlyEqual (readings.momentaryLufs, next.momentaryLufs) || ! juce::exactlyEqual (readings.shortTermLufs, next.shortTermLufs)
         || ! juce::exactlyEqual (readings.integratedLufs, next.integratedLufs) || readings.available != next.available
-        || readings.measurementInterrupted != next.measurementInterrupted || readings.channels != next.channels;
+        || readings.measurementInterrupted != next.measurementInterrupted || readings.channels != next.channels
+        || ! juce::exactlyEqual (readings.measuredSeconds, next.measuredSeconds);
     readings = std::move (next);
     if (changed) repaint();
 }
@@ -81,7 +82,7 @@ void OutputStageComponent::paint (juce::Graphics& graphics)
         if (path == "meter.interrupted") return SkinExpressionValue (readings.measurementInterrupted);
         if (path == "meter.status") return SkinExpressionValue (juce::String (
             readings.measurementInterrupted ? "Measurement restarted after a processing gap"
-                                            : readings.available ? "Post effects / output gain" : "Waiting for audio"));
+                                            : readings.available ? "Post effects / output gain · " + juce::String (readings.measuredSeconds, 1) + " s" : juce::String ("Waiting for audio")));
         const auto number = [] (double value) { return SkinExpressionValue (std::isfinite (value) ? value : -100.0); };
         const auto text = [] (double value) { return SkinExpressionValue (
             std::isfinite (value) ? juce::String (value, 1) : juce::String ("--")); };

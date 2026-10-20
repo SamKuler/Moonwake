@@ -60,7 +60,7 @@
         },
         "height": 24
       },
-      "text": "Peak bars / RMS line \u00b7 dBFS",
+      "text": "RMS bars \u00b7 sine ref / True peak line",
       "font": {
         "$ref": "fonts.workspaceBody"
       },
@@ -368,7 +368,31 @@
               "$ref": "colors.studio.active"
             },
             "visible": {
-              "$expr": "item.index >= 0 and item.index < 8"
+              "$expr": "(item.index >= 0 and item.index < 8) and meter.mode != 'rms'"
+            }
+          },
+          {
+            "id": "single-rms-fill",
+            "type": "rect",
+            "frame": {
+              "x": {
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,meter.channelCount)) + (((bounds.width - 42) / max(1,meter.channelCount)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12)))) * 0.5"
+              },
+              "y": {
+                "$expr": "((72) + (max(48,bounds.height - 188))) - (max(48,bounds.height - 188)) * clamp((item.rmsSineDb + 60) / 60,0,1)"
+              },
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12))"
+              },
+              "height": {
+                "$expr": "(max(48,bounds.height - 188)) * clamp((item.rmsSineDb + 60) / 60,0,1)"
+              }
+            },
+            "fill": {
+              "$ref": "colors.studio.active"
+            },
+            "visible": {
+              "$expr": "(item.index >= 0 and item.index < 8) and meter.mode == 'rms'"
             }
           },
           {
@@ -379,7 +403,7 @@
                 "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,meter.channelCount)) + (((bounds.width - 42) / max(1,meter.channelCount)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "((72) + (max(48,bounds.height - 188))) - (max(48,bounds.height - 188)) * clamp((item.rmsDb + 60) / 60,0,1)"
+                "$expr": "((72) + (max(48,bounds.height - 188))) - (max(48,bounds.height - 188)) * clamp((item.truePeakDb + 60) / 60,0,1)"
               },
               "width": {
                 "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount)) - 12))"
@@ -390,7 +414,7 @@
               "$ref": "colors.studio.text"
             },
             "visible": {
-              "$expr": "item.index >= 0 and item.index < 8 and meter.mode == 'rms' and item.rmsDb > -60"
+              "$expr": "item.index >= 0 and item.index < 8 and meter.mode == 'rms' and item.truePeakDb > -60"
             }
           },
           {
@@ -669,7 +693,31 @@
               "$ref": "colors.studio.active"
             },
             "visible": {
-              "$expr": "item.index >= 0 and item.index < 8"
+              "$expr": "(item.index >= 0 and item.index < 8) and meter.mode != 'rms'"
+            }
+          },
+          {
+            "id": "upper-rms-fill",
+            "type": "rect",
+            "frame": {
+              "x": {
+                "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,8)) + (((bounds.width - 42) / max(1,8)) - (max(4,min(48,((bounds.width - 42) / max(1,8)) - 12)))) * 0.5"
+              },
+              "y": {
+                "$expr": "((72) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.rmsSineDb + 60) / 60,0,1)"
+              },
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,8)) - 12))"
+              },
+              "height": {
+                "$expr": "(max(28,(bounds.height - 220) / 2)) * clamp((item.rmsSineDb + 60) / 60,0,1)"
+              }
+            },
+            "fill": {
+              "$ref": "colors.studio.active"
+            },
+            "visible": {
+              "$expr": "(item.index >= 0 and item.index < 8) and meter.mode == 'rms'"
             }
           },
           {
@@ -680,7 +728,7 @@
                 "$expr": "42 + (item.index - 0) * ((bounds.width - 42) / max(1,8)) + (((bounds.width - 42) / max(1,8)) - (max(4,min(48,((bounds.width - 42) / max(1,8)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "((72) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.rmsDb + 60) / 60,0,1)"
+                "$expr": "((72) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.truePeakDb + 60) / 60,0,1)"
               },
               "width": {
                 "$expr": "max(4,min(48,((bounds.width - 42) / max(1,8)) - 12))"
@@ -691,7 +739,7 @@
               "$ref": "colors.studio.text"
             },
             "visible": {
-              "$expr": "item.index >= 0 and item.index < 8 and meter.mode == 'rms' and item.rmsDb > -60"
+              "$expr": "item.index >= 0 and item.index < 8 and meter.mode == 'rms' and item.truePeakDb > -60"
             }
           },
           {
@@ -970,7 +1018,31 @@
               "$ref": "colors.studio.active"
             },
             "visible": {
-              "$expr": "item.index >= 8 and item.index < 16"
+              "$expr": "(item.index >= 8 and item.index < 16) and meter.mode != 'rms'"
+            }
+          },
+          {
+            "id": "lower-rms-fill",
+            "type": "rect",
+            "frame": {
+              "x": {
+                "$expr": "42 + (item.index - 8) * ((bounds.width - 42) / max(1,meter.channelCount - 8)) + (((bounds.width - 42) / max(1,meter.channelCount - 8)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12)))) * 0.5"
+              },
+              "y": {
+                "$expr": "((72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.rmsSineDb + 60) / 60,0,1)"
+              },
+              "width": {
+                "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12))"
+              },
+              "height": {
+                "$expr": "(max(28,(bounds.height - 220) / 2)) * clamp((item.rmsSineDb + 60) / 60,0,1)"
+              }
+            },
+            "fill": {
+              "$ref": "colors.studio.active"
+            },
+            "visible": {
+              "$expr": "(item.index >= 8 and item.index < 16) and meter.mode == 'rms'"
             }
           },
           {
@@ -981,7 +1053,7 @@
                 "$expr": "42 + (item.index - 8) * ((bounds.width - 42) / max(1,meter.channelCount - 8)) + (((bounds.width - 42) / max(1,meter.channelCount - 8)) - (max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12)))) * 0.5"
               },
               "y": {
-                "$expr": "((72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.rmsDb + 60) / 60,0,1)"
+                "$expr": "((72 + max(28,(bounds.height - 220) / 2) + 32) + (max(28,(bounds.height - 220) / 2))) - (max(28,(bounds.height - 220) / 2)) * clamp((item.truePeakDb + 60) / 60,0,1)"
               },
               "width": {
                 "$expr": "max(4,min(48,((bounds.width - 42) / max(1,meter.channelCount - 8)) - 12))"
@@ -992,7 +1064,7 @@
               "$ref": "colors.studio.text"
             },
             "visible": {
-              "$expr": "item.index >= 8 and item.index < 16 and meter.mode == 'rms' and item.rmsDb > -60"
+              "$expr": "item.index >= 8 and item.index < 16 and meter.mode == 'rms' and item.truePeakDb > -60"
             }
           },
           {

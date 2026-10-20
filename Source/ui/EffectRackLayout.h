@@ -1,3 +1,5 @@
 #pragma once
 
-[[nodiscard]] int calculateEffectDropIndex (int y, int rowHeight, int rowGap, int rowCount);
+#include <span>
+
+[[nodiscard]] int calculateEffectDropIndex (int y, std::span<const int> rowHeights, int rowGap);

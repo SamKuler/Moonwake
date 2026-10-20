@@ -6,7 +6,7 @@ if (APPLE)
     enable_language(OBJCXX)
     set_source_files_properties(Source/skin/SkinSession.cpp
         PROPERTIES LANGUAGE OBJCXX COMPILE_FLAGS "-fobjc-arc")
-    set(MOONWAKE_MAC_SOURCES Source/library/MacEmbeddedArtworkReader.mm)
+    set(MOONWAKE_MAC_SOURCES Source/library/MacEmbeddedArtworkReader.mm Source/ui/PluginEditorNativeClip.mm)
     set(MOONWAKE_NOW_PLAYING_SOURCE Source/app/MacNowPlayingBridge.mm)
     set(MOONWAKE_MAC_APP_SOURCES Source/ui/PlayerWindowMac.mm)
     set_source_files_properties(Source/app/MacNowPlayingBridge.mm Source/ui/PlayerWindowMac.mm
@@ -233,6 +233,7 @@ set(MOONWAKE_SOURCES
     Source/skin/SkinSchemaValidator.cpp
     Source/skin/SkinTokenStore.cpp
     Source/skin/SkinValue.cpp
+    Source/ui/PluginEditorHost.cpp
     Source/ui/EffectRackLayout.cpp
     Source/ui/PluginFilterControls.cpp
     Source/ui/JuceSkinAdapter.cpp
@@ -458,6 +459,7 @@ add_executable(MoonwakeTests
         Source/skin/SkinTokenStore.cpp
         Source/skin/SkinToolCommands.cpp
         Source/skin/SkinValue.cpp
+        Source/ui/PluginEditorHost.cpp
         Source/ui/EffectRackLayout.cpp
         Source/ui/PluginFilterControls.cpp
         Source/ui/JuceSkinAdapter.cpp
@@ -499,6 +501,7 @@ add_executable(MoonwakeTests
         Tests/ChannelMappedAudioSourceTests.cpp
         Tests/EffectChainStateTests.cpp
         Tests/EffectGraphTests.cpp
+        Tests/PluginEditorHostTests.cpp
         Tests/EffectRackLayoutTests.cpp
         Tests/PlaybackCoordinatorTests.cpp
         Tests/PlaybackCheckpointTests.cpp
@@ -621,6 +624,7 @@ if (APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME "Moonwake Tests"
     )
     set_source_files_properties(Tests/TestMain.cpp PROPERTIES LANGUAGE OBJCXX)
+    set_source_files_properties(Tests/PluginEditorHostTests.cpp PROPERTIES LANGUAGE OBJCXX)
     target_link_libraries(MoonwakeTests PRIVATE
         "-framework AudioToolbox"
         "-framework AVFoundation"

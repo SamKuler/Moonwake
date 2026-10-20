@@ -176,7 +176,7 @@ std::optional<SkinResolvedRowLayout> resolveSkinRowLayout (
                     if ((interactiveSlotTarget (slot.rendererTarget) || program.target == SkinRenderTarget::playlistGrid
                          || program.target == SkinRenderTarget::smartPlaylistEditor
                          || program.target == SkinRenderTarget::smartPlaylistRuleList || program.target == SkinRenderTarget::outputCalibration)
-                        && ! values.slots.contains (slot.name))
+                        && slot.requiredInRowLayout && ! values.slots.contains (slot.name))
                     {
                         report.addError ("RENDER004", "rowLayout", "/slots/" + slot.name,
                                          "Row layout must place every interactive slot and all playlist card, smart editor and calibration slots.");

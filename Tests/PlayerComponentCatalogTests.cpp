@@ -348,6 +348,7 @@ public:
         expect (slotsOf ("effects.chain") == std::map<juce::String, juce::String> ({
             { "slot.surface", "surface" }, { "slot.name", "label" },
             { "slot.bypass", "textButton" }, { "slot.editor", "textButton" },
+            { "slot.expand", "textButton" },
             { "slot.remove", "textButton" }, { "slot.scope", "textButton" }, { "slot.dragIndicator", "surface" }
         }));
         expect (slotsOf ("output.mixer") == std::map<juce::String, juce::String> ({

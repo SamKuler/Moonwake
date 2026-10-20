@@ -25,6 +25,7 @@ juce::Image drawOutput (const SkinRenderStyleEntry& style, OutputLayout layout,
     OutputStageComponent output;
     output.setBounds (0, 0, width, height);
     output.setLookAndFeel (&adapter);
+    output.setMeterMode (OutputStageComponent::MeterMode::peak);
     output.setState (layout, WorkspaceMode::studio, true, "Track", "Built-in Output",
                      getChannelCount (layout), peaks);
     juce::Image image (juce::Image::ARGB, width, height, true);
@@ -82,6 +83,30 @@ public:
                 expect (image.getPixelAt (5, 85) == juce::Colours::lime,
                         "indexed dB values must retain above-full-scale peaks and the existing linear values");
                 expect (! sink.failed);
+            }
+        }
+
+        beginTest ("sine-referenced RMS is additive and silence stays at the meter floor");
+        {
+            const auto doc = juce::JSON::parse (R"({"apiVersion":1,"target":"outputStage","layers":[
+                {"id":"reference","type":"rect","frame":{"x":0,"y":0,"width":20,"height":20},
+                 "fill":"#00FF00FF","visible":{"$expr":"meter.channels[0].rmsDb > -3.02 and meter.channels[0].rmsDb < -3 and meter.channels[0].rmsSineDb > -0.01 and meter.channels[0].rmsSineDb < 0.01 and meter.channels[1].rmsSineDb == -60"}}]})");
+            SkinTokenStore tokens;
+            SkinValidationReport report;
+            const auto validated = SkinSchemaValidator::validate (SkinSchemaDocument::render, doc, "rms-reference.json", report);
+            const auto program = validated ? SkinRenderCompiler::compileProgram (*validated, tokens, report) : std::nullopt;
+            expect (program.has_value(), report.toText());
+            if (program)
+            {
+                SkinRenderContext context;
+                context.bounds = { 0, 0, 20, 20 };
+                context.meterRms[0] = 1.0f / std::sqrt (2.0f);
+                juce::Image image (juce::Image::ARGB, 20, 20, true);
+                juce::Graphics graphics (image);
+                SkinRenderer renderer;
+                OutputFaultSink sink;
+                expect (renderer.draw (graphics, *program, context, true, sink) == SkinRenderStatus::ok);
+                expect (image.getPixelAt (10, 10) == juce::Colours::lime);
             }
         }
 

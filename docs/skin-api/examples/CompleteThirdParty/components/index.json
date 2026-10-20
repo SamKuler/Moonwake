@@ -65,7 +65,8 @@
         "slot.scope": "textButton.neutral",
         "slot.bypass": "textButton.neutral",
         "slot.editor": "textButton.neutral",
-        "slot.remove": "textButton.defaultCompact"
+        "slot.remove": "textButton.defaultCompact",
+        "slot.expand": "textButton.neutral"
       }
     }
   },

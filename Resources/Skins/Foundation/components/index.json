@@ -230,7 +230,8 @@
         "slot.editor": "textButton.default",
         "slot.remove": "textButton.defaultCompact",
         "slot.scope": "textButton.default",
-        "slot.dragIndicator": "surface.dragHandle"
+        "slot.dragIndicator": "surface.dragHandle",
+        "slot.expand": "textButton.default"
       }
     }
   },

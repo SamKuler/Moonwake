@@ -599,7 +599,7 @@ Style 的完整名称为 target.variant，例如 textButton.primary。布局绑�
 | surface | 每个 container 或 visual 节点一次 | bounds.* | 无 |
 | table | 表主体一次 | table.rowCount、table.columnCount | header.surface、header.text、row.surface、cell.title、cell.location、cell.duration、cell.artist、cell.album |
 | artwork | 封面组件一次 | artwork.hasTrack、artwork.hasImage、artwork.aspectRatio | frame.background、frame.overlay |
-| effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator；可选 slot.scope（应用 0.4.0 起） |
+| effectChain | 链主体一次；每个动态槽分别调用 slots | 主体：chain.slotCount；slots：chain.slotCount、slot.index、slot.bypassed、slot.expanded、slot.hasError、slot.name | slot.surface、slot.name、slot.bypass、slot.editor、slot.remove、slot.dragIndicator；可选 slot.scope（应用 0.4.0 起）、slot.expand（应用 0.10.0 起） |
 | outputStage | 输出级每帧一次 | text.primary（曲目标题）、text.secondary（当前设备名）、meter.*、output.* | 无 |
 | channelMap | 输出端口映射 | 绘制行 slots：channel.index、channel.sourceLabel、channel.deviceLabel、channel.connected；row.output：标准 comboBox context | row.surface、row.source、row.destination、row.output（routing 的 comboBox）、header.label、empty.message |
 | outputCalibration | 选中扬声器的校准表单与测试信号控制 | 标准 state.*；子控件提供 text.* 和控件 context | calibration.channelLabel、calibration.channel、calibration.trimLabel、calibration.trim、calibration.delayLabel、calibration.delay、calibration.polarity、calibration.signalLabel、calibration.signal、calibration.levelLabel、calibration.level、calibration.frequencyLabel、calibration.frequency、calibration.startStop、calibration.status |
@@ -1452,7 +1452,8 @@ effects.chain 内部动态槽使用固定 style slots：
 - slot.surface
 - slot.name
 - slot.bypass
-- slot.editor
+- slot.editor：在独立窗口中显示插件编辑器。
+- slot.expand：展开或收起内嵌插件编辑器，kind 为 textButton；可绑定 `slot.expanded`。该槽位可选，旧布局继续支持双击槽位展开。
 - slot.remove
 - slot.dragIndicator
 
@@ -1471,7 +1472,7 @@ effects.chain 内部动态槽使用固定 style slots：
 | output.stage | outputStage | 可选 | 当前多声道电平、响度和扬声器标签 |
 | output.mixer | channelMixer | 可选 | 每声道增益、静音和独奏；组件自 0.4.0 起，独立 target 自 0.5.0 起 |
 | output.calibration | outputCalibration | Settings 可选 | 逐扬声器 trim、delay、polarity 与测试信号；0.9.0 起 |
-| output.mode | comboBox | 可选 | 选择 Peak、Peak + RMS、Loudness 或 Mixer；0.4.0 起 |
+| output.mode | comboBox | 可选 | 选择 Peak、True Peak + RMS、Loudness 或 Mixer；0.4.0 起 |
 | output.reset | textButton | 可选 | 仪表模式下开始新测量；Mixer 模式下重置所有声道增益、静音和独奏；Settings 校准卡片内停止测试并重置校准；0.4.0 起，校准行为自 0.9.0 起 |
 
 outputStage 提供：
@@ -1485,6 +1486,7 @@ outputStage 提供：
 - meter.channels[n].peakDb：同一采样峰值的 dBFS 值（20 × log10(peak)），显示下限为 -60；大于 0 的读数保留。
 - meter.channels[n].isLfe。
 - output.layout：`mono`、`stereo`、`2.1`、`3.0`、`quad`、`5.0`、`5.1`、`6.1`、`7.0`、`7.1`、`5.1.2`、`5.1.4`、`7.1.2`、`7.1.4`、`7.1.6`、`9.1.4`、`9.1.6`。
+- meter.channels[n].rmsSineDb：以满幅正弦为 0 dBFS 的 RMS，数值相当于数学 RMS 乘以 √2 后取 dB；静音与量程下限为 -60 dB。repeat 使用 `item.rmsSineDb`。
 - meter.channels[n].rmsDb / truePeakDb：RMS / True Peak 电平，显示下限 -60 dB，保留正值。repeat 对应 `item.rmsDb` / `item.truePeakDb`。
 - meter.mode：`peak`、`rms` 或 `loudness`。
 - meter.available：后台是否已经发布测量结果。
@@ -1494,9 +1496,9 @@ outputStage 提供：
 - meter.momentaryText / shortTermText / integratedText：一位小数的 LUFS 字符串，无有效结果时为 `--`。
 - meter.truePeakText：本次测量所有输出声道中的最大 dBTP，无有效结果时为 `--`。
 
-新增测量字段、16 声道上限及模式控件要求 `minAppVersion: "0.4.0"`。
+基础测量字段、16 声道上限及模式控件要求 `minAppVersion: "0.4.0"`；`rmsSineDb` 要求 `minAppVersion: "0.10.0"`。
 
-`meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。采样峰值来自效果链与输出增益之后的实际采样；RMS 使用 300 ms 窗口，LUFS 使用 K 加权及门限，Momentary / Short-term 分别为 400 ms / 3 s。LFE 不计入 LUFS，但保留独立峰值、RMS 与 True Peak。测量在后台工作线程进行，界面模式或 A/B 切换不重置测量。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
+`meter.channels` 的 repeat 模板以 `item.peak`、`item.peakDb`、`item.label` 和 `item.isLfe` 访问当前声道。采样峰值来自效果链与输出增益之后的实际采样；RMS 使用 300 ms 窗口，LUFS 使用 K 加权及门限，Momentary / Short-term 分别为 400 ms / 3 s。LFE 不计入 LUFS，但保留独立峰值、RMS 与 True Peak。测量在后台工作线程进行，界面模式或 A/B 切换不重置测量。 内置 True Peak + RMS 视图以 `rmsSineDb` 绘制实心柱，以 `truePeakDb` 绘制峰值线；`rmsDb` 保持数学 RMS 定义。状态行显示已累计的测量时长。Reset 清零 Moonwake 的响度与峰值历史，第三方插件通过自己的 Reset / Hold 控制统计周期。宿主在每个音频块起点向插件传递播放状态、秒数和以当前设备采样率计的采样位置，暂停时位置保持，定位后下一块更新。dB 转换在绘制线程执行。使用 `clamp((item.peakDb + 60) / 60, 0, 1)` 可将 -60 至 0 dBFS 映射为等距 dB 刻度的柱高；静音与低于量程的读数落在柱底。
 
 `output.mixer` 使用 `channelMixer` target，要求应用 `0.5.0` 或更高；`channelMap` 用于设备声道映射，旧 channelMap 组件只读，routing 组件可编辑。Mixer 最小尺寸为 180 × 100，建议至少 300 × 240。它与 `output.stage` 可放在同一个 stack 内，应用根据 `output.mode` 切换可见性，布局尺寸保持不变。Mixer 按实际扬声器顺序显示可滚动行，按行依次遍历 gain、mute、solo；焦点顺序由宿主提供。各行的 slots：
 
@@ -2260,3 +2262,7 @@ Suggestion: add one visible component node with component "library.add".
 两个智能歌单 target 必须声明 `rowLayout` 并放置全部公开 slots；交互槽位使用对应 primitive 控件的最小尺寸且须处于原生行边界内。槽位使用标准 `state.*`、`text.*` 和控件上下文，不公开曲库对象。焦点顺序为 Name → Match → 按行 Field / Operator / Value / Remove → Add rule → Save → Cancel。焦点由当前 primitive 控件绘制，列表与面板不叠加第二层焦点框。
 
 编辑器展示草稿的实时匹配数。名称为空或模型校验失败时禁用 Save；保存失败保留草稿并显示原因，成功保存后关闭；Cancel 和 Escape 不改变已保存歌单。规则结果显示在现有歌单详情中，不能手工添加、移除或重排曲目。播放、排队和收藏操作保持可用。
+
+### 插件 Rack 编辑器
+
+`slot.expand` 使用所在效果链的 textButton renderer，最小交互尺寸为组件目录的 textButton 下限。推荐焦点顺序为展开、声道范围、旁路、弹窗、移除。展开体由应用托管插件原生编辑器；尺寸来自插件，宽度溢出时提供横向滚动。关闭弹窗会将同一编辑器归位到 Rack，参数与音频实例保持。第三方皮肤控制槽位标题和操作的布局与绘制，插件界面由插件负责。

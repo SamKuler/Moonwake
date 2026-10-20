@@ -8,6 +8,7 @@
 #include <vector>
 
 class EffectGraph : private juce::AudioProcessorListener,
+                    private juce::AudioPlayHead,
                     private juce::Timer
 {
 public:
@@ -20,6 +21,8 @@ public:
     void releaseResources();
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi,
                        juce::AudioBuffer<float>* alignedDry = nullptr);
+    // Audio thread only; position describes the start of the block.
+    void setTransportPosition (double seconds, bool playing) noexcept;
     bool clearTails (juce::String& errorMessage);
     bool beginStateCapture (int timeoutMilliseconds = 1000);
     void endStateCapture() noexcept;
@@ -42,6 +45,8 @@ public:
     [[nodiscard]] const EffectScope* getProcessorScope (int slotId) const;
 
 private:
+    juce::Optional<PositionInfo> getPosition() const override { return transportPosition; }
+    PositionInfo transportPosition;
     class ScopedEdit;
 
     struct SlotNode

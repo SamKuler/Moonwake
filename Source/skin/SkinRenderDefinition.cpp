@@ -427,6 +427,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
                 result.emplace (prefix + "peak", Type::number);
                 result.emplace (prefix + "peakDb", Type::number);
                 result.emplace (prefix + "rmsDb", Type::number);
+                result.emplace (prefix + "rmsSineDb", Type::number);
                 result.emplace (prefix + "truePeakDb", Type::number);
                 result.emplace (prefix + "isLfe", Type::boolean);
             }
@@ -457,7 +458,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForTarget (
     if (repeatSource == "meter.channels")
         addContext (result, { { "item.index", Type::number }, { "item.label", Type::string },
                               { "item.peak", Type::number }, { "item.peakDb", Type::number },
-                              { "item.rmsDb", Type::number }, { "item.truePeakDb", Type::number },
+                              { "item.rmsDb", Type::number }, { "item.rmsSineDb", Type::number }, { "item.truePeakDb", Type::number },
                               { "item.isLfe", Type::boolean } });
     else if (repeatSource == "table.visibleColumns")
         addContext (result, { { "item.index", Type::number }, { "item.label", Type::string } });
@@ -513,6 +514,7 @@ std::map<juce::String, SkinExpressionType> skinRenderContextForCompositeSlot (
                 { "chain.slotCount", Type::number },
                 { "slot.index", Type::number },
                 { "slot.bypassed", Type::boolean },
+                { "slot.expanded", Type::boolean },
                 { "slot.hasError", Type::boolean },
                 { "slot.name", Type::string }
             });

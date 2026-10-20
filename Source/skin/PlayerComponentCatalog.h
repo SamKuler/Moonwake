@@ -31,6 +31,7 @@ struct SkinComponentDescriptor
     {
         juce::String name;
         juce::String rendererTarget;
+        bool requiredInRowLayout = true;
     };
 
     juce::String id;

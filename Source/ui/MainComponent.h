@@ -63,7 +63,6 @@ public:
     std::function<void (bool)> onPinRequested;
 private:
     class EffectSlotRow;
-    class PluginEditorWindow;
 
     void timerCallback (int timerID) override;
     void initialiseListeningControls();
@@ -178,7 +177,6 @@ private:
     std::unique_ptr<SmartPlaylistEditor> smartPlaylistEditor;
     bool hasAppliedSkinLayout = false;
     std::unique_ptr<juce::FileChooser> fileChooser;
-    std::vector<std::unique_ptr<PluginEditorWindow>> pluginEditorWindows;
     std::vector<std::unique_ptr<EffectSlotRow>> effectRows;
     struct PendingLibraryImport
     {

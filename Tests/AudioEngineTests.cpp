@@ -213,12 +213,14 @@ public:
     MixProbePlugin() : AudioPluginInstance (BusesProperties()
         .withInput ("Input", juce::AudioChannelSet::stereo(), true)
         .withOutput ("Output", juce::AudioChannelSet::stereo(), true)) {}
+    juce::Optional<juce::AudioPlayHead::PositionInfo> transportPosition;
     const juce::String getName() const override { return "Channel mix probe"; }
     void fillInPluginDescription (juce::PluginDescription& description) const override { description.name = getName(); }
     void prepareToPlay (double, int) override {}
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
     {
+        transportPosition = getPlayHead() != nullptr ? getPlayHead()->getPosition() : juce::nullopt;
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
             std::fill_n (buffer.getWritePointer (channel), buffer.getNumSamples(), 0.1f * static_cast<float> (channel + 1));
     }
@@ -1753,6 +1755,52 @@ public:
         }
         const auto missing = directory.getNonexistentChildFile ("missing", ".wav");
 
+        for (const auto layout : { OutputLayout::stereo, OutputLayout::fiveOne,
+                                   OutputLayout::fiveOneTwo, OutputLayout::sevenOneTwo })
+        {
+            beginTest ("plug-ins receive block-start position, pause and seek in " + toString (layout));
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            expect (playback.initialise().isEmpty());
+            expect (playback.setOutputLayout (layout).isEmpty());
+            auto plugin = std::make_unique<MixProbePlugin>();
+            auto* probe = plugin.get();
+            juce::String error;
+            expect (playback.addEffectPlugin (1, std::move (plugin), error), error);
+            const auto transportFile = writeSignal ("transport-position", 96000, 48000.0, 0.1f);
+            expect (playback.loadFile (transportFile));
+            juce::AudioBuffer<float> block (getChannelCount (layout), 256);
+            playback.play();
+            {
+                juce::UnitTestAllocationChecker allocations (*this);
+                device->render (block);
+            }
+            expect (probe->transportPosition.hasValue(), "Host must provide an AudioPlayHead");
+            if (probe->transportPosition)
+            {
+                expect (probe->transportPosition->getIsPlaying());
+                expectEquals (*probe->transportPosition->getTimeInSamples(), juce::int64 { 0 });
+                playback.pause();
+                device->render (block);
+                expect (! probe->transportPosition->getIsPlaying());
+                expectWithinAbsoluteError (*probe->transportPosition->getTimeInSeconds(), 256.0 / 48000.0, 0.00001);
+                expect (playback.seekToSeconds (0.5));
+                device->render (block);
+                expectEquals (*probe->transportPosition->getTimeInSamples(), juce::int64 { 24000 });
+                playback.play();
+                device->render (block);
+                expect (probe->transportPosition->getIsPlaying());
+                expectEquals (*probe->transportPosition->getTimeInSamples(), juce::int64 { 24000 });
+                device->restartAt (96000.0);
+                device->render (block);
+                expectWithinAbsoluteError (*probe->transportPosition->getTimeInSeconds(), 0.5 + 256.0 / 48000.0, 0.00001);
+                expectEquals (*probe->transportPosition->getTimeInSamples(), juce::int64 { 48512 });
+            }
+            playback.unload();
+            expect (transportFile.deleteFile());
+        }
+
         beginTest ("output meter observes rendered gain and resets on explicit playback discontinuities");
         {
             const auto meterFile = writeSignal ("meter-output", 96000, 48000.0, 0.05f);
@@ -2209,4 +2257,48 @@ public:
 };
 
 AudioEngineTests audioEngineTests;
+class PluginTransportTests final : public juce::UnitTest
+{
+public:
+    PluginTransportTests() : UnitTest ("PluginTransport", "audio") {}
+    void runTest() override
+    {
+        beginTest ("prepare an exact device-block-length source");
+        juce::TemporaryFile file (".wav");
+        juce::WavAudioFormat format;
+        auto stream = std::unique_ptr<juce::OutputStream> (file.getFile().createOutputStream());
+        auto writer = format.createWriterFor (stream, juce::AudioFormatWriterOptions{}
+            .withSampleRate (48000).withChannelLayout (juce::AudioChannelSet::stereo()).withBitsPerSample (16));
+        juce::AudioBuffer<float> signal (2, 256);
+        signal.clear();
+        expect (writer != nullptr);
+        if (! writer) return;
+        expect (writer->writeFromAudioSampleBuffer (signal, 0, 256));
+        writer.reset();
+        for (const auto repeatFrom : { -1, 0 })
+        {
+            beginTest (repeatFrom < 0 ? "aligned next-track first block starts at zero" : "aligned repeated tracks start at zero on every iteration");
+            auto backend = std::make_unique<OfflineAudioDeviceBackend>();
+            auto* device = backend.get();
+            AudioEngine playback (std::move (backend));
+            expect (playback.initialise().isEmpty());
+            auto plugin = std::make_unique<MixProbePlugin>();
+            auto* probe = plugin.get();
+            juce::String error;
+            expect (playback.addEffectPlugin (1, std::move (plugin), error), error);
+            expect (playback.loadPlaybackPlan ({ { { file.getFile(), 1 }, { file.getFile(), 2 } }, repeatFrom }));
+            playback.play();
+            juce::AudioBuffer<float> block (2, 256);
+            for (int pass = 0; pass < (repeatFrom < 0 ? 2 : 6); ++pass)
+            {
+                device->render (block);
+                expect (probe->transportPosition.hasValue());
+                if (probe->transportPosition)
+                    expectEquals (*probe->transportPosition->getTimeInSamples(), juce::int64 { 0 }, "block " + juce::String (pass));
+            }
+            playback.unload();
+        }
+    }
+} pluginTransportTests;
+
 } // namespace

@@ -314,12 +314,16 @@ std::optional<SkinExpressionValue> representativeValue (
     switch (found->second)
     {
         case SkinExpressionType::number: return SkinExpressionValue (0.62);
-        case SkinExpressionType::boolean: return SkinExpressionValue (key != "combo.popupOpen");
+        case SkinExpressionType::boolean: return SkinExpressionValue (key != "combo.popupOpen" && key != "meter.interrupted");
         case SkinExpressionType::string:
             if (key == "plugin.format") return SkinExpressionValue (juce::String ("VST3"));
             if (key == "output.layout") return SkinExpressionValue (juce::String ("5.1"));
             if (key == "meter.mode") return SkinExpressionValue (juce::String ("rms"));
-            if (key == "meter.status") return SkinExpressionValue (juce::String ("Meter preview"));
+            if (key == "meter.status") return SkinExpressionValue (juce::String ("Post effects / output gain · 24.0 s"));
+            if (key == "meter.momentaryText") return SkinExpressionValue (juce::String ("-14.2"));
+            if (key == "meter.shortTermText") return SkinExpressionValue (juce::String ("-15.1"));
+            if (key == "meter.integratedText") return SkinExpressionValue (juce::String ("-16.0"));
+            if (key == "meter.truePeakText") return SkinExpressionValue (juce::String ("-1.2"));
             return SkinExpressionValue (juce::String ("Preview"));
         case SkinExpressionType::colour:
             return SkinExpressionValue (juce::Colours::white);
@@ -380,6 +384,8 @@ bool drawStyle (juce::Graphics& graphics, const CompiledSkin& skin,
     for (int i = 0; i < 6; ++i)
     {
         context.meterPeaks[static_cast<size_t> (i)] = 0.28f + 0.08f * static_cast<float> (i);
+        context.meterRms[static_cast<size_t> (i)] = context.meterPeaks[static_cast<size_t> (i)] * 0.5f;
+        context.meterTruePeaks[static_cast<size_t> (i)] = context.meterPeaks[static_cast<size_t> (i)] * 1.04f;
         context.meterIsLfe[static_cast<size_t> (i)] = i == 3;
     }
     const auto types = skinRenderContextForTarget (style.renderer.target);
