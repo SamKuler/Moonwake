@@ -24,3 +24,9 @@ juce::String trackFileIdentity (const juce::File& file)
 #endif
     return "path:" + fullPath;
 }
+
+TrackFileStamp trackFileStamp (const juce::File& file)
+{
+    if (! file.existsAsFile()) return {};
+    return { trackFileIdentity (file), file.getSize(), file.getLastModificationTime().toMilliseconds() };
+}

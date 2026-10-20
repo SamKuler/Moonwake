@@ -1995,7 +1995,7 @@ void MainComponent::startLibraryImport (juce::Array<juce::File> files)
     {
         if (safeThis == nullptr) return;
         safeThis->addFilesButton.setTooltip (state.stage == LibraryImportProgress::Stage::discovering
-            ? "Discovering music..." : "Reading " + juce::String (state.processed + 1)
+            ? "Discovering music..." : "Reading " + juce::String (state.processed)
                 + " / " + juce::String (state.total) + "  " + state.currentFile);
     };
     const auto completion = [safeThis, request] (LibraryImportResult result) mutable

@@ -29,6 +29,51 @@ public:
 
     void runTest() override
     {
+        beginTest ("one tag pass preserves metadata and artists with independent unsupported-frame fallback");
+        {
+            const auto file = getMetadataTestDirectory().getNonexistentChildFile ("combined-tags", ".tag");
+            const auto writeId3 = [&] (bool badAlbum, bool badArtist)
+            {
+                auto album = trackMetadataFixtures::id3 (4, 3, { "Night / Live" });
+                auto artist = trackMetadataFixtures::id3 (4, 3, { "First", "AC/DC" });
+                auto* albumBytes = static_cast<unsigned char*> (album.getData());
+                auto* artistBytes = static_cast<unsigned char*> (artist.getData());
+                std::memcpy (albumBytes + 10, "TALB", 4);
+                if (badAlbum) albumBytes[19] = 0x08;
+                if (badArtist) artistBytes[19] = 0x08;
+                const auto bodySize = album.getSize() + artist.getSize() - 20;
+                for (int index = 0; index < 4; ++index)
+                    albumBytes[6 + index] = static_cast<unsigned char> ((bodySize >> ((3 - index) * 7)) & 0x7f);
+                album.append (artistBytes + 10, artist.getSize() - 10);
+                return file.replaceWithData (album.getData(), album.getSize());
+            };
+            for (const auto badAlbum : { false, true })
+                for (const auto badArtist : { false, true })
+                {
+                    expect (writeId3 (badAlbum, badArtist));
+                    const auto tags = readTrackTags (file);
+                    expectEquals (tags.metadata["album"], badAlbum ? juce::String {} : juce::String ("Night / Live"));
+                    expect (tags.artists == (badArtist ? juce::StringArray {} : juce::StringArray { "First", "AC/DC" }));
+                    expect (tags.artists == readTrackArtistTags (file));
+                }
+            juce::StringPairArray values;
+            values.set ("ALBUM", "Night / Live");
+            values.set ("REPLAYGAIN_TRACK_GAIN", "-4.5 dB");
+            const auto comments = trackMetadataFixtures::vorbisComments ({ "First", "AC/DC" }, values);
+            juce::MemoryOutputStream flac;
+            flac.write ("fLaC", 4);
+            flac.writeByte (static_cast<char> (0x84));
+            for (int shift = 2; shift >= 0; --shift)
+                flac.writeByte (static_cast<char> ((comments.getSize() >> (shift * 8)) & 0xff));
+            flac.write (comments.getData(), comments.getSize());
+            expect (file.replaceWithData (flac.getData(), flac.getDataSize()));
+            const auto tags = readTrackTags (file);
+            expectEquals (tags.metadata["album"], juce::String ("Night / Live"));
+            expectEquals (tags.metadata["replaygaintrackgain"], juce::String ("-4.5 dB"));
+            expect (tags.artists == juce::StringArray { "First", "AC/DC" });
+            expect (file.deleteFile());
+        }
+
         beginTest ("ID3 album text keeps punctuation and Unicode across supported encodings");
         {
             const auto file = getMetadataTestDirectory().getNonexistentChildFile ("album-tags", ".tag");

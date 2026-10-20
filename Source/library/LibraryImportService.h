@@ -13,6 +13,7 @@ struct LibraryImportProgress
     enum class Stage { discovering, reading };
 
     Stage stage = Stage::discovering;
+    // Reading progress counts completed unique source files.
     int processed = 0;
     int total = 0;
     juce::String currentFile;

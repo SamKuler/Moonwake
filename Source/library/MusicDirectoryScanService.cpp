@@ -1,5 +1,7 @@
 #include "MusicDirectoryScanService.h"
 
+#include "LibraryReadBatch.h"
+
 #include "platform/FilesystemPath.h"
 
 #include "playlist/TrackFileIdentity.h"
@@ -13,23 +15,7 @@
 
 namespace
 {
-struct FileStamp
-{
-    juce::String identity;
-    juce::int64 size = 0;
-    juce::int64 modifiedAtMs = 0;
-
-    bool operator== (const FileStamp&) const = default;
-};
-
-FileStamp fileStamp (const juce::File& file)
-{
-    if (! file.existsAsFile()) return {};
-    return { trackFileIdentity (file), file.getSize(),
-             file.getLastModificationTime().toMilliseconds() };
-}
-
-bool matchesStamp (const TrackItem& track, const FileStamp& stamp)
+bool matchesStamp (const TrackItem& track, const TrackFileStamp& stamp)
 {
     return track.fileIdentity.isNotEmpty() && track.fileIdentity == stamp.identity
         && track.fileSizeBytes == stamp.size && track.fileModifiedAtMs == stamp.modifiedAtMs;
@@ -260,13 +246,21 @@ void MusicDirectoryScanService::run()
     {
         return root.status == MusicDirectoryScanRootReport::Status::complete;
     });
-    TrackMetadataReader reader;
+    struct ReadRequest
+    {
+        size_t fileIndex;
+        TrackFileStamp stamp;
+        const TrackItem* known;
+        std::vector<const TrackItem*> records;
+    };
+    std::vector<ReadRequest> requests;
+    std::vector<std::vector<TrackMetadataResult>> updates (files.size());
+    std::vector<juce::String> errors (files.size()), artworkWarnings (files.size());
     std::set<juce::String> seenTrackIds;
-    auto lastProgressTime = 0.0;
     for (size_t index = 0; index < files.size() && ! cancelled(); ++index)
     {
         const auto& file = files[index];
-        const auto before = fileStamp (file);
+        const auto before = trackFileStamp (file);
         const auto identityMatch = knownByIdentity.find (before.identity);
         const auto pathMatch = knownByPath.find (file.getFullPathName());
         const auto pathMatchHasMoved = pathMatch != knownByPath.end()
@@ -279,21 +273,14 @@ void MusicDirectoryScanService::run()
             : pathMatch != knownByPath.end() && ! pathMatchHasMoved ? pathMatch->second : nullptr;
         if (known != nullptr) seenTrackIds.insert (known->id);
 
-        const auto now = juce::Time::getMillisecondCounterHiRes();
-        if (index == 0 || index + 1 == files.size() || now - lastProgressTime >= 100.0)
-        {
-            postProgress ({ MusicDirectoryScanProgress::Stage::reading,
-                            static_cast<int> (index), result.discoveredFiles, file.getFileName() });
-            lastProgressTime = now;
-        }
         if (! completeDiscovery && ! pathMatchHasMoved && pathMatch != knownByPath.end()
             && pathMatch->second->fileIdentity.isNotEmpty()
             && ! pathMatch->second->fileIdentity.startsWith ("path:")
             && pathMatch->second->fileIdentity != before.identity)
         {
             seenTrackIds.insert (pathMatch->second->id);
-            result.errors.add (file.getFullPathName()
-                + " (file identity changed; refresh deferred until directory discovery is complete)");
+            errors[index] = file.getFullPathName()
+                + " (file identity changed; refresh deferred until directory discovery is complete)";
             continue;
         }
 
@@ -321,62 +308,103 @@ void MusicDirectoryScanService::run()
                 moved.ok = true;
                 moved.track = *known;
                 moved.track.file = file;
-                result.updates.push_back (std::move (moved));
+                updates[index].push_back (std::move (moved));
             }
             continue;
         }
 
-        ++result.metadataReads;
-        auto metadata = reader.read (file);
-        if (cancelled()) break;
-        if (before.identity.isEmpty() || before != fileStamp (file))
-        {
-            metadata.ok = false;
-            metadata.error = "Audio file changed while its metadata was being read.";
-        }
-        if (! metadata.ok)
-        {
-            result.errors.add (file.getFullPathName() + " (" + metadata.error + ")");
-            for (const auto* record : records)
-            {
-                TrackMetadataResult failed;
-                failed.track = *record;
-                if (record == known) failed.track.file = file;
-                failed.track.available = false;
-                failed.error = metadata.error;
-                result.updates.push_back (std::move (failed));
-            }
-            continue;
-        }
+        requests.push_back ({ index, before, known, std::move (records) });
+    }
 
-        if (known != nullptr) preserveLibraryFields (metadata.track, *known);
-        metadata.track.fileIdentity = before.identity;
-        metadata.track.fileSizeBytes = before.size;
-        metadata.track.fileModifiedAtMs = before.modifiedAtMs;
-        if (! metadata.artworkData.isEmpty() && artworkStore.root() != juce::File())
+    std::atomic_int metadataReads { 0 };
+    std::vector<juce::String> artworkKeys (requests.size());
+    readLibraryBatch (requests.size(), cancelled,
+        [&] (size_t requestIndex, TrackMetadataReader& reader, ArtworkStore::EncodingCache& encoding)
         {
-            juce::String artworkError;
-            metadata.track.artworkCacheKey = artworkStore.store (
-                "scan-" + juce::Uuid().toString(), metadata.artworkData, artworkError);
-            metadata.artworkData = {};
-            if (metadata.track.artworkCacheKey.isNotEmpty())
+            const auto& request = requests[requestIndex];
+            const auto index = request.fileIndex;
+            const auto& file = files[index];
+            const auto& before = request.stamp;
+            const auto* known = request.known;
+            ++metadataReads;
+            auto metadata = reader.read (file);
+            if (cancelled()) return;
+            if (before.identity.isEmpty() || before != trackFileStamp (file))
             {
-                const std::lock_guard lock (lifecycle->artworkMutex);
-                lifecycle->preparedArtworkKeys.add (metadata.track.artworkCacheKey);
-                result.preparedArtworkKeys.add (metadata.track.artworkCacheKey);
+                metadata.ok = false;
+                metadata.error = "Audio file changed while its metadata was being read.";
             }
-            else if (artworkError.isNotEmpty())
-                result.artworkWarnings.add (file.getFullPathName() + " (" + artworkError + ")");
-        }
-        for (const auto* record : records)
-            if (record != known)
+            if (! metadata.ok)
             {
-                auto alias = metadata;
-                preserveLibraryFields (alias.track, *record);
-                alias.track.file = record->file;
-                result.updates.push_back (std::move (alias));
+                errors[index] = file.getFullPathName() + " (" + metadata.error + ")";
+                for (const auto* record : request.records)
+                {
+                    TrackMetadataResult failed;
+                    failed.track = *record;
+                    if (record == known) failed.track.file = file;
+                    failed.track.available = false;
+                    failed.error = metadata.error;
+                    updates[index].push_back (std::move (failed));
+                }
+                return;
             }
-        result.updates.push_back (std::move (metadata));
+
+            if (known != nullptr) preserveLibraryFields (metadata.track, *known);
+            metadata.track.fileIdentity = before.identity;
+            metadata.track.fileSizeBytes = before.size;
+            metadata.track.fileModifiedAtMs = before.modifiedAtMs;
+            if (! metadata.artworkData.isEmpty() && artworkStore.root() != juce::File())
+            {
+                juce::String artworkError;
+                metadata.track.artworkCacheKey = artworkStore.store (
+                    "scan-" + juce::Uuid().toString(), metadata.artworkData, artworkError, &encoding);
+                metadata.artworkData = {};
+                if (metadata.track.artworkCacheKey.isNotEmpty())
+                {
+                    artworkKeys[requestIndex] = metadata.track.artworkCacheKey;
+                    const std::lock_guard lock (lifecycle->artworkMutex);
+                    lifecycle->preparedArtworkKeys.add (metadata.track.artworkCacheKey);
+                }
+                else if (artworkError.isNotEmpty())
+                    artworkWarnings[index] = file.getFullPathName() + " (" + artworkError + ")";
+            }
+            for (const auto* record : request.records)
+                if (record != known)
+                {
+                    auto alias = metadata;
+                    if (trackFileStamp (record->file) != before)
+                    {
+                        alias.ok = false;
+                        alias.track = *record;
+                        alias.track.available = false;
+                        alias.artworkData = {};
+                        alias.error = "Linked audio file changed while its metadata was being read.";
+                        if (errors[index].isNotEmpty()) errors[index] += "; ";
+                        errors[index] += record->file.getFullPathName() + " (" + alias.error + ")";
+                    }
+                    else
+                    {
+                        preserveLibraryFields (alias.track, *record);
+                        alias.track.file = record->file;
+                    }
+                    updates[index].push_back (std::move (alias));
+                }
+            updates[index].push_back (std::move (metadata));
+        },
+        [&] (size_t completed, size_t index)
+        {
+            postProgress ({ MusicDirectoryScanProgress::Stage::reading,
+                static_cast<int> (files.size() - requests.size() + completed), result.discoveredFiles,
+                files[requests[index].fileIndex].getFileName() });
+        });
+    result.metadataReads = metadataReads.load();
+    for (const auto& key : artworkKeys)
+        if (key.isNotEmpty()) result.preparedArtworkKeys.add (key);
+    for (size_t index = 0; index < files.size(); ++index)
+    {
+        if (errors[index].isNotEmpty()) result.errors.add (errors[index]);
+        if (artworkWarnings[index].isNotEmpty()) result.artworkWarnings.add (artworkWarnings[index]);
+        for (auto& update : updates[index]) result.updates.push_back (std::move (update));
     }
 
     if (! cancelled())

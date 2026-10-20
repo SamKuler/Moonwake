@@ -2,6 +2,15 @@
 
 #include <juce_core/juce_core.h>
 
+struct TrackTagData
+{
+    juce::StringPairArray metadata;
+    juce::StringArray artists;
+};
+
+// Reads metadata and format-defined artist values in one bounded container pass.
+[[nodiscard]] TrackTagData readTrackTags (const juce::File&);
+
 // Supplement flattened decoder metadata with format-defined artist values.
 // ID3v2.3/2.4 TPE1, FLAC comments, and the first Ogg Vorbis logical stream.
 // Unsupported, oversized, or malformed tags return no values for decoder fallback.

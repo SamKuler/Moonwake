@@ -3,6 +3,7 @@
 
 #include "library/MusicDirectoryScanService.h"
 #include "fixtures/TrackMetadataFixtures.h"
+#include "fixtures/FlacArtwork.h"
 #include "fixtures/FileAlias.h"
 #include "fixtures/DirectoryAccess.h"
 
@@ -104,6 +105,43 @@ public:
                 expectEquals (unchanged.metadataReads, 0);
                 expect (unchanged.updates.empty());
             }
+        }
+
+        beginTest ("parallel mixed-format reads retain natural order and unchanged scans skip every reader");
+        {
+            ScanFixture fixture;
+            const auto music = fixture.root.getChildFile ("Music");
+            const auto cache = fixture.root.getChildFile ("Artwork");
+            expect (music.createDirectory());
+            expect (writeScanArtwork (music.getChildFile ("cover.png")));
+            constexpr int count = 18;
+            for (int index = count; index > 0; --index)
+            {
+                const auto name = "track-" + juce::String (index);
+                if (index % 3 == 0) expect (flacArtworkFixture::write (music.getChildFile (name + ".flac"), {}));
+                else if (index % 3 == 1) expect (writeScanWav (music.getChildFile (name + ".wav"), name));
+                else expect (trackMetadataFixtures::writeMp3 (music.getChildFile (name + ".mp3"), 4, 3, { "First", "AC/DC" }));
+            }
+            MusicDirectoryScanService service (cache);
+            const std::vector<MusicDirectory> directories { { "music", music, true } };
+            const auto first = scan (service, directories);
+            expectEquals (first.metadataReads, count);
+            expectEquals (static_cast<int> (first.updates.size()), count);
+            expectEquals (first.preparedArtworkKeys.size(), count);
+            expect (first.errors.isEmpty() && first.artworkWarnings.isEmpty());
+            std::vector<TrackItem> known;
+            for (size_t index = 0; index < first.updates.size(); ++index)
+            {
+                const auto& track = first.updates[index].track;
+                expectEquals (track.file.getFileNameWithoutExtension(), "track-" + juce::String (static_cast<int> (index) + 1));
+                expect (ArtworkStore (cache).isValid (track.artworkCacheKey));
+                if (track.file.hasFileExtension ("mp3")) expect (track.artists == juce::StringArray { "First", "AC/DC" });
+                known.push_back (track);
+            }
+            const auto unchanged = scan (service, directories, known);
+            expectEquals (unchanged.metadataReads, 0);
+            expectEquals (unchanged.unchangedFiles, count);
+            expect (unchanged.updates.empty() && unchanged.preparedArtworkKeys.isEmpty());
         }
 
         beginTest ("Unicode directory scans preserve exact paths and skip unchanged metadata");
@@ -424,6 +462,80 @@ public:
             expect (! result.errors.isEmpty());
             if (! result.roots.empty())
                 expect (result.roots.front().status == MusicDirectoryScanRootReport::Status::incomplete);
+        }
+
+        beginTest ("a planned alias replaced during parallel reads stays unavailable instead of copying stale metadata");
+        {
+            ScanFixture fixture;
+            const auto cache = fixture.root.getChildFile ("Artwork");
+            expect (cache.createDirectory());
+            juce::Image image (juce::Image::RGB, 2000, 1000, true);
+            { juce::Graphics g (image); g.fillAll (juce::Colours::darkorange); }
+            juce::MemoryOutputStream encoded;
+            expect (juce::PNGImageFormat().writeImageToStream (image, encoded));
+            const auto picture = flacArtworkFixture::picture (encoded.getMemoryBlock());
+            for (int index = 0; index < 8; ++index)
+                expect (flacArtworkFixture::write (fixture.root.getChildFile ("0-slow-" + juce::String (index) + ".flac"), { picture }));
+            const auto source = fixture.root.getChildFile ("source.wav");
+            const auto alias = fixture.root.getChildFile ("z-alias.wav");
+            expect (writeScanWav (source, "Original recording"));
+            std::error_code linkError;
+            std::filesystem::create_hard_link (nativeFilesystem::toNativePath (source), nativeFilesystem::toNativePath (alias), linkError);
+            expect (! linkError, juce::String (linkError.message()));
+            TrackMetadataReader reader;
+            auto original = reader.read (source, false).track;
+            original.id = "source-id";
+            original.available = false;
+            auto linked = original;
+            linked.id = "alias-id";
+            linked.file = alias;
+            auto third = linked;
+            third.id = "second-alias-id";
+            third.file = fixture.root.getChildFile ("z-second-alias.wav");
+            std::filesystem::create_hard_link (nativeFilesystem::toNativePath (source), nativeFilesystem::toNativePath (third.file), linkError);
+            expect (! linkError, juce::String (linkError.message()));
+            const std::vector<TrackItem> known { original, linked, third };
+            auto representative = source;
+            for (const auto& entry : std::filesystem::recursive_directory_iterator (nativeFilesystem::toNativePath (fixture.root)))
+            {
+                const auto file = nativeFilesystem::fromNativePath (entry.path());
+                if (file == source || file == alias || file == third.file)
+                {
+                    representative = file;
+                    break;
+                }
+            }
+            MusicDirectoryScanService service (cache);
+            bool completed = false, replaced = false;
+            MusicDirectoryScanResult result;
+            expect (service.start ({ { "music", fixture.root, true } }, known,
+                [&] (const MusicDirectoryScanProgress& progress)
+                {
+                    if (! replaced && progress.stage == LibraryImportProgress::Stage::reading && progress.processed == 0)
+                    {
+                        for (const auto& track : known)
+                            if (track.file != representative) expect (writeScanWav (track.file, "Replacement recording"));
+                        replaced = true;
+                    }
+                }, [&] (MusicDirectoryScanResult prepared) { result = std::move (prepared); completed = true; }));
+            expect (dispatchScanUntil ([&] { return completed; }));
+            expect (replaced);
+            for (const auto& track : known)
+            {
+                const auto update = std::find_if (result.updates.begin(), result.updates.end(),
+                    [&] (const auto& item) { return item.track.id == track.id; });
+                expect (update != result.updates.end());
+                if (update == result.updates.end()) continue;
+                if (track.file == representative) expect (update->ok && update->track.available);
+                else
+                {
+                    expect (! update->ok && ! update->track.available);
+                    expect (update->error.contains ("changed"));
+                    expect (result.errors.joinIntoString (";").contains (track.file.getFileName()),
+                            "Each changed alias reaches the scan warning summary.");
+                }
+            }
+
         }
 
         beginTest ("busy state includes queued completion and cancellation discards only newly prepared artwork");

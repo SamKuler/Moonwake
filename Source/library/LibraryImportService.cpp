@@ -1,5 +1,7 @@
 #include "LibraryImportService.h"
 
+#include "LibraryReadBatch.h"
+
 #include "platform/FilesystemPath.h"
 
 #include "playlist/PlaylistFile.h"
@@ -8,21 +10,20 @@
 #include <algorithm>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <set>
 #include <utility>
 
 namespace
 {
-void discardImportedTracks (LibraryImportResult& result, const ArtworkStore& artworkStore)
+void discardImportedTracks (LibraryImportResult& result, const ArtworkStore& artworkStore,
+                             const juce::StringArray& preparedArtworkKeys)
 {
-    std::set<juce::String> keys;
-    for (const auto& metadata : result.tracks)
-        if (metadata.track.artworkCacheKey.isNotEmpty())
-            keys.insert (metadata.track.artworkCacheKey);
-    for (const auto& key : keys)
+    for (const auto& key : preparedArtworkKeys)
         static_cast<void> (artworkStore.remove (key));
     result.tracks.clear();
 }
+
 } // namespace
 
 LibraryImportService::LibraryImportService (juce::File artworkCacheRoot)
@@ -250,68 +251,95 @@ void LibraryImportService::run()
     if (threadShouldExit() || cancellationRequested->load())
         result.cancelled = true;
 
-    TrackMetadataReader reader;
-    std::map<juce::String, size_t> preparedFiles;
-    auto lastProgressTime = 0.0;
-    for (int index = 0; index < files.size(); ++index)
+    std::vector<juce::File> uniqueFiles;
+    std::vector<size_t> sourceIndices;
+    std::map<juce::String, size_t> sourceByIdentity;
+    for (const auto& file : files)
     {
-        if (threadShouldExit() || cancellationRequested->load())
+        if (threadShouldExit() || cancellationRequested->load()) break;
+        const auto identity = result.playlistImport ? trackFileIdentity (file) : juce::String {};
+        const auto found = sourceByIdentity.find (identity);
+        if (result.playlistImport && found != sourceByIdentity.end())
+            sourceIndices.push_back (found->second);
+        else
         {
-            result.cancelled = true;
-            break;
+            sourceIndices.push_back (uniqueFiles.size());
+            if (result.playlistImport) sourceByIdentity.emplace (identity, uniqueFiles.size());
+            uniqueFiles.push_back (file);
         }
-        const auto now = juce::Time::getMillisecondCounterHiRes();
-        if (index == 0 || index == files.size() - 1
-            || now - lastProgressTime >= 100.0)
+    }
+    std::vector<std::optional<TrackMetadataResult>> prepared (uniqueFiles.size());
+    std::vector<juce::String> artworkErrors (uniqueFiles.size());
+    const auto cancelled = [&] { return threadShouldExit() || cancellationRequested->load(); };
+    readLibraryBatch (uniqueFiles.size(), cancelled,
+        [&] (size_t index, TrackMetadataReader& reader, ArtworkStore::EncodingCache& encoding)
         {
-            postProgress ({ LibraryImportProgress::Stage::reading,
-                            index, files.size(), files[index].getFileName() });
-            lastProgressTime = now;
-        }
-        const auto identity = result.playlistImport ? trackFileIdentity (files[index]) : juce::String();
-        const auto cached = preparedFiles.find (identity);
-        auto metadata = cached != preparedFiles.end()
-            ? result.tracks[cached->second] : reader.read (files[index]);
-        metadata.track.file = files[index];
-        if (! metadata.ok && cached == preparedFiles.end())
-            result.skippedPaths.add (files[index].getFullPathName() + " (" + metadata.error + ")");
-        if (metadata.ok && cached == preparedFiles.end())
-        {
-            if (metadata.artworkData.getSize() > 0
-                && artworkStore.root() != juce::File())
+            auto metadata = reader.read (uniqueFiles[index]);
+            if (cancelled()) return;
+            if (metadata.ok && ! metadata.artworkData.isEmpty() && artworkStore.root() != juce::File())
             {
-                juce::String artworkError;
                 metadata.track.artworkCacheKey = artworkStore.store (
-                    metadata.track.id, metadata.artworkData, artworkError);
+                    metadata.track.id, metadata.artworkData, artworkErrors[index], &encoding);
                 metadata.artworkData = {};
-                if (metadata.track.artworkCacheKey.isEmpty()
-                    && artworkError.isNotEmpty())
-                    result.artworkWarnings.add (
-                        files[index].getFullPathName() + " ("
-                            + artworkError + ")");
             }
+            prepared[index] = std::move (metadata);
+        },
+        [&] (size_t completed, size_t index)
+        {
+            postProgress ({ LibraryImportProgress::Stage::reading, static_cast<int> (completed),
+                static_cast<int> (uniqueFiles.size()), uniqueFiles[index].getFileName() });
+        });
+    juce::StringArray preparedArtworkKeys;
+    for (size_t index = 0; index < prepared.size(); ++index)
+    {
+        if (prepared[index])
+        {
+            if (prepared[index]->track.artworkCacheKey.isNotEmpty())
+                preparedArtworkKeys.add (prepared[index]->track.artworkCacheKey);
+            if (! prepared[index]->ok)
+                result.skippedPaths.add (uniqueFiles[index].getFullPathName() + " (" + prepared[index]->error + ")");
         }
-        if (result.playlistImport)
+        if (artworkErrors[index].isNotEmpty())
+            result.artworkWarnings.add (uniqueFiles[index].getFullPathName() + " (" + artworkErrors[index] + ")");
+    }
+    for (int index = 0; index < files.size() && ! cancelled(); ++index)
+    {
+        const auto& source = prepared[sourceIndices[static_cast<size_t> (index)]];
+        if (! source) continue;
+        auto metadata = *source;
+        if (metadata.ok && trackFileStamp (files[index]) != TrackFileStamp {
+                metadata.track.fileIdentity, metadata.track.fileSizeBytes, metadata.track.fileModifiedAtMs })
+        {
+            metadata = {};
+            metadata.error = "Audio file changed after its metadata was read. Import it again to refresh this entry.";
+            metadata.track.available = false;
+            result.skippedPaths.addIfNotAlreadyThere (files[index].getFullPathName() + " (" + metadata.error + ")");
+        }
+        metadata.track.file = files[index];
+        if (result.playlistImport && ! metadata.ok)
         {
             const auto& entry = playlist.entries[static_cast<size_t> (index)];
-            if (! metadata.ok)
-            {
-                metadata.track.available = false;
-                metadata.track.title = entry.title.isNotEmpty() ? entry.title
-                    : entry.file.getFileNameWithoutExtension();
-                metadata.track.durationSeconds = entry.durationSeconds;
-            }
-            preparedFiles.emplace (identity, result.tracks.size());
+            metadata.track.available = false;
+            metadata.track.title = entry.title.isNotEmpty() ? entry.title : entry.file.getFileNameWithoutExtension();
+            metadata.track.durationSeconds = entry.durationSeconds;
         }
-        if (metadata.ok || result.playlistImport)
-            result.tracks.push_back (std::move (metadata));
+        if (metadata.ok || result.playlistImport) result.tracks.push_back (std::move (metadata));
     }
 
+    std::set<juce::String> retainedArtwork;
+    for (const auto& metadata : result.tracks)
+        if (metadata.track.artworkCacheKey.isNotEmpty()) retainedArtwork.insert (metadata.track.artworkCacheKey);
+    for (int index = preparedArtworkKeys.size(); --index >= 0;)
+        if (! retainedArtwork.contains (preparedArtworkKeys[index]))
+        {
+            static_cast<void> (artworkStore.remove (preparedArtworkKeys[index]));
+            preparedArtworkKeys.remove (index);
+        }
     if (threadShouldExit() || cancellationRequested->load())
         result.cancelled = true;
 
     if (result.cancelled)
-        discardImportedTracks (result, artworkStore);
+        discardImportedTracks (result, artworkStore, preparedArtworkKeys);
 
     auto completion = std::move (completionCallback);
     const auto lifecycle = completionPending;
@@ -321,12 +349,12 @@ void LibraryImportService::run()
     pendingPlaylistFile = juce::File {};
     juce::MessageManager::callAsync (
         [lifecycle, cancellation, completion, cache = artworkStore,
-         completed = std::move (result)] () mutable
+         completed = std::move (result), keys = std::move (preparedArtworkKeys)] () mutable
         {
             if (cancellation->load())
             {
                 completed.cancelled = true;
-                discardImportedTracks (completed, cache);
+                discardImportedTracks (completed, cache, keys);
             }
             if (completion) completion (std::move (completed));
             lifecycle->store (false);

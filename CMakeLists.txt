@@ -190,6 +190,7 @@ set(MOONWAKE_SOURCES
     Source/library/MusicDirectoryScanService.cpp
     Source/playlist/PlaylistFile.cpp
     Source/library/LibraryFilter.cpp
+    Source/library/LibraryReadBatch.cpp
     Source/library/LibraryImportService.cpp
     Source/library/LibraryRestore.cpp
     Source/playlist/TrackFileIdentity.cpp
@@ -407,6 +408,7 @@ add_executable(MoonwakeTests
         Source/library/MusicDirectoryScanService.cpp
         Source/playlist/PlaylistFile.cpp
         Source/library/LibraryFilter.cpp
+        Source/library/LibraryReadBatch.cpp
         Source/library/LibraryImportService.cpp
         Source/library/LibraryRestore.cpp
         Source/audio/ChannelRouter.cpp
@@ -549,6 +551,7 @@ add_executable(MoonwakeTests
         Tests/LibraryRestoreTests.cpp
         Tests/ArtworkStoreTests.cpp
         Tests/LibraryFilterTests.cpp
+        Tests/LibraryReadBatchTests.cpp
         Tests/LibraryImportServiceTests.cpp
         Tests/NowPlayingCoordinatorTests.cpp
 )

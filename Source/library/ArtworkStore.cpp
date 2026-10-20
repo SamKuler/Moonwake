@@ -156,7 +156,7 @@ juce::String ArtworkStore::store (const juce::String& trackId,
         }
     }
 
-    if (! rootDirectory.isDirectory() && ! rootDirectory.createDirectory())
+    if (! rootDirectory.isDirectory() && ! rootDirectory.createDirectory() && ! rootDirectory.isDirectory())
     {
         errorMessage = "Could not create artwork cache directory: "
                      + rootDirectory.getFullPathName();

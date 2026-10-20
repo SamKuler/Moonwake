@@ -215,6 +215,7 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
         return result;
     }
 
+    const auto before = trackFileStamp (file);
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
     if (reader == nullptr)
     {
@@ -255,7 +256,8 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
 #endif
     auto fallbackTrack = result.track;
     fallbackTrack.title.clear();
-    const auto supplementalTags = readTrackMetadataTags (file);
+    auto tags = readTrackTags (file);
+    const auto& supplementalTags = tags.metadata;
     applyMetadata (fallbackTrack, supplementalTags);
     auto gainTags = metadata;
     gainTags.addArray (supplementalTags);
@@ -268,7 +270,7 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
     if ((preferTaggedMetadata || result.track.year == 0) && fallbackTrack.year > 0) result.track.year = fallbackTrack.year;
     if ((preferTaggedMetadata || result.track.trackNumber == 0) && fallbackTrack.trackNumber > 0) result.track.trackNumber = fallbackTrack.trackNumber;
     if ((preferTaggedMetadata || result.track.discNumber == 0) && fallbackTrack.discNumber > 0) result.track.discNumber = fallbackTrack.discNumber;
-    auto artists = readTrackArtistTags (file);
+    auto artists = std::move (tags.artists);
 #if JUCE_MAC
     if (artists.isEmpty()) artists = macMetadata.artists;
 #endif
@@ -289,9 +291,18 @@ TrackMetadataResult TrackMetadataReader::read (const juce::File& file,
         if (result.artworkData.isEmpty())
             result.artworkData = ArtworkExtractor::find (file, metadata);
     }
-    result.track.fileSizeBytes = file.getSize();
-    result.track.fileModifiedAtMs = file.getLastModificationTime().toMilliseconds();
-    result.track.fileIdentity = trackFileIdentity (file);
+    const auto after = trackFileStamp (file);
+    if (before.identity.isEmpty() || before != after)
+    {
+        result.track = TrackItem { file, file.getFileNameWithoutExtension(), 0.0 };
+        result.track.available = false;
+        result.artworkData = {};
+        result.error = "Audio file changed while its metadata was being read.";
+        return result;
+    }
+    result.track.fileSizeBytes = after.size;
+    result.track.fileModifiedAtMs = after.modifiedAtMs;
+    result.track.fileIdentity = after.identity;
     result.track.available = true;
     result.ok = true;
     return result;

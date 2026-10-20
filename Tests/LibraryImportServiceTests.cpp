@@ -1,8 +1,11 @@
 #include "fixtures/FileAlias.h"
+#include <filesystem>
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
 
 #include "library/LibraryImportService.h"
+#include "library/MusicLibrary.h"
+#include "fixtures/FlacArtwork.h"
 
 namespace
 {
@@ -127,6 +130,60 @@ public:
             expect (root.deleteRecursively());
         }
 
+        beginTest ("parallel folder imports preserve natural order and cancel only their own staged covers");
+        {
+            const auto root = importFixtureDirectory();
+            const auto music = root.getChildFile ("Music");
+            const auto cache = root.getChildFile ("Artwork");
+            expect (music.createDirectory());
+            expect (writeImportArtwork (music.getChildFile ("cover.png")));
+            constexpr int count = 24;
+            for (int index = count; index > 0; --index)
+                expect (writeImportWav (music.getChildFile ("track-" + juce::String (index) + ".wav"), "Title " + juce::String (index)));
+            LibraryImportService service (cache);
+            bool completed = false;
+            LibraryImportResult result;
+            expect (service.start ({ music }, {}, [&] (LibraryImportResult prepared)
+            {
+                result = std::move (prepared);
+                completed = true;
+            }));
+            expect (dispatchImportUntil ([&] { return completed; }));
+            expect (! result.cancelled && result.skippedPaths.isEmpty() && result.artworkWarnings.isEmpty());
+            expectEquals (static_cast<int> (result.tracks.size()), count);
+            juce::StringArray acceptedKeys;
+            for (size_t index = 0; index < result.tracks.size(); ++index)
+            {
+                const auto& track = result.tracks[index].track;
+                expectEquals (track.title, "Title " + juce::String (static_cast<int> (index) + 1));
+                expect (ArtworkStore (cache).isValid (track.artworkCacheKey));
+                acceptedKeys.addIfNotAlreadyThere (track.artworkCacheKey);
+            }
+            expectEquals (acceptedKeys.size(), count);
+            completed = false;
+            bool cancellationRequested = false;
+            expect (service.start ({ music }, [&] (const LibraryImportProgress& progress)
+            {
+                expect (juce::MessageManager::getInstance()->isThisTheMessageThread());
+                if (progress.stage == LibraryImportProgress::Stage::reading && progress.processed == progress.total)
+                {
+                    cancellationRequested = true;
+                    expectEquals (cache.findChildFiles (juce::File::findFiles, false, "*.png").size(), count * 2);
+                    service.cancel();
+                }
+            }, [&] (LibraryImportResult prepared)
+            {
+                expect (prepared.cancelled);
+                expect (prepared.tracks.empty());
+                completed = true;
+            }));
+            expect (dispatchImportUntil ([&] { return completed; }));
+            expect (cancellationRequested);
+            expectEquals (cache.findChildFiles (juce::File::findFiles, false, "*.png").size(), count);
+            for (const auto& key : acceptedKeys) expect (ArtworkStore (cache).isValid (key));
+            expect (root.deleteRecursively());
+        }
+
         beginTest ("reports missing roots and honours cancellation");
         {
             const auto missing = importFixtureDirectory();
@@ -233,7 +290,7 @@ public:
             }));
             expect (dispatchImportUntil ([&] { return completed; }));
             expect (progressOnMessageThread);
-            expectEquals (total, 7);
+            expectEquals (total, 4, "Progress counts unique source files; duplicate playlist entries remain intact.");
             expect (result.playlistImport);
             expect (! result.cancelled);
             expect (result.error.isEmpty(), result.error);
@@ -299,6 +356,61 @@ public:
             expect (root.deleteRecursively());
         }
 
+        beginTest ("playlist alias replacement after planning cannot merge distinct recordings");
+        {
+            const auto root = importFixtureDirectory();
+            expect (root.createDirectory());
+            const auto cache = root.getChildFile ("Artwork");
+            expect (cache.createDirectory());
+            juce::Image image (juce::Image::RGB, 2000, 1000, true);
+            { juce::Graphics g (image); g.fillAll (juce::Colours::darkorange); }
+            juce::MemoryOutputStream encoded;
+            expect (juce::PNGImageFormat().writeImageToStream (image, encoded));
+            const auto picture = flacArtworkFixture::picture (encoded.getMemoryBlock());
+            juce::String playlistText;
+            for (int index = 0; index < 8; ++index)
+            {
+                const auto file = root.getChildFile ("slow-" + juce::String (index) + ".flac");
+                expect (flacArtworkFixture::write (file, { picture }));
+                playlistText += file.getFileName() + "\n";
+            }
+            const auto source = root.getChildFile ("source.wav");
+            const auto alias = root.getChildFile ("alias.wav");
+            expect (writeImportWav (source, "Original recording"));
+            std::error_code linkError;
+            std::filesystem::create_hard_link (nativeFilesystem::toNativePath (source), nativeFilesystem::toNativePath (alias), linkError);
+            expect (! linkError, juce::String (linkError.message()));
+            const auto playlist = root.getChildFile ("changing.m3u8");
+            expect (playlist.replaceWithText (playlistText + "source.wav\nalias.wav\n"));
+            LibraryImportService service (cache);
+            bool completed = false, replaced = false;
+            LibraryImportResult result;
+            expect (service.startPlaylist (playlist, [&] (const LibraryImportProgress& progress)
+            {
+                if (! replaced && progress.stage == LibraryImportProgress::Stage::reading && progress.processed == 0)
+                {
+                    expect (alias.deleteFile());
+                    expect (writeImportWav (alias, "Replacement recording"));
+                    replaced = true;
+                }
+            }, [&] (LibraryImportResult prepared) { result = std::move (prepared); completed = true; }));
+            expect (dispatchImportUntil ([&] { return completed; }));
+            expect (replaced);
+            expectEquals (static_cast<int> (result.tracks.size()), 10);
+            if (result.tracks.size() == 10)
+            {
+                expect (result.tracks[8].ok && result.tracks[8].track.available);
+                expect (! result.tracks[9].ok && ! result.tracks[9].track.available);
+                expect (result.tracks[9].error.contains ("changed"));
+                MusicLibrary library;
+                const auto first = library.upsertTrack (result.tracks[8].track);
+                const auto second = library.upsertTrack (result.tracks[9].track);
+                expect (first != second, "Separated physical files retain separate canonical records.");
+                expectEquals (static_cast<int> (library.getTracks().size()), 2);
+            }
+            expect (root.deleteRecursively());
+        }
+
         beginTest ("playlist parse failure reports an error without any partially prepared tracks");
         {
             const auto root = importFixtureDirectory();
@@ -354,7 +466,7 @@ public:
             expect (service.startPlaylist (playlist, [&] (const LibraryImportProgress& progress)
             {
                 if (progress.stage == LibraryImportProgress::Stage::reading
-                    && progress.processed == progress.total - 1)
+                    && progress.processed == progress.total)
                 {
                     expectEquals (cache.findChildFiles (juce::File::findFiles, false, "*.png").size(), 2);
                     requestedCancellation = true;
@@ -407,7 +519,7 @@ public:
                 [&] (const LibraryImportProgress& progress)
                 {
                     if (progress.stage == LibraryImportProgress::Stage::reading
-                        && progress.processed == progress.total - 1)
+                        && progress.processed == progress.total)
                     {
                         expect (! completed);
                         expect (service.isRunning());
